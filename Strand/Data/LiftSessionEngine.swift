@@ -126,11 +126,12 @@ struct LiftSessionEngine: Equatable {
         case finished
     }
 
-    /// The lines being worked. MUTABLE in two ways only, both because a gym decides them as it goes:
+    /// The lines being worked. MUTABLE in three ways only, all because a gym decides them as it goes:
     /// how many sets a line holds — a fifth set on a line that planned four, or dropping the last one
-    /// when the tank is empty — and a line added at the end for an exercise the program does not have.
-    /// Nothing about a line already there changes mid-session, so the plan stays the snapshot it was at
-    /// start, plus whatever was added.
+    /// when the tank is empty — a line added at the end for an exercise the program does not have, and
+    /// the rest a superset takes between its rounds (`setRest(_:forBlockOf:)`, from the block's ready
+    /// screen). Nothing else about a line already there changes mid-session, so the plan stays the
+    /// snapshot it was at start, plus whatever was added.
     private(set) var plan: [LiftPlanItem]
     /// When the session began (unix seconds).
     let startTs: Int
@@ -451,17 +452,7 @@ struct LiftSessionEngine: Equatable {
 
         case .working(let slot):
             pushHistory()
-            // Timing only: the numbers stay grey until typed (see `carry(for:lastSession:)`). A
-            // superset records every member of the round here, with the round's timing: one tap, one
-            // round, and nothing in between to tick.
-            for member in roundSlots(for: slot) {
-                sets.append(LiftRecordedSet(
-                    exerciseIndex: member.exerciseIndex, setIndex: member.setIndex,
-                    weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
-                    startTs: stageStartedAt, endTs: now, restSec: nil))
-            }
-            stage = .resting(slot, endsAt: now + restAfter(slot))
-            stageStartedAt = now
+            recordRound(slot, now: now)
 
         case .resting(let slot, _):
             pushHistory()
@@ -484,6 +475,76 @@ struct LiftSessionEngine: Equatable {
         case .finished:
             break
         }
+    }
+
+    /// Close the round being worked: every member's set is recorded with the round's timing, and the
+    /// rest that follows starts now. Timing only — the numbers stay grey until typed (see
+    /// `carry(for:lastSession:)`). One tap, one round, and nothing in between to tick. The caller
+    /// pushes the undo snapshot.
+    private mutating func recordRound(_ slot: LiftSlot, now: Int) {
+        for member in roundSlots(for: slot) {
+            sets.append(LiftRecordedSet(
+                exerciseIndex: member.exerciseIndex, setIndex: member.setIndex,
+                weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
+                startTs: stageStartedAt, endTs: now, restSec: nil))
+        }
+        stage = .resting(slot, endsAt: now + restAfter(slot))
+        stageStartedAt = now
+    }
+
+    // MARK: - The guided superset screens (personal fork)
+    //
+    // Three moves the superset screens offer that a tap on the strap cannot: more time on the running
+    // rest, a different rest for the block, and leaving the block before its last round. Each is one
+    // undo step, and none of them invents a set.
+
+    /// Longest rest a block can be given from its ready screen: ten minutes, a bound against a stuck
+    /// finger rather than advice.
+    static let maxRestSec = 600
+
+    /// Push the running rest's end back by `seconds` — the "+30 s" on the rest screen. Counted from now
+    /// when the rest has already run out, so the extra time is always time still to come. False, and
+    /// nothing changed, when no rest is running.
+    @discardableResult
+    mutating func extendRest(by seconds: Int, now: Int) -> Bool {
+        guard seconds > 0, case .resting(let slot, let endsAt) = stage else { return false }
+        pushHistory()
+        stage = .resting(slot, endsAt: max(endsAt, now) + seconds)
+        return true
+    }
+
+    /// The rest the block `index` belongs to takes after each of its rounds, for this session. It is
+    /// stored on the block's LAST line, the one `restAfter(_:)` reads, and bounded to
+    /// `0...maxRestSec`. A rest already running keeps its end: this is the rest of the rounds to come.
+    /// False when nothing changed. Finishing asks whether the program keeps it
+    /// (`LiftSessionController.restChanges`).
+    @discardableResult
+    mutating func setRest(_ seconds: Int, forBlockOf index: Int) -> Bool {
+        guard let owner = supersetMembers(of: index).last else { return false }
+        let value = min(max(0, seconds), Self.maxRestSec)
+        guard plan[owner].restSec != value else { return false }
+        pushHistory()
+        plan[owner].restSec = value
+        return true
+    }
+
+    /// Leave the block the session stands on: the round being worked counts as done (it was lifted),
+    /// and the rounds still to do are dropped from THIS session, so nothing asks about them as
+    /// unfinished sets. The rest after the last round runs as usual, and the session then waits for
+    /// the next block — it never starts another machine by itself. Done rounds are never dropped, and a
+    /// line keeps at least one set. False when the session stands on no set.
+    @discardableResult
+    mutating func endBlock(now: Int) -> Bool {
+        guard let slot = currentSlot else { return false }
+        pushHistory()
+        if case .working(let working) = stage { recordRound(working, now: now) }
+        for member in supersetMembers(of: slot.exerciseIndex) {
+            while plan[member].targetSets > 1,
+                  !isCompleted(LiftSlot(exerciseIndex: member, setIndex: plan[member].targetSets)) {
+                plan[member].targetSets -= 1
+            }
+        }
+        return true
     }
 
     /// Fill in (or correct) what a set actually was. Editing, never appending — the set already

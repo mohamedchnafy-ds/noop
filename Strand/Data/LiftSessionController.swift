@@ -257,6 +257,49 @@ final class LiftSessionController: ObservableObject {
         advance()
     }
 
+    /// How much one tap on the rest screen's "+30 s" adds.
+    static let restExtensionSec = 30
+    /// The step of the ready screen's rest control.
+    static let restStepSec = 15
+
+    /// More time on the running rest (`LiftSessionEngine.extendRest`). The rest's timers follow the new
+    /// end by themselves (`scheduleRestTimers`), so the warning buzz moves with it, and so does the Lock
+    /// Screen banner, which reads the end from the session.
+    func extendRest(by seconds: Int = LiftSessionController.restExtensionSec) {
+        // Checked before touching `engine`: a mutating call through the published property publishes even
+        // when it declines.
+        guard case .resting = engine?.stage else { return }
+        engine?.extendRest(by: seconds, now: Self.unixNow)
+        persist()
+    }
+
+    /// The rest a block takes between its rounds, for this session (`LiftSessionEngine.setRest`).
+    func setRest(_ seconds: Int, forBlockOf index: Int) {
+        guard let current = engine, let owner = current.supersetMembers(of: index).last,
+              current.plan[owner].restSec != min(max(0, seconds), LiftSessionEngine.maxRestSec) else { return }
+        engine?.setRest(seconds, forBlockOf: index)
+        persist()
+    }
+
+    /// Leave the block the session stands on (`LiftSessionEngine.endBlock`): the round in hand is
+    /// recorded, with whatever was typed for it, and the rounds left are dropped — along with anything
+    /// typed or marked for them, which would otherwise come back if a round were added again.
+    func endBlock() {
+        guard let current = engine, current.currentSlot != nil else { return }
+        let recordedBefore = current.sets.count
+        engine?.endBlock(now: Self.unixNow)
+        applyPendingInput(from: recordedBefore)
+        if let plan = engine?.plan {
+            func exists(_ slot: LiftSlot) -> Bool {
+                plan.indices.contains(slot.exerciseIndex) && slot.setIndex <= plan[slot.exerciseIndex].targetSets
+            }
+            pendingValues = pendingValues.filter { exists($0.key) }
+            pendingWarmups = pendingWarmups.filter(exists)
+        }
+        warnedFor = nil
+        persist()
+    }
+
     /// Start a superset's next round once its rest has run out (`LiftSessionEngine.startNextRoundIfRestEnded`).
     /// Fired by the rest's end timer, and on resume for a rest that ran out while NOOP was not running.
     /// The round is stamped with the rest's end, not with now.
@@ -636,6 +679,38 @@ final class LiftSessionController: ObservableObject {
         }
     }
 
+    /// A program line whose rest this session changed — a superset's rest, set from its ready screen.
+    struct RestChange: Equatable {
+        var itemId: String
+        var exercise: String
+        var from: Int
+        var to: Int
+    }
+
+    /// Lines whose rest in this session differs from the program's current one. A line with no rest
+    /// counts as the default, as it does when a session starts; lines without a program line behind
+    /// them, or deleted since, are skipped, as for set counts.
+    static func restChanges(plan: [LiftPlanItem], program items: [LiftProgramItemRow]) -> [RestChange] {
+        let byId = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return plan.compactMap { line in
+            guard let id = line.programItemId, let row = byId[id] else { return nil }
+            let saved = max(0, row.restSec ?? LiftPlanItem.defaultRestSec)
+            guard saved != line.restSec else { return nil }
+            return RestChange(itemId: id, exercise: line.exercise, from: saved, to: line.restSec)
+        }
+    }
+
+    /// The program's lines with `changes` applied. Only `restSec` moves.
+    static func applying(_ changes: [RestChange], to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
+        let rests = Dictionary(changes.map { ($0.itemId, $0.to) }, uniquingKeysWith: { first, _ in first })
+        return items.map { row in
+            guard let rest = rests[row.id] else { return row }
+            var edited = row
+            edited.restSec = rest
+            return edited
+        }
+    }
+
     /// The program's lines with each one's HEAVIEST done set this session as its new weight and reps.
     ///
     /// Utku, 21 Sep 2026: numbers typed during a session update the program, without asking. A line holds
@@ -677,8 +752,8 @@ final class LiftSessionController: ObservableObject {
     /// The program's lines after this session — what `LiftSessionView.save` writes.
     ///
     /// Every line already in the program takes its heaviest done set (`applyingHeaviestSets`, always).
-    /// With `keepingChanges` — the answer to the finish sheet's program question — changed set counts
-    /// move too (`applying`), and each exercise added during the session becomes a new line at the end,
+    /// With `keepingChanges` — the answer to the finish sheet's program question — changed set counts and
+    /// rests move too (`applying`), and each exercise added during the session becomes a new line at the end,
     /// in the order added: the session's set count for it, its heaviest done set's weight and reps, else
     /// 0 kg × 0 reps, and nothing else (Utku, 21 Sep 2026: the rest is set later in the program editor).
     static func programAfterSession(_ sets: [FinishedSet], plan: [LiftPlanItem],
@@ -687,6 +762,7 @@ final class LiftSessionController: ObservableObject {
         var lines = items
         if keepingChanges {
             lines = applying(setCountChanges(plan: plan, program: items), to: lines)
+            lines = applying(restChanges(plan: plan, program: items), to: lines)
             let next = (items.map(\.ord).max() ?? -1) + 1
             for (offset, line) in plan.filter(\.addedInSession).enumerated() {
                 guard let id = line.programItemId, !lines.contains(where: { $0.id == id }) else { continue }

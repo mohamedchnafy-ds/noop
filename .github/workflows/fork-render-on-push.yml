@@ -1,0 +1,57 @@
+# Fork-only: render the guided superset screens to PNG whenever a `render/**` branch is pushed, and
+# publish the images as a prerelease named after the branch — the visual check against the mockups
+# before an .ipa is built. Runs one test class (LiftSupersetRenderTests) on the macOS app target; the
+# screens are shared SwiftUI, drawn at iPhone size in dark mode, in French.
+name: Superset screens render (fork, on push)
+
+on:
+  push:
+    branches: ['render/**']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Render the screens
+        env:
+          TEST_RUNNER_NOOP_RENDER_DIR: ${{ runner.temp }}/render
+        run: |
+          set +e
+          xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
+            -testLanguage fr -testRegion FR \
+            -only-testing:StrandTests/LiftSupersetRenderTests \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            test > xcodebuild.log 2>&1
+          status=$?
+          grep -E "Test Case|\*\* TEST|error:" xcodebuild.log | tail -60
+          if [ $status -ne 0 ]; then
+            # The job log is not readable from where the fork is worked on: failures go up as annotations.
+            grep -E "error:|failed|XCTAssert" xcodebuild.log | head -40 | sed 's/^/::error::/'
+            exit 1
+          fi
+      - name: Publish the images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -la "$RUNNER_TEMP/render"
+          TAG="render-${GITHUB_REF_NAME//\//-}"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          sleep 3
+          gh release create "$TAG" "$RUNNER_TEMP"/render/*.png --repo "$GITHUB_REPOSITORY" --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Superset screens · ${GITHUB_REF_NAME} · ${GITHUB_SHA:0:7}" \
+            --notes "Rendered by LiftSupersetRenderTests at ${GITHUB_SHA:0:7}."

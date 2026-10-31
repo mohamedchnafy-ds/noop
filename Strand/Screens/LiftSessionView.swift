@@ -49,6 +49,13 @@ struct LiftSessionView: View {
     @State private var addingExercise = false
     /// The card to bring into view once an exercise has been added — the new one, at the end.
     @State private var scrollTarget: Int?
+    /// Personal fork: the whole sheet asked for from a guided superset screen ("Whole session"). Cleared
+    /// as soon as the session stands on a superset round again.
+    @State private var showingList = false
+    /// Personal fork: each exercise's sets from its last session, for a superset's "Last time" line.
+    @State private var lastRows: [String: [LiftSetRow]] = [:]
+    /// Personal fork: program lines whose rest this session changed, read with the set counts.
+    @State private var restChanges: [LiftSessionController.RestChange] = []
 
     private enum UnfinishedChoice: Hashable { case complete, discard }
     private enum ProgramChoice: Hashable { case update, keep }
@@ -79,15 +86,28 @@ struct LiftSessionView: View {
     var body: some View {
         Group {
             if let engine {
-                VStack(spacing: 0) {
-                    sheet(engine)
-                    // The control bar never scrolls away: at the rack the clock and the one action have to
-                    // be where your thumb already is.
-                    controlBar(engine)
+                // Personal fork: a superset is run on its guided screens (`LiftSupersetScreen`); everything
+                // else, and the whole session on request, on the sheet.
+                let guide = LiftSupersetGuide.make(engine, now: LiftSessionController.unixNow)
+                if let guide, !showingList {
+                    guidedScreen(engine, guide)
+                } else {
+                    VStack(spacing: 0) {
+                        if let guide { backToGuide(guide) }
+                        sheet(engine)
+                        // The control bar never scrolls away: at the rack the clock and the one action have to
+                        // be where your thumb already is.
+                        controlBar(engine)
+                    }
                 }
             } else {
                 ComingSoon(what: "No session running", symbol: "dumbbell")
             }
+        }
+        // Back to the guided screen once the session stands on a superset round again — a round started
+        // from the sheet, or the next one starting by itself after its rest.
+        .onChange(of: session.engine?.currentSlot) { slot in
+            if let slot, session.engine?.isInSuperset(slot.exerciseIndex) == true { showingList = false }
         }
         #if os(iOS)
         .presentationDragIndicator(.visible)
@@ -107,6 +127,101 @@ struct LiftSessionView: View {
             draft = draft.filter { $0.key == now }
         }
         .sheet(isPresented: $showingFinish) { finishSheet }
+    }
+
+    // MARK: - The guided superset screens (personal fork)
+    //
+    // `LiftSupersetScreen` draws; this view hands it the session — the number fields with the sheet's own
+    // typing rules (drafts, comma to point, focus, the keyboard's Done), the live tiles, and the actions,
+    // every one of them a call the sheet or the strap already makes.
+
+    private func guidedScreen(_ engine: LiftSessionEngine, _ guide: LiftSupersetGuide) -> some View {
+        let lead = guide.lead
+        return LiftSupersetScreen(
+            guide: guide,
+            sessionStart: engine.startTs,
+            lastTime: LiftSupersetGuide.lastTime(rows: guide.members.map { lastRows[$0.exercise] ?? [] }),
+            unitSystem: unitSystem,
+            canUndo: engine.canUndo,
+            field: { slot, kind in AnyView(guideField(slot, kind)) },
+            vitals: { vitals in AnyView(LiftLiveVitalsRow(vitals: vitals, sessionStart: engine.startTs)) },
+            strapCard: { AnyView(LiftStrapCard()) },
+            preview: { previewNumbers($0) },
+            suggestion: { suggestionText(for: $0) },
+            actions: LiftSupersetScreen.Actions(
+                start: { session.advance() },
+                roundDone: { session.advance() },
+                skipRest: { session.skipRest() },
+                addRest: { session.extendRest() },
+                changeRounds: { delta in
+                    if delta > 0 {
+                        _ = session.addSet(toExercise: lead)
+                    } else {
+                        _ = session.removeSet(fromExercise: lead)
+                    }
+                },
+                setRest: { session.setRest($0, forBlockOf: lead) },
+                endBlock: { session.endBlock() },
+                showSession: { showingList = true },
+                undo: { session.undo() },
+                finish: { openFinish() }))
+    }
+
+    /// A weight or rep count of a superset member, as a bare field: the guided screen puts it in its chip.
+    /// Same bindings, drafts and focus as the sheet's rows, so a number typed here is the number there.
+    private func guideField(_ slot: LiftSlot, _ kind: LiftGuideField) -> some View {
+        let isWeight = kind == .weight
+        return TextField(isWeight ? ghostWeight(slot) : ghostReps(slot),
+                         text: isWeight ? weightBinding(slot) : repsBinding(slot))
+            .textFieldStyle(.plain)
+            .multilineTextAlignment(.trailing)
+            .numericKeyboard()
+            .focused($focused, equals: isWeight ? .weight(slot) : .reps(slot))
+            .fixedSize()
+            .frame(minWidth: 20, alignment: .trailing)
+    }
+
+    /// "40 kg × 10": what a set of the next round will be — typed, else grey.
+    private func previewNumbers(_ slot: LiftSlot) -> String {
+        let typed = session.enteredValues(for: slot)
+        let grey = session.carry(for: slot)
+        let weight = (typed.weightKg ?? grey.weightKg).map { "\(display($0)) \(LiftFormat.weightUnit(unitSystem))" }
+        switch (weight, typed.reps ?? grey.reps) {
+        case (let w?, let r?): return "\(w) × \(r)"
+        case (let w?, nil):    return w
+        case (nil, let r?):    return String(localized: "\(r) reps")
+        case (nil, nil):       return "—"
+        }
+    }
+
+    /// "↑ 62.5 kg" when last time earned a step up (`LiftProgression`).
+    private func suggestionText(for exercise: String) -> String? {
+        guard let s = loadSuggestions[exercise] else { return nil }
+        return "↑ \(display(s.toKg)) \(LiftFormat.weightUnit(unitSystem))"
+    }
+
+    /// On the sheet, while a superset is under way: the way back to its guided screen.
+    private func backToGuide(_ guide: LiftSupersetGuide) -> some View {
+        Button { showingList = false } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "link")
+                    .font(.system(size: 13, weight: .bold))
+                Text(String(localized: "Back to superset \(guide.letter)"))
+                    .font(StrandFont.rounded(14, weight: .bold))
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundStyle(StrandPalette.effortColor)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(StrandPalette.effortColor.opacity(0.14),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, NoopMetrics.screenPadding)
+        .padding(.top, 14)
     }
 
     // MARK: - The scrollable sheet
@@ -823,10 +938,7 @@ struct LiftSessionView: View {
                 .buttonStyle(.noopPrimary)
 
                 Button {
-                    unfinishedChoice = nil
-                    programChoice = nil
-                    setCountChanges = []
-                    showingFinish = true
+                    openFinish()
                 } label: {
                     Text("Finish")
                 }
@@ -840,6 +952,16 @@ struct LiftSessionView: View {
         .overlay(alignment: .top) {
             Rectangle().fill(StrandPalette.textTertiary.opacity(0.15)).frame(height: 0.5)
         }
+    }
+
+    /// Open the finish sheet with its questions unanswered — from the control bar, or from a guided
+    /// superset screen's menu.
+    private func openFinish() {
+        unfinishedChoice = nil
+        programChoice = nil
+        setCountChanges = []
+        restChanges = []
+        showingFinish = true
     }
 
     /// Live heart rate, beside the clocks that are already pinned above the action button.
@@ -906,7 +1028,7 @@ struct LiftSessionView: View {
 
     private var finishSheet: some View {
         let unfinished = session.unfinishedSlots.count
-        let asksAboutProgram = !setCountChanges.isEmpty || !addedExercises.isEmpty
+        let asksAboutProgram = !setCountChanges.isEmpty || !addedExercises.isEmpty || !restChanges.isEmpty
         let answered = (unfinished == 0 || unfinishedChoice != nil)
             && (!asksAboutProgram || programChoice != nil)
         return ScreenScaffold(title: "Finish session",
@@ -1041,12 +1163,18 @@ struct LiftSessionView: View {
         return NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                 Text("Program").strandOverline()
-                Text(programQuestion(countsChanged: !setCountChanges.isEmpty, exercisesAdded: !added.isEmpty))
+                Text(programQuestion(countsChanged: !setCountChanges.isEmpty, exercisesAdded: !added.isEmpty,
+                                     restsChanged: !restChanges.isEmpty))
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(setCountChanges, id: \.itemId) { change in
                     Text("\(change.exercise): \(change.from) → \(change.to) sets")
+                        .font(StrandFont.bodyNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                ForEach(restChanges, id: \.itemId) { change in
+                    Text("\(change.exercise): rest \(LiftFormat.duration(change.from)) → \(LiftFormat.duration(change.to))")
                         .font(StrandFont.bodyNumber)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
@@ -1066,7 +1194,14 @@ struct LiftSessionView: View {
     }
 
     /// The program question, worded for what actually changed.
-    private func programQuestion(countsChanged: Bool, exercisesAdded: Bool) -> LocalizedStringKey {
+    private func programQuestion(countsChanged: Bool, exercisesAdded: Bool,
+                                 restsChanged: Bool) -> LocalizedStringKey {
+        // Personal fork: a rest changed on a superset's ready screen.
+        if restsChanged {
+            return countsChanged || exercisesAdded
+                ? "You changed this session's plan. Keep these changes in the program for next time?"
+                : "You changed the rest. Keep the new rest in the program for next time?"
+        }
         switch (countsChanged, exercisesAdded) {
         case (true, true):  return "You added exercises and changed the number of sets. Keep these changes in the program for next time?"
         case (false, true): return "You added exercises. Add them to the program for next time?"
@@ -1082,6 +1217,7 @@ struct LiftSessionView: View {
         guard let engine, let store = await repo.storeHandle() else { return }
         var out: [String: [Int: LiftSetCarry]] = [:]
         var suggestions: [String: LiftProgression.Suggestion] = [:]
+        var rowsByExercise: [String: [LiftSetRow]] = [:]
         // One query per DISTINCT exercise, not per plan line. A program that programs the same
         // movement twice — or an imported one with many lines — would otherwise re-ask the store the
         // same question, and this runs when the sheet opens.
@@ -1094,6 +1230,7 @@ struct LiftSessionView: View {
                 bySet[r.setIndex] = LiftSetCarry(weightKg: r.weightKg, reps: r.reps)
             }
             out[exercise] = bySet
+            rowsByExercise[exercise] = rows
             // Personal fork: the step-up rule, judged against the FIRST plan line for the exercise (a
             // program that lists a movement twice shares one answer, as it shares one "last time").
             if let item = engine.plan.first(where: { $0.exercise == exercise }) {
@@ -1104,6 +1241,7 @@ struct LiftSessionView: View {
         }
         session.setLastSession(out)
         loadSuggestions = suggestions
+        lastRows = rowsByExercise
     }
 
     private func save() async {
@@ -1190,12 +1328,14 @@ struct LiftSessionView: View {
         dismiss()
     }
 
-    /// The program lines whose set count this session changed, for the finish sheet to ask about.
+    /// The program lines whose set count (or, personal fork, rest) this session changed, for the finish
+    /// sheet to ask about.
     private func loadSetCountChanges() async {
         guard let programId = session.programId, let plan = session.engine?.plan,
               let store = await repo.storeHandle(),
               let rows = try? await store.liftProgramItems(programId: programId) else { return }
         setCountChanges = LiftSessionController.setCountChanges(plan: plan, program: rows)
+        restChanges = LiftSessionController.restChanges(plan: plan, program: rows)
     }
 
     /// Carry this session onto its program (`LiftSessionController.programAfterSession`): each line's

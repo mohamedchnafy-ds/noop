@@ -1,0 +1,35 @@
+# Fork-only diagnostics: run StrandTests and surface the failures as annotations, which can be read
+# through the API even when raw logs cannot. Triggered by pushing a `ci/**` branch.
+name: Fork test report
+
+on:
+  push:
+    branches: ['ci/**']
+
+jobs:
+  strand-tests:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Test Strand
+        run: |
+          set +e
+          xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO test > log.txt 2>&1
+          status=$?
+          grep -E "error: -\[|: error: |Test Case .* failed|Executed .* tests|\*\* TEST" log.txt \
+            | sed -E 's#^.*/(StrandTests|Strand)/#\1/#' | head -120 > failures.txt
+          echo "xcodebuild exit status: $status"
+          cat failures.txt
+          # Annotations: at most 10 errors per step, so lines are packed 12 to an annotation.
+          split -l 12 failures.txt chunk_
+          for f in chunk_*; do
+            msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' "$f")
+            echo "::error title=StrandTests::$msg"
+          done
+          exit $status

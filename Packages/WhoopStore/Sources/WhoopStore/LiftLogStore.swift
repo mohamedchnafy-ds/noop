@@ -138,7 +138,7 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
     public var note: String?
     /// The superset this line belongs to ("A", "B"…), or nil for a line done on its own. Consecutive
     /// lines sharing a label form one superset; see `LiftSuperset`. Personal-fork column
-    /// (`fork-lift-superset-group`), absent from rows written before it, which decode as nil.
+    /// (`v49-lift-superset-group`), absent from rows written before it, which decode as nil.
     public var supersetGroup: String?
 
     public init(

@@ -232,17 +232,17 @@ struct LiftSessionEngine: Equatable {
     /// session goes back to the first member of the superset that still has a set to do — the next
     /// round — and leaves the group only once every member is done.
     func slotAfter(_ slot: LiftSlot) -> LiftSlot? {
-        resumeSlot(after: slot)
+        resumeSlot(after: slot, excluding: nil)
     }
 
-    /// `slotAfter(_:)` with `slot` itself counted as done whether or not it is yet — what `upcomingSlot`
-    /// needs while the set is still being worked.
-    private func resumeSlot(after slot: LiftSlot) -> LiftSlot? {
+    /// `slotAfter(_:)`, optionally with one slot counted as done whether or not it is yet — what
+    /// `upcomingSlot` needs while the current set is still being worked.
+    private func resumeSlot(after slot: LiftSlot, excluding: LiftSlot?) -> LiftSlot? {
         let members = supersetMembers(of: slot.exerciseIndex)
-        if let next = members.lazy.compactMap({ self.firstPending(ofExercise: $0, excluding: slot) }).first {
+        if let next = members.lazy.compactMap({ self.firstPending(ofExercise: $0, excluding: excluding) }).first {
             return next
         }
-        return allSlots.first { !isCompleted($0) && $0 != slot }
+        return allSlots.first { !isCompleted($0) && $0 != excluding }
     }
 
     /// The first set of an exercise still to do, other than `excluding`.
@@ -315,9 +315,9 @@ struct LiftSessionEngine: Equatable {
             return nextPendingSlot
         case .working(let slot):
             // Mid-superset the next set is the partner, with no rest in between.
-            return supersetPartner(after: slot) ?? resumeSlot(after: slot)
+            return supersetPartner(after: slot) ?? resumeSlot(after: slot, excluding: slot)
         case .resting(let slot, _):
-            return resumeSlot(after: slot)
+            return resumeSlot(after: slot, excluding: slot)
         case .finished:
             return nil
         }

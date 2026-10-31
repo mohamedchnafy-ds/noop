@@ -1154,7 +1154,7 @@ extension WhoopStore {
             }
         }
 
-        // fork-lift-superset-group (personal fork): a program line can belong to a SUPERSET — two or
+        // v49-lift-superset-group (personal fork): a program line can belong to a SUPERSET — two or
         // more consecutive lines the session alternates between, resting only after the last one.
         //
         // ADDITIVE ONLY: one nullable TEXT column, no rewrite of any existing row, so every program
@@ -1163,9 +1163,12 @@ extension WhoopStore {
         // grouping a property of the ORDER the program already stores rather than a second structure
         // that could disagree with it.
         //
-        // Named outside the vNN sequence on purpose: GRDB tracks applied migrations by identifier, so a
-        // distinct name can never collide with a future upstream `v49-…`.
-        migrator.registerMigration("fork-lift-superset-group") { db in
+        // IDEMPOTENT on purpose: should upstream ever ship its own `v49-…`, this one gets renumbered after
+        // it when merging, and a database that already ran it under this name will run it again under the
+        // new one — which must then find the column present and do nothing.
+        migrator.registerMigration("v49-lift-superset-group") { db in
+            guard try !db.columns(in: "liftProgramItem").contains(where: { $0.name == "supersetGroup" })
+            else { return }
             try db.alter(table: "liftProgramItem") { t in
                 t.add(column: "supersetGroup", .text)
             }

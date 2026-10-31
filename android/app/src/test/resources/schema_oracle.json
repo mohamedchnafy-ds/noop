@@ -50,7 +50,7 @@
     "v46-lift-log",
     "v47-rr-whoop5-fill",
     "v48-ecg-waveform",
-    "fork-lift-superset-group"
+    "v49-lift-superset-group"
   ],
   "divergenceReasons": {
     "android-orphan-synced-column": "REAL COLUMN DRIFT: `synced` exists on Android only. GRDB's v10 note is explicit that stepSample gets no `synced` column ('unused; see StreamStore'), and v12's ppgHrSample never had one either; the Room entities copied the flag from the older per-second entities. Nothing reads it on Android \u2014 the per-row upload flag belongs to an upload path that does not exist there \u2014 so it is dead width, not divergent data. Removing it needs a Room table rebuild.",
@@ -61,7 +61,7 @@
     "room-omits-sql-default": "GRDB declares these columns NOT NULL DEFAULT 0; Room emits NOT NULL with no SQL DEFAULT, because a Kotlin constructor default never reaches the schema (only @ColumnInfo(defaultValue=) does). Both sides are NOT NULL and both always name the column on insert, so no row differs; an INSERT that omitted the column would fail on Android and get 0 on iOS. Closing it means adding @ColumnInfo(defaultValue = \"0\") plus a Room version bump, since the generated CREATE TABLE \u2014 and therefore Room's identity hash \u2014 changes.",
     "sqlite-text-pk-nullable": "GRDB writes `id TEXT PRIMARY KEY`; SQLite's legacy quirk leaves a non-INTEGER PRIMARY KEY column NULLable, so PRAGMA reports notnull=0. Room writes `id TEXT NOT NULL, PRIMARY KEY(id)`. Every writer on both platforms supplies a non-null id, so no stored row differs. Closing it means a GRDB table rebuild.",
     "workout-route-polyline-android-only": "REAL COLUMN DRIFT \u2014 literally the case #775 was filed about: `workout.routePolyline` (encoded GPS route) was added by Room MIGRATION_3_4 and has no GRDB twin. A .noopbak exported from Android carries a column iOS's `workout` table cannot receive.",
-    "fork-lift-superset-ios-only": "PERSONAL-FORK DIVERGENCE: `liftProgramItem.supersetGroup` (GRDB migration `fork-lift-superset-group`) groups consecutive program lines into a superset for the iOS Lift Log. It is additive and nullable, and the Android Room schema does not carry it: this fork ships the superset mode on iOS only. A NULL value means \"not in a superset\", which is exactly how every Android-written row reads."
+    "fork-lift-superset-ios-only": "PERSONAL-FORK DIVERGENCE: `liftProgramItem.supersetGroup` (GRDB migration `v49-lift-superset-group`) groups consecutive program lines into a superset for the iOS Lift Log. It is additive and nullable, and the Android Room schema does not carry it: this fork ships the superset mode on iOS only. A NULL value means \"not in a superset\", which is exactly how every Android-written row reads."
   },
   "tables": {
     "appleDaily": {

@@ -1,10 +1,14 @@
 # Fork-only diagnostics: run StrandTests and surface the failures as annotations, which can be read
-# through the API even when raw logs cannot. Triggered by pushing a `ci/**` branch.
+# through the API even when raw logs cannot. Triggered by pushing a `ci/**` branch. The trimmed log is
+# also committed to an orphan `ci-logs/<run id>` branch, readable with git when annotations are not enough.
 name: Fork test report
 
 on:
   push:
     branches: ['ci/**']
+
+permissions:
+  contents: write
 
 jobs:
   strand-tests:
@@ -22,17 +26,30 @@ jobs:
           xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO test > log.txt 2>&1
           status=$?
+          echo "xcodebuild exit status: $status" > status.txt
           grep -E "error: -\[|: error: |Test Case .* failed|Executed .* tests|\*\* TEST" log.txt \
             | grep -v "with 0 failures" \
             | sed -E 's#^.*/(StrandTests|Strand)/#\1/#' | sort -u | head -60 > failures.txt
-          grep -iE "error|failed|crash|abort|fatal" log.txt | grep -v "with 0 failures" | tail -40 >> failures.txt
-          tail -25 log.txt >> failures.txt
-          echo "xcodebuild exit status: $status"
-          cat failures.txt
-          # Annotations: at most 10 errors per step, so lines are packed 12 to an annotation.
+          cat status.txt failures.txt
           split -l 12 failures.txt chunk_
           for f in chunk_*; do
             msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' "$f")
             echo "::error title=StrandTests::$msg"
           done
-          exit $status
+          # Trimmed log for git: every line that smells like a problem, then the tail.
+          { cat status.txt; echo "=== suspicious lines ==="; grep -niE "error|failed|crash|abort|fatal|warning: unable|exit" log.txt | grep -v "with 0 failures" | tail -300; echo "=== tail ==="; tail -400 log.txt; } > trimmed.txt
+          echo "$status" > exit.txt
+      - name: Publish trimmed log to ci-logs branch
+        if: always()
+        run: |
+          mkdir -p /tmp/logs && cp trimmed.txt /tmp/logs/log.txt
+          cd /tmp/logs
+          git init -q
+          git config user.email "ci@fork" && git config user.name "fork-ci"
+          git checkout -q -b "ci-logs/${GITHUB_RUN_ID}"
+          git add log.txt && git commit -qm "log ${GITHUB_RUN_ID}"
+          git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "ci-logs/${GITHUB_RUN_ID}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fail on test failure
+        run: exit "$(cat exit.txt)"

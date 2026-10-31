@@ -108,8 +108,14 @@ struct LiftSessionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                     header(engine)
-                    ForEach(Array(engine.plan.enumerated()), id: \.offset) { index, item in
-                        exerciseCard(engine, index: index, item: item)
+                    // One card per BLOCK: a superset is one card with its sets in the order they are
+                    // done; every other line keeps its own card.
+                    ForEach(engine.blocks, id: \.lowerBound) { block in
+                        if block.count > 1 {
+                            supersetCard(engine, members: Array(block))
+                        } else if engine.plan.indices.contains(block.lowerBound) {
+                            exerciseCard(engine, index: block.lowerBound, item: engine.plan[block.lowerBound])
+                        }
                     }
                     addExerciseRow(engine)
                     Color.clear.frame(height: 8)
@@ -121,7 +127,8 @@ struct LiftSessionView: View {
                 // Follow the session down the sheet, but only when it moves on its own — scrolling
                 // back to read an earlier exercise must not be yanked away from.
                 guard let slot else { return }
-                withAnimation { proxy.scrollTo(slot.exerciseIndex, anchor: .top) }
+                // A superset member has no card of its own: scroll to the card it is drawn in.
+                withAnimation { proxy.scrollTo(engine.blockStart(of: slot.exerciseIndex), anchor: .top) }
             }
             .onChange(of: scrollTarget) { target in
                 guard let target else { return }
@@ -219,6 +226,67 @@ struct LiftSessionView: View {
         .id(index)
     }
 
+    // MARK: - One superset, its sets in the order they are done
+
+    /// A superset as ONE card: the members named at the top, then the sets round by round — A1·1, A2·1,
+    /// the rest, A1·2, A2·2… — which is the order the strap walks them, so the green row only ever moves
+    /// down the card. A round with uneven set counts simply shows the members that still have that set.
+    private func supersetCard(_ engine: LiftSessionEngine, members: [Int]) -> some View {
+        let rounds = members.map { engine.plan[$0].targetSets }.max() ?? 0
+        return NoopCard {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+                Text(String(localized: "Superset \(engine.supersetLetter(of: members[0]) ?? "")"))
+                    .strandOverline()
+                    .foregroundStyle(StrandPalette.effortColor)
+
+                ForEach(members, id: \.self) { index in
+                    let item = engine.plan[index]
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(engine.supersetTag(of: index) ?? "")
+                                .font(StrandFont.captionNumber)
+                                .foregroundStyle(StrandPalette.effortColor)
+                            Text(item.exercise)
+                                .font(StrandFont.headline)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                        }
+                        Text(LiftMuscleSummary.line(primary: item.primaryMuscle,
+                                                    secondaries: item.secondaryMuscles))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                        if let note = item.note, !note.isEmpty {
+                            Text(note)
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(3)
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(StrandPalette.metricAmber.opacity(0.12),
+                                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+
+                columnHeadings
+
+                ForEach(1...max(1, rounds), id: \.self) { round in
+                    ForEach(members.filter { round <= engine.plan[$0].targetSets }, id: \.self) { index in
+                        let slot = LiftSlot(exerciseIndex: index, setIndex: round)
+                        setRow(engine, slot: slot, tag: engine.supersetTag(of: index))
+                        if isRestingAfter(engine, slot: slot) { restBand(engine) }
+                    }
+                }
+
+                ForEach(members, id: \.self) { index in
+                    setCountRow(engine, index: index, item: engine.plan[index],
+                                tag: engine.supersetTag(of: index))
+                }
+            }
+        }
+        .id(members[0])
+    }
+
     /// Add one more set, or drop the last planned one — at the END of the exercise, because that is
     /// where the question comes up: you have done what was written down and have one more in you, or
     /// you have not. Until this existed the sheet drew exactly `1...targetSets` and the extra set was
@@ -229,7 +297,10 @@ struct LiftSessionView: View {
     /// **Both buttons change this session only.** Whether the program keeps the new count is asked
     /// when the session is finished: a program is a plan for next time, and one extra set on a good
     /// day is not always a new plan.
-    private func setCountRow(_ engine: LiftSessionEngine, index: Int, item: LiftPlanItem) -> some View {
+    ///
+    /// In a superset card there is one such row per member, led by its tag ("A1").
+    private func setCountRow(_ engine: LiftSessionEngine, index: Int, item: LiftPlanItem,
+                             tag: String? = nil) -> some View {
         let canAdd = item.targetSets < LiftSessionEngine.maxSetsPerExercise
         let canRemove = engine.canRemoveSet(fromExercise: index)
 
@@ -240,6 +311,9 @@ struct LiftSessionView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "plus.circle")
                         .font(.system(size: 17, weight: .semibold))
+                    if let tag {
+                        Text(tag).font(StrandFont.captionNumber)
+                    }
                     Text("Add set").font(StrandFont.caption)
                 }
                 .foregroundStyle(canAdd ? StrandPalette.effortColor : StrandPalette.textTertiary)
@@ -302,7 +376,9 @@ struct LiftSessionView: View {
 
     // MARK: - One set row
 
-    private func setRow(_ engine: LiftSessionEngine, slot: LiftSlot) -> some View {
+    /// `tag` ("A1") marks a row in a superset card, where rows of different exercises alternate: it is
+    /// shown above the set number, so each row still says whose set it is.
+    private func setRow(_ engine: LiftSessionEngine, slot: LiftSlot, tag: String? = nil) -> some View {
         let recorded = engine.recordedSet(for: slot)
         let isWorking = engine.stage == .working(slot)
 
@@ -313,14 +389,23 @@ struct LiftSessionView: View {
             Button {
                 toggleWarmup(slot)
             } label: {
-                Text(isWarmup(slot) ? String(localized: "W") : "\(slot.setIndex)")
-                    .font(StrandFont.captionNumber)
-                    .foregroundStyle(isWarmup(slot)
-                                     ? StrandPalette.metricAmber
-                                     : (isWorking ? StrandPalette.textPrimary
-                                                  : StrandPalette.textSecondary))
-                    .frame(width: Self.setColumnWidth, alignment: .center)
-                    .contentShape(Rectangle())
+                VStack(spacing: 0) {
+                    if let tag {
+                        Text(tag)
+                            .font(StrandFont.overline)
+                            .foregroundStyle(StrandPalette.effortColor)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    Text(isWarmup(slot) ? String(localized: "W") : "\(slot.setIndex)")
+                        .font(StrandFont.captionNumber)
+                        .foregroundStyle(isWarmup(slot)
+                                         ? StrandPalette.metricAmber
+                                         : (isWorking ? StrandPalette.textPrimary
+                                                      : StrandPalette.textSecondary))
+                }
+                .frame(width: Self.setColumnWidth, alignment: .center)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isWarmup(slot)

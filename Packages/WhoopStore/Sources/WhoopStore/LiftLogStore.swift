@@ -136,6 +136,10 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
     public var restSec: Int?
     /// The user's own technique cue, stored and shown back verbatim.
     public var note: String?
+    /// The superset this line belongs to ("A", "B"…), or nil for a line done on its own. Consecutive
+    /// lines sharing a label form one superset; see `LiftSuperset`. Personal-fork column
+    /// (`fork-lift-superset-group`), absent from rows written before it, which decode as nil.
+    public var supersetGroup: String?
 
     public init(
         id: String,
@@ -149,7 +153,8 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
         targetRpe: Double?,
         targetWeightKg: Double?,
         restSec: Int?,
-        note: String?
+        note: String?,
+        supersetGroup: String? = nil
     ) {
         self.id = id
         self.deviceId = deviceId
@@ -163,6 +168,7 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
         self.targetWeightKg = targetWeightKg
         self.restSec = restSec
         self.note = note
+        self.supersetGroup = LiftSuperset.normalizedLabel(supersetGroup)
     }
 
     static func decode(_ row: Row) -> LiftProgramItemRow {
@@ -178,7 +184,8 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
             targetRpe: row["targetRpe"],
             targetWeightKg: row["targetWeightKg"],
             restSec: row["restSec"],
-            note: row["note"]
+            note: row["note"],
+            supersetGroup: row["supersetGroup"]
         )
     }
 }
@@ -510,12 +517,13 @@ extension WhoopStore {
                 try db.execute(sql: """
                     INSERT INTO liftProgramItem
                         (id, deviceId, programId, ord, exercise, targetSets,
-                         targetRepsLow, targetRepsHigh, targetRpe, targetWeightKg, restSec, note)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         targetRepsLow, targetRepsHigh, targetRpe, targetWeightKg, restSec, note,
+                         supersetGroup)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [
                         r.id, r.deviceId, r.programId, r.ord, r.exercise, r.targetSets,
                         r.targetRepsLow, r.targetRepsHigh, r.targetRpe, r.targetWeightKg,
-                        r.restSec, r.note,
+                        r.restSec, r.note, r.supersetGroup,
                     ])
                 n += db.changesCount
             }

@@ -1153,6 +1153,23 @@ extension WhoopStore {
                 t.primaryKey(["deviceId", "ts", "sequence"])
             }
         }
+
+        // fork-lift-superset-group (personal fork): a program line can belong to a SUPERSET — two or
+        // more consecutive lines the session alternates between, resting only after the last one.
+        //
+        // ADDITIVE ONLY: one nullable TEXT column, no rewrite of any existing row, so every program
+        // written before reads back exactly as it did (NULL = not in a superset). The label is the
+        // user's own ("A", "B"…); consecutive lines sharing a label form one group, which keeps the
+        // grouping a property of the ORDER the program already stores rather than a second structure
+        // that could disagree with it.
+        //
+        // Named outside the vNN sequence on purpose: GRDB tracks applied migrations by identifier, so a
+        // distinct name can never collide with a future upstream `v49-…`.
+        migrator.registerMigration("fork-lift-superset-group") { db in
+            try db.alter(table: "liftProgramItem") { t in
+                t.add(column: "supersetGroup", .text)
+            }
+        }
         return migrator
     }
 }

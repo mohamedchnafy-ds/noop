@@ -31,10 +31,14 @@ public struct ImportedProgramLine: Sendable, Equatable {
     public var targetMaxRpe: Double?
     public var restSec: Int?
     public var note: String?
+    /// The superset this line belongs to, lettered A, B, C… within its program; nil for a line done on
+    /// its own. Read from the sheet's "Superset" column: consecutive rows with the same value form one
+    /// superset (`LiftSuperset`).
+    public var supersetGroup: String?
 
     public init(exercise: String, primaryMuscle: LiftMuscle?, secondaryMuscles: [LiftMuscle],
                 targetSets: Int?, targetReps: Int?, targetWeightKg: Double?, targetMaxRpe: Double?,
-                restSec: Int?, note: String?) {
+                restSec: Int?, note: String?, supersetGroup: String? = nil) {
         self.exercise = exercise
         self.primaryMuscle = primaryMuscle
         self.secondaryMuscles = secondaryMuscles
@@ -44,6 +48,7 @@ public struct ImportedProgramLine: Sendable, Equatable {
         self.targetMaxRpe = targetMaxRpe
         self.restSec = restSec
         self.note = note
+        self.supersetGroup = supersetGroup
     }
 }
 
@@ -125,6 +130,7 @@ public enum LiftProgramSheetImporter {
     private static let weightKeys = ["weight_kg", "weight", "kg", "load", "load_kg"]
     private static let restKeys = ["rest_sec", "rest_seconds", "rest", "rest_s"]
     private static let noteKeys = ["note", "technique_note", "notes", "cue"]
+    private static let supersetKeys = ["superset", "superset_group", "supersets", "ss", "circuit"]
 
     /// Parse a filled-in template. Detects `.xlsx` by its ZIP magic bytes, else treats it as CSV.
     public static func parse(data: Data) throws -> LiftProgramImportResult {
@@ -162,6 +168,9 @@ public enum LiftProgramSheetImporter {
         var programs: [ImportedProgram] = []
         var indexByName: [String: Int] = [:]
         var warnings: [String] = []
+        /// The sheet row each kept line came from, parallel to `programs[i].lines`, so a superset
+        /// warning can name the row to fix.
+        var rowIndices: [[Int]] = []
 
         var truncated = false
         for (i, row) in rows.prefix(maxRows).enumerated() {
@@ -223,11 +232,13 @@ public enum LiftProgramSheetImporter {
                 targetMaxRpe: maxRpe,
                 restSec: intValue(row, restKeys),
                 note: value(row, noteKeys)?.trimmed.nilIfEmpty
-                    .map { String($0.prefix(WhoopStore.maxExerciseNoteLength)) })
+                    .map { String($0.prefix(WhoopStore.maxExerciseNoteLength)) },
+                supersetGroup: LiftSuperset.normalizedLabel(value(row, supersetKeys)))
 
             if let idx = indexByName[programName.lowercased()] {
                 guard programs[idx].lines.count < maxLinesPerProgram else { truncated = true; continue }
                 programs[idx].lines.append(line)
+                rowIndices[idx].append(i)
                 if programs[idx].note == nil {
                     programs[idx].note = programNote(row)
                 }
@@ -238,7 +249,16 @@ public enum LiftProgramSheetImporter {
                     name: programName,
                     note: programNote(row),
                     lines: [line]))
+                rowIndices.append([i])
             }
+        }
+
+        for p in programs.indices {
+            supersetWarnings(programs[p], rows: rowIndices[p]).forEach {
+                if warnings.count < maxWarnings { warnings.append($0) }
+            }
+            let labels = LiftSuperset.relabeled(programs[p].lines.map(\.supersetGroup))
+            for l in programs[p].lines.indices { programs[p].lines[l].supersetGroup = labels[l] }
         }
 
         // Say so rather than silently importing a subset: a user whose sheet was cut off must be able
@@ -253,6 +273,25 @@ public enum LiftProgramSheetImporter {
     }
 
     // MARK: - Helpers
+
+    /// What the "Superset" column says that will not happen. Only consecutive rows form a superset, so
+    /// a label on one row alone, or the same label on rows split by another exercise, would otherwise
+    /// be dropped without a word — and the user would find out mid-session.
+    private static func supersetWarnings(_ program: ImportedProgram, rows: [Int]) -> [String] {
+        let labels = program.lines.map(\.supersetGroup)
+        let grouped = Set(LiftSuperset.groups(labels).flatMap { Array($0) })
+        var out: [String] = []
+        var reported: Set<String> = []
+        for (l, label) in labels.enumerated() {
+            guard let label, !grouped.contains(l), !reported.contains(label) else { continue }
+            reported.insert(label)
+            let elsewhere = labels.indices.contains { $0 != l && labels[$0] == label }
+            out.append(rowMessage(rows[l], elsewhere
+                ? "superset \"\(label)\" is split by other exercises; only consecutive rows form a superset"
+                : "superset \"\(label)\" has only one exercise, so \"\(program.lines[l].exercise)\" is done on its own"))
+        }
+        return out
+    }
 
     private static func isZip(_ data: Data) -> Bool {
         data.count >= 4 && data[data.startIndex] == 0x50 && data[data.startIndex + 1] == 0x4B

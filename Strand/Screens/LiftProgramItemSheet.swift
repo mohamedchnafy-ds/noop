@@ -353,7 +353,10 @@ struct LiftProgramItemSheet: View {
                 LiftFormat.kilograms(fromDisplay: $0, system: unitSystem)
             },
             restSec: Int(restText.trimmingCharacters(in: .whitespaces)),
-            note: trimmedNote.isEmpty ? nil : trimmedNote
+            note: trimmedNote.isEmpty ? nil : trimmedNote,
+            // The superset is the program editor's to change (its link buttons); editing the line's
+            // targets keeps whatever group it was in.
+            supersetGroup: item?.supersetGroup
         ))
         dismiss()
     }

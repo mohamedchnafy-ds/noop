@@ -48,6 +48,9 @@ struct LiftPlanItem: Equatable {
     /// Added while the session ran (`LiftSessionEngine.addExercise`), so the program has no line for it
     /// yet; finishing offers to add one.
     var addedInSession: Bool
+    /// The superset label this line was flattened with (`liftProgramItem.supersetGroup`). Consecutive
+    /// lines sharing one are worked in alternation — see `LiftSessionEngine.supersetMembers(of:)`.
+    var supersetGroup: String?
 
     /// Rest used when a program line does not specify one. Two minutes sits in the middle of the
     /// range the hypertrophy literature uses for compound work, and is only a starting value: what
@@ -65,7 +68,8 @@ struct LiftPlanItem: Equatable {
          targetWeightKg: Double? = nil,
          note: String? = nil,
          programItemId: String? = nil,
-         addedInSession: Bool = false) {
+         addedInSession: Bool = false,
+         supersetGroup: String? = nil) {
         self.exercise = exercise
         self.primaryMuscle = primaryMuscle
         self.secondaryMuscles = secondaryMuscles
@@ -78,6 +82,7 @@ struct LiftPlanItem: Equatable {
         self.note = note
         self.programItemId = programItemId
         self.addedInSession = addedInSession
+        self.supersetGroup = LiftSuperset.normalizedLabel(supersetGroup)
     }
 }
 
@@ -222,8 +227,81 @@ struct LiftSessionEngine: Equatable {
     /// Staying on the current exercise until it is finished is also simply what lifting is: you do
     /// your sets on the machine you are standing at. The skipped exercise is not forgotten — it is
     /// still pending, and it is what you get once the current one is done.
+    ///
+    /// A SUPERSET extends "the machine you are standing at" to the whole group: after its rest, the
+    /// session goes back to the first member of the superset that still has a set to do — the next
+    /// round — and leaves the group only once every member is done.
     func slotAfter(_ slot: LiftSlot) -> LiftSlot? {
-        slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) } ?? nextPendingSlot
+        resumeSlot(after: slot)
+    }
+
+    /// `slotAfter(_:)` with `slot` itself counted as done whether or not it is yet — what `upcomingSlot`
+    /// needs while the set is still being worked.
+    private func resumeSlot(after slot: LiftSlot) -> LiftSlot? {
+        let members = supersetMembers(of: slot.exerciseIndex)
+        if let next = members.lazy.compactMap({ self.firstPending(ofExercise: $0, excluding: slot) }).first {
+            return next
+        }
+        return allSlots.first { !isCompleted($0) && $0 != slot }
+    }
+
+    /// The first set of an exercise still to do, other than `excluding`.
+    private func firstPending(ofExercise index: Int, excluding: LiftSlot?) -> LiftSlot? {
+        slots(forExercise: index).first { !isCompleted($0) && $0 != excluding }
+    }
+
+    // MARK: - Supersets
+    //
+    // A superset is consecutive lines sharing a label (`LiftSuperset`). The session alternates between
+    // them — A1, A2, rest, A1, A2 — and the rest comes only after the LAST member of each round. Going
+    // from one member to the next is a single step with no rest stage in between: one strap double-tap
+    // ends A1 and starts A2. That step is still a set ending, so the knock filter and the single
+    // confirming buzz apply to it exactly as they do to any other.
+
+    /// The plan indices of the superset `index` belongs to, in plan order — just `[index]` for a line
+    /// done on its own. Empty for an index outside the plan.
+    func supersetMembers(of index: Int) -> [Int] {
+        guard plan.indices.contains(index) else { return [] }
+        return LiftSuperset.group(of: index, in: plan.map(\.supersetGroup)).map(Array.init) ?? [index]
+    }
+
+    func isInSuperset(_ index: Int) -> Bool { supersetMembers(of: index).count > 1 }
+
+    /// "A1", "A2"… for a line in a superset, nil otherwise — the one spelling every surface shows.
+    func supersetTag(of index: Int) -> String? {
+        LiftSuperset.tag(of: index, in: plan.map(\.supersetGroup))
+    }
+
+    /// The superset's letter ("A") for a line in one, nil otherwise.
+    func supersetLetter(of index: Int) -> String? {
+        LiftSuperset.groupLetter(of: index, in: plan.map(\.supersetGroup))
+    }
+
+    /// The plan as the sheet draws it: every superset as one block, every other line on its own.
+    var blocks: [Range<Int>] { LiftSuperset.blocks(plan.map(\.supersetGroup)) }
+
+    /// The first plan index of the block `index` is drawn in — what the sheet scrolls to.
+    func blockStart(of index: Int) -> Int {
+        blocks.first { $0.contains(index) }?.lowerBound ?? index
+    }
+
+    /// The member set that follows `slot` in the same ROUND of its superset, with no rest between them:
+    /// the first later member that still has a set to do. Nil when `slot` closes the round — no later
+    /// member has anything left — or is not in a superset at all. That nil is what lets a round with
+    /// uneven set counts (A1 has a fourth set, A2 does not) end on A1 and rest.
+    func supersetPartner(after slot: LiftSlot) -> LiftSlot? {
+        let members = supersetMembers(of: slot.exerciseIndex)
+        guard members.count > 1, let pos = members.firstIndex(of: slot.exerciseIndex) else { return nil }
+        return members[(pos + 1)...].lazy.compactMap { self.firstPending(ofExercise: $0, excluding: slot) }.first
+    }
+
+    /// The rest that follows `slot` when it closes a round: for a superset, the rest planned on its
+    /// LAST line, whichever member happened to close the round; otherwise the line's own rest.
+    /// The other members' rests are never used — the editor says so.
+    func restAfter(_ slot: LiftSlot) -> Int {
+        let members = supersetMembers(of: slot.exerciseIndex)
+        guard let owner = members.last, plan.indices.contains(owner) else { return LiftPlanItem.defaultRestSec }
+        return plan[owner].restSec
     }
 
     /// The set the session is heading to after the current one — what the minimised bar and the Lock
@@ -235,9 +313,11 @@ struct LiftSessionEngine: Equatable {
         switch stage {
         case .warmup:
             return nextPendingSlot
-        case .working(let slot), .resting(let slot, _):
-            return slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) && $0 != slot }
-                ?? allSlots.first { !isCompleted($0) && $0 != slot }
+        case .working(let slot):
+            // Mid-superset the next set is the partner, with no rest in between.
+            return supersetPartner(after: slot) ?? resumeSlot(after: slot)
+        case .resting(let slot, _):
+            return resumeSlot(after: slot)
         case .finished:
             return nil
         }
@@ -343,9 +423,16 @@ struct LiftSessionEngine: Equatable {
                 exerciseIndex: slot.exerciseIndex, setIndex: slot.setIndex,
                 weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
                 startTs: stageStartedAt, endTs: now, restSec: nil))
-            let rest = planItem(for: slot)?.restSec ?? LiftPlanItem.defaultRestSec
-            stage = .resting(slot, endsAt: now + rest)
-            stageStartedAt = now
+            if let partner = supersetPartner(after: slot) {
+                // Superset: straight on to the next member of the round. No rest stage, so no rest
+                // timers and no warning buzz — the rest truthfully recorded after this set is zero.
+                sets[sets.count - 1].restSec = 0
+                stage = .working(partner)
+                stageStartedAt = now
+            } else {
+                stage = .resting(slot, endsAt: now + restAfter(slot))
+                stageStartedAt = now
+            }
 
         case .resting(let slot, _):
             pushHistory()

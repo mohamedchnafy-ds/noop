@@ -302,11 +302,12 @@ final class LiftSessionController: ObservableObject {
         }
 
         let detail = setNumbers(for: slot, system: system)
+        let exercise = Self.exerciseLabel(engine, index: slot.exerciseIndex, name: item.exercise)
         switch engine.stage {
         case .resting(_, let endsAt):
             let ready = endsAt <= Self.unixNow
             return Presentation(
-                isResting: true, exercise: item.exercise,
+                isResting: true, exercise: exercise,
                 status: ready ? String(localized: "Ready for the next set")
                               : String(localized: "Resting after set \(slot.setIndex)"),
                 detail: detail, next: next,
@@ -314,7 +315,7 @@ final class LiftSessionController: ObservableObject {
                 restEndsAt: Date(timeIntervalSince1970: TimeInterval(endsAt)))
         default:
             return Presentation(
-                isResting: false, exercise: item.exercise,
+                isResting: false, exercise: exercise,
                 status: String(localized: "Set \(slot.setIndex)"),
                 detail: detail, next: next,
                 stageStartedAt: started, restEndsAt: nil)
@@ -329,9 +330,17 @@ final class LiftSessionController: ObservableObject {
     /// number. "Last set" while the final set is worked; "All sets done" once it is.
     static func nextLine(_ engine: LiftSessionEngine) -> String {
         if let upcoming = engine.upcomingSlot, let item = engine.planItem(for: upcoming) {
-            return String(localized: "Next: Set \(upcoming.setIndex) · \(item.exercise)")
+            let exercise = exerciseLabel(engine, index: upcoming.exerciseIndex, name: item.exercise)
+            return String(localized: "Next: Set \(upcoming.setIndex) · \(exercise)")
         }
         return engine.allCompleted ? String(localized: "All sets done") : String(localized: "Last set")
+    }
+
+    /// An exercise as the bar and the Lock Screen name it: "A2 · Curl" for a line in a superset, so the
+    /// alternation is readable at a glance, and the bare name otherwise.
+    static func exerciseLabel(_ engine: LiftSessionEngine, index: Int, name: String) -> String {
+        guard let tag = engine.supersetTag(of: index) else { return name }
+        return "\(tag) · \(name)"
     }
 
     /// Reps x weight for a slot, as "8 x 30 kg": what the set's row on the sheet shows — typed numbers,

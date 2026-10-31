@@ -576,15 +576,44 @@ struct LiquidScoreGauge: View {
     var captionColor: Color = StrandPalette.textTertiary
     /// Forwarded to `LiquidVessel` so a gauge inside a link still splashes AND still navigates (#1995).
     var tapPassesThrough: Bool = false
+    /// A band on the gauge's own scale drawn as an arc hugging the vessel, clockwise from the top (personal
+    /// fork: the Effort bubble's optimal-strain target). Nil draws nothing, which keeps every other caller
+    /// byte-identical.
+    var targetRange: ClosedRange<Double>? = nil
 
     @State private var shown: Double = 0
 
     private var frac: Double? { score.map { max(0, min(1, $0 / maxValue)) } }
     private var centerFont: Font { StrandFont.rounded(diameter * 26 / Self.homeHeroDiameter) }
     private var captionFont: Font { StrandFont.rounded(diameter * 0.085, weight: .medium) }
+    /// Ring thickness and the breathing room between the vessel's edge and the arc, scaled with the gauge.
+    private var arcWidth: CGFloat { max(2, diameter * 3 / Self.homeHeroDiameter) }
+
+    /// The target band as a trimmed circle: a faint full track so the arc has a scale to sit on, then the
+    /// band itself in the gauge tint. The arc is not the fill — the liquid still says where the score is.
+    @ViewBuilder
+    private var targetArc: some View {
+        if let band = targetRange {
+            let lo = max(0, min(1, band.lowerBound / maxValue))
+            let hi = max(lo, min(1, band.upperBound / maxValue))
+            let ringDiameter = diameter + arcWidth * 2 + 2
+            ZStack {
+                Circle()
+                    .stroke(tint.opacity(0.18), lineWidth: arcWidth)
+                Circle()
+                    .trim(from: lo, to: hi)
+                    .stroke(tint, style: StrokeStyle(lineWidth: arcWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: ringDiameter, height: ringDiameter)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
 
     var body: some View {
         ZStack {
+            targetArc
             LiquidVessel(value: frac, tint: tint, animated: animated,
                          tapPassesThrough: tapPassesThrough)
                 .frame(width: diameter, height: diameter)

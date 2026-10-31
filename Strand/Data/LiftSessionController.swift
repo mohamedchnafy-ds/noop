@@ -177,6 +177,9 @@ final class LiftSessionController: ObservableObject {
         }
         isPresented = present
         claimStrap()
+        // A superset rest that ran out while NOOP was down starts its round now, stamped with the rest's
+        // end — the lifter did not stop because the phone did.
+        startNextRoundIfDue()
     }
 
     /// Give up the session without saving.
@@ -235,12 +238,33 @@ final class LiftSessionController: ObservableObject {
             buzz(LiftSessionController.advanceConfirmBuzzes)
         }
 
+        let recordedBefore = current.sets.count
         engine?.advance(now: stamp)
         // Straight after the stage moves, so the screen lights with no wait behind the bookkeeping below.
         // What follows cannot change what the banner shows: numbers typed into a set are already shown
         // before they are applied (`setNumbers`).
         if fromStrap { strapStepTaken.send() }
-        applyPendingInput()
+        applyPendingInput(from: recordedBefore)
+        warnedFor = nil
+        persist()
+    }
+
+    /// Skip what is left of the running rest and start the next set now — the same step as `advance`
+    /// during a rest, named for the button that offers it on a superset: the strap tap that should have
+    /// ended the round was missed, or the lifter is ready before the clock is.
+    func skipRest() {
+        guard case .resting = engine?.stage else { return }
+        advance()
+    }
+
+    /// Start a superset's next round once its rest has run out (`LiftSessionEngine.startNextRoundIfRestEnded`).
+    /// Fired by the rest's end timer, and on resume for a rest that ran out while NOOP was not running.
+    /// The round is stamped with the rest's end, not with now.
+    private func startNextRoundIfDue() {
+        guard let current = engine else { return }
+        let recordedBefore = current.sets.count
+        guard engine?.startNextRoundIfRestEnded(at: Self.unixNow) == true else { return }
+        applyPendingInput(from: recordedBefore)
         warnedFor = nil
         persist()
     }
@@ -302,20 +326,27 @@ final class LiftSessionController: ObservableObject {
         }
 
         let detail = setNumbers(for: slot, system: system)
+        // A superset is named by its members and counted in rounds: "Squat + Leg curl", "Round 2".
+        let superset = engine.isSuperset(slot.exerciseIndex)
+        let name = superset
+            ? engine.supersetMembers(of: slot.exerciseIndex).map { engine.plan[$0].exercise }.joined(separator: " + ")
+            : item.exercise
         switch engine.stage {
         case .resting(_, let endsAt):
             let ready = endsAt <= Self.unixNow
             return Presentation(
-                isResting: true, exercise: item.exercise,
+                isResting: true, exercise: name,
                 status: ready ? String(localized: "Ready for the next set")
-                              : String(localized: "Resting after set \(slot.setIndex)"),
+                              : (superset ? String(localized: "Resting after round \(slot.setIndex)")
+                                          : String(localized: "Resting after set \(slot.setIndex)")),
                 detail: detail, next: next,
                 stageStartedAt: started,
                 restEndsAt: Date(timeIntervalSince1970: TimeInterval(endsAt)))
         default:
             return Presentation(
-                isResting: false, exercise: item.exercise,
-                status: String(localized: "Set \(slot.setIndex)"),
+                isResting: false, exercise: name,
+                status: superset ? String(localized: "Round \(slot.setIndex)")
+                                 : String(localized: "Set \(slot.setIndex)"),
                 detail: detail, next: next,
                 stageStartedAt: started, restEndsAt: nil)
         }
@@ -329,6 +360,11 @@ final class LiftSessionController: ObservableObject {
     /// number. "Last set" while the final set is worked; "All sets done" once it is.
     static func nextLine(_ engine: LiftSessionEngine) -> String {
         if let upcoming = engine.upcomingSlot, let item = engine.planItem(for: upcoming) {
+            if engine.isSuperset(upcoming.exerciseIndex) {
+                let names = engine.supersetMembers(of: upcoming.exerciseIndex)
+                    .map { engine.plan[$0].exercise }.joined(separator: " + ")
+                return String(localized: "Next: Round \(upcoming.setIndex) · \(names)")
+            }
             return String(localized: "Next: Set \(upcoming.setIndex) · \(item.exercise)")
         }
         return engine.allCompleted ? String(localized: "All sets done") : String(localized: "Last set")
@@ -403,16 +439,21 @@ final class LiftSessionController: ObservableObject {
     /// The entry is CONSUMED. A redo (`start` on a completed slot) drops the record and should show
     /// the ghosts again, exactly as it did before; leaving the entry behind would resurrect numbers
     /// the user is in the middle of redoing.
-    private func applyPendingInput() {
-        guard let engine, let last = engine.sets.last else { return }
-        let typed = pendingValues.removeValue(forKey: last.slot)
-        let warmup = last.isWarmup || pendingWarmups.contains(last.slot)
-        guard typed != nil || warmup != last.isWarmup else { return }
-        self.engine?.updateSet(last.slot,
-                               weightKg: typed?.weightKg ?? last.weightKg,
-                               reps: typed?.reps ?? last.reps,
-                               rpe: typed?.rpe ?? last.rpe,
-                               isWarmup: warmup)
+    ///
+    /// `from` is how many sets were recorded before the step: everything appended since is new. One for
+    /// an ordinary set; one per member for a superset round, each with its own typed numbers.
+    private func applyPendingInput(from recordedBefore: Int) {
+        guard let engine, engine.sets.count > recordedBefore else { return }
+        for recorded in engine.sets[recordedBefore...] {
+            let typed = pendingValues.removeValue(forKey: recorded.slot)
+            let warmup = recorded.isWarmup || pendingWarmups.contains(recorded.slot)
+            guard typed != nil || warmup != recorded.isWarmup else { continue }
+            self.engine?.updateSet(recorded.slot,
+                                   weightKg: typed?.weightKg ?? recorded.weightKg,
+                                   reps: typed?.reps ?? recorded.reps,
+                                   rpe: typed?.rpe ?? recorded.rpe,
+                                   isWarmup: warmup)
+        }
     }
 
     /// Begin a specific set — the out-of-order path, for when a machine is occupied.
@@ -721,6 +762,8 @@ final class LiftSessionController: ObservableObject {
     /// `changesSettled`, on the Lock Screen, "Resting after set 2" becomes "Ready for the next set".
     private func restDidEnd() {
         objectWillChange.send()
+        // A superset does not wait to be told: its next round starts as the rest runs out.
+        startNextRoundIfDue()
     }
 
     // MARK: - Persistence

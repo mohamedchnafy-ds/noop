@@ -67,6 +67,9 @@ enum LiftSessionPersistence {
             /// True for a line added during the session. Absent from a snapshot written before lines
             /// could be added, which decodes to nil: a line from the program.
             var addedInSession: Bool?
+            /// The superset this line belongs to. Absent from a snapshot written before supersets
+            /// existed, which decodes to nil: a line worked on its own.
+            var supersetGroup: String?
         }
 
         /// The stage as a flat, forward-compatible record rather than an encoded enum: a persisted
@@ -156,7 +159,8 @@ enum LiftSessionPersistence {
                                   note: $0.note,
                                   programItemId: $0.programItemId,
                                   // Written only when true, so a session nobody added to encodes as before.
-                                  addedInSession: $0.addedInSession ? true : nil)
+                                  addedInSession: $0.addedInSession ? true : nil,
+                                  supersetGroup: $0.supersetGroup)
             },
             stage: box(engine.stage),
             sets: engine.sets.map {
@@ -210,7 +214,8 @@ enum LiftSessionPersistence {
                          targetWeightKg: $0.targetWeightKg,
                          note: $0.note,
                          programItemId: $0.programItemId,
-                         addedInSession: $0.addedInSession ?? false)
+                         addedInSession: $0.addedInSession ?? false,
+                         supersetGroup: $0.supersetGroup)
         }
         let sets = s.sets.map {
             LiftRecordedSet(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex,

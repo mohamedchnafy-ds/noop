@@ -190,6 +190,7 @@ struct LiftLogView: View {
         let items = (try? await store.liftProgramItems(programId: program.id)) ?? []
         guard !items.isEmpty else { return }
         let vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
+        let supersets = LiftSupersetGroups.groups(programId: program.id)
 
         let plan = items.map { item -> LiftPlanItem in
             // The classification comes from the exercise vocabulary, which is the one place that owns
@@ -207,7 +208,8 @@ struct LiftLogView: View {
                                 note: item.note,
                                 // Carried so a set added or dropped mid-session can be written back
                                 // onto the line it came from, and be there next time.
-                                programItemId: item.id)
+                                programItemId: item.id,
+                                supersetGroup: supersets[item.id])
         }
         // Refuse to start a second session over a running one: two live sessions would both claim
         // the strap gesture and both write the in-flight snapshot.

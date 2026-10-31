@@ -109,7 +109,12 @@ struct LiftSessionView: View {
                 VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                     header(engine)
                     ForEach(Array(engine.plan.enumerated()), id: \.offset) { index, item in
-                        exerciseCard(engine, index: index, item: item)
+                        // A superset is ONE card, drawn at its lead line; its other members are inside it.
+                        if engine.isSuperset(index) {
+                            if engine.isSupersetLead(index) { supersetCard(engine, lead: index) }
+                        } else {
+                            exerciseCard(engine, index: index, item: item)
+                        }
                     }
                     addExerciseRow(engine)
                     Color.clear.frame(height: 8)
@@ -217,6 +222,207 @@ struct LiftSessionView: View {
             }
         }
         .id(index)
+    }
+
+    // MARK: - A superset: one card, one round at a time
+    //
+    // What a superset asks of the lifter is nothing between its exercises: squat, straight onto the leg
+    // curl, then rest. So the card does not draw a row per set to tick. It shows the exercises with the
+    // numbers for the ROUND in hand (typed, else grey), how many rounds and where the session is in them,
+    // and the one rest. One tap — the button, or the strap — ends the round; the rest runs; the next round
+    // starts by itself (`LiftSessionEngine.startNextRoundIfRestEnded`). Skip is for the tap that was
+    // missed, or for being ready early.
+    //
+    // Nothing here ticks: the two clocks are `LiftRunningClock`, which redraws only itself.
+
+    private func supersetCard(_ engine: LiftSessionEngine, lead: Int) -> some View {
+        let members = engine.supersetMembers(of: lead)
+        let rounds = engine.plan[lead].targetSets
+        let round = activeRound(engine, lead: lead)
+        let isWorkingRound = engine.stage == .working(LiftSlot(exerciseIndex: lead, setIndex: round))
+        let restSec = engine.plan[lead].restSec
+
+        return NoopCard {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+                HStack(spacing: 8) {
+                    Image(systemName: "link")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Superset").strandOverline()
+                    Spacer(minLength: 0)
+                    Text(String(localized: "Round \(round) of \(rounds)"))
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                .foregroundStyle(StrandPalette.metricAmber)
+
+                ForEach(Array(members.enumerated()), id: \.element) { position, index in
+                    if position > 0 { noRestDivider }
+                    supersetMemberRow(engine, index: index,
+                                      slot: LiftSlot(exerciseIndex: index, setIndex: round),
+                                      isWorking: isWorkingRound)
+                }
+
+                roundsRow(engine, lead: lead, rounds: rounds, round: round, restSec: restSec)
+
+                if isRestingAfter(engine, slot: LiftSlot(exerciseIndex: lead, setIndex: round)) {
+                    supersetRestBand(engine)
+                }
+            }
+        }
+        .id(lead)
+    }
+
+    /// The round the card's fields belong to: the one being worked or rested from when the session
+    /// stands on this superset, else the first round still to do, else the last.
+    private func activeRound(_ engine: LiftSessionEngine, lead: Int) -> Int {
+        if let current = engine.currentSlot, current.exerciseIndex == lead { return current.setIndex }
+        return engine.slots(forExercise: lead).first { !engine.isCompleted($0) }?.setIndex
+            ?? engine.plan[lead].targetSets
+    }
+
+    /// Where a rest would be on an ordinary line: here there is none, and the divider says so.
+    private var noRestDivider: some View {
+        HStack(spacing: 8) {
+            Rectangle().fill(StrandPalette.hairline).frame(height: 0.5)
+            Text("No rest").strandOverline()
+                .foregroundStyle(StrandPalette.metricAmber)
+                .fixedSize()
+            Rectangle().fill(StrandPalette.hairline).frame(height: 0.5)
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// One exercise of the round: its name and cue, then the weight and reps THIS round counts as —
+    /// typed, else grey from last time or the program. Typing lands on the round's own slot, so a
+    /// heavier set 2 carries to set 3 exactly as it does on an ordinary line.
+    private func supersetMemberRow(_ engine: LiftSessionEngine, index: Int, slot: LiftSlot,
+                                   isWorking: Bool) -> some View {
+        let item = engine.plan[index]
+        return VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.exercise)
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(LiftMuscleSummary.line(primary: item.primaryMuscle,
+                                            secondaries: item.secondaryMuscles))
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            if let note = item.note, !note.isEmpty {
+                Text(note)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
+            }
+            HStack(spacing: 8) {
+                labelled(weightHeadingText) {
+                    numberField(slot: slot, field: .weight(slot),
+                                text: weightBinding(slot), ghost: ghostWeight(slot))
+                }
+                labelled(String(localized: "Reps")) {
+                    numberField(slot: slot, field: .reps(slot),
+                                text: repsBinding(slot), ghost: ghostReps(slot))
+                }
+                labelled(String(localized: "RPE")) {
+                    numberField(slot: slot, field: .rpe(slot),
+                                text: rpeBinding(slot), ghost: ghostRpe(engine, slot: slot))
+                }
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background(rowBackground(isWorking: isWorking, done: engine.isCompleted(slot)),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
+    private var weightHeadingText: String {
+        unitSystem == .imperial ? String(localized: "Lb") : String(localized: "Kg")
+    }
+
+    /// The rounds as dots — done, in hand, to come — tappable to jump to or redo one, with ⊕/⊖ to change
+    /// how many, and the rest the program plans between them. Adding a round adds it to EVERY member.
+    private func roundsRow(_ engine: LiftSessionEngine, lead: Int, rounds: Int, round: Int,
+                           restSec: Int) -> some View {
+        let canAdd = rounds < LiftSessionEngine.maxSetsPerExercise
+        let canRemove = engine.canRemoveSet(fromExercise: lead)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                ForEach(1...rounds, id: \.self) { k in
+                    let slot = LiftSlot(exerciseIndex: lead, setIndex: k)
+                    Button { session.start(slot) } label: {
+                        Circle()
+                            .fill(engine.isCompleted(slot) ? StrandPalette.statusPositive
+                                  : (k == round ? StrandPalette.metricAmber : StrandPalette.hairlineStrong))
+                            .frame(width: 12, height: 12)
+                            .padding(6)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(engine.isCompleted(slot)
+                                        ? String(localized: "Redo round \(k)")
+                                        : String(localized: "Start round \(k)"))
+                }
+                Spacer(minLength: 0)
+                Button { session.removeSet(fromExercise: lead) } label: {
+                    Image(systemName: "minus.circle")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(canRemove ? StrandPalette.textSecondary
+                                                   : StrandPalette.textTertiary.opacity(0.4))
+                        .frame(width: Self.tickColumnWidth)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canRemove)
+                .accessibilityLabel(String(localized: "Remove the last round"))
+                Button { session.addSet(toExercise: lead) } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(canAdd ? StrandPalette.effortColor : StrandPalette.textTertiary)
+                        .frame(width: Self.tickColumnWidth)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canAdd)
+                .accessibilityLabel(String(localized: "Add a round"))
+            }
+            Text(String(localized: "\(rounds) rounds · \(LiftFormat.duration(restSec)) rest after each"))
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// The running rest, with the way out of it: the next round starts on its own at zero, and Skip
+    /// starts it now.
+    private func supersetRestBand(_ engine: LiftSessionEngine) -> some View {
+        HStack(spacing: 8) {
+            Text("Rest period").strandOverline()
+                .foregroundStyle(StrandPalette.metricAmber)
+            LiftRunningClock { engine.restRemaining(now: $0) ?? 0 }
+                .font(StrandFont.captionNumber)
+                .foregroundStyle(StrandPalette.metricAmber)
+            Spacer(minLength: 0)
+            Button { session.skipRest() } label: {
+                Text(engine.allCompleted ? String(localized: "Done") : String(localized: "Skip rest"))
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(StrandPalette.surfaceRaised,
+                                in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(engine.allCompleted)
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(StrandPalette.metricAmber.opacity(0.22),
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(.horizontal, 8)
     }
 
     /// Add one more set, or drop the last planned one — at the END of the exercise, because that is
@@ -624,10 +830,13 @@ struct LiftSessionView: View {
     }
 
     private func actionLabel(_ engine: LiftSessionEngine) -> LocalizedStringKey {
+        let superset = engine.currentSlot.map { engine.isSuperset($0.exerciseIndex) } ?? false
         switch engine.stage {
         case .warmup:   return "Start first set"
-        case .working:  return "Set done"
-        case .resting:  return engine.allCompleted ? "All sets done" : "Start next set"
+        case .working:  return superset ? "Round done" : "Set done"
+        case .resting:
+            if engine.allCompleted { return "All sets done" }
+            return superset ? "Skip rest" : "Start next set"
         case .finished: return "Saving…"
         }
     }

@@ -24,6 +24,9 @@ struct LiftProgramEditorSheet: View {
     /// The exercise lines, in display order. `ord` is assigned from the array index on save, so
     /// reordering is just moving an element.
     @State private var items: [LiftProgramItemRow] = []
+    /// Which lines form a superset, by line id (`LiftSupersetGroups`). Edited with the chain button on
+    /// each line, kept beside the lines through reorders, written on save.
+    @State private var groups: LiftSupersetGroups.Groups = [:]
     @State private var loaded = false
     @State private var saving = false
 
@@ -134,12 +137,50 @@ struct LiftProgramEditorSheet: View {
     }
 
     private func itemRow(_ item: LiftProgramItemRow, index: Int) -> some View {
+        let ids = items.map(\.id)
+        let linked = LiftSupersetGroups.isLinkedToPrevious(index, ids: ids, groups: groups)
+        let inSuperset = groups[item.id] != nil
+        return VStack(spacing: 0) {
+            // The chain sits BETWEEN two lines, because that is what it joins: tapped, the line below
+            // is performed straight after the line above, and the pair rests together.
+            if index > 0 {
+                Button {
+                    groups = linked
+                        ? LiftSupersetGroups.unlinking(index, fromPrevious: ids, groups: groups)
+                        : LiftSupersetGroups.linking(index, toPrevious: ids, groups: groups)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: linked ? "link" : "link.badge.plus")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(linked ? String(localized: "Superset — no rest between")
+                                    : String(localized: "Make a superset with the line above"))
+                            .font(StrandFont.caption)
+                    }
+                    .foregroundStyle(linked ? StrandPalette.metricAmber : StrandPalette.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(linked
+                                    ? String(localized: "Split the superset with \(item.exercise)")
+                                    : String(localized: "Make a superset with \(item.exercise)"))
+            }
+            itemCard(item, index: index, inSuperset: inSuperset)
+        }
+    }
+
+    private func itemCard(_ item: LiftProgramItemRow, index: Int, inSuperset: Bool) -> some View {
         NoopCard {
             HStack(alignment: .top, spacing: NoopMetrics.gap) {
                 Button {
                     editingItem = ItemEditTarget(id: item.id, item: item)
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
+                        if inSuperset {
+                            Text("Superset").strandOverline()
+                                .foregroundStyle(StrandPalette.metricAmber)
+                        }
                         Text(item.exercise)
                             .font(StrandFont.headline)
                             .foregroundStyle(StrandPalette.textPrimary)
@@ -177,6 +218,7 @@ struct LiftProgramEditorSheet: View {
 
                     Button(role: .destructive) {
                         items.removeAll { $0.id == item.id }
+                        groups = LiftSupersetGroups.normalised(ids: items.map(\.id), groups: groups)
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -265,6 +307,8 @@ struct LiftProgramEditorSheet: View {
         let target = index + offset
         guard items.indices.contains(index), items.indices.contains(target) else { return }
         items.swapAt(index, target)
+        // A superset is lines performed back to back, so a move that pulls one out of its group cuts it.
+        groups = LiftSupersetGroups.normalised(ids: items.map(\.id), groups: groups)
     }
 
     /// Insert a new line, or replace an edited one in place so its position is kept.
@@ -286,6 +330,8 @@ struct LiftProgramEditorSheet: View {
         note = program.note ?? ""
         guard let store = await repo.storeHandle() else { return }
         items = (try? await store.liftProgramItems(programId: program.id)) ?? []
+        groups = LiftSupersetGroups.normalised(ids: items.map(\.id),
+                                               groups: LiftSupersetGroups.groups(programId: program.id))
     }
 
     private func save() async {
@@ -326,6 +372,8 @@ struct LiftProgramEditorSheet: View {
             )
         }
         _ = try? await store.replaceLiftProgramItems(programId: id, items: ordered)
+        LiftSupersetGroups.store(LiftSupersetGroups.normalised(ids: ordered.map(\.id), groups: groups),
+                                 programId: id, items: ordered.map(\.id))
 
         await onSaved()
         dismiss()
@@ -334,6 +382,7 @@ struct LiftProgramEditorSheet: View {
     private func deleteProgram() async {
         guard let program, let store = await repo.storeHandle() else { return }
         _ = try? await store.deleteLiftProgram(id: program.id)
+        LiftSupersetGroups.remove(programId: program.id)
         await onSaved()
         dismiss()
     }

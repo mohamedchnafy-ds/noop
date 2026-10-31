@@ -701,7 +701,7 @@ final class LiftSessionController: ObservableObject {
     }
 
     /// The program's lines with `changes` applied. Only `restSec` moves.
-    static func applying(_ changes: [RestChange], to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
+    static func applyingRests(_ changes: [RestChange], to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
         let rests = Dictionary(changes.map { ($0.itemId, $0.to) }, uniquingKeysWith: { first, _ in first })
         return items.map { row in
             guard let rest = rests[row.id] else { return row }
@@ -753,7 +753,8 @@ final class LiftSessionController: ObservableObject {
     ///
     /// Every line already in the program takes its heaviest done set (`applyingHeaviestSets`, always).
     /// With `keepingChanges` — the answer to the finish sheet's program question — changed set counts and
-    /// rests move too (`applying`), and each exercise added during the session becomes a new line at the end,
+    /// rests move too (`applying`, `applyingRests`), and each exercise added during the session becomes a
+    /// new line at the end,
     /// in the order added: the session's set count for it, its heaviest done set's weight and reps, else
     /// 0 kg × 0 reps, and nothing else (Utku, 21 Sep 2026: the rest is set later in the program editor).
     static func programAfterSession(_ sets: [FinishedSet], plan: [LiftPlanItem],
@@ -762,7 +763,7 @@ final class LiftSessionController: ObservableObject {
         var lines = items
         if keepingChanges {
             lines = applying(setCountChanges(plan: plan, program: items), to: lines)
-            lines = applying(restChanges(plan: plan, program: items), to: lines)
+            lines = applyingRests(restChanges(plan: plan, program: items), to: lines)
             let next = (items.map(\.ord).max() ?? -1) + 1
             for (offset, line) in plan.filter(\.addedInSession).enumerated() {
                 guard let id = line.programItemId, !lines.contains(where: { $0.id == id }) else { continue }

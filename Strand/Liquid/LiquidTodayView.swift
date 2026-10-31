@@ -731,8 +731,9 @@ struct LiquidTodayView: View {
     private var effortTargetRange: ClosedRange<Double>? {
         guard let band = CoupledView.optimalStrainRange(recovery: chargeDisplay.pct) else { return nil }
         if effortScale == .whoop { return Double(band.lowerBound)...Double(band.upperBound) }
-        return StrainScorer.effortValue(fromWhoopStrain: Double(band.lowerBound))
-            ...StrainScorer.effortValue(fromWhoopStrain: Double(band.upperBound))
+        let lo = StrainScorer.effortValue(fromWhoopStrain: Double(band.lowerBound))
+        let hi = StrainScorer.effortValue(fromWhoopStrain: Double(band.upperBound))
+        return lo...hi
     }
 
     private var effortTargetCaption: String? {

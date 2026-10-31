@@ -1,0 +1,54 @@
+# Fork-only: build the unsigned iOS .ipa for sideloading whenever a `build/**` branch is pushed, and
+# publish it as a prerelease named after the branch. Mirrors the iOS leg of fork-testing-build.yml
+# (Release build, watch stripped, widget extension kept, sideload-ready signature placeholder).
+name: iOS ipa (fork, on push)
+
+on:
+  push:
+    branches: ['build/**']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build NOOPiOS for device (unsigned, Release)
+        run: >-
+          xcodebuild -scheme NOOPiOS -configuration Release -destination 'generic/platform=iOS'
+          -derivedDataPath build/dd
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+          build
+      - name: Package the sideload .ipa and publish it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER=$(grep -m1 'MARKETING_VERSION' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP" || { echo ".app (iphoneos) not found"; exit 1; }
+          rm -rf "$APP/Watch"
+          test -d "$APP/PlugIns/NOOPWidgets.appex" || { echo "NOOPWidgets.appex missing"; exit 1; }
+          Tools/prepare-ios-sideload-app.sh "$APP"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          IPA="NOOP-ios-unsigned-v${VER}-${GITHUB_SHA:0:7}.ipa"
+          zip -qr "$IPA" Payload
+          TAG="ipa-${GITHUB_REF_NAME//\//-}"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          sleep 3
+          gh release create "$TAG" "$IPA" --repo "$GITHUB_REPOSITORY" --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "NOOP fork · ${GITHUB_REF_NAME} · v${VER} · ${GITHUB_SHA:0:7}" \
+            --notes "Unsigned iOS build of \`${GITHUB_REF_NAME}\` (${GITHUB_SHA:0:7}) for sideloading with Sideloadly / AltStore. Production bundle id: installs over an existing NOOP and keeps its data — export a backup first."
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease

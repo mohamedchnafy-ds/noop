@@ -946,7 +946,9 @@ final class AICoachEngine: ObservableObject {
     private static let briefInstruction = """
     Based on the data above, give me TODAY'S coaching brief in three short parts: \
     (1) my readiness in one line, citing charge, HRV and rest; \
-    (2) exactly what training to do today and what to avoid; \
+    (2) exactly what training to do today and what to avoid — when the LIFT LOG names a likely next \
+    program in the rotation, name it as today's program and list its exercises with the load to use, \
+    stepping up where last time's sets earned it; \
     (3) one specific thing to improve my charge. Be punchy and motivating.
     """
 

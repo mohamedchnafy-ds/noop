@@ -23,6 +23,10 @@ struct LiftSessionView: View {
     // (`LiftLiveReadouts.swift`): watched from here, every beat, log line and tick redrew the whole sheet.
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var session: LiftSessionController
+    @EnvironmentObject private var coach: AICoachEngine
+    @EnvironmentObject private var router: NavRouter
+    /// The Coach master switch, shared by name with Today and Android.
+    @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @Environment(\.dismiss) private var dismiss
 
     /// Called once the session has been written, so the hub can reload.
@@ -38,6 +42,10 @@ struct LiftSessionView: View {
     @State private var programChoice: ProgramChoice?
     /// Program lines whose set count this session changed, read when the finish sheet opens.
     @State private var setCountChanges: [LiftSessionController.SetCountChange] = []
+    /// Personal fork: the load to propose per exercise (`LiftProgression`), read with the grey numbers.
+    @State private var loadSuggestions: [String: LiftProgression.Suggestion] = [:]
+    /// Personal fork: set when "Save and ask the Coach" is chosen, so the save hands the session over.
+    @State private var askCoachAfterSave = false
     @State private var addingExercise = false
     /// The card to bring into view once an exercise has been added — the new one, at the end.
     @State private var scrollTarget: Int?
@@ -197,6 +205,7 @@ struct LiftSessionView: View {
                                                 secondaries: item.secondaryMuscles))
                         .font(StrandFont.caption)
                         .foregroundStyle(StrandPalette.textTertiary)
+                    loadSuggestionLine(for: item)
                 }
                 if let note = item.note, !note.isEmpty {
                     Text(note)
@@ -224,6 +233,26 @@ struct LiftSessionView: View {
             }
         }
         .id(index)
+    }
+
+    /// Personal fork: "↑ +2.5 kg → 62.5 kg" when last time earned a step up (`LiftProgression`). A
+    /// suggestion, not a change: the grey numbers still show last time's weight until the lifter types.
+    @ViewBuilder
+    private func loadSuggestionLine(for item: LiftPlanItem) -> some View {
+        if let s = loadSuggestions[item.exercise] {
+            let unit = LiftFormat.weightUnit(unitSystem)
+            let step = LiftFormat.trim(LiftFormat.display(fromKilograms: s.toKg - s.fromKg, system: unitSystem))
+            let to = LiftFormat.trim(LiftFormat.display(fromKilograms: s.toKg, system: unitSystem))
+            HStack(spacing: NoopMetrics.space1) {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .bold))
+                Text("+\(step) \(unit) → \(to) \(unit)")
+                    .font(StrandFont.captionNumber)
+            }
+            .foregroundStyle(StrandPalette.chargeColor)
+            .padding(.top, NoopMetrics.spaceHalf)
+            .accessibilityLabel(Text("Suggested load: \(to) \(unit), up \(step) \(unit) from last time"))
+        }
     }
 
     // MARK: - One superset, its sets in the order they are done
@@ -254,6 +283,7 @@ struct LiftSessionView: View {
                                                     secondaries: item.secondaryMuscles))
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.textTertiary)
+                        loadSuggestionLine(for: item)
                         if let note = item.note, !note.isEmpty {
                             Text(note)
                                 .font(StrandFont.footnote)
@@ -751,6 +781,23 @@ struct LiftSessionView: View {
                     .buttonStyle(.noopPrimary)
                     .disabled(saving || !answered)
                     .opacity(saving || !answered ? NoopButtonMetrics.disabledOpacity : 1)
+                // Personal fork: the same save, then the session goes to the Coach as a question — the
+                // launcher's hand-off (`pendingPrompt` + `openCoach`), so nothing is sent until the Coach
+                // screen itself sends it. Hidden with the Coach off, like every other route to it.
+                if coachEnabled {
+                    Button {
+                        askCoachAfterSave = true
+                        Task { await save() }
+                    } label: {
+                        Label("Save and ask the Coach", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.accent)
+                    .disabled(saving || !answered)
+                    .opacity(saving || !answered ? NoopButtonMetrics.disabledOpacity : 1)
+                }
                 if !answered {
                     Text("Choose an option above to save.")
                         .font(StrandFont.footnote)
@@ -879,6 +926,7 @@ struct LiftSessionView: View {
     private func loadLastTime() async {
         guard let engine, let store = await repo.storeHandle() else { return }
         var out: [String: [Int: LiftSetCarry]] = [:]
+        var suggestions: [String: LiftProgression.Suggestion] = [:]
         // One query per DISTINCT exercise, not per plan line. A program that programs the same
         // movement twice — or an imported one with many lines — would otherwise re-ask the store the
         // same question, and this runs when the sheet opens.
@@ -891,8 +939,16 @@ struct LiftSessionView: View {
                 bySet[r.setIndex] = LiftSetCarry(weightKg: r.weightKg, reps: r.reps)
             }
             out[exercise] = bySet
+            // Personal fork: the step-up rule, judged against the FIRST plan line for the exercise (a
+            // program that lists a movement twice shares one answer, as it shares one "last time").
+            if let item = engine.plan.first(where: { $0.exercise == exercise }) {
+                suggestions[exercise] = LiftProgression.suggest(
+                    lastSets: rows, item: item,
+                    stepKg: unitSystem == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg)
+            }
         }
         session.setLastSession(out)
+        loadSuggestions = suggestions
     }
 
     private func save() async {
@@ -913,6 +969,7 @@ struct LiftSessionView: View {
         // still read back as a workout. The finish sheet says so before Save. The program's set counts
         // are a separate thing the user chose explicitly, so those still apply.
         guard LiftSessionController.anyPerformed(finished) else {
+            askCoachAfterSave = false
             await writeProgram(store: store, plan: engine.plan, sets: finished)
             await finishAndDismiss()
             return
@@ -957,7 +1014,15 @@ struct LiftSessionView: View {
             distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
         await repo.saveManualWorkout(workout)
 
+        let askCoach = askCoachAfterSave
+        askCoachAfterSave = false
         await finishAndDismiss()
+        if askCoach {
+            coach.pendingPrompt = CoachSessionPrompt.prompt(
+                programName: row.programName, startTs: engine.startTs, endTs: endTs,
+                sessionRpe: LiftFormat.number(sessionRpeText), sets: rows, system: unitSystem)
+            router.openCoach()
+        }
     }
 
     /// Close the session down and leave the sheet. Shared by the normal save and the nothing-to-file

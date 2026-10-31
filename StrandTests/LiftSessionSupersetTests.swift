@@ -116,6 +116,7 @@ final class LiftSessionSupersetTests: XCTestCase {
         XCTAssertEqual(e.upcomingSlot, slot(0, 2), "resting: still A1 of the next round")
     }
 
+    @MainActor
     func testTheBarAndLockScreenTagSupersetLines() {
         var e = started(plan())
         XCTAssertEqual(LiftSessionController.nextLine(e), "Next: Set 1 · A2 · Triceps extension")

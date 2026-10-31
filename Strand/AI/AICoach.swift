@@ -946,7 +946,9 @@ final class AICoachEngine: ObservableObject {
     private static let briefInstruction = """
     Based on the data above, give me TODAY'S coaching brief in three short parts: \
     (1) my readiness in one line, citing charge, HRV and rest; \
-    (2) exactly what training to do today and what to avoid; \
+    (2) exactly what training to do today and what to avoid — when the LIFT LOG names a likely next \
+    program in the rotation, name it as today's program and list its exercises with the load to use, \
+    stepping up where last time's sets earned it; \
     (3) one specific thing to improve my charge. Be punchy and motivating.
     """
 
@@ -983,11 +985,28 @@ final class AICoachEngine: ObservableObject {
         // the caller only reaches here with `dataConsent` on.
         let lift = await liftLogBlock()
         if !lift.isEmpty { ctx += "\n\n" + lift }
+        // The recent days' naps (personal fork): the day lines carry the main night only.
+        let naps = await napsBlock()
+        if !naps.isEmpty { ctx += "\n\n" + naps }
         if includeOnDeviceSignals {
             let block = await onDeviceSignalsBlock()
             if !block.isEmpty { ctx += "\n\n" + block }
         }
         return ctx
+    }
+
+    /// The naps block for the context (`CoachNapContext`): the last two weeks' daytime sleep, split from
+    /// the night by the same selector the Sleep tab uses. "" when no day in the window had a nap.
+    func napsBlock() async -> String {
+        let sessions = await repo.allSleepSessions(days: CoachNapContext.windowDays + 1)
+        guard !sessions.isEmpty else { return "" }
+        let habitual = await repo.habitualMidsleepSec()
+        let naps = CoachNapContext.naps(
+            dayGroups: SleepModel.navDays(navSessions: sessions), habitualMidsleepSec: habitual
+        ) { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0))) }
+        let mainByDay = Dictionary(repo.days.compactMap { d in d.totalSleepMin.map { (d.day, $0) } },
+                                   uniquingKeysWith: { _, last in last })
+        return CoachNapContext.summary(naps: naps, mainSleepMinByDay: mainByDay, zone: .current)
     }
 
     /// The Lift Log block for the context (`CoachLiftContext`): the last few weeks of sessions with

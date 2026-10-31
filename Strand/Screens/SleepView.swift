@@ -47,6 +47,8 @@ struct SleepView: View {
     /// The Sleep tab's stage-chart shape (Settings → Appearance → Sleep chart). Display-only; Filled/Ribbon
     /// draw the WHOOP-style stepped hypnogram, Classic keeps the per-stage rows. Mirrors Android. (#sleep-chart-style)
     @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
+    /// Personal fork: the heart-rate line over the stepped (Filled / Ribbon) hypnogram, on by default.
+    @AppStorage(SleepHROverlay.enabledKey) private var showSleepHR = true
     /// The repo signature the cached `model` was built from. Cheap to compute every render;
     /// when it differs from the current inputs we rebuild the model.
     @State private var modelKey: SleepInputKey?
@@ -950,16 +952,28 @@ struct SleepView: View {
             height: NoopMetrics.chartHeight,
             tint: StrandPalette.restColor,
             chart: {
-                Hypnogram(
-                    intervals: intervals,
-                    height: NoopMetrics.chartHeight,
-                    showsStageAxis: false,
-                    showsHover: true,
-                    nightStart: night.onsetDate,
-                    showsTimeAxis: true,
-                    filled: style.isFilled,
-                    stagePalette: style.stagePalette
-                )
+                // Personal fork: the sleeping-HR line rides on top of the plot. The hypnogram lays its plot
+                // (exactly `chartHeight` tall, no stage-axis column here) above its clock labels, so a
+                // top-aligned layer of the same height and full width shares its axis; the overlay maps
+                // time with the same origin / span the hypnogram derives from these intervals.
+                ZStack(alignment: .top) {
+                    Hypnogram(
+                        intervals: intervals,
+                        height: NoopMetrics.chartHeight,
+                        showsStageAxis: false,
+                        showsHover: true,
+                        nightStart: night.onsetDate,
+                        showsTimeAxis: true,
+                        filled: style.isFilled,
+                        stagePalette: style.stagePalette
+                    )
+                    if showSleepHR {
+                        let origin = intervals.map(\.start).min() ?? 0
+                        let span = max(1, (intervals.map(\.end).max() ?? 1) - origin)
+                        SleepHROverlay(nightHR: nightHR, nightStart: night.onsetDate, origin: origin, span: span)
+                            .frame(height: NoopMetrics.chartHeight)
+                    }
+                }
             },
             // A colour-coded key in the chart's ramp so the bands are decodable (esp. the Garmin ramp's two
             // pinks), then the per-stage breakdown rows below.
@@ -971,9 +985,47 @@ struct SleepView: View {
                     // Oura/Garmin three things in one card disagreed. Ramp-aware rows name and colour every
                     // stage correctly, which IS the key; a legend above a correct key is the redundancy
                     // that was reported.
-                    stageBreakdownRows(s, palette: style.stagePalette)
+                    VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+                        sleepHRToggle
+                        stageBreakdownRows(s, palette: style.stagePalette)
+                    }
             }
         )
+    }
+
+    /// Personal fork: the switch for the heart-rate line over the stepped hypnogram, with the night's
+    /// lowest rate beside it so the number is readable even with the line off.
+    @ViewBuilder
+    private var sleepHRToggle: some View {
+        let lowest = nightHR.map(\.bpm).min()
+        HStack(spacing: NoopMetrics.space2) {
+            if let lowest {
+                Text("Lowest \(Int(lowest.rounded())) bpm")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            Spacer(minLength: NoopMetrics.space2)
+            Button {
+                showSleepHR.toggle()
+            } label: {
+                HStack(spacing: NoopMetrics.space1) {
+                    Image(systemName: showSleepHR ? "heart.fill" : "heart")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Heart rate")
+                        .font(StrandFont.caption)
+                }
+                .foregroundStyle(showSleepHR ? StrandPalette.liquidHeart : StrandPalette.textTertiary)
+                .padding(.horizontal, NoopMetrics.space2)
+                .padding(.vertical, NoopMetrics.spaceHalf)
+                .background(
+                    Capsule().stroke(showSleepHR ? StrandPalette.liquidHeart.opacity(0.7) : StrandPalette.hairline,
+                                     lineWidth: NoopMetrics.hairlineWidth))
+            }
+            .buttonStyle(.plain)
+            .disabled(nightHR.count < 2)
+            .accessibilityLabel(Text("Heart rate line"))
+            .accessibilityValue(Text(showSleepHR ? String(localized: "On") : String(localized: "Off")))
+        }
     }
 
     /// #407 — the per-epoch movement/restlessness strip drawn UNDER the hypnogram, on the SAME timeline.

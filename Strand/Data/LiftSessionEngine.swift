@@ -391,11 +391,18 @@ struct LiftSessionEngine: Equatable {
     /// through it does not stamp the round with the moment it woke.
     @discardableResult
     mutating func startNextRoundIfRestEnded(at now: Int) -> Bool {
-        guard case .resting(let slot, let endsAt) = stage, isSuperset(slot.exerciseIndex),
-              endsAt <= now, let next = slotAfter(slot),
-              next.exerciseIndex == slot.exerciseIndex else { return false }
+        guard isNextRoundDue(at: now), case .resting(_, let endsAt) = stage else { return false }
         advance(now: endsAt)
         return true
+    }
+
+    /// Whether `startNextRoundIfRestEnded(at:)` would act: a superset's rest has run out and another
+    /// round of it is left. Asked BEFORE mutating, so a caller holding the engine in a published
+    /// property does not publish a change that changes nothing.
+    func isNextRoundDue(at now: Int) -> Bool {
+        guard case .resting(let slot, let endsAt) = stage, isSuperset(slot.exerciseIndex),
+              endsAt <= now, let next = slotAfter(slot) else { return false }
+        return next.exerciseIndex == slot.exerciseIndex
     }
 
     /// The big button. Context decides what it means.

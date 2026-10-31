@@ -261,9 +261,12 @@ final class LiftSessionController: ObservableObject {
     /// Fired by the rest's end timer, and on resume for a rest that ran out while NOOP was not running.
     /// The round is stamped with the rest's end, not with now.
     private func startNextRoundIfDue() {
-        guard let current = engine else { return }
+        // Checked before touching `engine`: a mutating call through the published property publishes
+        // even when it declines, and the rest's end is published exactly once (LiftSessionTimingTests).
+        let now = Self.unixNow
+        guard let current = engine, current.isNextRoundDue(at: now) else { return }
         let recordedBefore = current.sets.count
-        guard engine?.startNextRoundIfRestEnded(at: Self.unixNow) == true else { return }
+        guard engine?.startNextRoundIfRestEnded(at: now) == true else { return }
         applyPendingInput(from: recordedBefore)
         warnedFor = nil
         persist()

@@ -75,13 +75,16 @@ final class LiftSessionSupersetTests: XCTestCase {
 
     func testTheLastRestDoesNotStartAnything() {
         var e = LiftSessionEngine(plan: plan(), startTs: t0)
+        e.advance(now: t0)                           // round 1 starts
         var now = t0
         for _ in 1...3 {
-            e.advance(now: now); now += 60
-            e.advance(now: now); now += 130
-            _ = e.startNextRoundIfRestEnded(at: now)
+            now += 60
+            e.advance(now: now)                      // round done, rest runs
+            now += 130
+            _ = e.startNextRoundIfRestEnded(at: now) // next round by itself, if there is one
         }
         // Superset done; its last rest ran out, but the calf raise is another machine: it waits for the tap.
+        XCTAssertFalse(e.isNextRoundDue(at: now))
         if case .resting(let s, _) = e.stage { XCTAssertEqual(s, slot(0, 3)) } else { XCTFail("\(e.stage)") }
         XCTAssertEqual(e.upcomingSlot, slot(2, 1))
     }
@@ -109,11 +112,13 @@ final class LiftSessionSupersetTests: XCTestCase {
     func testNextPendingNeverLandsOnAMember() {
         var e = LiftSessionEngine(plan: plan(), startTs: t0)
         XCTAssertEqual(e.nextPendingSlot, slot(0, 1))
+        e.advance(now: t0)                           // round 1 starts
         var now = t0
         for _ in 1...3 {
-            e.advance(now: now); now += 60
-            e.advance(now: now); now += 130
-            e.advance(now: now)
+            now += 60
+            e.advance(now: now)                      // round done
+            now += 130
+            e.advance(now: now)                      // tap: next round, or the line after the superset
         }
         XCTAssertEqual(e.currentSlot, slot(2, 1))
         XCTAssertEqual(e.upcomingSlot, slot(2, 2))

@@ -138,8 +138,17 @@ jobs:
       # scheduled-report / strain-target policy, etc.) that swift-packages can't reach.
       - name: Test ${{ matrix.scheme }}
         if: matrix.scheme == 'Strand'
-        run: >-
-          xcodebuild -scheme Strand -configuration Debug
-          -destination 'platform=macOS'
-          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-          test
+        run: |
+          set -o pipefail
+          xcodebuild -scheme Strand -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            test 2>&1 | tee xcodebuild-test.log
+        # TEMPORARY (surfacing failures as annotations while the job log is unreadable from the CCR session).
+      - name: Surface test failures
+        if: always() && matrix.scheme == 'Strand'
+        run: |
+          grep -E "error:|Test Case .* failed|Failing tests|\*\* TEST FAILED" xcodebuild-test.log | sort -u | head -60 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
+          true

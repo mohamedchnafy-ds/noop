@@ -4,9 +4,10 @@ import WhoopStore
 
 /// Supersets in the Lift Log session engine (personal fork).
 ///
-/// Consecutive plan lines sharing a label are worked in alternation — A1, A2, rest, A1, A2 — and the
-/// rest comes only after the last member of each round. Pure, like the engine: a whole superset
-/// session is driven through a known timeline with no strap, no database and no simulator.
+/// Consecutive plan lines sharing a label are ONE ROUND: A1 straight onto A2 with nothing to tick between
+/// them, one tap records every member's set, the rest comes once, and the next round starts by itself
+/// when the rest runs out. Pure, like the engine: a whole superset session is driven through a known
+/// timeline with no strap, no database and no simulator.
 final class LiftSessionSupersetTests: XCTestCase {
 
     private let t0 = 1_700_000_000
@@ -25,138 +26,200 @@ final class LiftSessionSupersetTests: XCTestCase {
         ]
     }
 
-    /// Start the session and return it working A1 set 1 at t0.
+    /// Start the session and return it working round 1 at t0.
     private func started(_ plan: [LiftPlanItem]) -> LiftSessionEngine {
         var e = LiftSessionEngine(plan: plan, startTs: t0)
         e.advance(now: t0)
         return e
     }
 
-    // MARK: - The alternation
+    // MARK: - The round
 
-    func testOneStepGoesFromA1StraightToA2WithNoRestStage() {
+    func testTheRoundIsDrivenThroughItsLead() {
+        let e = LiftSessionEngine(plan: plan(), startTs: t0)
+        XCTAssertEqual(e.roundSlots(for: slot(1, 2)), [slot(0, 2), slot(1, 2)])
+        XCTAssertEqual(e.leadSlot(slot(1, 2)), slot(0, 2))
+        XCTAssertEqual(e.roundSlots(for: slot(2, 1)), [slot(2, 1)], "a line on its own is its own round")
+        XCTAssertEqual(e.nextPendingSlot, slot(0, 1))
+    }
+
+    func testOneTapRecordsTheWholeRoundAndRestsTheLastLinesRest() {
         var e = started(plan())
         XCTAssertEqual(e.stage, .working(slot(0, 1)))
+        XCTAssertNil(e.restRemaining(now: t0 + 10), "no rest runs inside a round")
 
-        e.advance(now: t0 + 40)
-        XCTAssertEqual(e.stage, .working(slot(1, 1)), "A1 done → A2 starts in the same step")
-        XCTAssertEqual(e.stageStartedAt, t0 + 40, "A2 starts the instant A1 ends")
-        XCTAssertEqual(e.sets.count, 1)
-        XCTAssertEqual(e.sets[0].slot, slot(0, 1))
-        XCTAssertEqual(e.sets[0].endTs, t0 + 40)
-        XCTAssertEqual(e.sets[0].restSec, 0, "nothing was rested between A1 and A2, and it says so")
-        XCTAssertNil(e.restRemaining(now: t0 + 41), "there is no rest running")
-    }
-
-    func testTheRestComesOnlyAfterTheLastMemberAndUsesTheLastLinesRest() {
-        var e = started(plan())
-        e.advance(now: t0 + 40)        // A1·1 done → A2·1
-        e.advance(now: t0 + 80)        // A2·1 done → rest
-        XCTAssertEqual(e.stage, .resting(slot(1, 1), endsAt: t0 + 80 + 95),
+        e.advance(now: t0 + 60)
+        XCTAssertEqual(e.stage, .resting(slot(0, 1), endsAt: t0 + 60 + 95),
                        "the round's rest is the LAST line's 95 s — A1's own 30 s is never used")
-        XCTAssertEqual(e.restRemaining(now: t0 + 100), 75)
+        XCTAssertTrue(e.isCompleted(slot(0, 1)))
+        XCTAssertTrue(e.isCompleted(slot(1, 1)))
+        XCTAssertEqual(e.sets.map(\.slot), [slot(0, 1), slot(1, 1)])
+        XCTAssertEqual(e.sets.map(\.startTs), [t0, t0], "both carry the round's timing")
+        XCTAssertEqual(e.sets.map(\.endTs), [t0 + 60, t0 + 60])
+        XCTAssertEqual(e.completedWorkingSets, 2)
     }
 
-    func testAfterTheRestTheNextRoundStartsBackAtTheFirstMember() {
+    func testTheNextRoundStartsByItselfWhenTheRestRunsOut() {
         var e = started(plan())
-        e.advance(now: t0 + 40)        // → A2·1
-        e.advance(now: t0 + 80)        // → rest
-        e.advance(now: t0 + 175)       // rest over → A1·2
+        e.advance(now: t0 + 60)                      // round 1 done, rest until t0 + 155
+        XCTAssertFalse(e.isNextRoundDue(at: t0 + 100))
+        XCTAssertFalse(e.startNextRoundIfRestEnded(at: t0 + 100), "rest still running")
+        XCTAssertTrue(e.isNextRoundDue(at: t0 + 200))
+        XCTAssertTrue(e.startNextRoundIfRestEnded(at: t0 + 200))
         XCTAssertEqual(e.stage, .working(slot(0, 2)))
-        XCTAssertEqual(e.recordedSet(for: slot(1, 1))?.restSec, 95, "the rest actually taken is recorded")
+        XCTAssertEqual(e.stageStartedAt, t0 + 155, "stamped with the rest's END, not with when the phone noticed")
+        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.restSec, 95)
+        XCTAssertEqual(e.recordedSet(for: slot(1, 1))?.restSec, 95, "every member rested the same gap")
     }
 
-    func testAFullSupersetRunsA1A2RestThreeTimesThenLeavesTheGroup() {
+    func testALineOnItsOwnStillWaitsForTheTap() {
+        var e = LiftSessionEngine(plan: plan(), startTs: t0)
+        e.start(slot(2, 1), now: t0)
+        e.advance(now: t0 + 30)
+        XCTAssertFalse(e.isNextRoundDue(at: t0 + 1000))
+        XCTAssertFalse(e.startNextRoundIfRestEnded(at: t0 + 1000))
+        if case .resting = e.stage {} else { XCTFail("still resting: \(e.stage)") }
+    }
+
+    func testTheLastRestDoesNotStartTheLineAfterTheSuperset() {
         var e = started(plan())
         var now = t0
-        var order: [LiftSlot] = []
-        // Walk until the superset is finished, recording every set as it starts.
-        while case .working(let s) = e.stage, s.exerciseIndex < 2 {
-            order.append(s)
-            now += 30
-            e.advance(now: now)                         // set done
-            if case .resting = e.stage { now += 90; e.advance(now: now) }  // rest over
+        for _ in 1...3 {
+            now += 60
+            e.advance(now: now)                      // round done, rest runs
+            now += 130
+            _ = e.startNextRoundIfRestEnded(at: now) // next round by itself, if there is one
         }
-        XCTAssertEqual(order, [slot(0, 1), slot(1, 1), slot(0, 2), slot(1, 2), slot(0, 3), slot(1, 3)])
+        // Superset done; its last rest ran out, but the calf raise is another machine: it waits for the tap.
+        XCTAssertFalse(e.isNextRoundDue(at: now))
+        if case .resting(let s, _) = e.stage { XCTAssertEqual(s, slot(0, 3)) } else { XCTFail("\(e.stage)") }
+        XCTAssertEqual(e.upcomingSlot, slot(2, 1))
+        e.advance(now: now)
+        XCTAssertEqual(e.stage, .working(slot(2, 1)), "the tap takes the session on")
+    }
+
+    func testSkippingTheRestMovesOnAndRecordsWhatWasRested() {
+        var e = started(plan())
+        e.advance(now: t0 + 60)
+        e.advance(now: t0 + 90)                      // skip: 30 s rested, not 95
+        XCTAssertEqual(e.stage, .working(slot(0, 2)))
+        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.restSec, 30)
+        XCTAssertEqual(e.recordedSet(for: slot(1, 1))?.restSec, 30)
+    }
+
+    func testAFullSupersetIsThreeTapsThenTheNextLine() {
+        var e = started(plan())
+        var now = t0
+        var rounds: [LiftSlot] = []
+        while case .working(let s) = e.stage, s.exerciseIndex < 2 {
+            rounds.append(s)
+            now += 60
+            e.advance(now: now)                      // round done
+            now += 100
+            e.advance(now: now)                      // rest over (tapped)
+        }
+        XCTAssertEqual(rounds, [slot(0, 1), slot(0, 2), slot(0, 3)], "the session only ever stands on the lead")
+        XCTAssertEqual(e.sets.count, 6, "and every member's set is recorded")
         XCTAssertEqual(e.stage, .working(slot(2, 1)), "once the superset is done, on to the next line")
     }
 
     // MARK: - Uneven set counts
 
-    func testWhenA1HasAnExtraSetItsRoundEndsOnA1AndRestsTheGroupsRest() {
+    func testWhenA1HasAnExtraSetTheLastRoundIsA1AloneWithTheGroupsRest() {
         var e = started(plan(curlSets: 2, extensionSets: 1))
-        e.advance(now: t0 + 30)        // A1·1 → A2·1
-        e.advance(now: t0 + 60)        // A2·1 → rest
-        e.advance(now: t0 + 155)       // → A1·2
+        e.advance(now: t0 + 60)                      // round 1: A1·1 + A2·1
+        XCTAssertEqual(e.sets.count, 2)
+        e.advance(now: t0 + 160)                     // rest over → round 2
         XCTAssertEqual(e.stage, .working(slot(0, 2)))
-        XCTAssertNil(e.supersetPartner(after: slot(0, 2)), "A2 has nothing left in this round")
-        e.advance(now: t0 + 185)
-        XCTAssertEqual(e.stage, .resting(slot(0, 2), endsAt: t0 + 185 + 95),
-                       "the round closes on A1, with the superset's rest")
-        e.advance(now: t0 + 280)
+        XCTAssertEqual(e.roundSlots(for: slot(0, 2)), [slot(0, 2)], "A2 has nothing left in this round")
+        e.advance(now: t0 + 200)
+        XCTAssertEqual(e.stage, .resting(slot(0, 2), endsAt: t0 + 200 + 95),
+                       "the round closes on A1 alone, with the superset's rest")
+        XCTAssertEqual(e.sets.count, 3)
+        e.advance(now: t0 + 300)
         XCTAssertEqual(e.stage, .working(slot(2, 1)))
     }
 
     func testWhenA2HasAnExtraSetTheLastRoundIsA2Alone() {
         var e = started(plan(curlSets: 1, extensionSets: 2))
-        e.advance(now: t0 + 30)        // A1·1 → A2·1
-        e.advance(now: t0 + 60)        // → rest
-        e.advance(now: t0 + 155)       // → A2·2, the only member with a set left
+        e.advance(now: t0 + 60)                      // round 1
+        e.advance(now: t0 + 160)                     // → round 2: only A2 has a set left
         XCTAssertEqual(e.stage, .working(slot(1, 2)))
+        XCTAssertEqual(e.leadSlot(slot(1, 2)), slot(1, 2), "A2 leads a round A1 is not in")
     }
 
     // MARK: - What "next" says
 
-    func testUpcomingNamesThePartnerMidRoundAndTheFirstMemberAfterTheRest() {
-        var e = started(plan())
-        XCTAssertEqual(e.upcomingSlot, slot(1, 1), "working A1: next is A2, no rest between")
-        e.advance(now: t0 + 40)
-        XCTAssertEqual(e.upcomingSlot, slot(0, 2), "working A2: next is A1 of the next round")
-        e.advance(now: t0 + 80)
-        XCTAssertEqual(e.upcomingSlot, slot(0, 2), "resting: still A1 of the next round")
+    func testUpcomingNamesTheNextRoundAndThenTheLineAfter() {
+        var e = started(plan(curlSets: 1, extensionSets: 1))
+        XCTAssertEqual(e.upcomingSlot, slot(2, 1), "working the only round: next is the line after")
+        var two = started(plan())
+        XCTAssertEqual(two.upcomingSlot, slot(0, 2), "working round 1: next is round 2")
+        two.advance(now: t0 + 60)
+        XCTAssertEqual(two.upcomingSlot, slot(0, 2), "resting: still round 2")
+        e.advance(now: t0 + 60)
+        XCTAssertEqual(e.upcomingSlot, slot(2, 1))
     }
 
     @MainActor
-    func testTheBarAndLockScreenTagSupersetLines() {
+    func testTheBarAndLockScreenNameTheRound() {
         var e = started(plan())
-        XCTAssertEqual(LiftSessionController.nextLine(e), "Next: Set 1 · A2 · Triceps extension")
-        e.advance(now: t0 + 40)
-        XCTAssertEqual(LiftSessionController.nextLine(e), "Next: Set 2 · A1 · Curl")
+        XCTAssertEqual(LiftSessionController.nextLine(e), "Next: Round 2 · A · Curl + Triceps extension")
+        e.advance(now: t0 + 60)
+        e.advance(now: t0 + 160)
+        e.advance(now: t0 + 220)
+        e.advance(now: t0 + 320)                     // round 3 in hand
+        XCTAssertEqual(LiftSessionController.nextLine(e), "Next: Set 1 · Calf raise")
         XCTAssertEqual(LiftSessionController.exerciseLabel(e, index: 2, name: "Calf raise"), "Calf raise",
                        "a line on its own keeps its bare name")
     }
 
-    // MARK: - Out of order, and undo
+    // MARK: - Out of order, undo, rounds added
 
-    func testStartingA2ByHandRestsAfterItThenGoesBackToA1() {
+    func testStartingA2ByHandStartsTheWholeRoundAndRedoDropsIt() {
         var e = LiftSessionEngine(plan: plan(), startTs: t0)
-        e.start(slot(1, 1), now: t0)   // the curl station is taken
-        e.advance(now: t0 + 30)
-        XCTAssertEqual(e.stage, .resting(slot(1, 1), endsAt: t0 + 30 + 95),
-                       "A2 is the last member, so it closes the round")
-        e.advance(now: t0 + 125)
-        XCTAssertEqual(e.stage, .working(slot(0, 1)), "the skipped A1·1 is what comes next")
-        e.advance(now: t0 + 155)
-        XCTAssertEqual(e.stage, .working(slot(1, 2)), "and its partner is A2's next pending set")
+        e.start(slot(1, 2), now: t0)
+        XCTAssertEqual(e.stage, .working(slot(0, 2)), "a member starts its round, on the lead")
+        e.advance(now: t0 + 60)
+        XCTAssertEqual(e.sets.count, 2)
+        e.start(slot(0, 2), now: t0 + 100)
+        XCTAssertTrue(e.sets.isEmpty, "a redo drops every member's record")
     }
 
-    func testUndoingTheTransitionPutsTheSessionBackOnA1() {
+    func testUndoingARoundPutsEveryMemberBack() {
         var e = started(plan())
-        e.advance(now: t0 + 40)
-        XCTAssertEqual(e.stage, .working(slot(1, 1)))
+        e.advance(now: t0 + 60)
+        XCTAssertEqual(e.sets.count, 2)
         e.undo()
         XCTAssertEqual(e.stage, .working(slot(0, 1)))
-        XCTAssertTrue(e.sets.isEmpty, "A1·1 is no longer recorded")
+        XCTAssertTrue(e.sets.isEmpty)
         XCTAssertEqual(e.stageStartedAt, t0)
     }
 
-    func testFinishingMidSupersetRecordsNoInventedRest() {
+    func testAddingAndRemovingARoundMovesEveryMember() {
+        var e = LiftSessionEngine(plan: plan(), startTs: t0)
+        XCTAssertTrue(e.addSet(toExercise: 1))
+        XCTAssertEqual(e.plan[0].targetSets, 4)
+        XCTAssertEqual(e.plan[1].targetSets, 4)
+        XCTAssertTrue(e.removeSet(fromExercise: 0))
+        XCTAssertEqual(e.plan[0].targetSets, 3)
+        XCTAssertEqual(e.plan[1].targetSets, 3)
+        XCTAssertEqual(e.plan[2].targetSets, 2, "a line on its own is unaffected")
+    }
+
+    func testFinishingDuringTheRestClosesEveryMembersRest() {
         var e = started(plan())
-        e.advance(now: t0 + 40)        // A1·1 → A2·1
-        e.finish(now: t0 + 50)
+        e.advance(now: t0 + 60)
+        e.finish(now: t0 + 100)
         XCTAssertTrue(e.isFinished)
-        XCTAssertEqual(e.sets.map(\.slot), [slot(0, 1)], "A2·1 was started, never finished")
-        XCTAssertEqual(e.sets[0].restSec, 0)
+        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.restSec, 40)
+        XCTAssertEqual(e.recordedSet(for: slot(1, 1))?.restSec, 40)
+    }
+
+    func testFinishingMidRoundRecordsNothingForIt() {
+        var e = started(plan())
+        e.finish(now: t0 + 50)
+        XCTAssertTrue(e.sets.isEmpty, "the round was started, never finished")
     }
 
     // MARK: - What makes a superset
@@ -179,6 +242,7 @@ final class LiftSessionSupersetTests: XCTestCase {
         e.advance(now: t0)
         e.advance(now: t0 + 30)
         XCTAssertEqual(e.stage, .resting(slot(0, 1), endsAt: t0 + 30 + 120), "behaves exactly as before")
+        XCTAssertFalse(e.isNextRoundDue(at: t0 + 1000))
     }
 
     func testOnlyConsecutiveLinesFormASuperset() {
@@ -200,14 +264,14 @@ final class LiftSessionSupersetTests: XCTestCase {
         XCTAssertEqual(e.blocks, [0..<2, 2..<4])
         XCTAssertEqual(e.supersetTag(of: 2), "B1")
         XCTAssertEqual(e.blockStart(of: 3), 2)
-        e.advance(now: t0)             // → A1
-        e.advance(now: t0 + 30)        // → A2
-        e.advance(now: t0 + 60)        // A2 done: rest, NOT straight into superset B
-        XCTAssertEqual(e.stage, .resting(slot(1, 1), endsAt: t0 + 60 + 90))
-        e.advance(now: t0 + 150)
+        e.advance(now: t0)             // → round A
+        e.advance(now: t0 + 60)        // A done: rest, NOT straight into superset B
+        XCTAssertEqual(e.stage, .resting(slot(0, 1), endsAt: t0 + 60 + 90))
+        XCTAssertFalse(e.isNextRoundDue(at: t0 + 200), "B is another superset: it waits for the tap")
+        e.advance(now: t0 + 200)
         XCTAssertEqual(e.stage, .working(slot(2, 1)))
-        e.advance(now: t0 + 180)
-        XCTAssertEqual(e.stage, .working(slot(3, 1)))
+        e.advance(now: t0 + 260)
+        XCTAssertEqual(e.sets.map(\.slot), [slot(0, 1), slot(1, 1), slot(2, 1), slot(3, 1)])
     }
 
     func testAPlanWithNoSupersetsIsUnchanged() {
@@ -226,14 +290,16 @@ final class LiftSessionSupersetTests: XCTestCase {
 
     func testTheSupersetSurvivesTheCrashSnapshot() throws {
         var e = started(plan())
-        e.advance(now: t0 + 40)
+        e.advance(now: t0 + 60)
         let snap = LiftSessionPersistence.snapshot(engine: e, programId: "p", programName: "Superset A",
                                                    pendingValues: [:], pendingWarmups: [])
         let data = try XCTUnwrap(LiftSessionPersistence.encode(snap))
         let back = LiftSessionPersistence.engine(from: try XCTUnwrap(LiftSessionPersistence.decode(data)))
         XCTAssertEqual(back.plan.map(\.supersetGroup), ["A", "A", nil])
-        XCTAssertEqual(back.stage, .working(slot(1, 1)))
+        XCTAssertEqual(back.stage, .resting(slot(0, 1), endsAt: t0 + 155))
+        XCTAssertEqual(back.sets.count, 2)
         XCTAssertEqual(back.upcomingSlot, slot(0, 2))
+        XCTAssertTrue(back.isNextRoundDue(at: t0 + 200))
     }
 
     func testASnapshotWrittenBeforeSupersetsDecodesWithNone() throws {
@@ -241,14 +307,14 @@ final class LiftSessionSupersetTests: XCTestCase {
         {"startSec":\(t0),"plan":[{"exercise":"Curl","secondaryMuscles":[],"targetSets":2,"restSec":60}],
          "stage":{"kind":"warmup"},"sets":[],"stageStartedAt":\(t0)}
         """
-        // A plausible start time: the decoder refuses one more than a day in the future, not the past.
         let snap = try XCTUnwrap(LiftSessionPersistence.decode(Data(json.utf8)))
         XCTAssertNil(snap.plan[0].supersetGroup)
         XCTAssertFalse(LiftSessionPersistence.engine(from: snap).isInSuperset(0))
     }
 }
 
-/// The strap side of a superset: the A1 → A2 step is an ordinary acted-on tap.
+/// The strap side of a superset: one acted-on tap ends the round; numbers typed for either member
+/// land on their own set.
 @MainActor
 final class LiftSessionSupersetStrapTests: XCTestCase {
 
@@ -265,31 +331,33 @@ final class LiftSessionSupersetStrapTests: XCTestCase {
         super.tearDown()
     }
 
-    func testTheA1ToA2StepBuzzesOnceAndStartsNoRest() {
+    func testOneStrapTapEndsTheRoundAndBuzzesOnce() {
         let c = controller()
         c.start(plan: [LiftPlanItem(exercise: "Curl", targetSets: 2, supersetGroup: "A"),
                        LiftPlanItem(exercise: "Extension", targetSets: 2, restSec: 95, supersetGroup: "A")],
                 programId: nil, programName: "Superset A")
-        c.advance(fromStrap: true)                    // warm-up → A1·1
-        // A knock-free second tap, as the user would make it after a real set: bypass the 5 s window
-        // by acting through the on-screen path, which is never held back.
-        c.advance()                                   // A1·1 → A2·1
-        XCTAssertEqual(c.engine?.stage, .working(LiftSlot(exerciseIndex: 1, setIndex: 1)))
-        XCTAssertEqual(buzzes, [LiftSessionController.advanceConfirmBuzzes],
-                       "one confirming buzz for the strap tap, and no rest warning for a step with no rest")
-        XCTAssertEqual(c.presentation(system: .metric)?.exercise, "A2 · Extension")
+        c.advance()                                   // warm-up → round 1 (button)
+        c.updateSet(LiftSlot(exerciseIndex: 1, setIndex: 1), weightKg: 20, reps: 12, rpe: nil, isWarmup: false)
+        c.advance(fromStrap: true)                    // round 1 done
+        guard case .resting(let s, _) = c.engine?.stage else { return XCTFail("\(String(describing: c.engine?.stage))") }
+        XCTAssertEqual(s, LiftSlot(exerciseIndex: 0, setIndex: 1))
+        XCTAssertEqual(c.engine?.sets.count, 2)
+        XCTAssertEqual(c.engine?.recordedSet(for: LiftSlot(exerciseIndex: 1, setIndex: 1))?.weightKg, 20,
+                       "numbers typed for A2 before the round land on A2's set")
+        XCTAssertEqual(buzzes, [LiftSessionController.advanceConfirmBuzzes])
+        XCTAssertEqual(c.presentation(system: .metric)?.exercise, "A · Curl + Extension")
+        XCTAssertEqual(c.presentation(system: .metric)?.status, "Resting after round 1")
     }
 
-    func testAKnockRightAfterTheA1ToA2StepIsHeldBack() {
+    func testAKnockRightAfterTheRoundIsHeldBack() {
         let c = controller()
         c.start(plan: [LiftPlanItem(exercise: "Curl", targetSets: 2, supersetGroup: "A"),
                        LiftPlanItem(exercise: "Extension", targetSets: 2, supersetGroup: "A")],
                 programId: nil, programName: nil)
-        c.advance()                                   // warm-up → A1·1 (button)
-        c.advance(fromStrap: true)                    // A1·1 → A2·1 (strap, acted on)
+        c.advance()                                   // warm-up → round 1 (button)
+        c.advance(fromStrap: true)                    // round 1 done (strap, acted on)
         c.advance(fromStrap: true)                    // a knock seconds later
-        XCTAssertEqual(c.engine?.stage, .working(LiftSlot(exerciseIndex: 1, setIndex: 1)),
-                       "the anti-knock window protects A2 exactly as it protects any set")
+        guard case .resting = c.engine?.stage else { return XCTFail("the anti-knock window protects the rest") }
         XCTAssertEqual(buzzes, [LiftSessionController.advanceConfirmBuzzes])
     }
 }

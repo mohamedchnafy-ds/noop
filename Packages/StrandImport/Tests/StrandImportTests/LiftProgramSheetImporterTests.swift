@@ -184,6 +184,58 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         XCTAssertTrue(xml.contains("<formula1>1</formula1><formula2>10</formula2>"), "and bounded to 1-10")
     }
 
+    // MARK: - Supersets (personal fork)
+
+    private func supersetSheet(_ rows: [String]) throws -> LiftProgramImportResult {
+        let csv = "Program,Exercise,Sets,Rest sec,Superset\n" + rows.joined(separator: "\n") + "\n"
+        return try LiftProgramSheetImporter.parse(data: Data(csv.utf8))
+    }
+
+    func testConsecutiveRowsWithTheSameSupersetAreGroupedAndLetteredInOrder() throws {
+        let r = try supersetSheet([
+            "Full A,Curl,3,,B", "Full A,Extension,3,95,B",
+            "Full A,Squat,3,120,",
+            "Full A,Bench,3,,c1", "Full A,Row,3,125,C2",
+        ])
+        XCTAssertTrue(r.warnings.isEmpty, "\(r.warnings)")
+        XCTAssertEqual(r.programs[0].lines.map(\.supersetGroup), ["A", "A", nil, "B", "B"],
+                       "supersets are relettered A, B… in order, and C1/C2 mean one superset")
+    }
+
+    func testASupersetOnOneRowWarnsAndTheRowIsDoneOnItsOwn() throws {
+        let r = try supersetSheet(["Full A,Curl,3,,A", "Full A,Squat,3,120,"])
+        XCTAssertEqual(r.programs[0].lines.map(\.supersetGroup), [nil, nil])
+        XCTAssertEqual(r.warnings.count, 1)
+        XCTAssertTrue(r.warnings[0].hasPrefix("Row 2:"), r.warnings[0])
+        XCTAssertTrue(r.warnings[0].contains("only one exercise"), r.warnings[0])
+    }
+
+    func testASupersetSplitByAnotherExerciseWarns() throws {
+        let r = try supersetSheet(["Full A,Curl,3,,A", "Full A,Squat,3,120,", "Full A,Extension,3,95,A"])
+        XCTAssertEqual(r.programs[0].lines.map(\.supersetGroup), [nil, nil, nil])
+        XCTAssertEqual(r.warnings.count, 1, "one warning per label, not per row")
+        XCTAssertTrue(r.warnings[0].contains("split by other exercises"), r.warnings[0])
+    }
+
+    func testSupersetsArePerProgram() throws {
+        let r = try supersetSheet(["Day 1,Curl,3,,A", "Day 2,Extension,3,95,A"])
+        XCTAssertEqual(r.programs.count, 2)
+        XCTAssertEqual(r.programs.flatMap(\.lines).map(\.supersetGroup), [nil, nil],
+                       "the same letter in two programs is two lone rows, not a superset")
+        XCTAssertEqual(r.warnings.count, 2)
+    }
+
+    func testASheetWithoutTheSupersetColumnImportsAsBefore() throws {
+        let r = try parse("lift_program_filled.xlsx")
+        XCTAssertTrue(r.programs.flatMap(\.lines).allSatisfy { $0.supersetGroup == nil })
+    }
+
+    func testTheShippedTemplateHasASupersetColumn() throws {
+        let grid = try XlsxSheet.grids(from: templateData()).first ?? []
+        let headers = grid.first.map { $0.map { HeaderNorm.normalize($0) } } ?? []
+        XCTAssertEqual(headers.last, "superset", "added LAST, so no existing column moves")
+    }
+
     // MARK: - Refusals
 
     func testAFileWithNoExerciseColumnIsRefusedWithThatReason() {

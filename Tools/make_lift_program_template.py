@@ -33,7 +33,7 @@ MUSCLES = [
 
 HEADERS = [
     "Program", "Program note", "Exercise", "Primary muscle", "Secondary muscles",
-    "Sets", "Reps", "Weight kg", "Target max RPE", "Rest sec", "Note",
+    "Sets", "Reps", "Weight kg", "Target max RPE", "Rest sec", "Note", "Superset",
 ]
 
 # Generous, so a user can paste a long routine in without running out of validated rows.
@@ -58,13 +58,19 @@ HELP = [
     ("left. The app shows it grey during the session, and a set you leave unrated saves it as its rating.", False),
     ("Rest is in SECONDS. 120 means two minutes.", False),
     ("", False),
+    ("Superset groups exercises you alternate: one set of each, then the rest, then the next round.", False),
+    ("Give CONSECUTIVE rows the same letter (A, A, then B, B...). 'A1' and 'A2' also mean superset A.", False),
+    ("One strap double-tap ends a set and starts the next exercise of the superset straight away;", False),
+    ("the rest comes only after the last one. Put that rest on the LAST row of the superset -", False),
+    ("the rest on the other rows of the group is not used. Leave the column blank for a normal exercise.", False),
+    ("", False),
     ("Do not rename, reorder or delete the header row - the import matches on those names.", False),
     ("", False),
     ("Worked example", True),
-    ("Program   Exercise            Primary     Secondary   Sets Reps Weight MaxRPE Rest", False),
+    ("Program   Exercise            Primary     Secondary   Sets Reps Weight MaxRPE Rest Superset", False),
     ("Lower A   Leg Press midfoot   Quads       Glutes      3    10   50     8      90", False),
-    ("Lower A   Lying Leg Curl      Hamstrings  Calves      3    8    30     8      90", False),
-    ("Lower A   Leg Extension       Quads                   3    12   40            60", False),
+    ("Lower A   Lying Leg Curl      Hamstrings  Calves      3    8    30     8           A", False),
+    ("Lower A   Leg Extension       Quads                   3    12   40            90   A", False),
     ("", False),
     ("Muscle groups you can choose from", True),
 ] + [(m, False) for m in MUSCLES]
@@ -102,7 +108,7 @@ def program_sheet():
         cells = "".join(f'<c r="{col_letter(i)}{r}" s="2"/>' for i in range(len(HEADERS)))
         rows.append(f'<row r="{r}">{cells}</row>')
 
-    widths = [16, 26, 30, 16, 26, 7, 7, 11, 15, 10, 34]
+    widths = [16, 26, 30, 16, 26, 7, 7, 11, 15, 10, 34, 10]
     cols = "".join(
         f'<col min="{i+1}" max="{i+1}" width="{w}" customWidth="1"/>'
         for i, w in enumerate(widths))

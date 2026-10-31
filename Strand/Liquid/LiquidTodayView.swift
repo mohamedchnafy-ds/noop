@@ -53,6 +53,14 @@ struct LiquidTodayView: View {
 
     // async-loaded via the confirmed Repository accessors
     @State private var restScore: Double?          // sleep_performance, day-keyed
+    @State private var napMinutes: Double = 0      // personal fork: the selected day's naps, for the Rest caption
+    // Personal fork: the habitual-day HR profile (slot → mean bpm over the 14 days before the selected
+    // day), the day it was built for, and its projection onto today's buckets / the current slot.
+    @State private var habitualProfile: [Int: Double] = [:]
+    @State private var habitualProfileDay = ""
+    @State private var habitualHR: [Double?] = []
+    @State private var habitualNow: Double?
+    @AppStorage(HabitualHR.enabledKey) private var habitualEnabled = false
     /// Input providers for the three scores, keyed by recovery / strain / sleep_performance.
     @State private var heroProviderByMetric: [String: ScoreInputProvider] = [:]
     @State private var stress: Double?             // StressModel(...).score, 0–3
@@ -464,7 +472,7 @@ struct LiquidTodayView: View {
         .liquidMediumHaptic(trigger: pullHaptic)
         // hydrationSeq joins the id so logging a drink re-reads the card immediately, the same trigger set
         // classic TodayView's reloadHydration() uses.
-        .task(id: "\(repo.refreshSeq)-\(selectedDayOffset)-\(repo.hydrationSeq)-\(hydrationEnabled)-\(dayCycleModeRaw)") {
+        .task(id: "\(repo.refreshSeq)-\(selectedDayOffset)-\(repo.hydrationSeq)-\(hydrationEnabled)-\(dayCycleModeRaw)-\(habitualEnabled)") {
             DashboardCardPrefs.migrateLegacyStepsAverage()
             await load()
         }
@@ -695,6 +703,53 @@ struct LiquidTodayView: View {
         .accessibilityLabel("Start a live session. Beta. Silent strap coaching against today's Charge.")
     }
 
+    // MARK: Hero insight (personal fork) — gap to the 7-day mean, bars, Effort target, sleep duration
+
+    /// A banked spark series as a day-keyed dictionary, on the display scale `convert` maps to.
+    private func heroSeries(_ key: String, convert: (Double) -> Double = { $0 }) -> [String: Double] {
+        Dictionary((kSparks[key] ?? []).map { ($0.0, convert($0.1)) }, uniquingKeysWith: { _, last in last })
+    }
+
+    private var chargeTrend: HeroInsight.Trend {
+        HeroInsight.trend(value: chargeDisplay.pct, series: heroSeries("recovery"), day: selectedDayKey)
+    }
+
+    private var effortTrend: HeroInsight.Trend {
+        let scale = effortScale
+        return HeroInsight.trend(
+            value: effortStrain(displayDay).map { UnitFormatter.effortValue($0, scale: scale) },
+            series: heroSeries("strain") { UnitFormatter.effortValue($0, scale: scale) },
+            day: selectedDayKey)
+    }
+
+    private var restTrend: HeroInsight.Trend {
+        HeroInsight.trend(value: restScore, series: heroSeries("sleep_performance"), day: selectedDayKey)
+    }
+
+    /// Today's optimal strain band (#43, the same resolver the strain-target nudge reads), on the Effort
+    /// scale the hero displays. The band is defined on the 0–21 axis; a 0–100 reader sees it converted.
+    private var effortTargetRange: ClosedRange<Double>? {
+        guard let band = CoupledView.optimalStrainRange(recovery: chargeDisplay.pct) else { return nil }
+        if effortScale == .whoop { return Double(band.lowerBound)...Double(band.upperBound) }
+        let lo = StrainScorer.effortValue(fromWhoopStrain: Double(band.lowerBound))
+        let hi = StrainScorer.effortValue(fromWhoopStrain: Double(band.upperBound))
+        return lo...hi
+    }
+
+    private var effortTargetCaption: String? {
+        guard let band = effortTargetRange else { return nil }
+        let lo = Int(band.lowerBound.rounded()), hi = Int(band.upperBound.rounded())
+        return String(localized: "target \(lo)–\(hi)")
+    }
+
+    private var sleepCaption: String? {
+        guard let parts = HeroInsight.sleepParts(minutes: displayDay?.totalSleepMin) else { return nil }
+        let minutes = String(format: "%02d", parts.minutes)
+        let nap = Int(napMinutes.rounded())
+        if nap > 0 { return String(localized: "\(parts.hours) h \(minutes) + \(nap) min nap") }
+        return String(localized: "\(parts.hours) h \(minutes) of sleep")
+    }
+
     private var heroCard: some View {
         HStack(alignment: .top, spacing: 4) {
             // #543 carry: an unscored today shows the last scored night's REAL Charge (labelled as prior by
@@ -704,7 +759,8 @@ struct LiquidTodayView: View {
             HeroScoreCell(label: String(localized: "Charge"), score: chargeDisplay.pct,
                           tint: chargeDisplay.pct.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.chargeColor,
                           animated: dataLoaded, onGuide: { guideSection = .charge },
-                          detailRoute: .metric(HeroRingMetric.charge))
+                          detailRoute: .metric(HeroRingMetric.charge),
+                          trend: chargeTrend, deltaUpIsGood: true)
             // #45: the hero Effort must honour the user's Effort scale like every other Effort read-out.
             // Show the value on the chosen scale (0–100 or WHOOP 0–21) with the matching vessel max, and
             // one decimal on the compressed 0–21 axis to match the app-wide `effortDisplay` convention
@@ -715,10 +771,13 @@ struct LiquidTodayView: View {
                           onGuide: { guideSection = .effort },
                           maxValue: effortScale == .whoop ? 21 : 100,
                           decimals: effortScale == .whoop ? 1 : 0,
-                          detailRoute: .metric(HeroRingMetric.effort))
+                          detailRoute: .metric(HeroRingMetric.effort),
+                          trend: effortTrend, deltaUpIsGood: nil,
+                          caption: effortTargetCaption, targetRange: effortTargetRange)
             HeroScoreCell(label: String(localized: "Rest"), score: restScore, tint: StrandPalette.restColor,
                           animated: dataLoaded, onGuide: { guideSection = .rest },
-                          detailRoute: .metric(HeroRingMetric.rest))
+                          detailRoute: .metric(HeroRingMetric.rest),
+                          trend: restTrend, deltaUpIsGood: true, caption: sleepCaption)
                 .overlay(alignment: .top) {
                     if let sourceLabel = heroSourceLabel {
                         SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
@@ -749,7 +808,7 @@ struct LiquidTodayView: View {
                     // this card, never the whole Today. Shows the current bpm live with a rolling
                     // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
                     LiquidLiveHR(tint: liquidHeart, fallback: hrValues, fallbackSegments: hrSegments,
-                                 animated: dataLoaded)
+                                 animated: dataLoaded, habitual: habitualHR, habitualNow: habitualNow)
                 }
             }
             .buttonStyle(LiquidPressStyle())
@@ -1322,6 +1381,28 @@ struct LiquidTodayView: View {
         return Repository.localDayKey(cal.date(byAdding: .day, value: -(days - 1), to: anchor) ?? anchor)
     }
 
+    /// Personal fork: build (or reuse) the habitual-day profile and project it onto today's buckets. Only
+    /// while the card's "Usual day" switch is on, so a reader who never turns it on pays nothing; the
+    /// 14-day aggregate is read once per selected day and kept, since history before today cannot change
+    /// between refreshes. `todayTs` are the 5-minute bucket starts the trace draws, `dayStart` the
+    /// selected day's local midnight.
+    private func loadHabitualHR(todayTs: [Int], dayStart: Int) async {
+        guard habitualEnabled else { habitualHR = []; habitualNow = nil; return }
+        let zone = TimeZone.current
+        if habitualProfileDay != selectedDayKey {
+            let from = dayStart - HabitualHR.windowDays * 86_400
+            let history = await repo.hrBuckets(from: from, to: dayStart, bucketSeconds: HabitualHR.bucketSeconds)
+            habitualProfile = await Task.detached(priority: .utility) {
+                HabitualHR.profile(buckets: history, zone: zone)
+            }.value
+            habitualProfileDay = selectedDayKey
+        }
+        habitualHR = HabitualHR.aligned(todayTs: todayTs, profile: habitualProfile, zone: zone)
+        habitualNow = selectedDayOffset == 0
+            ? HabitualHR.usual(at: Int(Date().timeIntervalSince1970), profile: habitualProfile, zone: zone)
+            : nil
+    }
+
     /// A metric's spark values inside the chosen window, oldest → newest.
     private func windowedSpark(_ key: String) -> [Double] {
         let cutoff = sparkWindowCutoffKey
@@ -1837,7 +1918,20 @@ struct LiquidTodayView: View {
         let hrBuckets = await hrA
         hrValues = hrBuckets.map { $0.bpm }
         hrSegments = hrGapSegments(bucketTs: hrBuckets.map { $0.ts }, bucketSeconds: 300)
+        await loadHabitualHR(todayTs: hrBuckets.map { $0.ts }, dayStart: calendarFrom)
         workouts = (await wkA).filter { $0.startTs >= from && $0.startTs < to }
+
+        // Personal fork: the selected day's nap minutes for the Rest caption. `repo.sleeps` keeps one block
+        // per day, which is exactly what hides a nap, so this reads the full block list for a short window
+        // and applies the SAME main-vs-nap split the Sleep tab's Naps card uses (`SleepView.napSleepMinutes`,
+        // same habitual midsleep), so the two screens cannot disagree about what a nap is.
+        let napSessions = await repo.allSleepSessions(days: selectedDayOffset + 3)
+        let napHabitual = await repo.habitualMidsleepSec()
+        let napGroup = SleepModel.navDays(navSessions: napSessions).first { group in
+            group.first.map { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) }
+                == selectedDayKey
+        } ?? []
+        napMinutes = SleepView.napSleepMinutes(napGroup, habitualMidsleepSec: napHabitual)
 
         let (chargeSource, effortSource, restSource) = await (chargeSourceA, effortSourceA, restSourceA)
         let sourceResolutions = [
@@ -2246,6 +2340,52 @@ private struct HeroScoreCell: View {
     /// the same score land on the identical dossier rather than diverging. The LABEL keeps its own job:
     /// it opens the scoring guide, which is this screen's only route to that explainer.
     var detailRoute: TabRoute? = nil
+    /// Personal fork: the gap to the recent past and the bars it sits in (`HeroInsight.trend`), drawn
+    /// under the label. Nil keeps the cell as it was.
+    var trend: HeroInsight.Trend? = nil
+    /// Whether a rising score is good news (Charge / Rest) or merely news (Effort, nil) — decides the
+    /// arrow's colour. Only read when `trend` carries a delta.
+    var deltaUpIsGood: Bool? = nil
+    /// One short line under the trend: the Effort target or the night's sleep. Nil draws nothing.
+    var caption: String? = nil
+    /// The Effort optimal band, forwarded to the gauge's arc.
+    var targetRange: ClosedRange<Double>? = nil
+
+    /// The arrow glyph and signed gap, then the bars. One line, so the three cells stay level.
+    @ViewBuilder
+    private var trendRow: some View {
+        if let trend {
+            HStack(spacing: NoopMetrics.space1) {
+                if let delta = trend.delta {
+                    let up = HeroInsight.direction(delta, decimals: decimals)
+                    let arrowColor: Color = {
+                        guard let up else { return StrandPalette.textTertiary }
+                        guard let good = deltaUpIsGood else { return tint }
+                        return up == good ? StrandPalette.statusPositive : StrandPalette.statusWarning
+                    }()
+                    HStack(spacing: 1) {
+                        Text(up == nil ? "•" : (up! ? "▲" : "▼"))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(arrowColor)
+                        Text(HeroInsight.deltaText(delta, decimals: decimals, locale: AppLanguage.activeLocale))
+                            .font(StrandFont.captionNumber)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                }
+                LiquidMiniBars(values: trend.bars, maxValue: maxValue, tint: tint)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(trendAccessibilityLabel(trend))
+        }
+    }
+
+    private func trendAccessibilityLabel(_ trend: HeroInsight.Trend) -> Text {
+        guard let delta = trend.delta else { return Text("No 7-day comparison yet") }
+        let gap = HeroInsight.deltaText(delta, decimals: decimals, locale: AppLanguage.activeLocale)
+        return Text("\(gap) versus the 7-day average")
+    }
 
     /// The gauge, linked when there is somewhere to go.
     ///
@@ -2260,7 +2400,8 @@ private struct HeroScoreCell: View {
             animated: animated,
             maxValue: maxValue,
             decimals: decimals,
-            tapPassesThrough: detailRoute != nil
+            tapPassesThrough: detailRoute != nil,
+            targetRange: targetRange
         )
         if let detailRoute {
             NavigationLink(value: detailRoute) { gauge }
@@ -2300,6 +2441,14 @@ private struct HeroScoreCell: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("\(label), \(spokenScore). See how it is scored."))
+            trendRow
+            if let caption {
+                Text(caption)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -2478,6 +2627,10 @@ private struct LiquidLiveHR: View {
     /// recorded, and without this the sparkline joined across them as though the day were continuous.
     var fallbackSegments: [String] = []
     var animated: Bool
+    /// Personal fork: the habitual-day profile under each [fallback] bucket (`HabitualHR.aligned`), and the
+    /// usual rate for the current slot, which is what the live trace is compared against.
+    var habitual: [Double?] = []
+    var habitualNow: Double? = nil
 
     @EnvironmentObject private var live: LiveState
     @State private var samples: [Double] = []
@@ -2486,10 +2639,27 @@ private struct LiquidLiveHR: View {
     #if os(iOS)
     @State private var scrubEngaged = false
     #endif
+    @AppStorage(HabitualHR.enabledKey) private var showHabitual = false
     private let maxSamples = 90   // ~1.5 min of 1 Hz live HR, enough to read the shape
 
     private var isLive: Bool { live.connected && samples.count >= 2 }
     private var series: [Double] { isLive ? samples : fallback }
+    /// The dotted reference, one value per drawn sample. Live: the usual rate for this slot, flat across
+    /// the window, since a 90-second trace has no day shape to compare against. Banked: the profile
+    /// aligned bucket for bucket. Nil when the button is off or there is nothing to compare with.
+    private var reference: [Double?]? {
+        guard showHabitual else { return nil }
+        if isLive {
+            guard let usual = habitualNow else { return nil }
+            return Array(repeating: usual, count: samples.count)
+        }
+        guard habitual.count == fallback.count, habitual.contains(where: { $0 != nil }) else { return nil }
+        return habitual
+    }
+    /// Whether the button has anything to show for the current mode, so an inert toggle is not offered.
+    private var habitualAvailable: Bool {
+        isLive ? habitualNow != nil : habitual.contains(where: { $0 != nil })
+    }
     /// The big number is the LIVE heart rate only. It used to fall back to the last banked 5-minute average, drawn
     /// exactly like a live reading, so with the strap off the wrist the card went on showing one (a tester's 91). The
     /// day's trace and its labelled min / avg / max still show without a live strap.
@@ -2520,6 +2690,9 @@ private struct LiquidLiveHR: View {
                 }
                 .layoutPriority(1)
                 Spacer(minLength: NoopMetrics.space2)
+                if habitualAvailable {
+                    habitualButton
+                }
                 if isLive {
                     // Reuses the existing incoming-HR event pulse; no timer or continuous redraw loop.
                     Image(systemName: "heart.fill")
@@ -2538,9 +2711,18 @@ private struct LiquidLiveHR: View {
                         .animation(.easeOut(duration: 0.25), value: hr)
                 }
             }
-            Text(subtitle)
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textTertiary)
+            HStack(spacing: NoopMetrics.space2) {
+                Text(subtitle)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                if let legend = habitualLegend {
+                    Text(legend)
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
             if series.count >= 2 {
                 ZStack {
                     LiquidHeartRateGrid()
@@ -2549,7 +2731,8 @@ private struct LiquidLiveHR: View {
                     LiquidThread(bpm: series,
                                  segments: isLive ? nil : (fallbackSegments.count == series.count
                                                            ? fallbackSegments : nil),
-                                 tint: tint, height: 92, animated: animated && isLive)
+                                 tint: tint, height: 92, animated: animated && isLive,
+                                 reference: reference)
                 }
                 .frame(height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.space2, style: .continuous))
@@ -2604,6 +2787,42 @@ private struct LiquidLiveHR: View {
         }
     }
 
+    /// The "usual day" switch. A Button inside the card's NavigationLink takes its own tap (the link
+    /// keeps the rest of the card), so toggling the line never opens the full-day chart.
+    private var habitualButton: some View {
+        Button {
+            showHabitual.toggle()
+        } label: {
+            HStack(spacing: NoopMetrics.space1) {
+                Image(systemName: "chart.line.flattrend.xyaxis")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Usual day")
+                    .font(StrandFont.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(showHabitual ? tint : StrandPalette.textTertiary)
+            .padding(.horizontal, NoopMetrics.space2)
+            .padding(.vertical, NoopMetrics.spaceHalf)
+            .background(
+                Capsule().stroke(showHabitual ? tint.opacity(0.7) : StrandPalette.hairline,
+                                 lineWidth: NoopMetrics.hairlineWidth))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Usual day"))
+        .accessibilityValue(Text(showHabitual ? String(localized: "On") : String(localized: "Off")))
+        .accessibilityHint(Text("Shows your average heart rate at each time of day over the last 14 days"))
+    }
+
+    /// What the dotted line means, next to the subtitle, only while it is drawn.
+    private var habitualLegend: String? {
+        guard reference != nil else { return nil }
+        if isLive, let usual = habitualNow {
+            return String(localized: "· usual now \(Int(usual.rounded()))")
+        }
+        return String(localized: "· dotted: usual day (14 d)")
+    }
+
     /// Uses the thread renderer's ten-point inset and equal-distance sample positions, so the
     /// readout points to the value actually drawn under the finger even for a sparse banked trace.
     private var scrubReadout: some View {
@@ -2611,11 +2830,12 @@ private struct LiquidLiveHR: View {
             if let scrubX, series.count >= 2 {
                 // The renderer's own mapping, not a copy of it: a private inset or span floor here would
                 // agree by inspection and then drift the crosshair off the curve the moment either moved.
-                let plot = LiquidRender.ThreadPlot(size: geometry.size, values: series)
+                let plot = LiquidThread.plot(size: geometry.size, bpm: series, reference: reference)
                 let index = plot.nearestIndex(toX: Double(scrubX))
                 let width = geometry.size.width
                 let x = CGFloat(plot.x(index))
                 let y = CGFloat(plot.y(series[index]))
+                let usual = reference.flatMap { $0.indices.contains(index) ? $0[index] : nil }
                 Path { path in
                     path.move(to: CGPoint(x: x, y: 0))
                     path.addLine(to: CGPoint(x: x, y: geometry.size.height))
@@ -2623,7 +2843,9 @@ private struct LiquidLiveHR: View {
                 .stroke(tint, lineWidth: NoopMetrics.hairlineWidth)
                 Circle().fill(tint).frame(width: 8, height: 8).position(x: x, y: y)
                 (Text("\(Int(series[index].rounded()))").font(StrandFont.captionNumber)
-                    + Text(" bpm").font(StrandFont.caption))
+                    + Text(" bpm").font(StrandFont.caption)
+                    + Text(usual.map { String(localized: " · usual \(Int($0.rounded()))") } ?? "")
+                        .font(StrandFont.caption))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .padding(.horizontal, NoopMetrics.space2)
                     .padding(.vertical, NoopMetrics.space1)

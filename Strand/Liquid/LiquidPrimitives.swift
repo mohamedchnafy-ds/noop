@@ -194,9 +194,13 @@ enum LiquidRender {
         let minValue: Double
         let span: Double
 
-        init(size: CGSize, values: [Double]) {
+        /// - Parameter including: extra values the vertical range must also contain (a reference line
+        ///   drawn on the same plot), without affecting the sample count or the x positions. Empty by
+        ///   default, which leaves every existing plot byte-identical.
+        init(size: CGSize, values: [Double], including: [Double] = []) {
             var mn = Double.greatestFiniteMagnitude, mx = -Double.greatestFiniteMagnitude
             for v in values { mn = min(mn, v); mx = max(mx, v) }
+            for v in including { mn = min(mn, v); mx = max(mx, v) }
             self.size = size
             self.count = values.count
             self.minValue = mn
@@ -228,10 +232,12 @@ enum LiquidRender {
     ///   contiguous. Values whose ids differ are stroked as SEPARATE subpaths, so a stretch the strap never
     ///   recorded reads as a break instead of a straight climb across it (#2082). Nil produces byte-for-byte
     ///   the path this drew before, which is what keeps the live 1 Hz stream untouched.
+    /// - Parameter plot: the mapping to draw with, when the caller shares one with another line on the
+    ///   same canvas (the habitual-day reference). Nil builds the plot from `values` alone, as before.
     static func thread(_ base: GraphicsContext, _ size: CGSize, values: [Double], now: Double, tint: Color,
-                       segments: [String]? = nil) {
+                       segments: [String]? = nil, plot sharedPlot: ThreadPlot? = nil) {
         guard values.count >= 2 else { return }
-        let plot = ThreadPlot(size: size, values: values)
+        let plot = sharedPlot ?? ThreadPlot(size: size, values: values)
         let n = values.count
         func px(_ i: Int) -> Double { plot.x(i) }
         func py(_ v: Double) -> Double { plot.y(v) }
@@ -282,6 +288,24 @@ enum LiquidRender {
         let pr = 3 + sin(now * 6) * 1.1
         ctx.fill(Path(ellipseIn: CGRect(x: ex - pr - 4, y: ey - pr - 4, width: (pr + 4) * 2, height: (pr + 4) * 2)), with: .color(tint.opacity(0.15)))
         ctx.fill(Path(ellipseIn: CGRect(x: ex - pr, y: ey - pr, width: pr * 2, height: pr * 2)), with: .color(tint))
+    }
+
+    /// The habitual-day reference (personal fork): a thin dotted line through `values`, one per sample of
+    /// the solid line, on the SAME `plot` so the two share x positions and the vertical scale. A nil
+    /// sample is a slot the profile does not cover; the line breaks there rather than bridging it. No
+    /// glint and no pulse: it is a yardstick, not a signal.
+    static func referenceThread(_ base: GraphicsContext, values: [Double?], plot: ThreadPlot, tint: Color) {
+        guard values.count == plot.count, plot.count >= 2 else { return }
+        var path = Path()
+        var open = false
+        for (i, v) in values.enumerated() {
+            guard let v else { open = false; continue }
+            let p = CGPoint(x: plot.x(i), y: plot.y(v))
+            if open { path.addLine(to: p) } else { path.move(to: p); open = true }
+        }
+        var ctx = base
+        ctx.stroke(path, with: .color(tint.opacity(0.55)),
+                   style: StrokeStyle(lineWidth: 1.4, lineCap: .round, dash: [3, 4]))
     }
 }
 
@@ -462,6 +486,9 @@ struct LiquidThread: View {
     var tint: Color = Color(.sRGB, red: 1, green: 107/255, blue: 129/255, opacity: 1)
     var height: CGFloat = 96
     var animated: Bool = true
+    /// Personal fork: the habitual-day reference, one optional value per `bpm` sample, drawn dotted on
+    /// the same plot (`LiquidRender.referenceThread`). Nil draws the trace exactly as before.
+    var reference: [Double?]? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var motion = NoopMotionState.shared
@@ -470,21 +497,31 @@ struct LiquidThread: View {
         if animated && !motion.poseStill(reduceMotion) { liveThread } else { staticThread }
     }
 
+    /// The one mapping both lines draw with: the trace's own range, widened to hold the reference.
+    static func plot(size: CGSize, bpm: [Double], reference: [Double?]?) -> LiquidRender.ThreadPlot {
+        let extra = (reference?.count == bpm.count ? reference : nil)?.compactMap { $0 } ?? []
+        return LiquidRender.ThreadPlot(size: size, values: bpm, including: extra)
+    }
+
+    private func draw(_ context: GraphicsContext, _ size: CGSize, now: Double) {
+        let plot = Self.plot(size: size, bpm: bpm, reference: reference)
+        if let reference, reference.count == bpm.count {
+            LiquidRender.referenceThread(context, values: reference, plot: plot, tint: tint)
+        }
+        LiquidRender.thread(context, size, values: bpm, now: now, tint: tint, segments: segments, plot: plot)
+    }
+
     private var liveThread: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in   // 60fps to flow smoothly on ProMotion
             let now = liquidSeconds(tl.date)
-            Canvas { context, size in
-                LiquidRender.thread(context, size, values: bpm, now: now, tint: tint, segments: segments)
-            }
+            Canvas { context, size in draw(context, size, now: now) }
         }
         .frame(height: height)
     }
 
     /// One-shot render (no travelling glint / pulse) — used until first data load settles.
     private var staticThread: some View {
-        Canvas { context, size in
-            LiquidRender.thread(context, size, values: bpm, now: 0, tint: tint, segments: segments)
-        }
+        Canvas { context, size in draw(context, size, now: 0) }
         .frame(height: height)
     }
 }
@@ -576,15 +613,44 @@ struct LiquidScoreGauge: View {
     var captionColor: Color = StrandPalette.textTertiary
     /// Forwarded to `LiquidVessel` so a gauge inside a link still splashes AND still navigates (#1995).
     var tapPassesThrough: Bool = false
+    /// A band on the gauge's own scale drawn as an arc hugging the vessel, clockwise from the top (personal
+    /// fork: the Effort bubble's optimal-strain target). Nil draws nothing, which keeps every other caller
+    /// byte-identical.
+    var targetRange: ClosedRange<Double>? = nil
 
     @State private var shown: Double = 0
 
     private var frac: Double? { score.map { max(0, min(1, $0 / maxValue)) } }
     private var centerFont: Font { StrandFont.rounded(diameter * 26 / Self.homeHeroDiameter) }
     private var captionFont: Font { StrandFont.rounded(diameter * 0.085, weight: .medium) }
+    /// Ring thickness and the breathing room between the vessel's edge and the arc, scaled with the gauge.
+    private var arcWidth: CGFloat { max(2, diameter * 3 / Self.homeHeroDiameter) }
+
+    /// The target band as a trimmed circle: a faint full track so the arc has a scale to sit on, then the
+    /// band itself in the gauge tint. The arc is not the fill — the liquid still says where the score is.
+    @ViewBuilder
+    private var targetArc: some View {
+        if let band = targetRange {
+            let lo = max(0, min(1, band.lowerBound / maxValue))
+            let hi = max(lo, min(1, band.upperBound / maxValue))
+            let ringDiameter = diameter + arcWidth * 2 + 2
+            ZStack {
+                Circle()
+                    .stroke(tint.opacity(0.18), lineWidth: arcWidth)
+                Circle()
+                    .trim(from: lo, to: hi)
+                    .stroke(tint, style: StrokeStyle(lineWidth: arcWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: ringDiameter, height: ringDiameter)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
 
     var body: some View {
         ZStack {
+            targetArc
             LiquidVessel(value: frac, tint: tint, animated: animated,
                          tapPassesThrough: tapPassesThrough)
                 .frame(width: diameter, height: diameter)

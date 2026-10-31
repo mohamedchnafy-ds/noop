@@ -48,6 +48,9 @@ struct LiftPlanItem: Equatable {
     /// Added while the session ran (`LiftSessionEngine.addExercise`), so the program has no line for it
     /// yet; finishing offers to add one.
     var addedInSession: Bool
+    /// The superset label this line was flattened with (`liftProgramItem.supersetGroup`). Consecutive
+    /// lines sharing one are worked in alternation — see `LiftSessionEngine.supersetMembers(of:)`.
+    var supersetGroup: String?
 
     /// Rest used when a program line does not specify one. Two minutes sits in the middle of the
     /// range the hypertrophy literature uses for compound work, and is only a starting value: what
@@ -65,7 +68,8 @@ struct LiftPlanItem: Equatable {
          targetWeightKg: Double? = nil,
          note: String? = nil,
          programItemId: String? = nil,
-         addedInSession: Bool = false) {
+         addedInSession: Bool = false,
+         supersetGroup: String? = nil) {
         self.exercise = exercise
         self.primaryMuscle = primaryMuscle
         self.secondaryMuscles = secondaryMuscles
@@ -78,6 +82,7 @@ struct LiftPlanItem: Equatable {
         self.note = note
         self.programItemId = programItemId
         self.addedInSession = addedInSession
+        self.supersetGroup = LiftSuperset.normalizedLabel(supersetGroup)
     }
 }
 
@@ -206,7 +211,7 @@ struct LiftSessionEngine: Equatable {
     /// This is the SHEET's answer, used to open a session and to know when everything is done. It is
     /// deliberately NOT what `advance` follows after a set — see `slotAfter(_:)`.
     var nextPendingSlot: LiftSlot? {
-        allSlots.first { !isCompleted($0) }
+        allSlots.first { !isCompleted($0) }.map(leadSlot)
     }
 
     /// Where the session goes after finishing `slot`: the next uncompleted set of the SAME exercise,
@@ -222,8 +227,112 @@ struct LiftSessionEngine: Equatable {
     /// Staying on the current exercise until it is finished is also simply what lifting is: you do
     /// your sets on the machine you are standing at. The skipped exercise is not forgotten — it is
     /// still pending, and it is what you get once the current one is done.
+    ///
+    /// A SUPERSET extends "the machine you are standing at" to the whole group: after its rest, the
+    /// session goes on to the group's next ROUND — the first set any member still has to do, taken
+    /// as the round it belongs to — and leaves the group only once every member is done.
     func slotAfter(_ slot: LiftSlot) -> LiftSlot? {
-        slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) } ?? nextPendingSlot
+        resumeSlot(after: slot, excluding: [])
+    }
+
+    /// `slotAfter(_:)`, with some slots counted as done whether or not they are yet — the current
+    /// round, for what `upcomingSlot` needs while it is still being worked.
+    private func resumeSlot(after slot: LiftSlot, excluding: Set<LiftSlot>) -> LiftSlot? {
+        let members = supersetMembers(of: slot.exerciseIndex)
+        if let next = members.lazy.compactMap({ self.firstPending(ofExercise: $0, excluding: excluding) }).first {
+            return leadSlot(next)
+        }
+        return allSlots.first { !isCompleted($0) && !excluding.contains($0) }.map(leadSlot)
+    }
+
+    /// The first set of an exercise still to do, other than those in `excluding`.
+    private func firstPending(ofExercise index: Int, excluding: Set<LiftSlot>) -> LiftSlot? {
+        slots(forExercise: index).first { !isCompleted($0) && !excluding.contains($0) }
+    }
+
+    // MARK: - Supersets
+    //
+    // A superset is consecutive lines sharing a label (`LiftSuperset`), and in a session it is ONE
+    // ROUND, NOT TWO SETS: A1 straight onto A2, then the rest. The first version asked for a tap between
+    // the two — A1 done, A2 starts — and that tap is not a moment a lifter has: the only one worth a
+    // tap is the end of the round. So the engine keeps every slot (one per member per set, which is
+    // what gets saved) but DRIVES the group through the round's LEAD slot: starting the lead starts the
+    // round, finishing it records every member's set with the round's timing, and the rest that follows
+    // belongs to the round. When that rest runs out the next round starts by itself
+    // (`startNextRoundIfRestEnded`). A member other than the lead is never the current slot.
+
+    /// The plan indices of the superset `index` belongs to, in plan order — just `[index]` for a line
+    /// done on its own. Empty for an index outside the plan.
+    func supersetMembers(of index: Int) -> [Int] {
+        guard plan.indices.contains(index) else { return [] }
+        return LiftSuperset.group(of: index, in: plan.map(\.supersetGroup)).map(Array.init) ?? [index]
+    }
+
+    func isInSuperset(_ index: Int) -> Bool { supersetMembers(of: index).count > 1 }
+
+    /// "A1", "A2"… for a line in a superset, nil otherwise — the one spelling every surface shows.
+    func supersetTag(of index: Int) -> String? {
+        LiftSuperset.tag(of: index, in: plan.map(\.supersetGroup))
+    }
+
+    /// The superset's letter ("A") for a line in one, nil otherwise.
+    func supersetLetter(of index: Int) -> String? {
+        LiftSuperset.groupLetter(of: index, in: plan.map(\.supersetGroup))
+    }
+
+    /// The plan as the sheet draws it: every superset as one block, every other line on its own.
+    var blocks: [Range<Int>] { LiftSuperset.blocks(plan.map(\.supersetGroup)) }
+
+    /// The first plan index of the block `index` is drawn in — what the sheet scrolls to.
+    func blockStart(of index: Int) -> Int {
+        blocks.first { $0.contains(index) }?.lowerBound ?? index
+    }
+
+    /// Every slot performed in `slot`'s round: one per member of its superset that has that set
+    /// number, in plan order — just `[slot]` for a line on its own. A round with uneven set counts
+    /// (A1 has a fourth set, A2 does not) is the members that still have it.
+    func roundSlots(for slot: LiftSlot) -> [LiftSlot] {
+        supersetMembers(of: slot.exerciseIndex)
+            .filter { plan[$0].targetSets >= slot.setIndex }
+            .map { LiftSlot(exerciseIndex: $0, setIndex: slot.setIndex) }
+    }
+
+    /// The slot the session stands on for `slot`'s round: itself for a line on its own, the first
+    /// member's slot of the same set number inside a superset.
+    func leadSlot(_ slot: LiftSlot) -> LiftSlot {
+        roundSlots(for: slot).first ?? slot
+    }
+
+    /// Whether `startNextRoundIfRestEnded(at:)` would act: a superset's rest has run out and another
+    /// round of it is left. Asked BEFORE mutating, so a caller holding the engine in a published
+    /// property does not publish a change that changes nothing.
+    func isNextRoundDue(at now: Int) -> Bool {
+        guard case .resting(let slot, let endsAt) = stage, isInSuperset(slot.exerciseIndex),
+              endsAt <= now, let next = slotAfter(slot) else { return false }
+        return supersetMembers(of: next.exerciseIndex) == supersetMembers(of: slot.exerciseIndex)
+    }
+
+    /// A superset round whose rest has run out starts its next round BY ITSELF — the strap's warning
+    /// buzz was the cue, and the lifter is already under the bar. Returns true when the stage moved.
+    ///
+    /// Only supersets, and only their OWN next round: a line on its own keeps waiting for the tap, and
+    /// so does whatever follows the superset's last round, because that may well be on another machine.
+    /// `at` is when the round is taken to have started — the rest's own end, so a phone that slept
+    /// through it does not stamp the round with the moment it woke.
+    @discardableResult
+    mutating func startNextRoundIfRestEnded(at now: Int) -> Bool {
+        guard isNextRoundDue(at: now), case .resting(_, let endsAt) = stage else { return false }
+        advance(now: endsAt)
+        return true
+    }
+
+    /// The rest that follows `slot` when it closes a round: for a superset, the rest planned on its
+    /// LAST line, whichever member happened to close the round; otherwise the line's own rest.
+    /// The other members' rests are never used — the editor says so.
+    func restAfter(_ slot: LiftSlot) -> Int {
+        let members = supersetMembers(of: slot.exerciseIndex)
+        guard let owner = members.last, plan.indices.contains(owner) else { return LiftPlanItem.defaultRestSec }
+        return plan[owner].restSec
     }
 
     /// The set the session is heading to after the current one — what the minimised bar and the Lock
@@ -236,8 +345,8 @@ struct LiftSessionEngine: Equatable {
         case .warmup:
             return nextPendingSlot
         case .working(let slot), .resting(let slot, _):
-            return slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) && $0 != slot }
-                ?? allSlots.first { !isCompleted($0) && $0 != slot }
+            // The whole round counts as done: its members are recorded together.
+            return resumeSlot(after: slot, excluding: Set(roundSlots(for: slot)))
         case .finished:
             return nil
         }
@@ -324,8 +433,12 @@ struct LiftSessionEngine: Equatable {
     mutating func start(_ slot: LiftSlot, now: Int) {
         guard planItem(for: slot) != nil else { return }
         pushHistory()
-        sets.removeAll { $0.slot == slot }
-        stage = .working(slot)
+        // A superset member starts its whole ROUND: the session stands on the lead, and a redo drops
+        // every member's record, so the round is not half counted.
+        let lead = leadSlot(slot)
+        let round = roundSlots(for: lead)
+        sets.removeAll { round.contains($0.slot) }
+        stage = .working(lead)
         stageStartedAt = now
     }
 
@@ -338,20 +451,24 @@ struct LiftSessionEngine: Equatable {
 
         case .working(let slot):
             pushHistory()
-            // Timing only: the numbers stay grey until typed (see `carry(for:lastSession:)`).
-            sets.append(LiftRecordedSet(
-                exerciseIndex: slot.exerciseIndex, setIndex: slot.setIndex,
-                weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
-                startTs: stageStartedAt, endTs: now, restSec: nil))
-            let rest = planItem(for: slot)?.restSec ?? LiftPlanItem.defaultRestSec
-            stage = .resting(slot, endsAt: now + rest)
+            // Timing only: the numbers stay grey until typed (see `carry(for:lastSession:)`). A
+            // superset records every member of the round here, with the round's timing: one tap, one
+            // round, and nothing in between to tick.
+            for member in roundSlots(for: slot) {
+                sets.append(LiftRecordedSet(
+                    exerciseIndex: member.exerciseIndex, setIndex: member.setIndex,
+                    weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
+                    startTs: stageStartedAt, endTs: now, restSec: nil))
+            }
+            stage = .resting(slot, endsAt: now + restAfter(slot))
             stageStartedAt = now
 
         case .resting(let slot, _):
             pushHistory()
             // Record what was ACTUALLY rested — the figure each set row shows, and the one thing
-            // only the taps can know.
-            if let i = sets.firstIndex(where: { $0.slot == slot }) {
+            // only the taps can know. Every member of a round rested the same gap.
+            let round = roundSlots(for: slot)
+            for i in sets.indices where round.contains(sets[i].slot) {
                 sets[i].restSec = max(0, now - stageStartedAt)
             }
             if let next = slotAfter(slot) {
@@ -399,7 +516,11 @@ struct LiftSessionEngine: Equatable {
         guard plan.indices.contains(index),
               plan[index].targetSets < LiftSessionEngine.maxSetsPerExercise else { return false }
         pushHistory()
-        plan[index].targetSets += 1
+        // A superset's members hold the same number of rounds: one more for one is one more for all,
+        // or the sheet would draw a round with half its exercises.
+        for member in supersetMembers(of: index) where plan[member].targetSets < LiftSessionEngine.maxSetsPerExercise {
+            plan[member].targetSets += 1
+        }
         return true
     }
 
@@ -413,7 +534,8 @@ struct LiftSessionEngine: Equatable {
     /// the session is standing on it.
     func canRemoveSet(fromExercise index: Int) -> Bool {
         guard plan.indices.contains(index), plan[index].targetSets > 1 else { return false }
-        let last = LiftSlot(exerciseIndex: index, setIndex: plan[index].targetSets)
+        // Judged on the ROUND: the lead's slot is the one the session can stand on.
+        let last = leadSlot(LiftSlot(exerciseIndex: index, setIndex: plan[index].targetSets))
         return !isCompleted(last) && currentSlot != last
     }
 
@@ -422,7 +544,9 @@ struct LiftSessionEngine: Equatable {
     mutating func removeSet(fromExercise index: Int) -> Bool {
         guard canRemoveSet(fromExercise: index) else { return false }
         pushHistory()
-        plan[index].targetSets -= 1
+        for member in supersetMembers(of: index) where plan[member].targetSets > 1 {
+            plan[member].targetSets -= 1
+        }
         return true
     }
 
@@ -451,9 +575,11 @@ struct LiftSessionEngine: Equatable {
     mutating func finish(now: Int) {
         guard stage != .finished else { return }
         pushHistory()
-        if case .resting(let slot, _) = stage,
-           let i = sets.firstIndex(where: { $0.slot == slot }), sets[i].restSec == nil {
-            sets[i].restSec = max(0, now - stageStartedAt)
+        if case .resting(let slot, _) = stage {
+            let round = roundSlots(for: slot)
+            for i in sets.indices where round.contains(sets[i].slot) && sets[i].restSec == nil {
+                sets[i].restSec = max(0, now - stageStartedAt)
+            }
         }
         stage = .finished
         stageStartedAt = now

@@ -283,6 +283,11 @@ final class AICoachEngine: ObservableObject {
     be specific, punchy and motivating - like a coach who knows them.
     If no data is provided, coach generally and invite them to turn on data access for personalised \
     advice. You are NOT a doctor - never diagnose; suggest a professional for genuine health concerns.
+    • Strength training: when a LIFT LOG block is present, ground every lifting answer in it — the \
+    session's sets (weight×reps), RPE, estimated 1RM trends, weekly sets per muscle and the programs' \
+    targets. For the next session, give concrete numbers per exercise (load × reps) and say why, \
+    adjusted to today's charge.
+    Reply in the language the user writes in.
     Format replies in simple Markdown, chat-sized: short paragraphs, **bold** for key numbers, \
     bullet or numbered lists for plans, ### headings only when structure genuinely helps, and a \
     small table only for a week-ahead plan. No code blocks.
@@ -335,6 +340,18 @@ final class AICoachEngine: ObservableObject {
     /// K7: Follow-up suggestion chips shown after each assistant reply. These are generic
     /// conversational follow-ups (not data-derived) so the user can dig deeper without typing.
     /// Byte-identical to the Android twin's `followUpSuggestions`.
+    /// Strength-training prompts (personal fork), shown first among the composer's chips. Localized,
+    /// because the chip's text IS the question sent: a French user asks in French.
+    static var liftSuggestions: [String] {
+        [
+            String(localized: "How did my last strength session go?"),
+            String(localized: "What should I aim for in my next session?"),
+            String(localized: "Am I making progress on my lifts?"),
+            String(localized: "Is my weekly volume per muscle balanced?"),
+            String(localized: "Should I train hard today given my recovery?"),
+        ]
+    }
+
     static let followUpSuggestions: [String] = [
         "Tell me more about that",
         "What should I do next?",
@@ -353,7 +370,8 @@ final class AICoachEngine: ObservableObject {
         let systemPromptTokens = systemPrompt.count / 4
         // The data context is typically ~2000-4000 chars depending on the user's data.
         // Use a conservative estimate of 3000 chars (750 tokens) when consent is on.
-        let contextTokens = dataConsent ? 750 : 50
+        // Higher since the Lift Log joined the context (sessions, progression and programs).
+        let contextTokens = dataConsent ? 1_500 : 50
         // History tokens: sum of all message texts in the windowed history.
         let historyTokens = windowedMessages().reduce(0) { $0 + $1.text.count / 4 }
         let draftTokens = draft.count / 4
@@ -928,7 +946,9 @@ final class AICoachEngine: ObservableObject {
     private static let briefInstruction = """
     Based on the data above, give me TODAY'S coaching brief in three short parts: \
     (1) my readiness in one line, citing charge, HRV and rest; \
-    (2) exactly what training to do today and what to avoid; \
+    (2) exactly what training to do today and what to avoid — when the LIFT LOG names a likely next \
+    program in the rotation, name it as today's program and list its exercises with the load to use, \
+    stepping up where last time's sets earned it; \
     (3) one specific thing to improve my charge. Be punchy and motivating.
     """
 
@@ -961,11 +981,53 @@ final class AICoachEngine: ObservableObject {
         // with consent on), so it rides the SAME consent + text-only channel as the HRV/RHR summary, a
         // derived number, never raw R-R egress. Omitted when there aren't enough clean beats yet.
         if let line = await stressIndexLine() { ctx += "\n\n" + line }
+        // The Lift Log's sets, summarised (personal fork). Same consent as the rest of this context:
+        // the caller only reaches here with `dataConsent` on.
+        let lift = await liftLogBlock()
+        if !lift.isEmpty { ctx += "\n\n" + lift }
+        // The recent days' naps (personal fork): the day lines carry the main night only.
+        let naps = await napsBlock()
+        if !naps.isEmpty { ctx += "\n\n" + naps }
         if includeOnDeviceSignals {
             let block = await onDeviceSignalsBlock()
             if !block.isEmpty { ctx += "\n\n" + block }
         }
         return ctx
+    }
+
+    /// The naps block for the context (`CoachNapContext`): the last two weeks' daytime sleep, split from
+    /// the night by the same selector the Sleep tab uses. "" when no day in the window had a nap.
+    func napsBlock() async -> String {
+        let sessions = await repo.allSleepSessions(days: CoachNapContext.windowDays + 1)
+        guard !sessions.isEmpty else { return "" }
+        let habitual = await repo.habitualMidsleepSec()
+        let naps = CoachNapContext.naps(
+            dayGroups: SleepModel.navDays(navSessions: sessions), habitualMidsleepSec: habitual
+        ) { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0))) }
+        let mainByDay = Dictionary(repo.days.compactMap { d in d.totalSleepMin.map { (d.day, $0) } },
+                                   uniquingKeysWith: { _, last in last })
+        return CoachNapContext.summary(naps: naps, mainSleepMinByDay: mainByDay, zone: .current)
+    }
+
+    /// The Lift Log block for the context (`CoachLiftContext`): the last few weeks of sessions with
+    /// their sets, and the saved programs. "" when there is no store or nothing logged.
+    func liftLogBlock() async -> String {
+        guard let store = await repo.storeHandle() else { return "" }
+        let now = Int(Date().timeIntervalSince1970)
+        let from = now - CoachLiftContext.lookbackDays * 86_400
+        let rows = (try? await store.liftSessions(deviceId: repo.deviceId, fromTs: from, toTs: now)) ?? []
+        var sessions: [CoachLiftContext.Session] = []
+        for row in rows {
+            sessions.append(.init(row: row, sets: (try? await store.liftSets(sessionId: row.id)) ?? []))
+        }
+        var programs: [CoachLiftContext.Program] = []
+        for row in ((try? await store.liftPrograms(deviceId: repo.deviceId)) ?? [])
+            .prefix(CoachLiftContext.maxPrograms) {
+            programs.append(.init(row: row, items: (try? await store.liftProgramItems(programId: row.id)) ?? []))
+        }
+        let system = UnitSystem(
+            rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+        return CoachLiftContext.summary(sessions: sessions, programs: programs, now: now, system: system)
     }
 
     /// One derived stress line for the coach context: the Baevsky Stress Index over TODAY's R-R, read

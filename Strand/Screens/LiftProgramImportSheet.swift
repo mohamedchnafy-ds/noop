@@ -117,8 +117,14 @@ struct LiftProgramImportSheet: View {
                         Text("\(program.lines.count) exercises")
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.textTertiary)
-                        ForEach(Array(program.lines.enumerated()), id: \.offset) { _, line in
+                        ForEach(Array(program.lines.enumerated()), id: \.offset) { index, line in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                // "A1", "A2"… so a superset read from the sheet is visible before import.
+                                if let tag = LiftSuperset.tag(of: index, in: program.lines.map(\.supersetGroup)) {
+                                    Text(tag)
+                                        .font(StrandFont.captionNumber)
+                                        .foregroundStyle(StrandPalette.effortColor)
+                                }
                                 Text(line.exercise)
                                     .font(StrandFont.footnote)
                                     .foregroundStyle(StrandPalette.textSecondary)
@@ -245,7 +251,8 @@ struct LiftProgramImportSheet: View {
                     // high end stays nil rather than inventing a spread nobody typed.
                     targetRepsLow: line.targetReps, targetRepsHigh: nil, targetRpe: line.targetMaxRpe,
                     targetWeightKg: line.targetWeightKg,
-                    restSec: line.restSec, note: line.note)
+                    restSec: line.restSec, note: line.note,
+                    supersetGroup: line.supersetGroup)
             }
             _ = try? await store.replaceLiftProgramItems(programId: programId, items: items)
 

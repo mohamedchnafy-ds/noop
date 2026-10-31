@@ -29,6 +29,7 @@ has to reject, and the max RPE column only accepts a number from 1 to 10. A seco
 | `Target max RPE` | no | **A ceiling from 1 to 10**: the hardest a set should feel, 10 meaning nothing left. The session shows it grey in the RPE box, and a set you leave unrated saves it as its rating. Also read from a column named `Max RPE` or `RPE`. Outside 1–10 imports without it, with a warning. |
 | `Rest sec` | no | **Seconds.** `120` is two minutes. |
 | `Note` | no | Your technique cue, verbatim. |
+| `Superset` | no | *(fork)* A letter grouping exercises you alternate. **Consecutive** rows with the same value form one superset; `A1` / `A2` also mean superset `A`. The session runs one set of each, then the rest, then the next round — one strap double-tap ends a set and starts the next exercise of the superset straight away. The rest used is the one on the **last** row of the superset. A value on a single row, or on rows split by another exercise, imports with a warning and the row is done on its own. Supersets are lettered A, B, C… in order on import. |
 
 Only `Exercise` is required. Anything left blank can be filled in later in the app, or during the
 session itself — a blank stays blank rather than becoming a zero.

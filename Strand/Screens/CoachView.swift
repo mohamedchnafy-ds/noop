@@ -58,39 +58,24 @@ struct CoachView: View {
     private var suggestions: [String] { coach.suggestions }
 
     var body: some View {
-        ScreenScaffold(title: "Coach",
-                       subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.",
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Coach sits in one atmosphere. Static + non-interactive; the frosted
-                       // message/setup cards below sit on the opaque canvas and stay legible.
-                       topBackground: liquidScaffoldSky()) {
+        Group {
             if coach.isConfigured {
-                connectedHeader
-                transcript
-                if let error = coach.errorText, !error.isEmpty {
-                    errorBanner(error)
-                }
-                if coach.keyRejected || showKeyEditor { keyRepairPanel }
-                // K7: show follow-up chips after each assistant reply (when the transcript is
-                // non-empty and the last message is from the assistant and not mid-send);
-                // otherwise show the initial contextual chips.
-                if showFollowUpChips {
-                    followUpChips
-                } else {
-                    suggestionChips
-                }
-                composer
-                // K12: show a rough token estimate when the draft is non-empty.
-                if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                   let tokens = coach.estimatedTokens(forDraft: draft) {
-                    tokenEstimateBar(tokens)
-                }
-                privacyFootnote
+                // Personal fork: once connected, the conversation IS the screen — the transcript fills
+                // every point between a slim header and the docked composer, and everything else (the
+                // provider, the settings, the key, clearing) sits behind the header's one gear button.
+                chatScreen
             } else {
-                setupCard
+                ScreenScaffold(title: "Coach",
+                               subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.",
+                               // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
+                               // tabs carry, so Coach sits in one atmosphere. Static + non-interactive; the frosted
+                               // setup card below sits on the opaque canvas and stays legible.
+                               topBackground: liquidScaffoldSky()) {
+                    setupCard
+                }
             }
         }
-        // macOS only. On iOS these actions live in `connectionMenu` instead, because this bar is hidden for
+        // macOS only. On iOS these actions live in `settingsMenu` instead, because this bar is hidden for
         // a primary tab root and VISIBLE in the pillar sheet, so leaving them here would render nothing
         // on the Coach tab and a duplicate of the menu in the sheet. One control per platform, reachable
         // in both of iOS's presentations. The `#if` sits on the CHAIN rather than inside the builder:
@@ -393,124 +378,177 @@ struct CoachView: View {
 
     // MARK: - Connected state
 
-    private var connectedHeader: some View {
+    // MARK: - Connected: the full-screen conversation
+
+    /// The conversation, full height: header, transcript, then the docked input. The transcript is the
+    /// only part that scrolls; the composer stays where the thumb is, and the keyboard pushes it up.
+    private var chatScreen: some View {
+        VStack(spacing: 0) {
+            chatHeader
+                .padding(.horizontal, chatHPadding)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+            transcript
+            bottomPanel
+                .padding(.horizontal, chatHPadding)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+        }
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .top) {
+            ZStack(alignment: .top) {
+                StrandPalette.surfaceBase
+                liquidScaffoldSky()
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    private var chatHPadding: CGFloat {
+        #if os(iOS)
+        NoopMetrics.screenHPadding
+        #else
+        28
+        #endif
+    }
+
+    /// The slim header: the title, a pulse while a reply is on its way, and the gear that holds
+    /// everything else.
+    private var chatHeader: some View {
         HStack(spacing: 10) {
-            StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
-            Spacer()
+            Text("Coach")
+                .font(StrandFont.rounded(24))
+                .foregroundStyle(StrandPalette.textPrimary)
             if coach.sending {
                 StatePill("Thinking", tone: .accent, pulsing: true)
             }
-            // #2243: the way through to what used to be stacked under this header.
-            Button {
-                showSettings = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Coach settings"))
-            #if os(iOS)
-            connectionMenu
-            #endif
+            Spacer(minLength: 0)
+            settingsMenu
         }
     }
 
-    #if os(iOS)
-    /// #2206: the same connection actions the toolbar above carries, drawn where iPhone can reach them.
+    /// Everything that is not the conversation, behind ONE button: the provider and model in use,
+    /// the coach settings (#2243's sheet), and — on iOS — the connection actions.
     ///
-    /// `RootTabView.tab(...)` wraps every primary tab root in a NavigationStack and applies
-    /// `.toolbar(.hidden, for: .navigationBar)`, because each screen draws its own in-content header.
-    /// So Clear conversation and Disconnect were being placed into a bar this platform never shows, and
-    /// rendered nowhere. At the time, Disconnect was the only route back to the setup card: `isConfigured`
-    /// gates that card away the moment a key is saved. The
-    /// result was a key that could be set once and then never changed, with reinstalling the app the
-    /// only way out, which on an offline-first app costs the wearer their entire history.
-    ///
-    /// macOS keeps the toolbar and does not get this, so its behaviour is untouched. On iOS the toolbar
-    /// route is withdrawn rather than kept alongside: CoachView is presented twice on this platform, as
-    /// a primary tab whose bar is hidden and as a pillar sheet whose bar is NOT (it draws a Done button
-    /// and only hides the bar's background). Keeping both would render nothing on the tab and two of
-    /// everything in the sheet. One control, reachable in both presentations.
-    ///
-    /// A menu rather than a bare button because it needs two taps to reach a destructive action,
-    /// matching the protection the toolbar's separation gives, and because both actions belong to the
-    /// same connection.
+    /// #2206: on iOS the connection actions cannot live in the toolbar. `RootTabView.tab(...)` wraps
+    /// every primary tab root in a NavigationStack and applies `.toolbar(.hidden, for: .navigationBar)`,
+    /// so Clear conversation and Disconnect placed there rendered nowhere — and Disconnect was the only
+    /// route back to the setup card, leaving a key that could be set once and never changed. CoachView
+    /// is also presented as a pillar sheet whose bar IS visible, so keeping both routes would draw
+    /// nothing on the tab and two of everything in the sheet. macOS keeps its toolbar for those
+    /// actions and gets only the settings here. A menu also puts two taps in front of a destructive
+    /// action, the protection the toolbar's separation gives.
     ///
     /// Worth knowing before changing `disconnect()`: neither `hasKey` nor `isConfigured` is published,
     /// since `hasKey` reads the Keychain on each evaluation. The setup card reappears because
-    /// `disconnect()` ALSO assigns the published `messages`, which is what re-evaluates the body. A
-    /// future disconnect that stopped clearing the transcript would clear the key and leave this screen
-    /// showing a chat for a connection that no longer exists. macOS has depended on the same coupling
-    /// since its toolbar button existed, so this is a latent edge being written down, not a new one.
-    private var connectionMenu: some View {
+    /// `disconnect()` ALSO assigns the published `messages`, which is what re-evaluates the body.
+    private var settingsMenu: some View {
         Menu {
-            Button {
-                toggleKeyEditor()
-            } label: {
-                Label("Update key", systemImage: "key.fill")
+            Section("\(coach.provider.displayName) · \(coach.model)") {
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Coach settings", systemImage: "slider.horizontal.3")
+                }
             }
-            Button {
-                showClearConfirm = true
-            } label: {
-                Label("Clear conversation", systemImage: "trash")
+            #if os(iOS)
+            Section {
+                Button {
+                    toggleKeyEditor()
+                } label: {
+                    Label("Update key", systemImage: "key.fill")
+                }
+                Button {
+                    showClearConfirm = true
+                } label: {
+                    Label("Clear conversation", systemImage: "trash")
+                }
+                .disabled(coach.messages.isEmpty)
+                Button(role: .destructive) {
+                    coach.disconnect()
+                    keyDraft = ""
+                } label: {
+                    Label("Disconnect", systemImage: "gearshape")
+                }
             }
-            .disabled(coach.messages.isEmpty)
-            Button(role: .destructive) {
-                coach.disconnect()
-                keyDraft = ""
-            } label: {
-                Label("Disconnect", systemImage: "gearshape")
-            }
+            #endif
         } label: {
-            // Same affordance DevicesView uses for its per-device menu, headline size included. The
-            // size is not decoration here: the report this came from was that the option could not be
-            // FOUND, so a control that matches the one the wearer has already learned, at a size worth
-            // aiming at, is doing part of the work.
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "gearshape")
                 .font(StrandFont.headline)
                 .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
         }
-        .accessibilityLabel("Connection")
+        .accessibilityLabel(String(localized: "Coach settings"))
     }
-    #endif
+
+    /// What sits under the transcript: a problem that needs the user (an error, a rejected key), the
+    /// prompt chips while the keyboard is down, the composer, and a token warning only when a question
+    /// would be large enough to matter.
+    private var bottomPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let error = coach.errorText, !error.isEmpty {
+                errorBanner(error)
+            }
+            if coach.keyRejected || showKeyEditor { keyRepairPanel }
+            // K7: follow-up chips after an assistant reply, otherwise the initial chips. Hidden while
+            // typing, so the keyboard does not leave the transcript a sliver.
+            if !composerFocused {
+                if showFollowUpChips {
+                    followUpChips
+                } else {
+                    suggestionChips
+                }
+            }
+            composer
+            // K12: the estimate, now only when it is worth a warning.
+            if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let tokens = coach.estimatedTokens(forDraft: draft), tokens > 8000 {
+                tokenEstimateBar(tokens)
+            }
+        }
+    }
 
     private var transcript: some View {
-        StrandCard(padding: 16) {
-            if coach.messages.isEmpty {
-                emptyTranscript
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        // Lazy so off-screen bubbles aren't all resident/laid-out at once; with the
-                        // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(coach.messages) { message in
-                                bubble(message).id(message.id)
-                            }
-                            if coach.sending {
-                                typingIndicator.id("typing")
-                            }
-                        }
-                        .padding(.vertical, 2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollViewReader { proxy in
+            ScrollView {
+                // Lazy so off-screen bubbles aren't all resident/laid-out at once; with the
+                // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    if coach.messages.isEmpty {
+                        emptyTranscript
                     }
-                    // #697 parity: this screen builds its OWN ScrollView rather than going through
-                    // ScreenScaffold, so it never inherited the scaffold's horizontal-bounce suppression and
-                    // could still rubber-band left-right on a purely vertical scroll. Same modifier, same
-                    // guard. `.basedOnSize` permits horizontal bounce only when content genuinely overflows
-                    // the width, so nothing that is meant to scroll sideways is affected. (#1532 follow-up)
-                    #if os(iOS)
-                    .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                    #endif
-                    .frame(minHeight: 220, maxHeight: 460)
-                    .onChangeCompat(of: coach.messages.count) { _ in
-                        scrollToEnd(proxy)
+                    ForEach(coach.messages) { message in
+                        bubble(message).id(message.id)
                     }
-                    .onChangeCompat(of: coach.sending) { _ in
-                        scrollToEnd(proxy)
+                    if coach.sending {
+                        typingIndicator.id("typing")
                     }
                 }
+                .padding(.horizontal, chatHPadding)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            // #697 parity: this screen builds its OWN ScrollView rather than going through
+            // ScreenScaffold, so it never inherited the scaffold's horizontal-bounce suppression and
+            // could still rubber-band left-right on a purely vertical scroll. Same modifier, same
+            // guard. `.basedOnSize` permits horizontal bounce only when content genuinely overflows
+            // the width, so nothing that is meant to scroll sideways is affected. (#1532 follow-up)
+            #if os(iOS)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .scrollDismissesKeyboard(.interactively)
+            #endif
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear { scrollToEnd(proxy, animated: false) }
+            .onChangeCompat(of: coach.messages.count) { _ in
+                scrollToEnd(proxy)
+            }
+            .onChangeCompat(of: coach.sending) { _ in
+                scrollToEnd(proxy)
+            }
+            .onChangeCompat(of: composerFocused) { focused in
+                if focused { scrollToEnd(proxy) }
             }
         }
     }
@@ -520,12 +558,17 @@ struct CoachView: View {
             Text("Ask your first question")
                 .font(StrandFont.headline)
                 .foregroundStyle(StrandPalette.textPrimary)
-            Text("Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language. Try a suggestion below.")
+            Text("Coach reads a summary of your last two weeks, 30-day averages, recent workouts and your Lift Log sessions, then answers in plain language. Try a suggestion below.")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // What leaves the device, said before the first question rather than under every answer.
+            privacyFootnote
+                .padding(.top, 6)
         }
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(16)
+        .frostedCardSurface()
     }
 
     @ViewBuilder
@@ -677,7 +720,8 @@ struct CoachView: View {
     private var suggestionChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(suggestions, id: \.self) { prompt in
+                // Strength prompts first (personal fork), then the ones derived from today's bands.
+                ForEach(AICoachEngine.liftSuggestions + suggestions, id: \.self) { prompt in
                     Button {
                         send(prompt)
                     } label: {
@@ -947,13 +991,14 @@ struct CoachView: View {
         }
     }
 
-    private func scrollToEnd(_ proxy: ScrollViewProxy) {
-        withAnimation(StrandMotion.fade) {
+    private func scrollToEnd(_ proxy: ScrollViewProxy, animated: Bool = true) {
+        let scroll = {
             if coach.sending {
                 proxy.scrollTo("typing", anchor: .bottom)
             } else if let last = coach.messages.last {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
         }
+        if animated { withAnimation(StrandMotion.fade) { scroll() } } else { scroll() }
     }
 }

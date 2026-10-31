@@ -24,13 +24,20 @@ final class CoachNapContextTests: XCTestCase {
         let night = block(midnight - 7 * 3600, midnight + 1 * 3600)                       // 17:00–01:00 UTC
         let nap = block(midnight + 14 * 3600, midnight + 14 * 3600 + 30 * 60,
                         stages: #"{"light": 20, "deep": 5, "rem": 0, "awake": 5}"#)       // 14:00–14:30
-        let earlier = block(midnight - 86_400 + 13 * 3600, midnight - 86_400 + 14 * 3600, stages: nil)
-        let naps = CoachNapContext.naps(dayGroups: [[night, nap], [earlier]], habitualMidsleepSec: nil,
-                                        dayKey: dayKey)
+        let earlierNight = block(midnight - 86_400 - 7 * 3600, midnight - 86_400 + 1 * 3600)
+        let earlierNap = block(midnight - 86_400 + 13 * 3600, midnight - 86_400 + 14 * 3600, stages: nil)
+        let naps = CoachNapContext.naps(dayGroups: [[night, nap], [earlierNight, earlierNap]],
+                                        habitualMidsleepSec: nil, dayKey: dayKey)
         XCTAssertEqual(naps.count, 2)
         XCTAssertEqual(naps[0].day, "2026-10-30")
         XCTAssertEqual(naps[0].asleepMin, 25)
         XCTAssertNil(naps[1].asleepMin, "a stage-less block reports no asleep minutes")
+    }
+
+    func testADayWithOneBlockHasANightAndNoNap() {
+        // A lone afternoon block is that day's main sleep, exactly as the Sleep tab files it.
+        let lone = block(midnight + 13 * 3600, midnight + 14 * 3600)
+        XCTAssertTrue(CoachNapContext.naps(dayGroups: [[lone]], habitualMidsleepSec: nil, dayKey: dayKey).isEmpty)
     }
 
     func testSummaryCreditsTheNightPlusNapsAndStaysSilentWithoutNaps() {

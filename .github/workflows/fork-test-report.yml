@@ -24,7 +24,9 @@ jobs:
           status=$?
           grep -E "error: -\[|: error: |Test Case .* failed|Executed .* tests|\*\* TEST" log.txt \
             | grep -v "with 0 failures" \
-            | sed -E 's#^.*/(StrandTests|Strand)/#\1/#' | sort -u | head -120 > failures.txt
+            | sed -E 's#^.*/(StrandTests|Strand)/#\1/#' | sort -u | head -60 > failures.txt
+          grep -iE "error|failed|crash|abort|fatal" log.txt | grep -v "with 0 failures" | tail -40 >> failures.txt
+          tail -25 log.txt >> failures.txt
           echo "xcodebuild exit status: $status"
           cat failures.txt
           # Annotations: at most 10 errors per step, so lines are packed 12 to an annotation.

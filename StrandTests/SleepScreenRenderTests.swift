@@ -97,7 +97,11 @@ final class SleepScreenRenderTests: XCTestCase {
             actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {}))
     }
 
-    private func phases(hr: Bool = true, hrvOn: Bool = false, temp: Bool = false, motionOn: Bool = false) -> SleepPhasesCard {
+    /// 03:54, the night's lowest heart rate: where the curves render tests hold their reading.
+    private let readingMinute: Double = 123
+
+    private func phases(hr: Bool = true, hrvOn: Bool = false, temp: Bool = false, motionOn: Bool = false,
+                        reading: Bool = false) -> SleepPhasesCard {
         SleepPhasesCard(
             subtitle: "\(String(localized: "\(SleepDurationText.format(252)) in bed · \(SleepDurationText.format(221)) asleep"))\n\(String(localized: "Stages estimated on the device"))",
             source: String(localized: "On-device"),
@@ -115,7 +119,8 @@ final class SleepScreenRenderTests: XCTestCase {
             showSkinTemp: .constant(temp), showMotion: .constant(motionOn),
             whyButton: AnyView(Label("Why this sleep?", systemImage: "info.circle")
                 .font(StrandFont.footnote).foregroundStyle(StrandPalette.restBright).frame(minHeight: 44)),
-            addNap: {})
+            addNap: {},
+            initialReading: reading ? readingMinute * 60 : nil)
     }
 
     private func indicators() -> SleepIndicatorsCard {
@@ -164,13 +169,19 @@ final class SleepScreenRenderTests: XCTestCase {
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "2-suite")
 
-        // The curves: heart rate + rMSSD, then skin temperature with movement.
+        // The curves, read at 03:54: heart rate + rMSSD over the lanes with the temperature below (canvas
+        // board PG), the temperature alone over the lanes (PG1), then rMSSD with temperature and movement.
         try render(VStack(spacing: NoopMetrics.sectionSpacing) {
-            phases(hr: true, hrvOn: true)
-            phases(hr: false, temp: true, motionOn: true)
+            phases(hr: true, hrvOn: true, temp: true, reading: true)
+            phases(hr: false, temp: true, reading: true)
+            phases(hr: false, hrvOn: true, temp: true, motionOn: true)
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "3-courbes")
+
+        // The chart full screen, heart rate + rMSSD + temperature.
+        try render(phases(hr: true, hrvOn: true, temp: true, reading: true).fullScreenView
+            .padding(.top, 50), height: 844, clipped: true, name: "4-plein-ecran")
     }
 
     private func render<V: View>(_ content: V, height: CGFloat?, clipped: Bool, name: String) throws {

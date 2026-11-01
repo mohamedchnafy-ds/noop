@@ -5,10 +5,10 @@ import WhoopStore
 // MARK: - Phases card (personal fork)
 //
 // The night in one card: the stage lanes with the curves the user switched on (heart rate by default,
-// rMSSD, skin temperature, movement), the four stage totals (tap one to light it up on the lanes), the
-// comparison with the usual night once there are enough nights, any honest caveat about the staging,
-// and the footer actions (why this sleep, add a nap). A pure view: the Sleep tab feeds it, the render
-// test feeds it fixed values.
+// rMSSD, skin temperature, movement), each with its own scale, the four stage totals (tap one to light it
+// up on the lanes), the comparison with the usual night once there are enough nights, any honest caveat
+// about the staging, and the footer actions (why this sleep, add a nap). A button in the header opens the
+// same chart full screen. A pure view: the Sleep tab feeds it, the render test feeds it fixed values.
 
 /// Which curves ride over the stage lanes. Persisted per curve (display-only preferences).
 enum SleepCurvePrefs {
@@ -51,6 +51,10 @@ struct SleepPhasesCard: View {
     var notes: AnyView? = nil
     var whyButton: AnyView? = nil
     var addNap: (() -> Void)? = nil
+    /// A reading shown on the chart before any touch, seconds from `nightStart` (the render test sets one).
+    var initialReading: TimeInterval? = nil
+
+    @State private var showsFullScreen = false
 
     var body: some View {
         NoopCard(tint: StrandPalette.restColor) {
@@ -58,12 +62,7 @@ struct SleepPhasesCard: View {
                 header
                 chips
                 if intervals.count >= 2 {
-                    SleepPhasesChart(intervals: intervals, nightStart: nightStart, palette: palette,
-                                     highlighted: selectedStage,
-                                     heartRate: showHeartRate ? curves.heartRate : [],
-                                     hrv: showHRV ? curves.hrv : [],
-                                     skinTemp: showSkinTemp ? curves.skinTemp : [])
-                    legend
+                    chart(laneHeight: 56, stripHeight: 84, bleed: NoopMetrics.cardPadding)
                 } else {
                     Text("No stage data recorded for this night.")
                         .font(StrandFont.footnote)
@@ -80,16 +79,79 @@ struct SleepPhasesCard: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
                 if let notes { notes }
-                if showMotion { motionStrip }
                 if whyButton != nil || addNap != nil {
                     Divider().overlay(StrandPalette.hairline)
                     footer
                 }
             }
         }
+        .sleepPhasesFullScreen(isPresented: $showsFullScreen) { fullScreenView }
     }
 
     // MARK: Parts
+
+    private func chart(laneHeight: CGFloat, stripHeight: CGFloat, bleed: CGFloat) -> SleepPhasesChart {
+        SleepPhasesChart(intervals: intervals, nightStart: nightStart, palette: palette,
+                         highlighted: selectedStage,
+                         heartRate: showHeartRate ? curves.heartRate : [],
+                         hrv: showHRV ? curves.hrv : [],
+                         skinTemp: showSkinTemp ? curves.skinTemp : [],
+                         motion: showMotion ? curves.motion : [],
+                         laneHeight: laneHeight, stripHeight: stripHeight, bleed: bleed,
+                         initialReading: initialReading)
+    }
+
+    /// The same chart on the whole screen: taller lanes and strips, the curve switches above it. Internal
+    /// so the render test can draw it.
+    var fullScreenView: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+            HStack(alignment: .top, spacing: NoopMetrics.space2) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Night stages").strandOverline()
+                    Text(subtitle)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: NoopMetrics.space2)
+                Button { showsFullScreen = false } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .frame(width: 44, height: 44)
+                        .background(StrandPalette.surfaceRaised, in: Circle())
+                        .overlay(Circle().strokeBorder(StrandPalette.hairlineStrong, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Close"))
+            }
+            chips
+            GeometryReader { geo in
+                let lane = fullScreenLaneHeight(available: geo.size.height)
+                // Scrolls only when even the shortest lanes do not fit (many strips on a small screen).
+                ViewThatFits(in: .vertical) {
+                    chart(laneHeight: lane, stripHeight: 110, bleed: 0)
+                    ScrollView { chart(laneHeight: lane, stripHeight: 110, bleed: 0) }
+                }
+            }
+        }
+        .padding(NoopMetrics.screenHPadding)
+        .background(StrandPalette.surfaceBase.ignoresSafeArea())
+    }
+
+    /// Lanes as tall as the screen allows once the strips, the reading and the ranges have their room.
+    private func fullScreenLaneHeight(available: CGFloat) -> CGFloat {
+        var strips = 0
+        if showMotion && curves.motion.count >= 2 { strips += 1 }
+        let lineCurves = [showHeartRate && curves.heartRate.count >= 2, showHRV && curves.hrv.count >= 2,
+                          showSkinTemp && curves.skinTemp.count >= 2].filter { $0 }.count
+        let split = SleepCurveLayout.split(heartRate: showHeartRate && curves.heartRate.count >= 2,
+                                           hrv: showHRV && curves.hrv.count >= 2,
+                                           skinTemp: showSkinTemp && curves.skinTemp.count >= 2)
+        strips += split.below.count
+        let reserved = 70 + CGFloat(lineCurves) * 22 + CGFloat(strips) * 124 + 60
+        return max(56, min(140, (available - reserved) / 4))
+    }
 
     private var header: some View {
         HStack(alignment: .top, spacing: NoopMetrics.space2) {
@@ -101,7 +163,24 @@ struct SleepPhasesCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: NoopMetrics.space2)
-            SourceBadge("\(source)", tint: StrandPalette.restColor)
+            HStack(spacing: 4) {
+                SourceBadge("\(source)", tint: StrandPalette.restColor)
+                if intervals.count >= 2 {
+                    Button { showsFullScreen = true } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(StrandPalette.restBright)
+                            .frame(width: 34, height: 34)
+                            .background(StrandPalette.surfaceInset, in: Circle())
+                            .overlay(Circle().strokeBorder(StrandPalette.hairlineStrong, lineWidth: 1))
+                            .padding(5)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Show the chart full screen"))
+                    .padding(.vertical, -5)
+                }
+            }
         }
     }
 
@@ -118,49 +197,6 @@ struct SleepPhasesCard: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Curves shown on the stages"))
-    }
-
-    private struct LegendItem: Identifiable {
-        let title: String
-        let color: Color
-        var id: String { title }
-    }
-
-    private var legendItems: [LegendItem] {
-        var items: [LegendItem] = []
-        if showHeartRate && curves.heartRate.count >= 2 {
-            items.append(LegendItem(title: Self.unitTitle(String(localized: "HR"), String(localized: "bpm")), color: StrandPalette.liquidHeart))
-        }
-        if showHRV && curves.hrv.count >= 2 {
-            items.append(LegendItem(title: Self.unitTitle(String(localized: "HRV"), Self.msUnit), color: StrandPalette.accent))
-        }
-        if showSkinTemp && curves.skinTemp.count >= 2 {
-            items.append(LegendItem(title: Self.unitTitle(String(localized: "Skin temp."), Self.celsiusUnit), color: StrandPalette.signalYellow))
-        }
-        return items
-    }
-
-    /// Units are symbols, not words: they stay as they are in every language.
-    private static let msUnit = "ms"
-    private static let celsiusUnit = "°C"
-
-    private static func unitTitle(_ name: String, _ unit: String) -> String { "\(name) (\(unit))" }
-
-    /// A key only once two curves share the lanes; one curve is named by its lit chip.
-    @ViewBuilder
-    private var legend: some View {
-        let items = legendItems
-        if items.count >= 2 {
-            HStack(spacing: NoopMetrics.space3) {
-                ForEach(items) { item in
-                    HStack(spacing: 5) {
-                        Capsule().fill(item.color).frame(width: 14, height: 2.5)
-                        Text(item.title).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
-                    }
-                }
-            }
-            .accessibilityHidden(true)
-        }
     }
 
     private var stageGrid: some View {
@@ -210,18 +246,6 @@ struct SleepPhasesCard: View {
         .accessibilityHint(Text("Highlights this stage on the sleep chart"))
     }
 
-    private var motionStrip: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Move, relative to tonight")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textSecondary)
-            MotionTrace(epochs: curves.motion, height: 40, tint: StrandPalette.restColor)
-                .padding(.leading, SleepPhasesChart.labelWidth + 8)
-                .padding(.trailing, SleepPhasesChart.gutter)
-        }
-        .accessibilityElement(children: .contain)
-    }
-
     private var footer: some View {
         HStack {
             if let whyButton { whyButton }
@@ -237,6 +261,19 @@ struct SleepPhasesCard: View {
                 .buttonStyle(LiquidPressStyle())
             }
         }
+    }
+}
+
+extension View {
+    /// The chart's full-screen view: a cover on iOS, a sheet on macOS where covers do not exist.
+    @ViewBuilder
+    func sleepPhasesFullScreen<Content: View>(isPresented: Binding<Bool>,
+                                              @ViewBuilder content: @escaping () -> Content) -> some View {
+        #if os(iOS)
+        fullScreenCover(isPresented: isPresented, content: content)
+        #else
+        sheet(isPresented: isPresented) { content().frame(minWidth: 640, minHeight: 760) }
+        #endif
     }
 }
 

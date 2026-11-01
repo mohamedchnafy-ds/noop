@@ -7,7 +7,9 @@ import StrandDesign
 // moment sleep began to the wake time, coloured by stage, with every awake stretch left as a gap. A thin
 // dashed arc outside it covers the sleep need counted back from the wake time, so a short night reads as
 // the part of the need it did not cover. The score (or, without one, the time asleep) sits in the
-// middle. Display only: every number arrives from the caller.
+// middle. Over the night scene the face sits on a dark disc with a light edge along the night, so the
+// darkest stage colour still reads against the photograph. Display only: every number arrives from the
+// caller.
 
 /// Pure geometry for `SleepNightDial`, kept apart so it can be tested without drawing.
 enum SleepNightDialMath {
@@ -71,10 +73,12 @@ struct SleepNightDial: View {
     let asleepMinutes: Double
     /// True over the night scene (light-on-dark text), false over the plain canvas.
     var onScene: Bool = true
-    var diameter: CGFloat = 248
+    var diameter: CGFloat = 256
 
     private let ringRadius: CGFloat = 88
-    private let ringWidth: CGFloat = 16
+    private let ringWidth: CGFloat = 18
+    /// How far the dark disc behind the face reaches past the ring's centre line.
+    private let plateReach: CGFloat = 21
 
     private var primary: Color { onScene ? StrandPalette.onDarkPrimary : StrandPalette.textPrimary }
     private var secondary: Color { onScene ? StrandPalette.onDarkSecondary : StrandPalette.textSecondary }
@@ -84,6 +88,8 @@ struct SleepNightDial: View {
         let wakeH = SleepNightDialMath.clockHours(wake)
         let arcs = SleepNightDialMath.arcs(intervals: intervals, onsetHours: onsetH)
         let need = needMinutes.map { SleepNightDialMath.needArc(wakeHours: wakeH, needMinutes: $0) }
+        let nightStart = SleepNightDialMath.angle(hours: onsetH)
+        let nightEnd = nightStart + min(360, max(0, wake.timeIntervalSince(onset)) / 3600 * SleepNightDialMath.degreesPerHour)
         let needStartLabel = needMinutes.map {
             AppClock.hourMinuteFormatter().string(from: wake.addingTimeInterval(-$0 * 60))
         }
@@ -97,6 +103,7 @@ struct SleepNightDial: View {
                                with: .color(StrandPalette.sleepStageColor(arc.stage, palette: palette)),
                                style: StrokeStyle(lineWidth: ringWidth, lineCap: .butt))
                 }
+                drawNightEdges(ctx, center: c, arcs: arcs, from: nightStart, to: nightEnd)
             }
             marker("moon.fill", at: SleepNightDialMath.angle(hours: onsetH))
             marker("sun.max.fill", at: SleepNightDialMath.angle(hours: wakeH))
@@ -110,9 +117,15 @@ struct SleepNightDial: View {
     // MARK: Drawing
 
     private func drawFace(_ ctx: GraphicsContext, center c: CGPoint) {
+        if onScene {
+            let r = ringRadius + plateReach
+            let plate = Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+            ctx.fill(plate, with: .color(StrandPalette.heroFill))
+            ctx.stroke(plate, with: .color(StrandPalette.heroBorder), lineWidth: 1)
+        }
         ctx.stroke(Path(ellipseIn: CGRect(x: c.x - ringRadius, y: c.y - ringRadius,
                                           width: ringRadius * 2, height: ringRadius * 2)),
-                   with: .color(primary.opacity(0.10)), lineWidth: ringWidth)
+                   with: .color(primary.opacity(0.13)), lineWidth: ringWidth)
         for h in 0..<12 {
             let a = Double(h) * SleepNightDialMath.degreesPerHour
             let major = h % 3 == 0
@@ -126,12 +139,12 @@ struct SleepNightDial: View {
         for h in [0, 3, 6, 9] {
             let text = ctx.resolve(Text(String(localized: "\(h)h"))
                 .font(StrandFont.caption).foregroundColor(secondary))
-            ctx.draw(text, at: point(c, ringRadius + 28, Double(h) * SleepNightDialMath.degreesPerHour), anchor: .center)
+            ctx.draw(text, at: point(c, ringRadius + 30, Double(h) * SleepNightDialMath.degreesPerHour), anchor: .center)
         }
     }
 
     private func drawNeed(_ ctx: GraphicsContext, center c: CGPoint, arc: (start: Double, end: Double), label: String?) {
-        let r = ringRadius + 14
+        let r = ringRadius + 15
         ctx.stroke(arcPath(center: c, radius: r, from: arc.start, to: arc.end),
                    with: .color(secondary.opacity(0.85)),
                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 4]))
@@ -139,7 +152,24 @@ struct SleepNightDial: View {
         ctx.fill(Path(ellipseIn: CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7)), with: .color(secondary))
         if let label {
             let text = ctx.resolve(Text(label).font(StrandFont.captionNumber.weight(.semibold)).foregroundColor(primary))
-            ctx.draw(text, at: point(c, ringRadius + 30, arc.start), anchor: .center)
+            ctx.draw(text, at: point(c, ringRadius + 31, arc.start), anchor: .center)
+        }
+    }
+
+    /// A thin light line along both edges of the night, and a dark hairline where one stage hands over to
+    /// the next, so neighbouring stages and the darkest colour stay apart from the track.
+    private func drawNightEdges(_ ctx: GraphicsContext, center c: CGPoint, arcs: [SleepNightDialMath.Arc],
+                                from a0: Double, to a1: Double) {
+        guard a1 > a0 else { return }
+        for r in [ringRadius - ringWidth / 2 - 0.5, ringRadius + ringWidth / 2 + 0.5] {
+            ctx.stroke(arcPath(center: c, radius: r, from: a0, to: a1),
+                       with: .color(primary.opacity(0.32)), lineWidth: 1)
+        }
+        for arc in arcs.dropFirst() {
+            var seam = Path()
+            seam.move(to: point(c, ringRadius - ringWidth / 2, arc.start))
+            seam.addLine(to: point(c, ringRadius + ringWidth / 2, arc.start))
+            ctx.stroke(seam, with: .color(StrandPalette.heroFill), lineWidth: 1)
         }
     }
 

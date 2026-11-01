@@ -383,21 +383,30 @@ final class AICoachEngine: ObservableObject {
     /// The system prompt of a question asked with the read tools: the role, then how to use the tools,
     /// then the user's own instructions, which stay last so they keep the final word.
     func systemPrompt(withTools: Bool) -> String {
-        Self.composeSystemPrompt(role: withTools ? Self.defaultSystemPrompt + "\n\n" + Self.toolsRole
+        Self.composeSystemPrompt(role: withTools ? Self.defaultSystemPrompt + "\n\n" + Self.toolsRole(readTools: dataConsent)
                                                  : Self.defaultSystemPrompt,
                                  extra: UserDefaults.standard.string(forKey: Self.extraInstructionsKey))
     }
 
-    /// How to use the read tools (personal fork, Anthropic only). Added to the role only when tools are
-    /// sent, so the other providers are never told about tools they do not have.
-    static let toolsRole = """
-    ## Outils
-    Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours, le détail d'une nuit, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal et le Lab Book.
-    - Réponds avec la fiche quand elle suffit ; appelle un outil seulement si elle ne suffit pas pour répondre juste.
-    - N'annonce pas que tu vas chercher : appelle l'outil, puis réponds directement à la question.
-    - Demande la période la plus courte qui répond à la question.
-    - Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.
-    """
+    /// How to use the tools (personal fork, Anthropic only). Added to the role only when tools are sent,
+    /// so the other providers are never told about tools they do not have; the read tools are described
+    /// only when they are sent (with "Use my data").
+    nonisolated static func toolsRole(readTools: Bool) -> String {
+        var lines = ["## Outils"]
+        if readTools {
+            lines += [
+                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours, le détail d'une nuit, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal et le Lab Book.",
+                "- Réponds avec la fiche quand elle suffit ; appelle un outil seulement si elle ne suffit pas pour répondre juste.",
+                "- N'annonce pas que tu vas chercher : appelle l'outil, puis réponds directement à la question.",
+                "- Demande la période la plus courte qui répond à la question.",
+                "- Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.",
+            ]
+        }
+        lines += [
+            "- Séance : quand tu proposes une séance ou que tu la modifies, appelle create_program avec la séance complète au lieu de l'écrire (mêmes règles que « Créer une séance » : exercices du Carnet, charges, supersets A1/A2, repos). Écris une seule phrase avant et rien après : elle s'affiche en carte avec « Ajouter au Carnet » et « Démarrer », et rien n'est enregistré sans un tap.",
+        ]
+        return lines.joined(separator: "\n")
+    }
 
     /// The user's extra instructions, "" when none. The settings editor binds to this: writing persists
     /// the text, and a blank one clears the key.
@@ -956,6 +965,14 @@ final class AICoachEngine: ObservableObject {
         }
     }
 
+    /// Rewrite one message of the conversation on screen and save the conversation (personal fork: a
+    /// session card records the program it was added as). Ignored for a message no longer on screen.
+    func updateStoredMessage(id: UUID, text: String) {
+        guard let index = messages.firstIndex(where: { $0.id == id }), messages[index].text != text else { return }
+        messages[index] = ChatMessage(id: id, role: messages[index].role, text: text)
+        persistMessages()
+    }
+
     /// The Coach menu's "Clear conversation" action: deletes the conversation on screen from the
     /// history and leaves an empty one. The in-memory clear is immediate.
     func clearConversation() {
@@ -1132,6 +1149,7 @@ final class AICoachEngine: ObservableObject {
         var finished = ""       // the text of the rounds already done
         var streaming = ""      // the text of the round on its way
         var consulted: [String] = []
+        var session: CoachSessionProposal?
 
         func joined(_ a: String, _ b: String) -> String {
             let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1145,7 +1163,7 @@ final class AICoachEngine: ObservableObject {
             messages[index] = ChatMessage(id: placeholder.id, role: .assistant, text: text)
         }
         func settled(_ body: String) -> String {
-            CoachReplyMeta.join(body: body, meta: consulted.isEmpty ? nil : CoachReplyMeta(consulted: consulted))
+            CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session))
         }
         defer { toolActivity = nil }
 
@@ -1170,6 +1188,17 @@ final class AICoachEngine: ObservableObject {
                 var results: [(id: String, text: String, isError: Bool)] = []
                 for call in calls {
                     let input = CoachTools.input(fromJSON: call.inputJSON)
+                    // The session card (step 6b): shown with the reply, saved only on a tap. The last
+                    // proposal of a reply is the one shown.
+                    if call.name == CoachSessionProposal.toolName {
+                        if let proposal = CoachSessionProposal.fromToolInput(input) {
+                            session = proposal
+                            results.append((call.id, CoachSessionProposal.shownResult, false))
+                        } else {
+                            results.append((call.id, "No exercise in that session: give at least one line.", true))
+                        }
+                        continue
+                    }
                     guard let name = CoachTools.Name(rawValue: call.name) else {
                         results.append((call.id, "Unknown tool \(call.name).", true))
                         continue
@@ -1185,17 +1214,21 @@ final class AICoachEngine: ObservableObject {
                 conversation.append(AnthropicToolRequest.assistant(turn))
                 conversation.append(AnthropicToolRequest.toolResults(results))
             }
-            show(finished.isEmpty ? "(no reply)" : settled(finished))
+            show(finished.isEmpty && session == nil ? "(no reply)" : settled(finished))
         } catch {
             let partial = joined(finished, streaming)
             if Task.isCancelled || error is CancellationError {
-                if partial.isEmpty { messages.removeAll { $0.id == placeholder.id } } else { show(settled(partial)) }
+                if partial.isEmpty && session == nil {
+                    messages.removeAll { $0.id == placeholder.id }
+                } else {
+                    show(settled(partial))
+                }
                 return
             }
-            if partial.isEmpty {
+            if partial.isEmpty && session == nil {
                 messages.removeAll { $0.id == placeholder.id }
             } else {
-                show(settled(partial + "\n\n*(stream interrupted)*"))
+                show(settled(partial.isEmpty ? "*(stream interrupted)*" : partial + "\n\n*(stream interrupted)*"))
             }
             if let e = error as? AICoachError {
                 errorText = e.errorDescription
@@ -1755,6 +1788,8 @@ final class AICoachEngine: ObservableObject {
 
     /// The chat as `(role, content)` pairs, with the metrics context prepended to the first user turn.
     private func wireMessages(context: String) -> [(role: ChatMessage.Role, content: String)] {
+        let unitSystem = UnitSystem(
+            rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
         var out: [(role: ChatMessage.Role, content: String)] = []
         var contextInjected = false
         for m in windowedMessages() {
@@ -1762,8 +1797,8 @@ final class AICoachEngine: ObservableObject {
                 contextInjected = true
                 out.append((.user, context + "\n\n---\n\nQuestion: " + m.text))
             } else {
-                // A reply's stored extras (what it looked at) are for the screen, not the model.
-                out.append((m.role, m.role == .assistant ? CoachReplyMeta.body(m.text) : m.text))
+                // A reply's stored extras are for the screen; a session card is written out for the model.
+                out.append((m.role, m.role == .assistant ? CoachReplyMeta.forModel(m.text, system: unitSystem) : m.text))
             }
         }
         return out

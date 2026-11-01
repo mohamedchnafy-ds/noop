@@ -61,8 +61,24 @@ enum CoachPrompts {
         return Theme.allCases.first { $0.prompts.contains(question) }
     }
 
-    /// The follow-ups to offer under an answer.
-    static func followUps(forFirstQuestion question: String?) -> [String] {
-        theme(ofFirstQuestion: question)?.followUps ?? genericFollowUps
+    /// The follow-up that turns a session described in words into a session card (step 6b).
+    static var makeThisSession: String { String(localized: "Make me this session") }
+
+    /// The follow-ups to offer under the last answer. A reply that shows a session card gets the
+    /// session's follow-ups (shorter, swap, what to eat after); a session question answered in words,
+    /// or a conversation that starts with the brief, gets "Make me this session" first.
+    static func followUps(forFirstQuestion question: String?, lastReplyHasSession: Bool,
+                          startsWithBrief: Bool) -> [String] {
+        if lastReplyHasSession { return Theme.session.followUps }
+        switch theme(ofFirstQuestion: question) {
+        case .session?:
+            return [makeThisSession, String(localized: "Make it shorter, 30 min"),
+                    String(localized: "What should I eat after?")]
+        case let theme?:
+            return theme.followUps
+        case nil:
+            guard startsWithBrief else { return genericFollowUps }
+            return [makeThisSession, String(localized: "Explain why"), String(localized: "Compare with my week")]
+        }
     }
 }

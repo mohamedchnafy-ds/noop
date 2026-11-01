@@ -34,6 +34,11 @@ struct CoachDataView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // Personal fork (step 6): the read tools, Anthropic only.
+            if coach.provider == .anthropic {
+                CoachSectionTitle("IF YOUR QUESTION NEEDS IT")
+                onDemandCard
+            }
             CoachSectionTitle("NEVER SENT")
             Text("Raw beats, second-by-second readings, your location. Your key only goes to \(coach.provider.displayName).")
                 .font(StrandFont.subhead)
@@ -138,6 +143,44 @@ struct CoachDataView: View {
                 .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                 .accessibilityLabel("Also share my patterns and Lab Book with the coach")
         }
+    }
+
+    /// What the read tools can fetch (`CoachTools`): nothing more leaves the device until a question
+    /// needs it, and what was fetched is named under the reply.
+    private var onDemandCard: some View {
+        NoopCard(padding: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("The coach fetches the detail itself, then shows it under its answer.")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                onDemandRow("A measure over several weeks")
+                onDemandRow("The detail of a night")
+                onDemandRow("The history of an exercise")
+                onDemandRow("Your Journal and Lab Book")
+                if !coach.dataConsent {
+                    Text("Off while “Use my data” is off.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                } else if !coach.includeOnDeviceSignals {
+                    Text("The Lab Book only with “Patterns and Lab Book” on.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .opacity(coach.dataConsent ? 1 : 0.45)
+    }
+
+    private func onDemandRow(_ title: LocalizedStringKey) -> some View {
+        Label {
+            Text(title).foregroundStyle(StrandPalette.textPrimary)
+        } icon: {
+            Image(systemName: "magnifyingglass").foregroundStyle(StrandPalette.textSecondary)
+        }
+        .font(StrandFont.subhead)
     }
 
     private var divider: some View {

@@ -159,6 +159,15 @@ final class LiftProgressRenderTests: XCTestCase {
         try render(padded(AnyView(LiftProgressFormTab(data: data))), name: "6-forme")
         try render(padded(AnyView(LiftProgressFormTab(data: fixture(weeks: 7)))), name: "7-forme-verrouillee")
 
+        // Programs saved, no session yet: the card still opens the screen, and each tab says what is coming.
+        let empty = LiftProgressData(lines: data.lines, now: data.now)
+        try render(padded(AnyView(LiftProgressCard(data: empty, unitSystem: .metric))), name: "8-vide-carte")
+        try render(padded(AnyView(LiftProgressExercisesTab(data: empty, unitSystem: .metric,
+                                                           period: .constant(.fourWeeks)))), name: "9-vide-exercices")
+        try render(padded(AnyView(LiftProgressMusclesTab(data: empty, period: .constant(.fourWeeks), open: { _ in }))),
+                   name: "10-vide-muscles")
+        XCTAssertTrue(empty.priorities(.fourWeeks).isEmpty)
+
         // The statuses the mockups show, from the generated history.
         XCTAssertEqual(squat.status, .ready(fromKg: 40, toKg: 42.5))
         XCTAssertEqual(data.exercise(named: "Élévations latérales")?.status.rank, 0)

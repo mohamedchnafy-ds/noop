@@ -27,10 +27,14 @@ struct LiftProgressCard: View {
             }
             NoopCard(tint: StrandPalette.effortColor) {
                 if data.isEmpty {
-                    Text("Your progression shows here after a few sessions: what is moving, what has stalled and which muscles need more work.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+                        Text("Your progression shows here after a few sessions: what is moving, what has stalled and which muscles need more work.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        LiftDivider()
+                        seeProgression
+                    }
                 } else {
                     content
                 }
@@ -89,24 +93,29 @@ struct LiftProgressCard: View {
                 }
             }
             LiftDivider()
-            NavigationLink {
-                LiftProgressView(data: data, unitSystem: unitSystem)
-            } label: {
-                HStack {
-                    Text("See progression")
-                        .font(StrandFont.headline)
-                        .foregroundStyle(StrandPalette.effortBright)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(StrandPalette.effortBright)
-                        .accessibilityHidden(true)
-                }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            seeProgression
         }
+    }
+
+    /// The way into the Progression screen, open even before the first session so its tabs can be seen.
+    private var seeProgression: some View {
+        NavigationLink {
+            LiftProgressView(data: data, unitSystem: unitSystem)
+        } label: {
+            HStack {
+                Text("See progression")
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.effortBright)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(StrandPalette.effortBright)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func readyName(_ exercise: LiftProgress.Exercise) -> String {
@@ -300,6 +309,15 @@ struct LiftProgressExercisesTab: View {
                             }
                         }
                     }
+                }
+            }
+
+            if data.exercises.isEmpty {
+                NoopCard {
+                    Text("No session yet. After your first session, each exercise shows here; its status comes after 3 sessions.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -503,7 +521,13 @@ struct LiftProgressMusclesTab: View {
                     }
                 }
                 NoopCard(padding: 0) {
-                    if priorities.isEmpty {
+                    if data.isEmpty {
+                        Text("After your first sessions, the muscles under the reference or no longer progressing show here.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(NoopMetrics.cardPadding)
+                    } else if priorities.isEmpty {
                         Text("No muscle to prioritise: every muscle your programs work gets at least 4 sets a week and keeps moving.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)

@@ -39,8 +39,10 @@ struct LiftProgressData: Equatable {
         storeWeekly[period] ?? LiftProgress.weeklySets(sessions, period: period, now: now)
     }
 
+    /// No session, no priority: with nothing logged every muscle would read "under the reference".
     func priorities(_ period: LiftProgress.Period) -> [LiftProgress.Priority] {
-        LiftProgress.priorities(weekly: weekly(period), exercises: exercises, targeted: targeted)
+        guard !isEmpty else { return [] }
+        return LiftProgress.priorities(weekly: weekly(period), exercises: exercises, targeted: targeted)
     }
 
     func exercise(named name: String) -> LiftProgress.Exercise? { exercises.first { $0.name == name } }

@@ -2,8 +2,8 @@ import Foundation
 
 /// What a Coach message carries besides its text (personal fork). On a reply: what the coach looked at
 /// with its read tools, shown under the reply, the session it proposed as a card (`create_program`) and
-/// the meal it proposed as a card (`log_meal`). On a question: the photos sent with it and whether it was
-/// dictated.
+/// the meal it proposed as a card (`log_meal`, `read_label`). On a question: the photos sent with it,
+/// whether it was dictated, and the barcode of a product whose label it sends.
 ///
 /// Stored at the very end of the message text, as one fenced block (`noop-coach`) holding JSON. The
 /// conversation table therefore needs no new column, and a build that does not know the block shows
@@ -21,18 +21,21 @@ struct CoachReplyMeta: Codable, Equatable {
     var photos: [String] = []
     /// On a question: true when it was dictated (a meal it describes goes to the journal as dictated).
     var dictated: Bool = false
+    /// On a question: the barcode of the product whose label it sends (Nutrition 4d, `read_label`).
+    var barcode: String?
 
     init(consulted: [String] = [], session: CoachSessionProposal? = nil, meal: CoachMealProposal? = nil,
-         photos: [String] = [], dictated: Bool = false) {
+         photos: [String] = [], dictated: Bool = false, barcode: String? = nil) {
         self.consulted = consulted
         self.session = session
         self.meal = meal
         self.photos = photos
         self.dictated = dictated
+        self.barcode = barcode
     }
 
     private enum CodingKeys: String, CodingKey {
-        case consulted, session, meal, photos, dictated
+        case consulted, session, meal, photos, dictated, barcode
     }
 
     /// Every field optional on the way in, so a block written before a field existed still reads.
@@ -43,6 +46,7 @@ struct CoachReplyMeta: Codable, Equatable {
         meal = try container.decodeIfPresent(CoachMealProposal.self, forKey: .meal)
         photos = try container.decodeIfPresent([String].self, forKey: .photos) ?? []
         dictated = try container.decodeIfPresent(Bool.self, forKey: .dictated) ?? false
+        barcode = try container.decodeIfPresent(String.self, forKey: .barcode)
     }
 
     /// Only what is set is written, so a reply's block stays as short as it was before photos.
@@ -53,9 +57,12 @@ struct CoachReplyMeta: Codable, Equatable {
         try container.encodeIfPresent(meal, forKey: .meal)
         if !photos.isEmpty { try container.encode(photos, forKey: .photos) }
         if dictated { try container.encode(dictated, forKey: .dictated) }
+        try container.encodeIfPresent(barcode, forKey: .barcode)
     }
 
-    var isEmpty: Bool { consulted.isEmpty && session == nil && meal == nil && photos.isEmpty && !dictated }
+    var isEmpty: Bool {
+        consulted.isEmpty && session == nil && meal == nil && photos.isEmpty && !dictated && barcode == nil
+    }
 
     static let fenceOpen = "\n\n```noop-coach\n"
     static let fenceClose = "\n```"

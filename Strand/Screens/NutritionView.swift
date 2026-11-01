@@ -27,6 +27,15 @@ struct NutritionView: View {
     @State private var editor: NutritionEditorTarget?
     @State private var pendingDelete: MealEntry?
     @State private var showGoals = false
+    // Personal fork, Nutrition 4d: the barcode scanner, opened once the editor sheet has closed, and
+    // what to open after it closes (the editor for "Enter by hand", the Coach for a label photo).
+    @State private var scannerRequested = false
+    @State private var showScanner = false
+    @State private var scannerExit: ScannerExit?
+
+    private enum ScannerExit {
+        case manual, coach
+    }
 
     /// How far back ‹ goes.
     private static let maxDaysBack = 730
@@ -126,12 +135,22 @@ struct NutritionView: View {
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }
         }
-        .sheet(item: $editor) { target in
+        .sheet(item: $editor, onDismiss: openRequestedScanner) { target in
             NutritionMealEditor(target: target, day: day,
+                                onBarcode: barcodeScannerAvailable ? { scannerRequested = true } : nil,
                                 onPhoto: coachTakesPhotos ? { openCoach(.photoLibrary) } : nil,
                                 onDictate: coachTakesDictation ? { openCoach(.dictate) } : nil)
                 .environmentObject(repo)
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showScanner, onDismiss: afterScanner) {
+            NutritionBarcodeScanner(day: day, canReadLabel: coachTakesPhotos,
+                                    onManual: { scannerExit = .manual; showScanner = false },
+                                    onLabelSent: { scannerExit = .coach; showScanner = false })
+                .environmentObject(repo)
+                .environmentObject(coach)
+        }
+        #endif
         .confirmationDialog("Delete this meal?",
                             isPresented: Binding(get: { pendingDelete != nil },
                                                  set: { if !$0 { pendingDelete = nil } }),
@@ -234,6 +253,33 @@ struct NutritionView: View {
         #else
         return false
         #endif
+    }
+
+    /// The barcode scanner is the iPhone's camera.
+    private var barcodeScannerAvailable: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    /// The Barcode tile closed the editor: open the scanner now that the sheet is gone.
+    private func openRequestedScanner() {
+        guard scannerRequested else { return }
+        scannerRequested = false
+        showScanner = true
+    }
+
+    /// The scanner closed on "Enter by hand" (the editor opens) or on a label sent to the Coach.
+    private func afterScanner() {
+        let exit = scannerExit
+        scannerExit = nil
+        switch exit {
+        case .manual?: editor = .add
+        case .coach?: router.openCoach()
+        case nil: break
+        }
     }
 
     /// Open the Coach with its photo picker or its microphone; the meal it describes comes back as a card.

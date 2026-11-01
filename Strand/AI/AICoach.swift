@@ -411,6 +411,7 @@ final class AICoachEngine: ObservableObject {
         lines += [
             "- Séance : quand tu proposes une séance ou que tu la modifies, appelle create_program avec la séance complète au lieu de l'écrire (mêmes règles que « Créer une séance » : exercices du Carnet, charges, supersets A1/A2, repos). Écris une seule phrase avant et rien après : elle s'affiche en carte avec « Ajouter au Carnet » et « Démarrer », et rien n'est enregistré sans un tap.",
             "- Repas : pour un repas en photo ou décrit (dicté ou écrit), cherche chaque aliment avec search_foods (table Ciqual de l'Anses, sur l'appareil), choisis la ligne la plus proche (cru ou cuit, préparation), puis appelle log_meal avec le code Ciqual et la quantité en grammes de chaque aliment (estimated = true pour une quantité estimée sur une photo). Ne donne jamais toi-même de calories ni de macros pour ce repas : l'app les calcule avec Ciqual. Écris une seule phrase avant et rien après : il s'affiche en carte avec « Ajouter au journal » et « Modifier », et rien n'est enregistré sans un tap. Pour une modification (« ajoute 50 g de riz »), rappelle log_meal avec le repas complet.",
+            "- Étiquette : pour la photo du tableau nutritionnel d'un produit emballé, appelle read_label au lieu de log_meal : recopie exactement les valeurs pour 100 g imprimées (kcal, ou kJ si seules les kJ sont imprimées ; glucides, pas la ligne « dont sucres » ; lipides, pas « dont saturés »), le nom du produit, le code-barres donné avec la question et la portion en grammes (le poids net d'une unité s'il l'a mangée entière, sinon ce qu'il dit, sinon 100). N'invente aucune valeur : si l'étiquette est illisible ou coupée, dis-le en une phrase et demande une autre photo. Une seule phrase avant la carte, rien après.",
         ]
         return lines.joined(separator: "\n")
     }
@@ -827,7 +828,7 @@ final class AICoachEngine: ObservableObject {
         // The question's words and the photos it was sent with: the stored block is not part of the question.
         let (question, meta) = CoachReplyMeta.split(messages[index].text)
         messages.removeSubrange(index...)
-        submit(question, photos: meta?.photos ?? [], dictated: meta?.dictated ?? false)
+        submit(question, photos: meta?.photos ?? [], dictated: meta?.dictated ?? false, labelBarcode: meta?.barcode)
     }
 
     /// What the history screen shows and searches for each stored conversation, read from the store.
@@ -1060,18 +1061,20 @@ final class AICoachEngine: ObservableObject {
         let text: String
         let photos: [String]
         let dictated: Bool
+        let labelBarcode: String?
     }
 
     /// Ask `text` on the engine's own task (see `activeTurn`); queued while another turn is in flight.
     /// `photos` are staged `CoachPhotoStore` names sent with it (Anthropic only); `dictated` marks a
-    /// question spoken into the composer.
-    func submit(_ text: String, photos: [String] = [], dictated: Bool = false) {
+    /// question spoken into the composer; `labelBarcode` is the product whose label the photo shows
+    /// (Nutrition 4d, from the barcode scanner).
+    func submit(_ text: String, photos: [String] = [], dictated: Bool = false, labelBarcode: String? = nil) {
         guard activeTurn == nil else {
-            queuedQuestion = QueuedQuestion(text: text, photos: photos, dictated: dictated)
+            queuedQuestion = QueuedQuestion(text: text, photos: photos, dictated: dictated, labelBarcode: labelBarcode)
             return
         }
         activeTurn = Task {
-            await send(text, photos: photos, dictated: dictated)
+            await send(text, photos: photos, dictated: dictated, labelBarcode: labelBarcode)
             endTurn()
         }
     }
@@ -1098,14 +1101,14 @@ final class AICoachEngine: ObservableObject {
         activeTurn = nil
         if let next = queuedQuestion {
             queuedQuestion = nil
-            submit(next.text, photos: next.photos, dictated: next.dictated)
+            submit(next.text, photos: next.photos, dictated: next.dictated, labelBarcode: next.labelBarcode)
         }
     }
 
     /// Send a question: append it, build the metrics context, call the chosen provider with the
     /// system prompt + context + running history, parse the reply, append it. Never throws/crashes;
     /// failures land in `errorText`.
-    func send(_ userText: String, photos: [String] = [], dictated: Bool = false) async {
+    func send(_ userText: String, photos: [String] = [], dictated: Bool = false, labelBarcode: String? = nil) async {
         // Personal fork (Nutrition 4c): photos go with a question to Anthropic only; a photo alone asks
         // for the meal it shows.
         let sentPhotos = provider == .anthropic ? Array(photos.prefix(CoachPhotoStore.maxPerQuestion)) : []
@@ -1135,7 +1138,7 @@ final class AICoachEngine: ObservableObject {
         errorText = nil
         let keptPhotos = CoachPhotoStore.keepPhotos(sentPhotos)
         appendMessage(ChatMessage(role: .user, text: CoachReplyMeta.join(
-            body: trimmed, meta: CoachReplyMeta(photos: keptPhotos, dictated: dictated))))
+            body: trimmed, meta: CoachReplyMeta(photos: keptPhotos, dictated: dictated, barcode: labelBarcode))))
         sending = true
         // K2: persist once the turn is fully settled (success, mid-stream error, or empty-stream
         // removal) — not per streamed chunk, so a long reply doesn't hammer the store.
@@ -1164,7 +1167,8 @@ final class AICoachEngine: ObservableObject {
         if !tools.isEmpty, imageBase64 == nil {
             // A meal logged from this question is dated as it was given: a photo, dictated or typed.
             let origin: MealOrigin = !keptPhotos.isEmpty ? .photo : (dictated ? .voice : .manual)
-            await streamToolAnswer(key: key, wire: wire, tools: tools, photos: keptPhotos, mealOrigin: origin)
+            await streamToolAnswer(key: key, wire: wire, tools: tools, photos: keptPhotos, mealOrigin: origin,
+                                   labelBarcode: labelBarcode)
             return
         }
 
@@ -1182,7 +1186,7 @@ final class AICoachEngine: ObservableObject {
     /// Stop, the partial text and an interrupted marker on a failure.
     private func streamToolAnswer(key: String, wire: [(role: ChatMessage.Role, content: String)],
                                   tools: [[String: Any]], photos: [String] = [],
-                                  mealOrigin: MealOrigin = .manual) async {
+                                  mealOrigin: MealOrigin = .manual, labelBarcode: String? = nil) async {
         guard !Task.isCancelled else { return }
         let placeholder = ChatMessage(role: .assistant, text: "")
         appendMessage(placeholder)
@@ -1251,6 +1255,17 @@ final class AICoachEngine: ObservableObject {
                         let limit = CoachTools.integer(input, "limit", fallback: 8, in: CoachMealProposal.searchLimitRange)
                         results.append((call.id, CoachMealProposal.searchResult(
                             query: query, foods: CiqualTable.search(query, limit: limit)), false))
+                        continue
+                    }
+                    // A product's label (Nutrition 4d): the values for 100 g as printed, the portion computed here.
+                    if call.name == CoachMealProposal.labelToolName {
+                        let parsed = CoachMealProposal.fromLabelInput(input, questionBarcode: labelBarcode, now: Date())
+                        if let proposal = parsed.proposal {
+                            meal = proposal
+                            results.append((call.id, CoachMealProposal.labelShownResult, false))
+                        } else {
+                            results.append((call.id, parsed.problem ?? "The label could not be read.", true))
+                        }
                         continue
                     }
                     if call.name == CoachMealProposal.logToolName {

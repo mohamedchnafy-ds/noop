@@ -607,36 +607,63 @@ struct CoachView: View {
             // a small "Coach" mark, and its actions sit in a row underneath. LLM replies arrive as
             // Markdown (bold, lists, headings, tables), rendered with the chat-sized Strand theme; user
             // bubbles stay verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
-            VStack(alignment: .leading, spacing: 6) {
-                Label {
-                    Text("Coach").font(StrandFont.overline).tracking(1)
-                } icon: {
-                    Image(systemName: "sparkles").font(StrandFont.caption)
+            // The words and the stored extras (`CoachReplyMeta`) are read apart: the block is never
+            // rendered, copied or shared as part of the answer. A reply still empty (the first chunk has
+            // not arrived) shows nothing; the typing indicator under it says the coach is working.
+            let reply = CoachReplyMeta.split(message.text)
+            let streaming = coach.sending && message.id == coach.messages.last?.id
+            if !reply.body.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label {
+                        Text("Coach").font(StrandFont.overline).tracking(1)
+                    } icon: {
+                        Image(systemName: "sparkles").font(StrandFont.caption)
+                    }
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .accessibilityHidden(true)
+                    Markdown(reply.body)
+                        .markdownTheme(.strand)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 680, alignment: .leading)
+                        .accessibilityLabel("Coach said: \(reply.body)")
+                    if let consulted = reply.meta?.consulted, !consulted.isEmpty {
+                        consultedLine(consulted)
+                    }
+                    if !streaming { replyActions(message, text: reply.body) }
                 }
-                .foregroundStyle(StrandPalette.textSecondary)
-                .accessibilityHidden(true)
-                Markdown(message.text)
-                    .markdownTheme(.strand)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 680, alignment: .leading)
-                    .accessibilityLabel("Coach said: \(message.text)")
-                replyActions(message)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    /// Copy, save to the Journal, redo (the last answer to a question only) and share.
-    private func replyActions(_ message: ChatMessage) -> some View {
+    /// What the coach looked at with its tools, under the reply ("What the coach reads": it goes and
+    /// fetches the detail itself, then shows it under its answer).
+    private func consultedLine(_ consulted: [String]) -> some View {
+        let list = consulted.joined(separator: " · ")
+        return Label {
+            Text("Looked at: \(list)")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "magnifyingglass")
+        }
+        .font(StrandFont.caption)
+        .foregroundStyle(StrandPalette.textTertiary)
+        .padding(.top, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Copy, save to the Journal, redo (the last answer to a question only) and share. `text` is the
+    /// reply's words, without its stored extras.
+    private func replyActions(_ message: ChatMessage, text: String) -> some View {
         HStack(spacing: 0) {
-            replyAction("doc.on.doc", label: "Copy") { copy(message.text) }
-            replyAction("square.and.pencil", label: "Save to Journal") { saveAdvice(message.text) }
+            replyAction("doc.on.doc", label: "Copy") { copy(text) }
+            replyAction("square.and.pencil", label: "Save to Journal") { saveAdvice(text) }
             if message.id == coach.messages.last?.id, !coach.sending,
                coach.messages.contains(where: { $0.role == .user }) {
                 replyAction("arrow.clockwise", label: "Redo") { coach.regenerateLastReply() }
             }
-            ShareLink(item: message.text) {
+            ShareLink(item: text) {
                 Image(systemName: "square.and.arrow.up")
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -674,9 +701,16 @@ struct CoachView: View {
     private var typingIndicator: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small).tint(StrandPalette.accent)
-            Text("Coach is thinking…")
-                .font(StrandFont.subhead)
-                .foregroundStyle(StrandPalette.textSecondary)
+            Group {
+                if let looking = coach.toolActivity {
+                    Text("Looking at \(looking)…")
+                } else {
+                    Text("Coach is thinking…")
+                }
+            }
+            .font(StrandFont.subhead)
+            .foregroundStyle(StrandPalette.textSecondary)
+            .lineLimit(1)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)

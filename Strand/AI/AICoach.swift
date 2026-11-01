@@ -169,6 +169,9 @@ final class AICoachEngine: ObservableObject {
     private var conversationDay: Int?
     @Published var sending = false
     @Published var errorText: String?
+    /// What the coach is looking at while a read tool runs ("HRV since 3 Sept"), nil otherwise. Shown in
+    /// the typing indicator (personal fork).
+    @Published private(set) var toolActivity: String?
 
     /// Whether the last failure was the provider turning the stored key away, as opposed to a rate
     /// limit, a server fault or the network.
@@ -255,7 +258,8 @@ final class AICoachEngine: ObservableObject {
         didSet { if coachProfile != oldValue { coachProfile.save() } }
     }
 
-    private let repo: Repository
+    /// Internal (personal fork) so the read tools in `AICoachToolRunner.swift` reach the same sources.
+    let repo: Repository
     /// The body profile behind the context's USER PROFILE block and today's calorie and effort figures.
     /// Nil only where a test builds an engine without one.
     private let profile: ProfileStore?
@@ -374,10 +378,26 @@ final class AICoachEngine: ObservableObject {
 
     /// The system prompt actually sent, read FRESH from UserDefaults on every request so an edit in the
     /// settings takes effect on the next message, with no engine rebuild.
-    var systemPrompt: String {
-        Self.composeSystemPrompt(role: Self.defaultSystemPrompt,
+    var systemPrompt: String { systemPrompt(withTools: false) }
+
+    /// The system prompt of a question asked with the read tools: the role, then how to use the tools,
+    /// then the user's own instructions, which stay last so they keep the final word.
+    func systemPrompt(withTools: Bool) -> String {
+        Self.composeSystemPrompt(role: withTools ? Self.defaultSystemPrompt + "\n\n" + Self.toolsRole
+                                                 : Self.defaultSystemPrompt,
                                  extra: UserDefaults.standard.string(forKey: Self.extraInstructionsKey))
     }
+
+    /// How to use the read tools (personal fork, Anthropic only). Added to the role only when tools are
+    /// sent, so the other providers are never told about tools they do not have.
+    static let toolsRole = """
+    ## Outils
+    Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours, le détail d'une nuit, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal et le Lab Book.
+    - Réponds avec la fiche quand elle suffit ; appelle un outil seulement si elle ne suffit pas pour répondre juste.
+    - N'annonce pas que tu vas chercher : appelle l'outil, puis réponds directement à la question.
+    - Demande la période la plus courte qui répond à la question.
+    - Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.
+    """
 
     /// The user's extra instructions, "" when none. The settings editor binds to this: writing persists
     /// the text, and a blank one clears the key.
@@ -1083,8 +1103,138 @@ final class AICoachEngine: ObservableObject {
         let imageBase64 = pendingChartImage
         pendingChartImage = nil
 
+        // Personal fork: with Anthropic and data access, the question carries the read tools and the
+        // reply may look things up before it answers. Every other path streams text as before.
+        let tools = provider == .anthropic
+            ? CoachTools.definitions(dataConsent: dataConsent, labBook: includeOnDeviceSignals) : []
+        if !tools.isEmpty, imageBase64 == nil {
+            await streamToolAnswer(key: key, wire: wire, tools: tools)
+            return
+        }
+
         // K1: Stream the reply into a placeholder bubble; an empty stream reads "(no reply)".
         await streamAssistantTurn(key: key, wire: wire, inlineImage: imageBase64, emptyText: "(no reply)")
+    }
+
+    /// Stream an answer that may call the read tools (personal fork, Anthropic only).
+    ///
+    /// Each round is one streamed request through `CoachStreamRelay`. When it ends on tool calls, the
+    /// tools run here on the device, their results go back with the conversation, and the next round
+    /// continues the same reply. After `CoachTools.maxRounds` rounds of tools the last request forbids
+    /// another call, so the reply always ends in text. What the coach looked at is kept with the reply
+    /// (`CoachReplyMeta`) and shown under it. Settles like `streamAssistantTurn`: the partial text on
+    /// Stop, the partial text and an interrupted marker on a failure.
+    private func streamToolAnswer(key: String, wire: [(role: ChatMessage.Role, content: String)],
+                                  tools: [[String: Any]]) async {
+        guard !Task.isCancelled else { return }
+        let placeholder = ChatMessage(role: .assistant, text: "")
+        appendMessage(placeholder)
+        var finished = ""       // the text of the rounds already done
+        var streaming = ""      // the text of the round on its way
+        var consulted: [String] = []
+
+        func joined(_ a: String, _ b: String) -> String {
+            let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
+            let b = b.trimmingCharacters(in: .whitespacesAndNewlines)
+            if a.isEmpty { return b }
+            if b.isEmpty { return a }
+            return a + "\n\n" + b
+        }
+        func show(_ text: String) {
+            guard let index = messages.lastIndex(where: { $0.id == placeholder.id }) else { return }
+            messages[index] = ChatMessage(id: placeholder.id, role: .assistant, text: text)
+        }
+        func settled(_ body: String) -> String {
+            CoachReplyMeta.join(body: body, meta: consulted.isEmpty ? nil : CoachReplyMeta(consulted: consulted))
+        }
+        defer { toolActivity = nil }
+
+        var conversation = wire.map { AnthropicToolRequest.message(role: $0.role.rawValue, text: $0.content) }
+        let system = systemPrompt(withTools: true)
+        do {
+            for round in 0...CoachTools.maxRounds {
+                let allowTools = round < CoachTools.maxRounds
+                let body = try AnthropicToolRequest.body(model: model, system: system, messages: conversation,
+                                                         tools: tools, allowTools: allowTools)
+                streaming = ""
+                let turn = try await streamToolRound(key: key, body: body) { text in
+                    streaming = text
+                    show(joined(finished, streaming))
+                }
+                finished = joined(finished, turn.text)
+                streaming = ""
+                show(finished)
+                let calls = turn.toolCalls
+                guard allowTools, turn.stopReason == "tool_use", !calls.isEmpty else { break }
+
+                var results: [(id: String, text: String, isError: Bool)] = []
+                for call in calls {
+                    let input = CoachTools.input(fromJSON: call.inputJSON)
+                    guard let name = CoachTools.Name(rawValue: call.name) else {
+                        results.append((call.id, "Unknown tool \(call.name).", true))
+                        continue
+                    }
+                    let label = CoachTools.label(name, input: input, now: Date())
+                    toolActivity = label
+                    let answer = await runTool(name, input: input)
+                    results.append((call.id, CoachTools.capped(answer), false))
+                    if !consulted.contains(label) { consulted.append(label) }
+                }
+                toolActivity = nil
+                try Task.checkCancellation()
+                conversation.append(AnthropicToolRequest.assistant(turn))
+                conversation.append(AnthropicToolRequest.toolResults(results))
+            }
+            show(finished.isEmpty ? "(no reply)" : settled(finished))
+        } catch {
+            let partial = joined(finished, streaming)
+            if Task.isCancelled || error is CancellationError {
+                if partial.isEmpty { messages.removeAll { $0.id == placeholder.id } } else { show(settled(partial)) }
+                return
+            }
+            if partial.isEmpty {
+                messages.removeAll { $0.id == placeholder.id }
+            } else {
+                show(settled(partial + "\n\n*(stream interrupted)*"))
+            }
+            if let e = error as? AICoachError {
+                errorText = e.errorDescription
+                if case .badKey = e { keyRejected = true } else { keyRejected = false }
+            } else {
+                errorText = AICoachError.network(error.localizedDescription).errorDescription
+                keyRejected = false
+            }
+        }
+    }
+
+    /// One tool round, streamed through `CoachStreamRelay`: `onText` gets the round's text so far on the
+    /// main actor (throttled like `streamProvider`), and the finished turn is returned.
+    private func streamToolRound(key: String, body: Data, onText: (String) -> Void) async throws -> AnthropicTurn {
+        let client = AnthropicClient()
+        let session = self.session
+        let events: AsyncThrowingStream<AnthropicStreamEvent, Error> = CoachStreamRelay.events { emit in
+            try await client.streamTurn(key: key, body: body, session: session, onEvent: emit)
+        }
+        var text = ""
+        var published = ""
+        var throttle = CoachStreamThrottle()
+        var finished: AnthropicTurn?
+        defer { if text != published { onText(text) } }
+        for try await event in events {
+            switch event {
+            case .text(let piece):
+                text += piece
+                if throttle.shouldPublish(at: Date()) {
+                    onText(text)
+                    published = text
+                }
+            case .finished(let turn):
+                finished = turn
+            }
+        }
+        try Task.checkCancellation()
+        guard let finished else { throw AICoachError.network("The reply ended before it was complete.") }
+        return finished
     }
 
     /// Proactively generate "Today's brief" the first time the Coach opens, readiness + a training
@@ -1587,7 +1737,7 @@ final class AICoachEngine: ObservableObject {
 
         // Build a compact transcript of the dropped turns for the summarizer.
         let transcript = dropped.map { m in
-            "\(m.role == .user ? "User" : "Coach"): \(m.text)"
+            "\(m.role == .user ? "User" : "Coach"): \(CoachReplyMeta.body(m.text))"
         }.joined(separator: "\n")
 
         let summaryPrompt = """
@@ -1612,7 +1762,8 @@ final class AICoachEngine: ObservableObject {
                 contextInjected = true
                 out.append((.user, context + "\n\n---\n\nQuestion: " + m.text))
             } else {
-                out.append((m.role, m.text))
+                // A reply's stored extras (what it looked at) are for the screen, not the model.
+                out.append((m.role, m.role == .assistant ? CoachReplyMeta.body(m.text) : m.text))
             }
         }
         return out

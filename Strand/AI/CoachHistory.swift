@@ -14,10 +14,11 @@ struct CoachConversationDigest: Equatable {
     init(messages: [(role: ChatMessage.Role, text: String)], briefPrefix: String) {
         isBrief = messages.first.map { $0.role == .assistant && $0.text.hasPrefix(briefPrefix) } ?? false
         let latest = messages.last(where: { $0.role == .assistant }) ?? messages.last
-        var text = latest?.text ?? ""
+        // A reply's stored extras (`CoachReplyMeta`) are neither previewed nor searched.
+        var text = CoachReplyMeta.body(latest?.text ?? "")
         if text.hasPrefix(briefPrefix) { text.removeFirst(briefPrefix.count) }
         preview = Self.plain(text, limit: Self.previewLength)
-        searchText = messages.map(\.text).joined(separator: "\n")
+        searchText = messages.map { CoachReplyMeta.body($0.text) }.joined(separator: "\n")
     }
 
     /// Markdown reduced to its words on one line: markers dropped, whitespace collapsed, cut at `limit`.

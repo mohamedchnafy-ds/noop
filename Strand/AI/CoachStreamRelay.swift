@@ -23,6 +23,15 @@ enum CoachStreamRelay {
     static func deltas(
         _ produce: @escaping @Sendable (_ onDelta: @escaping @Sendable (String) -> Void) async throws -> Void
     ) -> AsyncThrowingStream<String, Error> {
+        events(produce)
+    }
+
+    /// The same relay for any event type (personal fork): a tool round streams its text and then the
+    /// finished turn (`AnthropicStreamEvent`), through the same detached producer and the same
+    /// cancellation.
+    static func events<Event: Sendable>(
+        _ produce: @escaping @Sendable (_ emit: @escaping @Sendable (Event) -> Void) async throws -> Void
+    ) -> AsyncThrowingStream<Event, Error> {
         AsyncThrowingStream { continuation in
             let producer = Task.detached {
                 do {

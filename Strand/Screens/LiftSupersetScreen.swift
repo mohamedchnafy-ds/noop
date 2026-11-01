@@ -500,7 +500,9 @@ struct LiftSupersetScreen: View {
     /// chips. A member without that set (uneven counts) shows a dash instead.
     private func memberRow(_ member: LiftSupersetGuide.Member, round: Int, nameSize: CGFloat,
                            chipHeight: CGFloat, detailed: Bool) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        // 10 between the pieces and 10 inside a chip, two points under the mockup's 12: what a 20-point
+        // "Squat barre" needs to stay on one line beside two chips on a 390-point phone.
+        HStack(alignment: .center, spacing: 10) {
             tagPill(member.tag, small: false)
             memberTitle(member, nameSize: nameSize, detailed: detailed)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -571,7 +573,7 @@ struct LiftSupersetScreen: View {
                 .foregroundStyle(StrandPalette.textSecondary)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .frame(height: height)
         .background(StrandPalette.surfaceBase, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }

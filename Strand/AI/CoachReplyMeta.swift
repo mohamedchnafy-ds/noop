@@ -1,22 +1,38 @@
 import Foundation
 
-/// What a Coach reply carries besides its text (personal fork): what the coach looked at with its read
-/// tools, shown under the reply, and the session it proposed as a card (`create_program`).
+/// What a Coach message carries besides its text (personal fork). On a reply: what the coach looked at
+/// with its read tools, shown under the reply, the session it proposed as a card (`create_program`) and
+/// the meal it proposed as a card (`log_meal`). On a question: the photos sent with it and whether it was
+/// dictated.
 ///
 /// Stored at the very end of the message text, as one fenced block (`noop-coach`) holding JSON. The
 /// conversation table therefore needs no new column, and a build that does not know the block shows
-/// it as code instead of losing it. Everything that reads a reply for its words (the screen, copy,
-/// share, the Journal, the history preview and search, what is sent back to the model) goes through
-/// `body(_:)`, so the block is never read as part of the answer.
+/// it as code instead of losing it. Everything that reads a message for its words (the screen, copy,
+/// share, the Journal, the history title, preview and search, what is sent back to the model) goes
+/// through `body(_:)`, so the block is never read as part of the text.
 struct CoachReplyMeta: Codable, Equatable {
     /// What the coach looked at, as the screen names it ("HRV since 3 Sept"), in call order.
     var consulted: [String] = []
     /// The session card, with the program it was added as once "Add to Lift Log" was tapped.
     var session: CoachSessionProposal?
+    /// The meal card, with the journal meal it was saved as once "Add to journal" was tapped.
+    var meal: CoachMealProposal?
+    /// On a question: the photos sent with it, by their file names in `CoachPhotoStore`.
+    var photos: [String] = []
+    /// On a question: true when it was dictated (a meal it describes goes to the journal as dictated).
+    var dictated: Bool = false
 
-    init(consulted: [String] = [], session: CoachSessionProposal? = nil) {
+    init(consulted: [String] = [], session: CoachSessionProposal? = nil, meal: CoachMealProposal? = nil,
+         photos: [String] = [], dictated: Bool = false) {
         self.consulted = consulted
         self.session = session
+        self.meal = meal
+        self.photos = photos
+        self.dictated = dictated
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case consulted, session, meal, photos, dictated
     }
 
     /// Every field optional on the way in, so a block written before a field existed still reads.
@@ -24,14 +40,27 @@ struct CoachReplyMeta: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         consulted = try container.decodeIfPresent([String].self, forKey: .consulted) ?? []
         session = try container.decodeIfPresent(CoachSessionProposal.self, forKey: .session)
+        meal = try container.decodeIfPresent(CoachMealProposal.self, forKey: .meal)
+        photos = try container.decodeIfPresent([String].self, forKey: .photos) ?? []
+        dictated = try container.decodeIfPresent(Bool.self, forKey: .dictated) ?? false
     }
 
-    var isEmpty: Bool { consulted.isEmpty && session == nil }
+    /// Only what is set is written, so a reply's block stays as short as it was before photos.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if !consulted.isEmpty { try container.encode(consulted, forKey: .consulted) }
+        try container.encodeIfPresent(session, forKey: .session)
+        try container.encodeIfPresent(meal, forKey: .meal)
+        if !photos.isEmpty { try container.encode(photos, forKey: .photos) }
+        if dictated { try container.encode(dictated, forKey: .dictated) }
+    }
+
+    var isEmpty: Bool { consulted.isEmpty && session == nil && meal == nil && photos.isEmpty && !dictated }
 
     static let fenceOpen = "\n\n```noop-coach\n"
     static let fenceClose = "\n```"
 
-    /// The reply's words and its extras. A text with no valid block at its end is all words.
+    /// The message's words and its extras. A text with no valid block at its end is all words.
     static func split(_ text: String) -> (body: String, meta: CoachReplyMeta?) {
         guard text.hasSuffix(fenceClose),
               let open = text.range(of: fenceOpen, options: .backwards) else { return (text, nil) }
@@ -43,16 +72,21 @@ struct CoachReplyMeta: Codable, Equatable {
         return (String(text[..<open.lowerBound]), meta)
     }
 
-    /// The reply's words alone.
+    /// The message's words alone.
     static func body(_ text: String) -> String { split(text).body }
 
-    /// The reply as the model reads it back in a later turn: its words, then the session it showed as
-    /// a card, written out, so a follow-up ("make it shorter") knows what it refers to.
+    /// A reply as the model reads it back in a later turn: its words, then the session and the meal it
+    /// showed as cards, written out, so a follow-up ("make it shorter", "add 50 g of rice") knows what it
+    /// refers to.
     static func forModel(_ text: String, system: UnitSystem) -> String {
         let (body, meta) = split(text)
-        guard let session = meta?.session else { return body }
+        guard meta?.session != nil || meta?.meal != nil else { return body }
+        var parts: [String] = []
         let words = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (words.isEmpty ? "" : words + "\n\n") + session.wireText(system: system)
+        if !words.isEmpty { parts.append(words) }
+        if let session = meta?.session { parts.append(session.wireText(system: system)) }
+        if let meal = meta?.meal { parts.append(meal.wireText()) }
+        return parts.joined(separator: "\n\n")
     }
 
     /// The text to store: the words, then the block when there is anything in it.

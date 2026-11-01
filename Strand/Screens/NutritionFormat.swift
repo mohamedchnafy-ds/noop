@@ -23,6 +23,11 @@ enum NutritionFormat {
     /// "160 g".
     static func gramsUnit(_ value: Int) -> String { whole(value) + " g" }
 
+    /// "≈ 180 g" for a quantity estimated from a photo, "180 g" otherwise.
+    static func portionGrams(_ grams: Double, estimated: Bool) -> String {
+        (estimated ? "≈ " : "") + editable(grams) + " g"
+    }
+
     /// "1 844 kcal".
     static func kcalUnit(_ value: Int) -> String { whole(value) + " kcal" }
 
@@ -87,7 +92,7 @@ enum NutritionFormat {
     /// The meal's name, with the quantity when it is one food weighed: "Skyr nature · 150 g".
     static func mealTitle(_ entry: MealEntry) -> String {
         if entry.items.count == 1, let g = entry.items[0].grams {
-            let quantity = (entry.items[0].gramsEstimated ? "≈ " : "") + editable(g) + " g"
+            let quantity = portionGrams(g, estimated: entry.items[0].gramsEstimated)
             return entry.meal.name + " · " + quantity
         }
         return entry.meal.name

@@ -1,5 +1,6 @@
 import Foundation
 import StrandAnalytics
+import WhoopProtocol
 import WhoopStore
 
 // Personal fork, Nutrition: one calendar day of the meal journal beside the energy the strap measured
@@ -34,24 +35,31 @@ enum NutritionDayReader {
         return (try? await MealJournal.mealJournalDay(store, day: dayKey)) ?? []
     }
 
-    /// The energy the strap measured on the calendar day `day` falls on, read over the same window and
-    /// with the same estimator as Today's calories (`TodayEnergy.heartRateWindow`, `TodayEnergy.split`,
-    /// then the Apple Health activity when the strap has nothing).
-    static func spentOnDay(_ repo: Repository, profile: ProfileStore, day: Date, now: Date = Date()) async -> TodayEnergy.Split? {
+    /// The strap's heart rate of the calendar day `day` falls on, over the window Today reads a day's
+    /// calories over (`TodayEnergy.heartRateWindow`: from that day's sleep onset when the day cycle
+    /// follows sleep, else midnight, up to the next onset, the next midnight, or now for today).
+    static func heartRateOfDay(_ repo: Repository, day: Date, now: Date = Date()) async -> [HRSample] {
         let cal = Calendar.current
         let dayStart = cal.startOfDay(for: day)
         let nextStart = cal.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         let isToday = cal.isDate(dayStart, inSameDayAs: now)
-        let dayKey = Repository.localDayKey(dayStart)
-        let nextKey = Repository.localDayKey(nextStart)
         let mode = DayCycleMode.persisted(UserDefaults.standard.string(forKey: DayCycleMode.storageKey))
         let markers = mode == .sleepOnset
             ? await repo.exploreSeries(key: DayCycleIntelligenceIntegration.onsetKey, source: "my-whoop") : []
         let window = TodayEnergy.heartRateWindow(
             dayStart: Int(dayStart.timeIntervalSince1970),
             dayEnd: Int((isToday ? now : nextStart).timeIntervalSince1970),
-            dayKey: dayKey, nextDayKey: nextKey, cycleMarkers: markers)
-        let hr = await repo.hrSamples(from: window.lowerBound, to: window.upperBound, limit: 200_000)
+            dayKey: Repository.localDayKey(dayStart), nextDayKey: Repository.localDayKey(nextStart),
+            cycleMarkers: markers)
+        return await repo.hrSamples(from: window.lowerBound, to: window.upperBound, limit: 200_000)
+    }
+
+    /// The day's energy from its heart rate with Today's estimator and inputs (`TodayEnergy.split`), then
+    /// the Apple Health activity when the strap has nothing (`TodayEnergy.resolvedSplit`).
+    static func spentFromSamples(_ repo: Repository, profile: ProfileStore, day: Date, hr: [HRSample],
+                                 now: Date = Date()) async -> TodayEnergy.Split? {
+        let dayKey = Repository.localDayKey(day)
+        let isToday = Calendar.current.isDate(day, inSameDayAs: now)
         let body = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
                                age: Double(profile.age), sex: profile.sex)
         let hrmax = profile.effortHRmax
@@ -65,6 +73,12 @@ enum NutritionDayReader {
             imported = (await repo.appleDailyRows()).filter { $0.day == dayKey }.compactMap { $0.activeKcal }.max()
         }
         return TodayEnergy.resolvedSplit(split, importedActiveKcal: imported)
+    }
+
+    /// The energy the strap measured on the calendar day `day` falls on, as Today's calories show it.
+    static func spentOnDay(_ repo: Repository, profile: ProfileStore, day: Date, now: Date = Date()) async -> TodayEnergy.Split? {
+        let hr = await heartRateOfDay(repo, day: day, now: now)
+        return await spentFromSamples(repo, profile: profile, day: day, hr: hr, now: now)
     }
 
     /// The day with its meals and its measured energy.

@@ -75,6 +75,25 @@ enum CoachFiche {
         var exercises: [LiftProgress.Exercise] = []
         var priorities: [LiftProgress.Priority] = []
         var unitSystem: UnitSystem = .metric
+        var nutrition: Nutrition?
+    }
+
+    /// The meal journal (personal fork, Nutrition): today against the goals the Nutrition screen shows,
+    /// then the logged days of the week before.
+    struct Nutrition: Equatable {
+        var eaten: MealNutrients
+        var meals: Int
+        var spentKcal: Int?
+        var balanceKcal: Int?
+        var plan: NutritionGoals.Plan
+        var reference: NutritionGoals.Reference?
+        var goalPercent: Int
+        var proteinTenths: Int
+        var fatTenths: Int
+        /// The 7 days before today: how many have a meal, and their mean energy and protein.
+        var weekDaysLogged: Int
+        var weekMeanKcal: Int?
+        var weekMeanProteinG: Int?
     }
 
     /// Exercise lines past this are dropped (the attention-first ones stay).
@@ -92,6 +111,7 @@ enum CoachFiche {
                                    hrv: inputs.hrvGauge, hrvNormal: inputs.hrvNormal, sleep: inputs.sleep)
         if !normals.isEmpty { blocks.append(normals) }
         if let sleep = inputs.sleep { blocks.append(sleepBlock(sleep)) }
+        if let nutrition = inputs.nutrition { blocks.append(nutritionBlock(nutrition)) }
         return blocks.joined(separator: "\n\n")
     }
 
@@ -188,6 +208,42 @@ enum CoachFiche {
         var lines = ["SLEEP (the Sleep tab's figures):"]
         if !parts.isEmpty { lines.append("  " + parts.joined(separator: ", ")) }
         lines.append("  " + second.joined(separator: ", "))
+        return lines.joined(separator: "\n")
+    }
+
+    static func nutritionBlock(_ n: Nutrition) -> String {
+        func grams(_ value: Double) -> String { "\(Int(value.rounded())) g" }
+        func perKg(_ tenths: Int) -> String { String(format: "%.1f g/kg", Double(tenths) / 10) }
+        var lines = ["NUTRITION (the meal journal; calories and macros computed by the app from the Ciqual table or "
+                     + "the user's own entries; a day with no meal logged is not a day without food):"]
+        if n.meals > 0 {
+            var today = "  today so far: eaten \(n.eaten.kcal) kcal (protein \(grams(n.eaten.proteinG)), "
+                + "carbs \(grams(n.eaten.carbsG)), fat \(grams(n.eaten.fatG))) in \(n.meals) meal\(n.meals == 1 ? "" : "s")"
+            if let spent = n.spentKcal, let balance = n.balanceKcal {
+                today += "; spent \(spent) kcal; balance \(balance > 0 ? "+" : "")\(balance) kcal"
+            }
+            lines.append(today)
+        } else {
+            lines.append("  today so far: no meal logged")
+        }
+        var goals = "  goals (the Nutrition screen's): "
+        if let intake = n.plan.intakeKcal, let reference = n.reference {
+            goals += "intake \(intake) kcal/day = mean expenditure \(Int(reference.kcal.rounded())) kcal over "
+                + "\(reference.days) days × " + String(format: "%.2f", 1 + Double(n.goalPercent) / 100)
+        } else {
+            goals += "intake not known yet (needs \(NutritionGoals.referenceMinDays) complete days measured by the strap)"
+        }
+        goals += "; protein \(n.plan.proteinG) g (\(perKg(n.proteinTenths))); fat \(n.plan.fatG) g (\(perKg(n.fatTenths)))"
+        if let carbs = n.plan.carbsG { goals += "; carbs \(carbs) g (the rest)" }
+        lines.append(goals)
+        if n.weekDaysLogged > 0, let kcal = n.weekMeanKcal {
+            var week = "  the 7 days before today: \(n.weekDaysLogged) day\(n.weekDaysLogged == 1 ? "" : "s") logged, "
+                + "mean eaten \(kcal) kcal"
+            if let protein = n.weekMeanProteinG { week += ", protein \(protein) g" }
+            lines.append(week)
+        } else {
+            lines.append("  the 7 days before today: no meal logged")
+        }
         return lines.joined(separator: "\n")
     }
 

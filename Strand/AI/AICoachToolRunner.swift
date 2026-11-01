@@ -99,8 +99,33 @@ extension AICoachEngine {
                 }
             }
             return CoachTools.labBook(values)
+
+        case .meals:
+            let days = CoachTools.integer(input, "days", fallback: 7, in: CoachTools.mealDayRange)
+            guard let store = await repo.storeHandle() else { return "The meal journal cannot be read right now." }
+            let keys = CoachTools.dayKeys(days: days, endingAt: now)
+            guard let from = keys.first, let to = keys.last else { return "No days asked for." }
+            let entries = (try? await MealJournal.mealJournalRange(store, fromDay: from, toDay: to)) ?? []
+            let byDay = Dictionary(grouping: entries, by: { $0.meal.day })
+            let mealDays = keys.map { key in
+                CoachTools.MealDay(day: key, meals: (byDay[key] ?? []).map { entry in
+                    CoachTools.MealDay.Meal(
+                        time: Self.toolClockFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(entry.meal.eatenAt))),
+                        name: entry.meal.name, nutrients: entry.mealTotals)
+                })
+            }
+            return CoachTools.meals(mealDays, from: from, to: to)
         }
     }
+
+    /// Writes a meal's time for a tool result, "HH:mm" in the local time zone.
+    static let toolClockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 
     /// Reads the `date` a tool is given, in the local calendar like every day key of the app.
     static let toolDayFormatter: DateFormatter = {

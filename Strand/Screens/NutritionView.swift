@@ -12,6 +12,9 @@ import WhoopStore
 struct NutritionView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
+    /// The Coach the Photo and Dictate tiles hand over to (personal fork, Nutrition 4c).
+    @EnvironmentObject private var coach: AICoachEngine
+    @EnvironmentObject private var router: NavRouter
 
     @AppStorage(MealJournal.revisionKey) private var mealRevision = 0
     @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenths = NutritionGoals.defaultProteinTenths
@@ -99,7 +102,7 @@ struct NutritionView: View {
                         }
                     }
                 }
-                Text("Swipe a meal to the left to delete it. “estimate” = quantities estimated from a photo; calories and macros are always calculated by the app.")
+                Text("Swipe a meal to the left to delete it. “estimate” = quantities estimated from a photo; calories and macros are always calculated by the app. Food values: \(CiqualTable.attribution)")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -124,7 +127,10 @@ struct NutritionView: View {
             if read.dayKey == dayKey { self.summary = read }
         }
         .sheet(item: $editor) { target in
-            NutritionMealEditor(target: target, day: day)
+            NutritionMealEditor(target: target, day: day,
+                                onPhoto: coachTakesPhotos ? { openCoach(.photoLibrary) } : nil,
+                                onDictate: coachTakesDictation ? { openCoach(.dictate) } : nil)
+                .environmentObject(repo)
         }
         .confirmationDialog("Delete this meal?",
                             isPresented: Binding(get: { pendingDelete != nil },
@@ -214,6 +220,26 @@ struct NutritionView: View {
         }
         .padding(.top, 14)
         .padding(.horizontal, 4)
+    }
+
+    /// The Coach is on, connected, and its provider reads photos (Anthropic).
+    private var coachTakesPhotos: Bool {
+        CoachBriefScheduler.coachMasterEnabled && coach.isConfigured && coach.provider == .anthropic
+    }
+
+    /// Dictation is the iPhone's composer microphone.
+    private var coachTakesDictation: Bool {
+        #if os(iOS)
+        return CoachBriefScheduler.coachMasterEnabled && coach.isConfigured
+        #else
+        return false
+        #endif
+    }
+
+    /// Open the Coach with its photo picker or its microphone; the meal it describes comes back as a card.
+    private func openCoach(_ action: CoachComposerAction) {
+        coach.pendingComposerAction = action
+        router.openCoach()
     }
 
     private func delete(_ entry: MealEntry) {

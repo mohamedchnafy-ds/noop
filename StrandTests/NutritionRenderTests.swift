@@ -92,6 +92,23 @@ final class NutritionRenderTests: XCTestCase {
         try render(AnyView(TodayHeroCard(model: heroModel(nutrition: line), animated: false, onGuide: { _ in })),
                    name: "5-aujourdhui-ligne")
 
+        let rice = MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7)
+        let chicken = MealPer100(kcal: 189, proteinG: 29.8, carbsG: 0, fatG: 7.8)
+        let vegetables = MealPer100(kcal: 36, proteinG: 1.6, carbsG: 4.4, fatG: 0.4)
+        let proposal = CoachMealProposal(
+            name: "Poulet, riz, légumes", eatenAt: at(13, 5), origin: .photo,
+            lines: [.init(name: "Poulet rôti", ciqualCode: 36032, grams: 180, estimated: true, per100: chicken),
+                    .init(name: "Riz blanc cuit", ciqualCode: 9104, grams: 200, estimated: true, per100: rice),
+                    .init(name: "Légumes", ciqualCode: 20199, grams: 150, estimated: true, per100: vegetables)],
+            mealId: nil)
+        var saved = proposal
+        saved.mealId = "saved"
+        let cards = VStack(spacing: 16) {
+            CoachMealCard(proposal: proposal, busy: false, onAdd: {}, onEdit: {})
+            CoachMealCard(proposal: saved, busy: false, onAdd: {}, onEdit: {})
+        }
+        try render(AnyView(cards), name: "6-coach-repas")
+
         XCTAssertEqual(day.eaten.kcal, 1_495)
         XCTAssertEqual(day.balanceKcal, -605)
         XCTAssertEqual(plan.intakeKcal, 2_560)

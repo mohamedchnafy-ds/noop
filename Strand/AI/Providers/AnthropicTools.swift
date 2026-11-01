@@ -129,6 +129,16 @@ enum AnthropicToolRequest {
         ["role": role, "content": text]
     }
 
+    /// A question sent with photos (personal fork, Nutrition): each JPEG as an image block, then the text.
+    static func userWithImages(text: String, jpegs: [Data]) -> [String: Any] {
+        var content: [[String: Any]] = jpegs.map { data in
+            ["type": "image",
+             "source": ["type": "base64", "media_type": "image/jpeg", "data": data.base64EncodedString()] as [String: Any]]
+        }
+        content.append(["type": "text", "text": text])
+        return ["role": "user", "content": content]
+    }
+
     /// An assistant turn sent back as it came: its text, then its tool calls with their inputs.
     static func assistant(_ turn: AnthropicTurn) -> [String: Any] {
         var content: [[String: Any]] = []

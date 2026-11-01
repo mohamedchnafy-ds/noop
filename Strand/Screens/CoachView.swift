@@ -1,6 +1,8 @@
 import SwiftUI
 import MarkdownUI
+import PhotosUI
 import StrandDesign
+import WhoopStore
 
 /// Coach, the one feature in NOOP that talks to the network.
 ///
@@ -60,6 +62,18 @@ struct CoachView: View {
     #endif
     /// The reply whose session card is running an action (personal fork, step 6b).
     @State private var sessionBusy: UUID?
+
+    // Personal fork, Nutrition 4c: photos and the meal card.
+    /// The photos attached to the question being written (`CoachPhotoStore` staged names).
+    @State private var attachedPhotos: [String] = []
+    @State private var showPhotoPicker = false
+    @State private var pickedPhotos: [PhotosPickerItem] = []
+    @State private var showCamera = false
+    /// True once the draft came from the microphone: a meal it describes is logged as dictated.
+    @State private var draftDictated = false
+    /// The reply whose meal card is running an action, and the meal open in the editor.
+    @State private var mealBusy: UUID?
+    @State private var mealEditor: CoachMealEditTarget?
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
     private let customModelTag = "__custom__"
@@ -144,7 +158,7 @@ struct CoachView: View {
             guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
             coach.pendingPrompt = nil
             guard coach.isConfigured else { return }
-            coach.submit(prompt)
+            ask(prompt)
         }
         // K15: persist the composer draft so it survives an app relaunch.
         .onChangeCompat(of: draft) { newValue in
@@ -537,6 +551,16 @@ struct CoachView: View {
                 tokenEstimateBar(tokens)
             }
         }
+        .modifier(CoachPhotoPickers(showLibrary: $showPhotoPicker, picked: $pickedPhotos, showCamera: $showCamera,
+                                    room: max(1, CoachPhotoStore.maxPerQuestion - attachedPhotos.count),
+                                    onPicked: attachPicked, onCamera: stageAttachment))
+        .task(id: coach.pendingComposerAction) { await consumeComposerAction() }
+        .sheet(item: $mealEditor) { edit in
+            NutritionMealEditor(target: edit.target, day: edit.day, onSaved: { saved in
+                coach.markMealSaved(messageId: edit.messageId, mealId: saved.meal.id)
+            })
+            .environmentObject(repo)
+        }
     }
 
     private var transcript: some View {
@@ -549,7 +573,7 @@ struct CoachView: View {
                         CoachEmptyState(briefAvailable: coach.dataConsent,
                                         providerName: coach.provider.displayName,
                                         onBrief: { coach.beginBriefIfNeeded() },
-                                        onAsk: { send($0) },
+                                        onAsk: { ask($0) },
                                         onShowData: { showCoachData = true })
                     }
                     ForEach(coach.messages) { message in
@@ -592,20 +616,31 @@ struct CoachView: View {
     private func bubble(_ message: ChatMessage) -> some View {
         switch message.role {
         case .user:
+            // The question's words, and above them the photos sent with it (personal fork, Nutrition 4c).
+            let question = CoachReplyMeta.split(message.text)
             HStack {
                 Spacer(minLength: 48)
-                Text(message.text)
-                    .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.surfaceBase)
-                    .textSelection(.enabled)
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .frame(maxWidth: 520, alignment: .trailing)
+                VStack(alignment: .trailing, spacing: 6) {
+                    if let photos = question.meta?.photos, !photos.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(photos, id: \.self) { name in
+                                CoachPhotoThumbnail(name: name, side: photos.count == 1 ? 160 : 96)
+                            }
+                        }
+                    }
+                    Text(question.body)
+                        .font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.surfaceBase)
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .frame(maxWidth: 520, alignment: .trailing)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("You said: \(message.text)")
+            .accessibilityLabel("You said: \(question.body)")
         case .assistant:
             // Personal fork (Coach mockup 2): the answer reads full width, with no card around it, under
             // a small "Coach" mark, and its actions sit in a row underneath. LLM replies arrive as
@@ -617,7 +652,8 @@ struct CoachView: View {
             let reply = CoachReplyMeta.split(message.text)
             let streaming = coach.sending && message.id == coach.messages.last?.id
             let session = reply.meta?.session
-            if !reply.body.isEmpty || session != nil {
+            let meal = reply.meta?.meal
+            if !reply.body.isEmpty || session != nil || meal != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     Label {
                         Text("Coach").font(StrandFont.overline).tracking(1)
@@ -639,10 +675,17 @@ struct CoachView: View {
                             .frame(maxWidth: 520, alignment: .leading)
                             .padding(.top, 2)
                     }
+                    if let meal {
+                        CoachMealCard(proposal: meal, busy: mealBusy == message.id,
+                                      onAdd: { addMeal(messageId: message.id) },
+                                      onEdit: { editMeal(messageId: message.id, proposal: meal) })
+                            .frame(maxWidth: 520, alignment: .leading)
+                            .padding(.top, 2)
+                    }
                     if let consulted = reply.meta?.consulted, !consulted.isEmpty {
                         consultedLine(consulted)
                     }
-                    if !streaming { replyActions(message, text: shareText(reply.body, session: session)) }
+                    if !streaming { replyActions(message, text: shareText(reply.body, session: session, meal: meal)) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -666,7 +709,22 @@ struct CoachView: View {
     }
 
     /// What Copy, Share and the Journal take from a reply: its words, then its session written out.
-    private func shareText(_ body: String, session: CoachSessionProposal?) -> String {
+    private func shareText(_ body: String, session: CoachSessionProposal?, meal: CoachMealProposal? = nil) -> String {
+        var text = sessionShareText(body, session: session)
+        if let meal {
+            let card = meal.cardText(
+                clock: NutritionFormat.mealClock(Date(timeIntervalSince1970: TimeInterval(meal.eatenAt))),
+                line: { row in
+                    (row.gramsEstimated ? "≈ " : "") + (row.grams.map { NutritionFormat.editable($0) + " g " } ?? "")
+                        + row.name + " · " + NutritionFormat.kcalAndMacros(row.nutrients)
+                },
+                total: NutritionFormat.kcalAndMacros(meal.totals))
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? card : text + "\n\n" + card
+        }
+        return text
+    }
+
+    private func sessionShareText(_ body: String, session: CoachSessionProposal?) -> String {
         guard let session else { return body }
         let system = unitSystem
         let card = session.text(
@@ -875,12 +933,15 @@ struct CoachView: View {
     /// of the suggested ones (`CoachPrompts`).
     private var followUps: some View {
         let first = coach.messages.first(where: { $0.role == .user })?.text
-        let lastHasSession = coach.messages.last.map { CoachReplyMeta.split($0.text).meta?.session != nil } ?? false
+        let lastMeta = coach.messages.last.flatMap { CoachReplyMeta.split($0.text).meta }
+        let lastHasSession = lastMeta?.session != nil
+        let lastHasMeal = lastMeta?.meal != nil
         let startsWithBrief = coach.messages.first.map {
             $0.role == .assistant && $0.text.hasPrefix(AICoachEngine.briefPrefix)
         } ?? false
-        let prompts = CoachPrompts.followUps(forFirstQuestion: first, lastReplyHasSession: lastHasSession,
-                                             startsWithBrief: startsWithBrief)
+        let prompts = CoachPrompts.followUps(forFirstQuestion: first.map(CoachReplyMeta.body),
+                                             lastReplyHasSession: lastHasSession,
+                                             startsWithBrief: startsWithBrief, lastReplyHasMeal: lastHasMeal)
         return CoachChipFlow(spacing: 8) {
             ForEach(prompts, id: \.self) { prompt in
                 Button {
@@ -924,14 +985,29 @@ struct CoachView: View {
     /// there is something to send. While a reply streams it becomes Stop, which keeps the text received
     /// so far. The photo button of the mockups comes with photos.
     private var composer: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Personal fork (Nutrition 4c): the photos attached to the question, each removable.
+            if !attachedPhotos.isEmpty {
+                CoachAttachmentStrip(names: attachedPhotos) { removeAttachment($0) }
+            }
+            composerRow
+        }
+        .padding(2)
+        .background(NoopPanelSurface(cornerRadius: 26))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
+    }
+
+    private var composerRow: some View {
         HStack(alignment: .bottom, spacing: 4) {
+            if photosAvailable { attachButton }
             TextField("Ask Coach…", text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(StrandFont.body)
                 .foregroundStyle(StrandPalette.textPrimary)
                 .lineLimit(1...5)
                 .focused($composerFocused)
-                .padding(.leading, 14)
+                .padding(.leading, photosAvailable ? 2 : 14)
                 .padding(.vertical, 12)
                 .onSubmit { send(draft) }
                 .accessibilityLabel("Question")
@@ -941,7 +1017,7 @@ struct CoachView: View {
             micButton
             #endif
 
-            if coach.sending || hasDraft || !micAvailable {
+            if coach.sending || canSend || !micAvailable {
                 Button {
                     if coach.sending { coach.stopReply() } else { send(draft) }
                 } label: {
@@ -952,18 +1028,132 @@ struct CoachView: View {
                         .background(StrandPalette.accent, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(!coach.sending && !hasDraft)
+                .disabled(!coach.sending && !canSend)
                 .padding(2)
                 .accessibilityLabel(coach.sending ? Text("Stop") : Text("Send"))
             }
         }
-        .padding(2)
-        .background(NoopPanelSurface(cornerRadius: 26))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
-            .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
     }
 
     private var hasDraft: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    /// Words or a photo: a photo alone asks for the meal it shows.
+    private var canSend: Bool { hasDraft || (photosAvailable && !attachedPhotos.isEmpty) }
+
+    // MARK: - Photos (personal fork, Nutrition 4c)
+
+    /// Photos go to Anthropic only: the other providers keep the text chat.
+    private var photosAvailable: Bool { coach.provider == .anthropic }
+
+    /// The capsule's "+": the photo library, and the camera on iPhone.
+    private var attachButton: some View {
+        Menu {
+            Button { showPhotoPicker = true } label: {
+                Label("Photo library", systemImage: "photo.on.rectangle")
+            }
+            #if os(iOS)
+            if CoachCameraPicker.isAvailable {
+                Button { showCamera = true } label: {
+                    Label("Camera", systemImage: "camera")
+                }
+            }
+            #endif
+        } label: {
+            Image(systemName: "plus")
+                .font(StrandFont.headline)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .menuIndicator(.hidden)
+        .disabled(coach.sending || attachedPhotos.count >= CoachPhotoStore.maxPerQuestion)
+        .accessibilityLabel(Text("Add a photo"))
+    }
+
+    /// Reduce and stage picked photos, in the order picked.
+    private func attachPicked(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        pickedPhotos = []
+        Task {
+            for item in items {
+                guard attachedPhotos.count < CoachPhotoStore.maxPerQuestion,
+                      let data = try? await item.loadTransferable(type: Data.self) else { continue }
+                stageAttachment(data)
+            }
+        }
+    }
+
+    private func stageAttachment(_ data: Data) {
+        guard attachedPhotos.count < CoachPhotoStore.maxPerQuestion,
+              let name = CoachPhotoStore.stagePhoto(data) else { return }
+        attachedPhotos.append(name)
+    }
+
+    private func removeAttachment(_ name: String) {
+        attachedPhotos.removeAll { $0 == name }
+        CoachPhotoStore.removePhotos([name])
+    }
+
+    /// A suggestion: the photo one opens the picker (with photos available), the others are asked.
+    private func ask(_ prompt: String) {
+        if prompt == CoachPrompts.photoMealPrompt, photosAvailable {
+            showPhotoPicker = true
+        } else {
+            send(prompt)
+        }
+    }
+
+    /// What "Add a meal" asked the Coach screen to open (Photo, Dictate). Consumed once, after the
+    /// editor sheet it came from has finished closing, so the picker is not presented over it.
+    private func consumeComposerAction() async {
+        guard coach.pendingComposerAction != nil else { return }
+        // Clearing the request restarts this task (its id), so it is cleared after the wait, not before.
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        guard !Task.isCancelled, let action = coach.pendingComposerAction else { return }
+        coach.pendingComposerAction = nil
+        guard coach.isConfigured else { return }
+        switch action {
+        case .photoLibrary:
+            if photosAvailable { showPhotoPicker = true }
+        case .camera:
+            #if os(iOS)
+            if photosAvailable, CoachCameraPicker.isAvailable { showCamera = true }
+            #else
+            break
+            #endif
+        case .dictate:
+            #if os(iOS)
+            if !voiceInput.isRecording { toggleVoice() }
+            #else
+            break
+            #endif
+        }
+    }
+
+    // MARK: - The meal card (personal fork, Nutrition 4c)
+
+    private func addMeal(messageId: UUID) {
+        guard mealBusy == nil else { return }
+        mealBusy = messageId
+        Task {
+            await coach.addMealToJournal(messageId: messageId)
+            mealBusy = nil
+        }
+    }
+
+    /// Edit: the card's meal as a draft until it is in the journal, then the journal meal itself.
+    private func editMeal(messageId: UUID, proposal: CoachMealProposal) {
+        let day = Date(timeIntervalSince1970: TimeInterval(proposal.eatenAt))
+        guard let mealId = proposal.mealId else {
+            mealEditor = CoachMealEditTarget(messageId: messageId, day: day, target: .draft(proposal.draftEntry()))
+            return
+        }
+        Task {
+            guard let store = await repo.storeHandle(),
+                  let entry = try? await MealJournal.mealEntryById(store, id: mealId) else { return }
+            mealEditor = CoachMealEditTarget(messageId: messageId, day: day, target: .edit(entry))
+        }
+    }
 
     /// Whether the capsule has a microphone, so a Send button is needed even with an empty field.
     private var micAvailable: Bool {
@@ -1029,6 +1219,7 @@ struct CoachView: View {
                 if !trimmed.isEmpty {
                     // Append to the draft (not replace) so a user can speak into existing text.
                     draft = draft.isEmpty ? trimmed : "\(draft) \(trimmed)"
+                    draftDictated = true
                 }
             }
         } else {
@@ -1039,12 +1230,14 @@ struct CoachView: View {
                     if state == .authorized {
                         voiceInput.startTranscribing { partial in
                             draft = partial
+                            draftDictated = true
                         }
                     }
                 }
             } else {
                 voiceInput.startTranscribing { partial in
                     draft = partial
+                    draftDictated = true
                 }
             }
         }
@@ -1087,10 +1280,14 @@ struct CoachView: View {
 
     private func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !coach.sending else { return }
+        let photos = photosAvailable ? attachedPhotos : []
+        guard !trimmed.isEmpty || !photos.isEmpty, !coach.sending else { return }
+        let dictated = draftDictated && text == draft
         draft = ""
+        draftDictated = false
+        attachedPhotos = []
         composerFocused = false
-        coach.submit(trimmed)
+        coach.submit(trimmed, photos: photos, dictated: dictated)
     }
 
     /// K14: Trigger a subtle haptic when the Coach reply arrives. On iOS, a light impact feedback.

@@ -10,9 +10,11 @@ final class CoachToolsTests: XCTestCase {
 
     // MARK: Definitions
 
-    /// Without "Use my data" only the session card is offered: it reads nothing and saves nothing.
-    func testOnlyTheSessionCardWithoutDataAccess() {
-        XCTAssertEqual(names(CoachTools.definitions(dataConsent: false, labBook: true)), ["create_program"])
+    /// Without "Use my data" only the cards are offered (the session, the meal and its Ciqual search):
+    /// none reads the user's data and none saves anything.
+    func testOnlyTheCardsWithoutDataAccess() {
+        XCTAssertEqual(names(CoachTools.definitions(dataConsent: false, labBook: true)),
+                       ["create_program", "search_foods", "log_meal"])
     }
 
     func testTheLabBookToolOnlyWithTheSecondOptIn() {
@@ -22,8 +24,9 @@ final class CoachToolsTests: XCTestCase {
 
     func testEveryToolIsNamedOnceAndHasAnObjectSchema() throws {
         let tools = CoachTools.definitions(dataConsent: true, labBook: true)
-        XCTAssertEqual(Set(names(tools)), Set(CoachTools.Name.allCases.map(\.rawValue) + ["create_program"]))
-        XCTAssertEqual(names(tools).count, CoachTools.Name.allCases.count + 1)
+        let cards = ["create_program", "search_foods", "log_meal"]
+        XCTAssertEqual(Set(names(tools)), Set(CoachTools.Name.allCases.map(\.rawValue) + cards))
+        XCTAssertEqual(names(tools).count, CoachTools.Name.allCases.count + cards.count)
         for tool in tools {
             let schema = try XCTUnwrap(tool["input_schema"] as? [String: Any])
             XCTAssertEqual(schema["type"] as? String, "object")

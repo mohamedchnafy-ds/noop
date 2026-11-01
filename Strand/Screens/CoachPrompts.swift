@@ -23,7 +23,7 @@ enum CoachPrompts {
                         String(localized: "How was my night?")]
             case .nutrition:
                 return [String(localized: "How much protein today?"),
-                        String(localized: "What should I eat before my session?")]
+                        CoachPrompts.photoMealPrompt]
             }
         }
 
@@ -61,6 +61,17 @@ enum CoachPrompts {
         return Theme.allCases.first { $0.prompts.contains(question) }
     }
 
+    /// The suggestion that opens the photo picker instead of being asked as it stands (personal fork,
+    /// Nutrition 4c); also the question a photo sent with no words asks.
+    static var photoMealPrompt: String { String(localized: "Analyze my meal from a photo") }
+
+    /// Under a meal card (Nutrition 4c): where the day stands now, and what comes next.
+    static var mealFollowUps: [String] {
+        [String(localized: "How much protein do I have left today?"),
+         String(localized: "What should I eat at my next meal?"),
+         String(localized: "Explain why")]
+    }
+
     /// The follow-up that turns a session described in words into a session card (step 6b).
     static var makeThisSession: String { String(localized: "Make me this session") }
 
@@ -68,8 +79,9 @@ enum CoachPrompts {
     /// session's follow-ups (shorter, swap, what to eat after); a session question answered in words,
     /// or a conversation that starts with the brief, gets "Make me this session" first.
     static func followUps(forFirstQuestion question: String?, lastReplyHasSession: Bool,
-                          startsWithBrief: Bool) -> [String] {
+                          startsWithBrief: Bool, lastReplyHasMeal: Bool = false) -> [String] {
         if lastReplyHasSession { return Theme.session.followUps }
+        if lastReplyHasMeal { return mealFollowUps }
         switch theme(ofFirstQuestion: question) {
         case .session?:
             return [makeThisSession, String(localized: "Make it shorter, 30 min"),

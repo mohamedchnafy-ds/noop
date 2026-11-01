@@ -122,6 +122,9 @@ struct CoachDataView: View {
         CoachDataRow(symbol: "moon.fill", tint: StrandPalette.restBright, title: "Sleep",
                      detail: String(localized: "Debt, sleep need, usual wake-up, suggested bedtime, naps"))
         divider
+        CoachDataRow(symbol: "fork.knife", tint: StrandPalette.metricCyan, title: "Nutrition",
+                     detail: String(localized: "Today's meals against your goals, and the 7 days before"))
+        divider
         CoachDataRow(symbol: "calendar", tint: StrandPalette.textSecondary, title: "Last 14 days",
                      detail: String(localized: "One line per day, and today's stress"))
     }
@@ -158,6 +161,7 @@ struct CoachDataView: View {
                 onDemandRow("The detail of a night")
                 onDemandRow("The history of an exercise")
                 onDemandRow("Your Journal and Lab Book")
+                onDemandRow("Your meals over several days")
                 if !coach.dataConsent {
                     Text("Off while “Use my data” is off.")
                         .font(StrandFont.footnote)

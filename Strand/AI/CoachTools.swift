@@ -20,6 +20,8 @@ enum CoachTools {
         case programs = "get_programs"
         case journal = "get_journal"
         case labBook = "get_lab_book"
+        /// The meal journal (personal fork, Nutrition).
+        case meals = "get_meals"
     }
 
     /// The metrics `get_metric_history` can return, by the names the fiche uses.
@@ -100,6 +102,7 @@ enum CoachTools {
     static let sessionRange = 1...20
     /// How far back `get_exercise_history` looks for sessions.
     static let exerciseLookbackDays = 365
+    static let mealDayRange = 1...30
 
     // MARK: Definitions
 
@@ -107,7 +110,9 @@ enum CoachTools {
     /// the read tools only with "Use my data", and the Lab Book only with the second opt-in ("Patterns
     /// and Lab Book"), the same switch that gates its summary in the fiche.
     static func definitions(dataConsent: Bool, labBook: Bool) -> [[String: Any]] {
-        guard dataConsent else { return [CoachSessionProposal.definition] }
+        // The cards: the session, and the meal with the Ciqual search it needs. None reads the user's data.
+        let cards = [CoachSessionProposal.definition, CoachMealProposal.searchDefinition, CoachMealProposal.logDefinition]
+        guard dataConsent else { return cards }
         var tools: [[String: Any]] = [
             tool(.metricHistory,
                  "Daily values of one metric over the last N days (oldest first), with how many days were "
@@ -148,6 +153,13 @@ enum CoachTools {
                  properties: ["days": ["type": "integer", "minimum": journalDayRange.lowerBound,
                                        "maximum": journalDayRange.upperBound]],
                  required: ["days"]),
+            tool(.meals,
+                 "The meal journal over the last N days, newest first: each day's totals, then each meal with its "
+                 + "time, name, calories and macros (computed by the app). A day with no meal logged is not a "
+                 + "day without food.",
+                 properties: ["days": ["type": "integer", "minimum": mealDayRange.lowerBound,
+                                       "maximum": mealDayRange.upperBound]],
+                 required: ["days"]),
         ]
         if labBook {
             tools.append(tool(.labBook,
@@ -155,7 +167,7 @@ enum CoachTools {
                               + "each, with their dates. Logged by the user, not medical findings.",
                               properties: [:], required: []))
         }
-        return tools + [CoachSessionProposal.definition]
+        return tools + cards
     }
 
     private static func tool(_ name: Name, _ description: String, properties: [String: Any],
@@ -425,6 +437,39 @@ enum CoachTools {
         return lines.joined(separator: "\n")
     }
 
+    /// One day of the meal journal as `get_meals` writes it.
+    struct MealDay: Equatable {
+        struct Meal: Equatable {
+            var time: String
+            var name: String
+            var nutrients: MealNutrients
+        }
+        var day: String
+        var meals: [Meal]
+    }
+
+    /// `get_meals`: newest day first, each with its totals then its meals; days with no meal are left out.
+    static func meals(_ days: [MealDay], from: String, to: String) -> String {
+        func values(_ n: MealNutrients) -> String {
+            "\(n.kcal) kcal, P \(CoachMealProposal.tenthText(n.proteinG)), C \(CoachMealProposal.tenthText(n.carbsG)), "
+                + "F \(CoachMealProposal.tenthText(n.fatG))"
+        }
+        let logged = days.filter { !$0.meals.isEmpty }.sorted { $0.day > $1.day }
+        guard !logged.isEmpty else {
+            return "No meal logged from \(from) to \(to). That says nothing about what was eaten."
+        }
+        var lines = ["Meal journal, \(from) to \(to) (calories and macros computed by the app). "
+                     + "A day with no meal logged is not a day without food:"]
+        for day in logged {
+            let total = MealMath.totals(day.meals.map(\.nutrients))
+            lines.append("\(day.day): \(values(total)) · \(day.meals.count) meal\(day.meals.count == 1 ? "" : "s")")
+            for meal in day.meals {
+                lines.append("  \(meal.time) \(meal.name): \(values(meal.nutrients))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: Labels (on screen)
 
     /// What the screen says the coach looked at for one call, in the app's language.
@@ -455,6 +500,9 @@ enum CoachTools {
             return String(localized: "Journal since \(since(days: days))")
         case .labBook:
             return String(localized: "Lab Book")
+        case .meals:
+            let days = integer(input, "days", fallback: 7, in: mealDayRange)
+            return String(localized: "Meals since \(since(days: days))")
         }
     }
 

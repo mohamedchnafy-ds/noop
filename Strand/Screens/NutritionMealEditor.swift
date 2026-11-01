@@ -14,11 +14,14 @@ import WhoopStore
 enum NutritionEditorTarget: Identifiable {
     case add
     case edit(MealEntry)
+    /// A meal not saved yet (the Coach's card, Edit before Add): saving adds it to the journal.
+    case draft(MealEntry)
 
     var id: String {
         switch self {
         case .add: return "add"
         case .edit(let entry): return entry.meal.id
+        case .draft(let entry): return "draft-" + entry.meal.id
         }
     }
 }
@@ -41,6 +44,8 @@ struct NutritionMealEditor: View {
     var onBarcode: (() -> Void)? = nil
     var onPhoto: (() -> Void)? = nil
     var onDictate: (() -> Void)? = nil
+    /// Called with the meal as saved (the Coach's card records that it is in the journal).
+    var onSaved: ((MealEntry) -> Void)? = nil
 
     @EnvironmentObject private var repo: Repository
     @Environment(\.dismiss) private var dismiss
@@ -63,12 +68,13 @@ struct NutritionMealEditor: View {
     @FocusState private var focused: Bool
 
     init(target: NutritionEditorTarget, day: Date, onBarcode: (() -> Void)? = nil,
-         onPhoto: (() -> Void)? = nil, onDictate: (() -> Void)? = nil) {
+         onPhoto: (() -> Void)? = nil, onDictate: (() -> Void)? = nil, onSaved: ((MealEntry) -> Void)? = nil) {
         self.target = target
         self.day = day
         self.onBarcode = onBarcode
         self.onPhoto = onPhoto
         self.onDictate = onDictate
+        self.onSaved = onSaved
         switch target {
         case .add:
             _name = State(initialValue: "")
@@ -81,7 +87,7 @@ struct NutritionMealEditor: View {
             _kcalTyped = State(initialValue: false)
             _lines = State(initialValue: [])
             _gramsTexts = State(initialValue: [:])
-        case .edit(let entry):
+        case .edit(let entry), .draft(let entry):
             _name = State(initialValue: entry.meal.name)
             _eatenAt = State(initialValue: Date(timeIntervalSince1970: TimeInterval(entry.meal.eatenAt)))
             _favorite = State(initialValue: entry.meal.favorite)
@@ -115,8 +121,17 @@ struct NutritionMealEditor: View {
         return cal.date(bySettingHour: parts.hour ?? 12, minute: parts.minute ?? 0, second: 0, of: day) ?? day
     }
 
+    /// The meal on the form, saved or not; nil when adding from scratch.
     private var editing: MealEntry? {
-        if case .edit(let entry) = target { return entry }
+        switch target {
+        case .add: return nil
+        case .edit(let entry), .draft(let entry): return entry
+        }
+    }
+
+    /// The journal meal being changed; nil when the save adds a new one.
+    private var existingId: String? {
+        if case .edit(let entry) = target { return entry.meal.id }
         return nil
     }
 
@@ -163,7 +178,7 @@ struct NutritionMealEditor: View {
                         if !recents.isEmpty { recentSection }
                     }
                     formSection
-                    if editing != nil { deleteButton }
+                    if existingId != nil { deleteButton }
                 }
                 .padding(.horizontal, NoopMetrics.screenHPadding)
                 .padding(.top, 10)
@@ -172,8 +187,8 @@ struct NutritionMealEditor: View {
             .scrollDismissesKeyboard(.interactively)
             .background(StrandPalette.surfaceRaised.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
-                NoopButton(editing == nil ? "Add to journal" : "Save",
-                           systemImage: editing == nil ? "plus" : "checkmark",
+                NoopButton(existingId == nil ? "Add to journal" : "Save",
+                           systemImage: existingId == nil ? "plus" : "checkmark",
                            kind: .primary, fullWidth: true) { save() }
                     .disabled(!canSave)
                     .opacity(canSave ? 1 : 0.5)
@@ -535,15 +550,16 @@ struct NutritionMealEditor: View {
             : [MealJournal.typedMealLine(name: name, proteinG: protein, carbsG: carbs, fatG: fat,
                                          kcal: kcalTyped ? typedKcal : nil)]
         let origin = editing?.meal.origin ?? .manual
-        let id = editing?.meal.id
+        let id = existingId
         let when = eatenAt
         let favorite = favorite
         Task {
             defer { saving = false }
             guard let store = await repo.storeHandle() else { return }
             do {
-                try await MealJournal.saveMealEntry(store, id: id, name: name, origin: origin, eatenAt: when,
-                                                    favorite: favorite, lines: lines)
+                let saved = try await MealJournal.saveMealEntry(store, id: id, name: name, origin: origin, eatenAt: when,
+                                                                favorite: favorite, lines: lines)
+                onSaved?(saved)
                 dismiss()
             } catch {
                 // Nothing was written: the form stays open with what was typed.
@@ -570,7 +586,7 @@ struct NutritionMealEditor: View {
     }
 
     private func deleteMeal() {
-        guard let id = editing?.meal.id else { return }
+        guard let id = existingId else { return }
         Task {
             guard let store = await repo.storeHandle() else { return }
             try? await MealJournal.removeMeal(store, id: id)

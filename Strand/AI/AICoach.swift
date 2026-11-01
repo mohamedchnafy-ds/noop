@@ -194,6 +194,11 @@ final class AICoachEngine: ObservableObject {
     /// which already has all of that, consumes it exactly once and clears it. Nil is the normal state, and
     /// setting it performs NO network work by itself.
     @Published var pendingPrompt: String?
+
+    /// What the composer should open when the Coach screen next shows (personal fork, Nutrition: the
+    /// Photo and Dictate tiles of "Add a meal"). Consumed once by `CoachView`, like `pendingPrompt`; it
+    /// sends nothing by itself.
+    @Published var pendingComposerAction: CoachComposerAction?
     @Published var provider: AIProvider {
         didSet {
             guard provider != oldValue else { return }
@@ -262,7 +267,7 @@ final class AICoachEngine: ObservableObject {
     let repo: Repository
     /// The body profile behind the context's USER PROFILE block and today's calorie and effort figures.
     /// Nil only where a test builds an engine without one.
-    private let profile: ProfileStore?
+    let profile: ProfileStore?
     private let session: URLSession
 
     private static let providerKey = "ai.provider"
@@ -352,7 +357,8 @@ final class AICoachEngine: ObservableObject {
     ## Nutrition
     - Protéines : environ 1,6 à 2,2 g par kg de poids de corps et par jour, en 3 à 5 repas.
     - Utilise son poids (USER PROFILE) et son objectif (WHAT THE USER TOLD THE COACH). S'ils manquent ou sont marqués « app default », demande-les avant de donner des quantités.
-    - Les calories sont une estimation du bracelet.
+    - Les calories dépensées sont une estimation du bracelet.
+    - Le bloc NUTRITION de la fiche donne ce qu'il a mangé aujourd'hui, ses objectifs (calculés par l'app avec son profil) et ses 7 derniers jours : pars de là pour parler de ses apports. Un jour sans repas noté n'est pas un jour sans manger.
     - Pas de régime extrême ni de jeûne prolongé. Compléments : seulement les classiques (créatine, protéine en poudre, caféine, vitamine D), toujours présentés comme facultatifs.
 
     ## Sécurité
@@ -395,7 +401,7 @@ final class AICoachEngine: ObservableObject {
         var lines = ["## Outils"]
         if readTools {
             lines += [
-                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours, le détail d'une nuit, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal et le Lab Book.",
+                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours, le détail d'une nuit, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal, le Lab Book et le journal des repas.",
                 "- Réponds avec la fiche quand elle suffit ; appelle un outil seulement si elle ne suffit pas pour répondre juste.",
                 "- N'annonce pas que tu vas chercher : appelle l'outil, puis réponds directement à la question.",
                 "- Demande la période la plus courte qui répond à la question.",
@@ -404,6 +410,7 @@ final class AICoachEngine: ObservableObject {
         }
         lines += [
             "- Séance : quand tu proposes une séance ou que tu la modifies, appelle create_program avec la séance complète au lieu de l'écrire (mêmes règles que « Créer une séance » : exercices du Carnet, charges, supersets A1/A2, repos). Écris une seule phrase avant et rien après : elle s'affiche en carte avec « Ajouter au Carnet » et « Démarrer », et rien n'est enregistré sans un tap.",
+            "- Repas : pour un repas en photo ou décrit (dicté ou écrit), cherche chaque aliment avec search_foods (table Ciqual de l'Anses, sur l'appareil), choisis la ligne la plus proche (cru ou cuit, préparation), puis appelle log_meal avec le code Ciqual et la quantité en grammes de chaque aliment (estimated = true pour une quantité estimée sur une photo). Ne donne jamais toi-même de calories ni de macros pour ce repas : l'app les calcule avec Ciqual. Écris une seule phrase avant et rien après : il s'affiche en carte avec « Ajouter au journal » et « Modifier », et rien n'est enregistré sans un tap. Pour une modification (« ajoute 50 g de riz »), rappelle log_meal avec le repas complet.",
         ]
         return lines.joined(separator: "\n")
     }
@@ -817,9 +824,10 @@ final class AICoachEngine: ObservableObject {
     func regenerateLastReply() {
         guard activeTurn == nil, messages.last?.role == .assistant,
               let index = messages.lastIndex(where: { $0.role == .user }) else { return }
-        let question = messages[index].text
+        // The question's words and the photos it was sent with: the stored block is not part of the question.
+        let (question, meta) = CoachReplyMeta.split(messages[index].text)
         messages.removeSubrange(index...)
-        submit(question)
+        submit(question, photos: meta?.photos ?? [], dictated: meta?.dictated ?? false)
     }
 
     /// What the history screen shows and searches for each stored conversation, read from the store.
@@ -895,11 +903,23 @@ final class AICoachEngine: ObservableObject {
     /// Delete a conversation from the history. Deleting the one on screen also stops its reply and
     /// leaves an empty conversation.
     func deleteConversation(id: String) {
-        if currentConversation?.id == id {
+        // The photos sent in it go with it (personal fork, Nutrition 4c): they live outside the database.
+        let onScreen = currentConversation?.id == id
+        let photos = onScreen ? Self.photoNames(messages.map(\.text)) : []
+        if onScreen {
             stopReply()
             resetTranscript()
         }
-        updateHistory { try await $0.deleteCoachConversation(id: id) }
+        updateHistory { store in
+            let stored = (try? await store.coachConversationMessages(conversationId: id)) ?? []
+            try await store.deleteCoachConversation(id: id)
+            CoachPhotoStore.removePhotos(photos + Self.photoNames(stored.map(\.text)))
+        }
+    }
+
+    /// The photo file names the questions among `texts` were sent with.
+    nonisolated static func photoNames(_ texts: [String]) -> [String] {
+        texts.flatMap { CoachReplyMeta.split($0).meta?.photos ?? [] }
     }
 
     /// Put a stored conversation on screen.
@@ -946,7 +966,7 @@ final class AICoachEngine: ObservableObject {
         conversation.updatedAt = now
         if conversation.title.isEmpty, !conversation.titleEdited {
             if let question = messages.first(where: { $0.role == .user }) {
-                conversation.title = CoachConversationTitle.make(fromQuestion: question.text)
+                conversation.title = CoachConversationTitle.make(fromQuestion: CoachReplyMeta.body(question.text))
             } else if messages.first?.text.hasPrefix(Self.briefPrefix) == true {
                 // A brief has no question to name it; the next question does not rename it either.
                 conversation.title = String(localized: "Today's brief")
@@ -977,8 +997,10 @@ final class AICoachEngine: ObservableObject {
     /// history and leaves an empty one. The in-memory clear is immediate.
     func clearConversation() {
         guard let id = currentConversation?.id else {
+            let photos = Self.photoNames(messages.map(\.text))
             stopReply()
             resetTranscript()
+            CoachPhotoStore.removePhotos(photos)
             return
         }
         deleteConversation(id: id)
@@ -1031,16 +1053,25 @@ final class AICoachEngine: ObservableObject {
     /// A question handed over (Siri, the Today launcher, a Lift Log session) while a turn was in
     /// flight. It is asked as soon as that turn ends, instead of being dropped or racing it. One slot:
     /// the composer itself cannot send while a reply streams.
-    private var queuedQuestion: String?
+    private var queuedQuestion: QueuedQuestion?
+
+    /// A question waiting for the turn in flight, with the photos sent with it.
+    private struct QueuedQuestion {
+        let text: String
+        let photos: [String]
+        let dictated: Bool
+    }
 
     /// Ask `text` on the engine's own task (see `activeTurn`); queued while another turn is in flight.
-    func submit(_ text: String) {
+    /// `photos` are staged `CoachPhotoStore` names sent with it (Anthropic only); `dictated` marks a
+    /// question spoken into the composer.
+    func submit(_ text: String, photos: [String] = [], dictated: Bool = false) {
         guard activeTurn == nil else {
-            queuedQuestion = text
+            queuedQuestion = QueuedQuestion(text: text, photos: photos, dictated: dictated)
             return
         }
         activeTurn = Task {
-            await send(text)
+            await send(text, photos: photos, dictated: dictated)
             endTurn()
         }
     }
@@ -1067,15 +1098,19 @@ final class AICoachEngine: ObservableObject {
         activeTurn = nil
         if let next = queuedQuestion {
             queuedQuestion = nil
-            submit(next)
+            submit(next.text, photos: next.photos, dictated: next.dictated)
         }
     }
 
     /// Send a question: append it, build the metrics context, call the chosen provider with the
     /// system prompt + context + running history, parse the reply, append it. Never throws/crashes;
     /// failures land in `errorText`.
-    func send(_ userText: String) async {
-        let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+    func send(_ userText: String, photos: [String] = [], dictated: Bool = false) async {
+        // Personal fork (Nutrition 4c): photos go with a question to Anthropic only; a photo alone asks
+        // for the meal it shows.
+        let sentPhotos = provider == .anthropic ? Array(photos.prefix(CoachPhotoStore.maxPerQuestion)) : []
+        var trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty, !sentPhotos.isEmpty { trimmed = CoachPrompts.photoMealPrompt }
         guard !trimmed.isEmpty else { errorText = AICoachError.emptyQuestion.errorDescription; return }
         // The master switch, checked at the EGRESS rather than only on the routes in. Every way into Coach
         // is gated, but "gated everywhere I thought of" is what #2254 got wrong once: a revoked consent
@@ -1098,7 +1133,9 @@ final class AICoachEngine: ObservableObject {
         conversationDay = Self.localEpochDay()
 
         errorText = nil
-        appendMessage(ChatMessage(role: .user, text: trimmed))
+        let keptPhotos = CoachPhotoStore.keepPhotos(sentPhotos)
+        appendMessage(ChatMessage(role: .user, text: CoachReplyMeta.join(
+            body: trimmed, meta: CoachReplyMeta(photos: keptPhotos, dictated: dictated))))
         sending = true
         // K2: persist once the turn is fully settled (success, mid-stream error, or empty-stream
         // removal) — not per streamed chunk, so a long reply doesn't hammer the store.
@@ -1125,7 +1162,9 @@ final class AICoachEngine: ObservableObject {
         let tools = provider == .anthropic
             ? CoachTools.definitions(dataConsent: dataConsent, labBook: includeOnDeviceSignals) : []
         if !tools.isEmpty, imageBase64 == nil {
-            await streamToolAnswer(key: key, wire: wire, tools: tools)
+            // A meal logged from this question is dated as it was given: a photo, dictated or typed.
+            let origin: MealOrigin = !keptPhotos.isEmpty ? .photo : (dictated ? .voice : .manual)
+            await streamToolAnswer(key: key, wire: wire, tools: tools, photos: keptPhotos, mealOrigin: origin)
             return
         }
 
@@ -1142,7 +1181,8 @@ final class AICoachEngine: ObservableObject {
     /// (`CoachReplyMeta`) and shown under it. Settles like `streamAssistantTurn`: the partial text on
     /// Stop, the partial text and an interrupted marker on a failure.
     private func streamToolAnswer(key: String, wire: [(role: ChatMessage.Role, content: String)],
-                                  tools: [[String: Any]]) async {
+                                  tools: [[String: Any]], photos: [String] = [],
+                                  mealOrigin: MealOrigin = .manual) async {
         guard !Task.isCancelled else { return }
         let placeholder = ChatMessage(role: .assistant, text: "")
         appendMessage(placeholder)
@@ -1150,6 +1190,7 @@ final class AICoachEngine: ObservableObject {
         var streaming = ""      // the text of the round on its way
         var consulted: [String] = []
         var session: CoachSessionProposal?
+        var meal: CoachMealProposal?
 
         func joined(_ a: String, _ b: String) -> String {
             let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1163,11 +1204,16 @@ final class AICoachEngine: ObservableObject {
             messages[index] = ChatMessage(id: placeholder.id, role: .assistant, text: text)
         }
         func settled(_ body: String) -> String {
-            CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session))
+            CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session, meal: meal))
         }
         defer { toolActivity = nil }
 
         var conversation = wire.map { AnthropicToolRequest.message(role: $0.role.rawValue, text: $0.content) }
+        // The question's photos ride its own turn only; an earlier photo is named in words (`wireMessages`).
+        let jpegs = photos.compactMap(CoachPhotoStore.jpegData(for:))
+        if !jpegs.isEmpty, let last = wire.lastIndex(where: { $0.role == .user }) {
+            conversation[last] = AnthropicToolRequest.userWithImages(text: wire[last].content, jpegs: jpegs)
+        }
         let system = systemPrompt(withTools: true)
         do {
             for round in 0...CoachTools.maxRounds {
@@ -1199,6 +1245,26 @@ final class AICoachEngine: ObservableObject {
                         }
                         continue
                     }
+                    // The meal card (Nutrition 4c): the foods by Ciqual code, the values computed here.
+                    if call.name == CoachMealProposal.searchToolName {
+                        let query = CoachTools.text(input, "query") ?? ""
+                        let limit = CoachTools.integer(input, "limit", fallback: 8, in: CoachMealProposal.searchLimitRange)
+                        results.append((call.id, CoachMealProposal.searchResult(
+                            query: query, foods: CiqualTable.search(query, limit: limit)), false))
+                        continue
+                    }
+                    if call.name == CoachMealProposal.logToolName {
+                        let parsed = CoachMealProposal.fromToolInput(input, origin: mealOrigin, now: Date(),
+                                                                     food: CiqualTable.food(code:))
+                        if let proposal = parsed.proposal {
+                            meal = proposal
+                            results.append((call.id, CoachMealProposal.shownResult(unknownCodes: parsed.unknownCodes), false))
+                        } else {
+                            results.append((call.id, "No usable food: give each food by a Ciqual code from search_foods "
+                                            + "and its quantity in grams.", true))
+                        }
+                        continue
+                    }
                     guard let name = CoachTools.Name(rawValue: call.name) else {
                         results.append((call.id, "Unknown tool \(call.name).", true))
                         continue
@@ -1214,18 +1280,18 @@ final class AICoachEngine: ObservableObject {
                 conversation.append(AnthropicToolRequest.assistant(turn))
                 conversation.append(AnthropicToolRequest.toolResults(results))
             }
-            show(finished.isEmpty && session == nil ? "(no reply)" : settled(finished))
+            show(finished.isEmpty && session == nil && meal == nil ? "(no reply)" : settled(finished))
         } catch {
             let partial = joined(finished, streaming)
             if Task.isCancelled || error is CancellationError {
-                if partial.isEmpty && session == nil {
+                if partial.isEmpty && session == nil && meal == nil {
                     messages.removeAll { $0.id == placeholder.id }
                 } else {
                     show(settled(partial))
                 }
                 return
             }
-            if partial.isEmpty && session == nil {
+            if partial.isEmpty && session == nil && meal == nil {
                 messages.removeAll { $0.id == placeholder.id }
             } else {
                 show(settled(partial.isEmpty ? "*(stream interrupted)*" : partial + "\n\n*(stream interrupted)*"))
@@ -1434,8 +1500,9 @@ final class AICoachEngine: ObservableObject {
     /// Everything the fiche states, resolved with the helpers the Today, Sleep and Lift Log screens use,
     /// so the coach reads the figures those screens show. Re-read on every question.
     ///
-    /// Today's effort and calories are computed over the calendar day (midnight to now); the Today screen
-    /// does the same unless its day-cycle mode is set to start at sleep onset.
+    /// Today's effort and calories are computed over the window the Today screen reads them over (from the
+    /// night's sleep onset when the day cycle follows sleep, else midnight, to now), with Today's
+    /// estimator, so the coach, Today and Nutrition state one figure (personal fork).
     func ficheInputs() async -> CoachFiche.Inputs {
         var inputs = CoachFiche.Inputs()
         let system = UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
@@ -1461,22 +1528,16 @@ final class AICoachEngine: ObservableObject {
         var split: TodayEnergy.Split?
         if let profile {
             let now = Date()
-            let from = Int(Calendar.current.startOfDay(for: now).timeIntervalSince1970)
-            let hr = await repo.hrSamples(from: from, to: Int(now.timeIntervalSince1970), limit: 200_000)
+            let hr = await NutritionDayReader.heartRateOfDay(repo, day: now, now: now)
             let maxHR = profile.effortHRmax
             let restHR = todayRow?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
-            let dayRest = todayRow?.restingHr.map(Double.init)
             let method = PuffinExperiment.effortMethod
             let sex = profile.sex
-            let body = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
-                                   age: Double(profile.age), sex: profile.sex)
             let live = await Task.detached(priority: .utility) {
                 StrainScorer.strain(hr, maxHR: maxHR, restingHR: restHR, method: method, sex: sex)
             }.value
             effort = StrainScorer.effectiveEffort(live: live, stored: todayRow?.strain)
-            split = await Task.detached(priority: .utility) {
-                TodayEnergy.split(hr: hr, profile: body, hrmax: maxHR, restingHR: dayRest)
-            }.value
+            split = await NutritionDayReader.spentFromSamples(repo, profile: profile, day: now, hr: hr, now: now)
         }
 
         inputs.today = CoachFiche.Today(
@@ -1521,6 +1582,9 @@ final class AICoachEngine: ObservableObject {
                 lastNightMin: todayRow?.totalSleepMin,
                 average30Min: last30.isEmpty ? nil : last30.reduce(0, +) / Double(last30.count))
         }
+
+        // The meal journal (personal fork, Nutrition): today against the goals, then the 7 days before.
+        inputs.nutrition = await nutritionFiche(spent: split)
 
         // The Lift Log's statuses and priorities, read as the Progression screen reads them.
         let step = system == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg
@@ -1792,13 +1856,25 @@ final class AICoachEngine: ObservableObject {
             rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
         var out: [(role: ChatMessage.Role, content: String)] = []
         var contextInjected = false
-        for m in windowedMessages() {
+        let window = windowedMessages()
+        let lastQuestion = window.lastIndex(where: { $0.role == .user })
+        for (index, m) in window.enumerated() {
+            // A question's stored extras (its photos) are not words: the photos of the question being
+            // asked go as images (`streamToolAnswer`), an earlier one is named so the model knows it saw it.
+            var question = m.text
+            if m.role == .user {
+                let (words, meta) = CoachReplyMeta.split(m.text)
+                question = words
+                if let photos = meta?.photos, !photos.isEmpty, index != lastQuestion {
+                    question += "\n[\(photos.count) photo(s) sent with this message earlier]"
+                }
+            }
             if m.role == .user && !contextInjected {
                 contextInjected = true
-                out.append((.user, context + "\n\n---\n\nQuestion: " + m.text))
+                out.append((.user, context + "\n\n---\n\nQuestion: " + question))
             } else {
-                // A reply's stored extras are for the screen; a session card is written out for the model.
-                out.append((m.role, m.role == .assistant ? CoachReplyMeta.forModel(m.text, system: unitSystem) : m.text))
+                // A reply's stored extras are for the screen; a session or meal card is written out for the model.
+                out.append((m.role, m.role == .assistant ? CoachReplyMeta.forModel(m.text, system: unitSystem) : question))
             }
         }
         return out

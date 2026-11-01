@@ -17,6 +17,10 @@ struct LiftProgressData: Equatable {
     /// Minutes asleep the night that ended on each local day.
     var sleep: [String: Double] = [:]
     var now: Int = 0
+    /// Weekly sets per muscle as the store aggregates them (`WhoopStore.liftSetCounts`, the reader the
+    /// Lift Log's weekly card always used), per period. `LiftMetricsStoreAgreementTests` pins it to
+    /// `LiftMetrics.muscleCounts`, so the in-memory figure below is the same number.
+    var storeWeekly: [LiftProgress.Period: [LiftMuscle: Double]] = [:]
 
     var isEmpty: Bool { sessions.isEmpty }
 
@@ -32,7 +36,7 @@ struct LiftProgressData: Equatable {
     var targeted: Set<LiftMuscle> { LiftProgress.targetedMuscles(lines: lines, exercises: exercises) }
 
     func weekly(_ period: LiftProgress.Period) -> [LiftMuscle: Double] {
-        LiftProgress.weeklySets(sessions, period: period, now: now)
+        storeWeekly[period] ?? LiftProgress.weeklySets(sessions, period: period, now: now)
     }
 
     func priorities(_ period: LiftProgress.Period) -> [LiftProgress.Priority] {
@@ -82,9 +86,18 @@ struct LiftProgressData: Equatable {
             if let minutes = day.totalSleepMin, minutes > 0 { sleep[day.day] = minutes }
         }
 
+        var storeWeekly: [LiftProgress.Period: [LiftMuscle: Double]] = [:]
+        for period in [LiftProgress.Period.fourWeeks, LiftProgress.Period.twelveWeeks] {
+            guard let from = period.start(now: now),
+                  let counts = try? await store.liftSetCounts(deviceId: repo.deviceId, fromTs: from, toTs: now)
+            else { continue }
+            let weeks = Double(LiftProgress.weeksCovered(sessions, period: period, now: now))
+            storeWeekly[period] = counts.fractional.mapValues { $0 / weeks }
+        }
+
         return LiftProgressData(sessions: sessions, lines: lines,
                                 exercises: LiftProgress.exercises(sessions: sessions, lines: lines, stepKg: stepKg),
-                                charge: charge, sleep: sleep, now: now)
+                                charge: charge, sleep: sleep, now: now, storeWeekly: storeWeekly)
     }
 }
 

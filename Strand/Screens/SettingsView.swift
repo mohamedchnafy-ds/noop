@@ -1897,7 +1897,7 @@ struct SettingsView: View {
                 // Personal fork (Today v2): the goal the gold part of Today's calories gauge fills toward.
                 Stepper(value: $activityKcalGoal, in: 0...3000, step: 50) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Activity calorie goal")
+                        Text("Activity goal")
                             .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textPrimary)
                         Text(activityKcalGoal > 0 ? String(localized: "\(activityKcalGoal) kcal a day")

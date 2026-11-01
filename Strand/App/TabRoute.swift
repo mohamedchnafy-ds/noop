@@ -37,6 +37,8 @@ enum TabRoute: Hashable {
     case coupled
     /// The Lift Log (personal fork: Today's "today's session" row).
     case liftLog
+    /// The meal journal (personal fork: the Nutrition line under Today's calories).
+    case nutrition
 }
 
 extension View {
@@ -74,6 +76,7 @@ extension View {
             case .hydration: HydrationView()
             case .coupled: CoupledView()
             case .liftLog: LiftLogView()
+            case .nutrition: NutritionView()
             }
         }
     }

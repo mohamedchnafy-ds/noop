@@ -85,9 +85,9 @@
     "%lld × %lld reached": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%lld × %lld reached"}}, "de": {"stringUnit": {"state": "translated", "value": "%lld × %lld erreicht"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld × %lld logrado"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld × %lld atteint"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld × %lld raggiunto"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld × %lld atingido"}}, "pl": {"stringUnit": {"state": "translated", "value": "%lld × %lld osiągnięte"}}, "ru": {"stringUnit": {"state": "translated", "value": "%lld × %lld выполнено"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已完成 %lld × %lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已完成 %lld × %lld"}}}},
     "%@ declining": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ declining"}}, "de": {"stringUnit": {"state": "translated", "value": "%@ rückläufig"}}, "es": {"stringUnit": {"state": "translated", "value": "%@ en descenso"}}, "fr": {"stringUnit": {"state": "translated", "value": "%@ en baisse"}}, "it": {"stringUnit": {"state": "translated", "value": "%@ in calo"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%@ em queda"}}, "pl": {"stringUnit": {"state": "translated", "value": "%@: spadek"}}, "ru": {"stringUnit": {"state": "translated", "value": "%@: снижение"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ 下降"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%@ 下降"}}}},
     "%@ stalled": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ stalled"}}, "de": {"stringUnit": {"state": "translated", "value": "%@ stagniert"}}, "es": {"stringUnit": {"state": "translated", "value": "%@ estancado"}}, "fr": {"stringUnit": {"state": "translated", "value": "%@ stagne"}}, "it": {"stringUnit": {"state": "translated", "value": "%@ in stallo"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%@ estagnado"}}, "pl": {"stringUnit": {"state": "translated", "value": "%@: stagnacja"}}, "ru": {"stringUnit": {"state": "translated", "value": "%@: застой"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ 停滞"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%@ 停滯"}}}},
-    "%lld muscles": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%lld muscles"}}, "de": {"stringUnit": {"state": "translated", "value": "%lld Muskeln"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld músculos"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld muscles"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld muscoli"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld músculos"}}, "pl": {"stringUnit": {"state": "translated", "value": "Mięśnie: %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Мышц: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 块肌肉"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld 塊肌肉"}}}},
-    "%lld of %lld sessions before a status": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%lld of %lld sessions before a status"}}, "de": {"stringUnit": {"state": "translated", "value": "%lld von %lld Einheiten bis zu einem Status"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld de %lld sesiones antes de un estado"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld séances sur %lld avant un statut"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld di %lld sedute prima di uno stato"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld de %lld sessões antes de um estado"}}, "pl": {"stringUnit": {"state": "translated", "value": "%lld z %lld treningów do statusu"}}, "ru": {"stringUnit": {"state": "translated", "value": "%lld из %lld тренировок до статуса"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已训练 %lld / %lld 次，之后显示状态"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已訓練 %lld / %lld 次，之後顯示狀態"}}}},
-    "%lld more sessions": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%lld more sessions"}}, "de": {"stringUnit": {"state": "translated", "value": "Noch %lld Einheiten"}}, "es": {"stringUnit": {"state": "translated", "value": "Faltan %lld sesiones"}}, "fr": {"stringUnit": {"state": "translated", "value": "Encore %lld séances"}}, "it": {"stringUnit": {"state": "translated", "value": "Ancora %lld sedute"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Faltam %lld sessões"}}, "pl": {"stringUnit": {"state": "translated", "value": "Pozostało treningów: %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Осталось тренировок: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "还差 %lld 次训练"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "還差 %lld 次訓練"}}}},
+    "%lld muscles": {"localizations": {"en": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld muscle"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld muscles"}}}}}, "de": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld Muskel"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld Muskeln"}}}}}, "es": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld músculo"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld músculos"}}}}}, "fr": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld muscle"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld muscles"}}}}}, "it": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld muscolo"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld muscoli"}}}}}, "pt-PT": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld músculo"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld músculos"}}}}}, "pl": {"stringUnit": {"state": "translated", "value": "Mięśnie: %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Мышц: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 块肌肉"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld 塊肌肉"}}}},
+    "%lld of %lld sessions before a status": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%lld of %lld sessions before a status"}}, "de": {"stringUnit": {"state": "translated", "value": "%lld / %lld Einheiten bis zu einem Status"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld / %lld sesiones antes de un estado"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld / %lld séances avant un statut"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld / %lld sedute prima di uno stato"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld / %lld sessões antes de um estado"}}, "pl": {"stringUnit": {"state": "translated", "value": "%lld / %lld treningów do statusu"}}, "ru": {"stringUnit": {"state": "translated", "value": "%lld / %lld тренировок до статуса"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已训练 %lld / %lld 次，之后显示状态"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已訓練 %lld / %lld 次，之後顯示狀態"}}}},
+    "%lld more sessions": {"localizations": {"en": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "%lld more session"}}, "other": {"stringUnit": {"state": "translated", "value": "%lld more sessions"}}}}}, "de": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Noch %lld Einheit"}}, "other": {"stringUnit": {"state": "translated", "value": "Noch %lld Einheiten"}}}}}, "es": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Falta %lld sesión"}}, "other": {"stringUnit": {"state": "translated", "value": "Faltan %lld sesiones"}}}}}, "fr": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Encore %lld séance"}}, "other": {"stringUnit": {"state": "translated", "value": "Encore %lld séances"}}}}}, "it": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Ancora %lld seduta"}}, "other": {"stringUnit": {"state": "translated", "value": "Ancora %lld sedute"}}}}}, "pt-PT": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Falta %lld sessão"}}, "other": {"stringUnit": {"state": "translated", "value": "Faltam %lld sessões"}}}}}, "pl": {"stringUnit": {"state": "translated", "value": "Pozostało treningów: %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Осталось тренировок: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "还差 %lld 次训练"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "還差 %lld 次訓練"}}}},
     "No exercise in your programs works these directly, so they are never prioritised: %@.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "No exercise in your programs works these directly, so they are never prioritised: %@."}}, "de": {"stringUnit": {"state": "translated", "value": "Keine Übung deiner Programme trainiert diese direkt, daher haben sie nie Vorrang: %@."}}, "es": {"stringUnit": {"state": "translated", "value": "Ningún ejercicio de tus programas los trabaja directamente, así que nunca se priorizan: %@."}}, "fr": {"stringUnit": {"state": "translated", "value": "Aucun exercice de tes programmes ne les travaille en direct, ils ne sont donc jamais mis en priorité : %@."}}, "it": {"stringUnit": {"state": "translated", "value": "Nessun esercizio dei tuoi programmi li allena direttamente, quindi non sono mai prioritari: %@."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Nenhum exercício dos teus programas os trabalha diretamente, por isso nunca são prioritários: %@."}}, "pl": {"stringUnit": {"state": "translated", "value": "Żadne ćwiczenie w twoich planach nie trenuje ich bezpośrednio, więc nigdy nie mają priorytetu: %@."}}, "ru": {"stringUnit": {"state": "translated", "value": "Ни одно упражнение ваших программ не нагружает их напрямую, поэтому они не попадают в приоритет: %@."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的计划中没有直接练这些肌肉的动作，因此它们不会被列为优先：%@。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你的計畫中沒有直接練這些肌肉的動作，因此它們不會被列為優先：%@。"}}}},
     "vs the night": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "vs the night"}}, "de": {"stringUnit": {"state": "translated", "value": "Abweichung zur Nacht"}}, "es": {"stringUnit": {"state": "translated", "value": "frente a la noche"}}, "fr": {"stringUnit": {"state": "translated", "value": "écart à la nuit"}}, "it": {"stringUnit": {"state": "translated", "value": "rispetto alla notte"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "face à noite"}}, "pl": {"stringUnit": {"state": "translated", "value": "względem nocy"}}, "ru": {"stringUnit": {"state": "translated", "value": "отклонение за ночь"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "相对整晚"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "相對整晚"}}}},
     "from %@ to %@ %@ vs the night": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "from %1$@ to %2$@ %3$@ vs the night"}}, "de": {"stringUnit": {"state": "translated", "value": "von %1$@ bis %2$@ %3$@ gegenüber der Nacht"}}, "es": {"stringUnit": {"state": "translated", "value": "de %1$@ a %2$@ %3$@ respecto a la noche"}}, "fr": {"stringUnit": {"state": "translated", "value": "de %1$@ à %2$@ %3$@ par rapport à la nuit"}}, "it": {"stringUnit": {"state": "translated", "value": "da %1$@ a %2$@ %3$@ rispetto alla notte"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "de %1$@ a %2$@ %3$@ face à noite"}}, "pl": {"stringUnit": {"state": "translated", "value": "od %1$@ do %2$@ %3$@ względem nocy"}}, "ru": {"stringUnit": {"state": "translated", "value": "от %1$@ до %2$@ %3$@ относительно ночи"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "相对整晚 %1$@ 至 %2$@ %3$@"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "相對整晚 %1$@ 至 %2$@ %3$@"}}}},
@@ -16005,33 +16005,93 @@
     "%lld sessions": {
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Sitzungen"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Sitzung"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Sitzungen"
+                }
+              }
+            }
           }
         },
         "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sesiones"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sesión"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sesiones"
+                }
+              }
+            }
           }
         },
         "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld séances"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld séance"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld séances"
+                }
+              }
+            }
           }
         },
         "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sessioni"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sessione"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sessioni"
+                }
+              }
+            }
           }
         },
         "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld sessões"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sessão"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sessões"
+                }
+              }
+            }
           }
         },
         "ru": {
@@ -16101,6 +16161,24 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld sesji"
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld session"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld sessions"
                 }
               }
             }

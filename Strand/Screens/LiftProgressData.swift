@@ -199,8 +199,8 @@ enum LiftProgressText {
         Date(timeIntervalSince1970: TimeInterval(ts)).formatted(.dateTime.day().month(.abbreviated))
     }
 
-    /// A count of sets with up to one decimal: "3", "3.5".
-    static func setCount(_ value: Double) -> String { LiftFormat.trim((value * 10).rounded() / 10) }
+    /// A count of sets with up to one decimal, in the user's decimal style: "3", "3,5".
+    static func setCount(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(0...1))) }
 
     /// "Quads · Full body A".
     static func subtitle(_ exercise: LiftProgress.Exercise) -> String {

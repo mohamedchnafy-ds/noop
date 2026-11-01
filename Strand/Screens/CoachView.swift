@@ -149,7 +149,8 @@ struct CoachView: View {
                 coach.surfaceScheduledBrief(stored)
             }
             CoachBriefScheduler.activateIfEnabled { await coach.generateBrief() }
-            await coach.startBriefIfNeeded()
+            // On the engine's own task, not this view's: leaving the tab mid-brief must not cancel it.
+            coach.beginBriefIfNeeded()
         }
         // #1862: a question handed over by the Today launcher sheet. Cleared BEFORE sending so a view
         // rebuild mid-flight cannot send it twice, and gated on `isConfigured` so an unconfigured handoff
@@ -159,7 +160,7 @@ struct CoachView: View {
             guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
             coach.pendingPrompt = nil
             guard coach.isConfigured else { return }
-            await coach.send(prompt)
+            coach.submit(prompt)
         }
         // K15: persist the composer draft so it survives an app relaunch.
         .onChangeCompat(of: draft) { newValue in
@@ -175,7 +176,7 @@ struct CoachView: View {
         // behaviour); the guard inside `startBriefIfNeeded` (messages.isEmpty) keeps this a no-op once
         // a conversation exists.
         .onChangeCompat(of: coach.dataConsent) { _ in
-            Task { await coach.startBriefIfNeeded() }
+            coach.beginBriefIfNeeded()
         }
     }
 
@@ -823,25 +824,20 @@ struct CoachView: View {
             // Docked icon-only send affordance: a crisp accent-filled square sized to the
             // composer row (not the full 48pt control height), so it routes through the same
             // token fill/label colours as the button system without overpowering the field.
+            // While a reply streams it becomes Stop, which keeps the text received so far.
             Button {
-                send(draft)
+                if coach.sending { coach.stopReply() } else { send(draft) }
             } label: {
-                Group {
-                    if coach.sending {
-                        ProgressView().controlSize(.small).tint(StrandPalette.goldDeepText)
-                    } else {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 15, weight: .semibold))
-                    }
-                }
-                .frame(width: 44, height: 38)
-                .foregroundStyle(StrandPalette.goldDeepText)
-                .background(StrandPalette.accent,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Image(systemName: coach.sending ? "stop.fill" : "arrow.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 44, height: 38)
+                    .foregroundStyle(StrandPalette.goldDeepText)
+                    .background(StrandPalette.accent,
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(coach.sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("Send")
+            .disabled(!coach.sending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel(coach.sending ? Text("Stop") : Text("Send"))
         }
         .padding(8)
         .background(NoopPanelSurface(cornerRadius: 16))
@@ -887,6 +883,10 @@ struct CoachView: View {
                 voiceInput.requestAuthorization { _ in }
             }
         }
+        // Leaving the screen mid-dictation releases the microphone and the record audio session,
+        // which otherwise stayed active (and kept other audio ducked) after a tab switch. What was
+        // already transcribed is in the draft.
+        .onDisappear { voiceInput.cancelTranscribing() }
     }
 
     /// Whether the mic button is tappable: not while sending, and only if voice is either
@@ -964,7 +964,7 @@ struct CoachView: View {
         guard !trimmed.isEmpty, !coach.sending else { return }
         draft = ""
         composerFocused = false
-        Task { await coach.send(trimmed) }
+        coach.submit(trimmed)
     }
 
     /// K14: Trigger a subtle haptic when the Coach reply arrives. On iOS, a light impact feedback.

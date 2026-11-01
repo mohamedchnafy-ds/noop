@@ -127,7 +127,7 @@ final class CoachVoiceInput: ObservableObject {
     /// Stop the active session and return the finalized transcript via `completion` (main actor).
     func stopTranscribing(completion: @escaping (String) -> Void) {
         #if canImport(UIKit)
-        guard isRecording else {
+        guard isRecording || audioEngine != nil || recognitionTask != nil else {
             completion(partialTranscript)
             return
         }
@@ -137,12 +137,44 @@ final class CoachVoiceInput: ObservableObject {
         #endif
     }
 
+    /// Stop any session without delivering a transcript: the screen went away, the app left the
+    /// foreground, or another app took the audio session. Releases the microphone and deactivates
+    /// the record session. No-op when nothing is recording, and on macOS.
+    func cancelTranscribing() {
+        #if canImport(UIKit)
+        stopTranscribing(completion: { _ in })
+        #endif
+    }
+
     // MARK: - Private (iOS only)
 
     #if canImport(UIKit)
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+
+    /// Identifies the current session. The recognizer reports on its own queue and can still deliver a
+    /// result or an error after its session ended; a late callback from an OLD session used to finish
+    /// the NEW one, or write its text into the draft. Callbacks carrying a stale id are dropped.
+    private var sessionID = 0
+
+    /// Observers that end a session when the app leaves the foreground or the audio session is
+    /// interrupted (a call, Siri, another app recording). Registered once, for the object's lifetime.
+    private var lifecycleObservers: [NSObjectProtocol] = []
+
+    private func observeLifecycleIfNeeded() {
+        guard lifecycleObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        let end: @Sendable (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor in self?.cancelTranscribing() }
+        }
+        lifecycleObservers = [
+            center.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                               object: nil, queue: .main, using: end),
+            center.addObserver(forName: AVAudioSession.interruptionNotification,
+                               object: AVAudioSession.sharedInstance(), queue: .main, using: end),
+        ]
+    }
 
     private func mapSpeech(_ status: SFSpeechRecognizerAuthorizationStatus) -> AuthorizationState {
         switch status {
@@ -162,7 +194,37 @@ final class CoachVoiceInput: ObservableObject {
     }
 
     private func beginSession(partial: @escaping (String) -> Void) {
+        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
+            statusMessage = String(localized: "On-device speech not available for \(Locale.current.identifier).")
+            return
+        }
+        observeLifecycleIfNeeded()
+        sessionID += 1
+        let session = sessionID
+
+        // The audio session goes active BEFORE the engine reads its input format: the input node
+        // reports the format of the route that is active when it is first asked.
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            statusMessage = String(localized: "Couldn't start the microphone: \(error.localizedDescription)")
+            finishSession(completion: { _ in })
+            return
+        }
+
         let audioEngine = AVAudioEngine()
+        let inputNode = audioEngine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        // `installTap` raises an Objective-C exception, which Swift cannot catch and which ends the
+        // app, when the format has no sample rate or no channel. That is what the input reports while
+        // another app holds the microphone or the route is changing, so check it first.
+        guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
+            statusMessage = String(localized: "Couldn't start the microphone. Try again in a moment.")
+            finishSession(completion: { _ in })
+            return
+        }
         self.audioEngine = audioEngine
 
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -172,14 +234,13 @@ final class CoachVoiceInput: ObservableObject {
         request.shouldReportPartialResults = true
         self.recognitionRequest = request
 
-        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
-            statusMessage = String(localized: "On-device speech not available for \(Locale.current.identifier).")
-            return
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            request.append(buffer)
         }
 
-        let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.sessionID == session else { return }
                 if let result {
                     let text = result.bestTranscription.formattedString
                     self.partialTranscript = text
@@ -190,19 +251,8 @@ final class CoachVoiceInput: ObservableObject {
                 }
             }
         }
-        self.recognitionTask = task
 
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-
-            let inputNode = audioEngine.inputNode
-            let recordingFormat = inputNode.outputFormat(forBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-                request.append(buffer)
-            }
-
             audioEngine.prepare()
             try audioEngine.start()
             isRecording = true
@@ -213,6 +263,8 @@ final class CoachVoiceInput: ObservableObject {
     }
 
     private func finishSession(completion: @escaping (String) -> Void) {
+        // Retire the session id first, so a callback already queued for it is ignored.
+        sessionID += 1
         if let audioEngine {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)

@@ -765,6 +765,59 @@ final class AICoachEngine: ObservableObject {
     /// is Gemini. Consumed (cleared) on the next send. nil when no image is attached.
     @Published var pendingChartImage: String?
 
+    // MARK: - The turn in flight
+
+    /// The question or brief being answered right now, owned by the engine rather than by a view.
+    ///
+    /// A view's `.task` is cancelled when the view disappears, and the first-open brief used to run in
+    /// one: switching tab mid-brief cancelled its request and left a network error on screen. Started
+    /// here, a turn outlives the screen that asked for it, and only `stopReply()` cancels it. One turn
+    /// at a time: two streams writing the same transcript is how a reply lands in the wrong bubble.
+    private var activeTurn: Task<Void, Never>?
+
+    /// A question handed over (Siri, the Today launcher, a Lift Log session) while a turn was in
+    /// flight. It is asked as soon as that turn ends, instead of being dropped or racing it. One slot:
+    /// the composer itself cannot send while a reply streams.
+    private var queuedQuestion: String?
+
+    /// Ask `text` on the engine's own task (see `activeTurn`); queued while another turn is in flight.
+    func submit(_ text: String) {
+        guard activeTurn == nil else {
+            queuedQuestion = text
+            return
+        }
+        activeTurn = Task {
+            await send(text)
+            endTurn()
+        }
+    }
+
+    /// Run the first-open brief on the engine's own task, when `startBriefIfNeeded` would run one.
+    /// Ignored while another turn is in flight.
+    func beginBriefIfNeeded() {
+        guard activeTurn == nil else { return }
+        activeTurn = Task {
+            await startBriefIfNeeded()
+            endTurn()
+        }
+    }
+
+    /// The composer's Stop button: cancel the turn in flight. The text already received stays in the
+    /// transcript as it stands, and no error is shown, since the wearer asked for it. A queued
+    /// question is dropped too: Stop means stop.
+    func stopReply() {
+        queuedQuestion = nil
+        activeTurn?.cancel()
+    }
+
+    private func endTurn() {
+        activeTurn = nil
+        if let next = queuedQuestion {
+            queuedQuestion = nil
+            submit(next)
+        }
+    }
+
     /// Send a question: append it, build the metrics context, call the chosen provider with the
     /// system prompt + context + running history, parse the reply, append it. Never throws/crashes;
     /// failures land in `errorText`.
@@ -814,61 +867,8 @@ final class AICoachEngine: ObservableObject {
         let imageBase64 = pendingChartImage
         pendingChartImage = nil
 
-        // K1: Stream the reply. Append a placeholder assistant message, then mutate its text as
-        // chunks arrive by replacing the last element in `messages`. The transcript re-renders on
-        // each update (SwiftUI binds to `messages`). On error mid-stream, keep the partial text and
-        // append a "(stream interrupted)" marker — never a crash.
-        let placeholder = ChatMessage(role: .assistant, text: "")
-        appendMessage(placeholder)
-        var accumulated = ""
-
-        do {
-            try await streamProvider(key: key, messages: wire, inlineImage: imageBase64) { delta in
-                accumulated += delta
-                // Replace the last message's text with the accumulated stream so far.
-                if let lastIdx = self.messages.indices.last,
-                   self.messages[lastIdx].role == .assistant {
-                    self.messages[lastIdx] = ChatMessage(
-                        id: placeholder.id, role: .assistant, text: accumulated
-                    )
-                }
-            }
-            // Finalize: trim whitespace. If the stream produced nothing, show "(no reply)".
-            let clean = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages[lastIdx] = ChatMessage(
-                    id: placeholder.id, role: .assistant,
-                    text: clean.isEmpty ? "(no reply)" : clean
-                )
-            }
-        } catch let e as AICoachError {
-            // Mid-stream error: keep the partial text + an interrupted marker (PRD K1 acceptance).
-            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !partial.isEmpty, let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages[lastIdx] = ChatMessage(
-                    id: placeholder.id, role: .assistant,
-                    text: partial + "\n\n*(stream interrupted)*"
-                )
-            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                // No text received at all — remove the empty placeholder.
-                messages.remove(at: lastIdx)
-            }
-            errorText = e.errorDescription
-            // Typed, never text-matched: the message is localized and the case is not.
-            if case .badKey = e { keyRejected = true } else { keyRejected = false }
-        } catch {
-            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !partial.isEmpty, let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages[lastIdx] = ChatMessage(
-                    id: placeholder.id, role: .assistant,
-                    text: partial + "\n\n*(stream interrupted)*"
-                )
-            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages.remove(at: lastIdx)
-            }
-            errorText = AICoachError.network(error.localizedDescription).errorDescription
-            keyRejected = false
-        }
+        // K1: Stream the reply into a placeholder bubble; an empty stream reads "(no reply)".
+        await streamAssistantTurn(key: key, wire: wire, inlineImage: imageBase64, emptyText: "(no reply)")
     }
 
     /// Proactively generate "Today's brief" the first time the Coach opens, readiness + a training
@@ -885,58 +885,69 @@ final class AICoachEngine: ObservableObject {
         let wire: [(role: ChatMessage.Role, content: String)] =
             [(.user, context + "\n\n---\n\n" + Self.briefInstruction)]
 
-        let prefix = "Today's brief\n\n"
+        // An empty brief removes its placeholder rather than leaving a bare heading.
+        await streamAssistantTurn(key: key, wire: wire, prefix: "Today's brief\n\n", emptyText: nil)
+    }
+
+    /// Stream one assistant turn into the transcript (K1), shared by `send` and `startBriefIfNeeded`.
+    ///
+    /// Appends a placeholder reading `prefix` and rewrites it as the reply arrives. All of it runs on
+    /// the main actor: `streamProvider` relays the provider's chunks here (see `CoachStreamRelay`).
+    /// The placeholder is found by its id, never as "the last message", so a bubble appended mid-stream
+    /// (a brief generated from settings) is never overwritten. How the turn settles:
+    /// - success: the trimmed reply; an empty one shows `emptyText`, or drops the placeholder when nil;
+    /// - failure: the partial reply plus an interrupted marker (PRD K1), and the error surfaced;
+    /// - Stop (`stopReply`): the partial reply as it stands, and no error.
+    private func streamAssistantTurn(key: String,
+                                     wire: [(role: ChatMessage.Role, content: String)],
+                                     inlineImage: String? = nil,
+                                     prefix: String = "",
+                                     emptyText: String?) async {
+        guard !Task.isCancelled else { return }
         let placeholder = ChatMessage(role: .assistant, text: prefix)
         appendMessage(placeholder)
-        var accumulated = ""
+        var received = ""
+
+        func show(_ text: String) {
+            guard let index = messages.lastIndex(where: { $0.id == placeholder.id }) else { return }
+            messages[index] = ChatMessage(id: placeholder.id, role: .assistant, text: text)
+        }
+        func dropPlaceholder() {
+            messages.removeAll { $0.id == placeholder.id }
+        }
 
         do {
-            try await streamProvider(key: key, messages: wire) { delta in
-                accumulated += delta
-                if let lastIdx = self.messages.indices.last,
-                   self.messages[lastIdx].role == .assistant {
-                    self.messages[lastIdx] = ChatMessage(
-                        id: placeholder.id, role: .assistant, text: prefix + accumulated
-                    )
-                }
+            let reply = try await streamProvider(key: key, messages: wire, inlineImage: inlineImage) { text in
+                received = text
+                show(prefix + text)
             }
-            let clean = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
-            if clean.isEmpty {
-                if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                    messages.remove(at: lastIdx)
-                }
-            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages[lastIdx] = ChatMessage(id: placeholder.id, role: .assistant, text: prefix + clean)
+            let clean = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !clean.isEmpty {
+                show(prefix + clean)
+            } else if let emptyText {
+                show(prefix + emptyText)
+            } else {
+                dropPlaceholder()
             }
-        } catch let e as AICoachError {
-            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
-            if partial.isEmpty {
-                if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                    messages.remove(at: lastIdx)
-                }
-            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages[lastIdx] = ChatMessage(
-                    id: placeholder.id, role: .assistant,
-                    text: prefix + partial + "\n\n*(stream interrupted)*"
-                )
-            }
-            errorText = e.errorDescription
-            // Typed, never text-matched: the message is localized and the case is not.
-            if case .badKey = e { keyRejected = true } else { keyRejected = false }
         } catch {
-            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
-            if partial.isEmpty {
-                if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                    messages.remove(at: lastIdx)
-                }
-            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
-                messages[lastIdx] = ChatMessage(
-                    id: placeholder.id, role: .assistant,
-                    text: prefix + partial + "\n\n*(stream interrupted)*"
-                )
+            let partial = received.trimmingCharacters(in: .whitespacesAndNewlines)
+            if Task.isCancelled || error is CancellationError {
+                if partial.isEmpty { dropPlaceholder() } else { show(prefix + partial) }
+                return
             }
-            errorText = AICoachError.network(error.localizedDescription).errorDescription
-            keyRejected = false
+            if partial.isEmpty {
+                dropPlaceholder()
+            } else {
+                show(prefix + partial + "\n\n*(stream interrupted)*")
+            }
+            if let e = error as? AICoachError {
+                errorText = e.errorDescription
+                // Typed, never text-matched: the message is localized and the case is not.
+                if case .badKey = e { keyRejected = true } else { keyRejected = false }
+            } else {
+                errorText = AICoachError.network(error.localizedDescription).errorDescription
+                keyRejected = false
+            }
         }
     }
 
@@ -1116,23 +1127,42 @@ final class AICoachEngine: ObservableObject {
         )
     }
 
-    /// K1: Dispatch to the user's chosen provider client's streaming method. The default
+    /// K1: Stream the chosen provider's reply and return its full text. The default
     /// `AIProviderClient.stream` falls back to `send` + a single delta, so providers without
-    /// streaming still work. K11: when an inline image is present, dispatches to
-    /// `streamWithImage` instead (Gemini overrides it; others ignore the image).
+    /// streaming still work. K11: dispatches through `streamWithImage` (Gemini sends the image;
+    /// the others ignore it).
+    ///
+    /// The provider runs off the main actor and its chunks come back through `CoachStreamRelay`, so
+    /// `onText` (the text received so far) is always called on the main actor, at most every
+    /// `CoachStreamThrottle.interval`, and once more with the complete text before this returns or
+    /// throws. Throws `CancellationError` when the calling task is cancelled.
     private func streamProvider(key: String,
                                 messages: [(role: ChatMessage.Role, content: String)],
                                 inlineImage: String? = nil,
-                                onDelta: (String) -> Void) async throws {
-        try await provider.client.streamWithImage(
-            key: key,
-            model: model,
-            systemPrompt: systemPrompt,
-            messages: messages,
-            inlineImage: inlineImage,
-            session: session,
-            onDelta: onDelta
-        )
+                                onText: (String) -> Void) async throws -> String {
+        let client = provider.client
+        let model = self.model
+        let systemPrompt = self.systemPrompt
+        let session = self.session
+        let chunks = CoachStreamRelay.deltas { onDelta in
+            try await client.streamWithImage(key: key, model: model, systemPrompt: systemPrompt,
+                                             messages: messages, inlineImage: inlineImage,
+                                             session: session, onDelta: onDelta)
+        }
+
+        var text = ""
+        var published = ""
+        var throttle = CoachStreamThrottle()
+        defer { if text != published { onText(text) } }
+        for try await chunk in chunks {
+            text += chunk
+            if throttle.shouldPublish(at: Date()) {
+                onText(text)
+                published = text
+            }
+        }
+        try Task.checkCancellation()
+        return text
     }
 
     /// Sliding window over the chat: the FIRST user turn (it carries the metrics context) plus the most

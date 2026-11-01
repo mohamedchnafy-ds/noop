@@ -107,10 +107,13 @@ struct TodayHalfGauge: View {
     var value: String?
     var unit: String
 
-    static let width: CGFloat = 88
-    static let height: CGFloat = 50
-    private static let radius: CGFloat = 34
+    static let width: CGFloat = 96
+    static let height: CGFloat = 54
+    private static let radius: CGFloat = 38
     private static let trackWidth: CGFloat = 7
+    /// Width of the text inside the arc. Narrow enough that a four-digit calorie total stays clear of the
+    /// arc at the height the number sits (the arc closes in towards the top).
+    private static let textWidth: CGFloat = 46
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -175,8 +178,7 @@ struct TodayHalfGauge: View {
                         .minimumScaleFactor(0.7)
                 }
             }
-            .frame(width: Self.radius * 2 - Self.trackWidth * 2)
-            .padding(.bottom, 2)
+            .frame(width: Self.textWidth)
         }
         .frame(width: Self.width, height: Self.height)
     }

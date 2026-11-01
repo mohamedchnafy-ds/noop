@@ -511,11 +511,12 @@ struct LiftSupersetScreen: View {
     private func memberTitle(_ member: LiftSupersetGuide.Member, nameSize: CGFloat,
                              detailed: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
+            // Wraps rather than cuts: a long name ("Leg curl allongé") beside two chips needs its second line.
             Text(member.exercise)
                 .font(StrandFont.rounded(nameSize, weight: .bold))
                 .foregroundStyle(StrandPalette.textPrimary)
                 .lineLimit(2)
-                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
             if detailed {
                 memberDetails(member)
             }
@@ -528,7 +529,8 @@ struct LiftSupersetScreen: View {
         Text(LiftMuscleSummary.line(primary: member.primaryMuscle, secondaries: member.secondaryMuscles))
             .font(StrandFont.rounded(12, weight: .regular))
             .foregroundStyle(StrandPalette.textSecondary)
-            .lineLimit(1)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
         if let up = suggestion(member.exercise) {
             Text(up)
                 .font(StrandFont.rounded(12, weight: .semibold))

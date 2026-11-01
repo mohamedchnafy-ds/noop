@@ -532,6 +532,94 @@
       "identity_sha256": "326f50daa589319e8a4c0eca21cf3131046ac7d7c14c974066f394abe956cadf",
       "platform": "swift",
       "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::decode/1#1",
+      "identity_sha256": "d07b5002d7e13aeab41c35124104b5d5b2bb1436dd9b565bcda15a67f04a2a0c",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::decode/1#2",
+      "identity_sha256": "76ccf4ad556f619416969d0d16e631cfc90a01a6207425a5dbc24c5065940904",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::saveMeal/2#1",
+      "identity_sha256": "f841e8383e6db17a05312fe14f823a4657fa57036e660ace4d7aad8988e55891",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::mealEntries/2#1",
+      "identity_sha256": "6d358c323ac6887bace943a36fbcff4998f70fd76fb9fd12aa0c7e44f9d1c96e",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::mealEntry/1#1",
+      "identity_sha256": "216ba19f4c42de9fcb0df44d6fe376d0fe1af16a9229747b910db86440344876",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::recentMeals/1#1",
+      "identity_sha256": "dd11f56dc02f4c438c4db060ee29eb9106116a328c76e0ed81174230301d7f2b",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::setMealFavorite/3#1",
+      "identity_sha256": "584047d2701fec4b15007e0b78c0431b69b8afde199ad24b337037c745d4b038",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::deleteMeal/1#1",
+      "identity_sha256": "c6bc228c6a291182388d23aee831e8fe3c218cee1237825cbf404cef7e31f8c9",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::attachItems/2#1",
+      "identity_sha256": "df9aaa367dd17fd6458a2d93ec66964ef6371830436eac3c53747328224c580f",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS meal journal store (GRDB migration v51-meal-log; the meal and mealItem tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_42_43). The Nutrition screens are iPhone only in this fork, so Android carries the schema and MealMath but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/MealEntities.kt",
+      "identity_sha256": "379fd59681003faba99841d0de11ad97e1dae12ceb9b0b96b90e9e6246d139f6",
+      "platform": "kotlin",
+      "rationale": "Personal fork: the Room entities of the meal journal (meal, mealItem), the schema twin of the GRDB tables written by Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift (v51-meal-log / MIGRATION_42_43). The file holds data classes only, with no function to pair; both schemas are pinned column by column in schema_oracle.json (SchemaOracleTests / SchemaOracleTest)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#41",
+      "identity_sha256": "adaa74b3e05b17f100a3b6f0e11995f084ed0bdea2f6246e68ba823d84a3d1b1",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_42_43, the personal-fork meal journal tables (meal, mealItem). GRDB registers each migration as a closure (`v51-meal-log`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
     }
   ]
 }

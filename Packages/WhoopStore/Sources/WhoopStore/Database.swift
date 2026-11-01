@@ -1211,6 +1211,64 @@ extension WhoopStore {
             guard !legacy.isEmpty else { return }
             try WhoopStore.writeCoachConversation(.carryingOver(legacy), messages: legacy, in: db)
         }
+        // v51-meal-log (personal fork, Nutrition): the meal journal. Twin of the Android
+        // `MIGRATION_42_43` (`WhoopDatabase.MEAL_LOG_SQL`), same column order, keys and indexes, so a
+        // `.noopbak` round-trips; both shapes are pinned in schema_oracle.json as `both`.
+        //
+        // Two tables, joined by id like the Lift Log (no foreign keys in this schema):
+        //   • `meal` is one entry of the journal: when it was eaten, its name, how it was entered.
+        //     It carries NO nutrient column. A meal's energy and macros are the sum of its lines,
+        //     computed on read (`MealMath.totals`), so the card, the journal and the day total cannot
+        //     disagree with the lines they are made of. A meal typed by hand is a meal of one line.
+        //   • `mealItem` is one line ("basmati rice 180 g"): the values for the quantity eaten, rounded
+        //     once at write (`MealMath`: whole kcal, macros to 0.1 g), and, when the food came from a
+        //     table or a label, its values per 100 g so a changed quantity is recomputed rather than
+        //     scaled from already-rounded numbers.
+        //
+        // No `deviceId`: a meal belongs to the person, not to a strap, so it survives a strap change
+        // and needs no re-keying. `day` is the local day the meal was eaten ("yyyy-MM-dd", the
+        // labMarker idiom), written by the app, so a time-zone change never moves a meal to another
+        // day. Booleans are `.integer` 0/1 (see `grdb-boolean-affinity`). Every create is `ifNotExists`
+        // so the migration is a no-op on a database that already has the tables (the v49 reasoning).
+        migrator.registerMigration("v51-meal-log") { db in
+            try db.create(table: "meal", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("day", .text).notNull()              // "yyyy-MM-dd", local day eaten
+                t.column("eatenAt", .integer).notNull()       // unix seconds
+                t.column("name", .text).notNull()
+                t.column("origin", .text).notNull()           // MealOrigin raw value
+                t.column("favorite", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .integer).notNull()     // unix seconds
+                t.column("updatedAt", .integer).notNull()     // unix seconds
+            }
+            // The journal reads one day (or a run of days) in the order the meals were eaten.
+            try db.create(index: "idx_meal_day_eatenAt", on: "meal",
+                          columns: ["day", "eatenAt"], options: [.ifNotExists])
+
+            try db.create(table: "mealItem", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("mealId", .text).notNull()
+                t.column("ord", .integer).notNull()           // position within the meal
+                t.column("name", .text).notNull()
+                t.column("grams", .double)                    // nil: no quantity (a line typed by hand)
+                t.column("gramsEstimated", .integer).notNull().defaults(to: 0)  // 0/1: "≈", read off a photo
+                t.column("kcal", .integer).notNull()
+                t.column("proteinG", .double).notNull()
+                t.column("carbsG", .double).notNull()
+                t.column("fatG", .double).notNull()
+                // Where the values came from: "ciqual:<code>" or "ean:<barcode>"; nil for a typed line.
+                t.column("foodRef", .text)
+                t.column("kcalPer100g", .double)
+                t.column("proteinPer100g", .double)
+                t.column("carbsPer100g", .double)
+                t.column("fatPer100g", .double)
+            }
+            try db.create(index: "idx_mealItem_meal_ord", on: "mealItem",
+                          columns: ["mealId", "ord"], options: [.ifNotExists])
+            // A barcode scanned once is found again offline, from the last line that carried it.
+            try db.create(index: "idx_mealItem_foodRef", on: "mealItem",
+                          columns: ["foodRef"], options: [.ifNotExists])
+        }
         return migrator
     }
 }

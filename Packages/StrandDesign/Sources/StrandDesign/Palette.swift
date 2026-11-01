@@ -589,7 +589,8 @@ public enum SleepStage: String, CaseIterable, Sendable {
         case .awake: return String(localized: "Awake", bundle: .module)
         case .light: return String(localized: "Light", bundle: .module)
         case .deep:  return String(localized: "Deep", bundle: .module)
-        case .rem:   return "REM"
+        // Personal fork: localized like the other stages ("Paradoxal" in French) instead of a fixed "REM".
+        case .rem:   return String(localized: "REM", bundle: .module)
         }
     }
 

@@ -5,176 +5,201 @@ import WhoopStore
 
 // MARK: - Night detail (#today-hosted-cards)
 //
-// The Sleep tab's "Night detail" metric grid, extracted into a standalone view so it can ALSO be hosted
-// in the Today tab. Both the Sleep tab and the Today host render THIS view from the SAME `SleepModel`, so
-// the per-metric latest value / sparkline / typical caption can never diverge between the two surfaces
-// (the parity contract). The card body + its `pctValue` / `rrValue` / `vsTypical` / `debtCaption` /
-// `debtColor` / `spark` helpers are a verbatim lift of the former `SleepView.metricGrid` (and the helpers
-// only it used); the seven series are computed once in `SleepModel.build` and read here.
+// The Sleep tab's "Night detail" indicators, a standalone view so the Today tab can host it too. Both
+// surfaces render THIS view from the SAME `SleepModel`, so a value can never differ between them (the
+// parity contract).
+//
+// Personal fork: four coloured tiles, each in the colour of what it measures (sleep blue for efficiency,
+// the REM colour for restorative sleep, cyan for breathing, the heart colour for the lowest heart rate),
+// with a plain description under the value instead of a "vs typical" that compares a first night with
+// itself. The usual value joins the description once there are enough nights. The score and the hours
+// against the need are not repeated here: the dial at the top of the tab already shows them, and the
+// sleep debt has its own card.
 
-/// The "Night detail" card. A grid of UNIFORM fixed-height StatTiles (Rest, Efficiency, Consistency,
-/// Hours vs Needed, Restorative, Respiratory, Sleep Debt), each with its sparkline + typical caption,
-/// rendered from the shared [SleepModel].
+/// The night's lowest sleeping heart rate and when it happened. Only the Sleep tab has it (it loads the
+/// night's heart rate); the Today host passes nil and gets the regularity tile in its place.
+struct SleepLowestHR: Equatable {
+    let bpm: Double
+    let at: Date
+}
+
 struct NightDetailCard: View {
     let model: SleepModel
-
-    private let tileColumns = [GridItem(.adaptive(minimum: 168), spacing: NoopMetrics.gap)]
+    var lowestHR: SleepLowestHR? = nil
 
     var body: some View {
-        // Per-tile latest value + history series (for the sparkline) + typical mean.
-        // All seven series are computed ONCE in the model build (each is a full pass over
-        // repo.days/repo.sleeps) — here we only read the memoized results.
-        let perf  = model.performance
-        let eff   = model.efficiency
-        let cons  = model.consistency
-        let need  = model.hoursVsNeeded
-        let rest  = model.restorative
-        let resp  = model.respiratory
-        let debt  = model.sleepDebt
+        SleepIndicatorsCard(tiles: tiles, regularity: regularity)
+    }
 
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Night detail", overline: "Metrics")
+    // MARK: Tiles
 
-            #if os(iOS)
-            // On iOS, Sleep Debt is the actionable summary for the section, so it leads at the
-            // full two-column width. The remaining six peer metrics keep the established 2 × 3 grid.
-            StatTile(
-                label: "Sleep Debt",
-                value: debt.latest.map { durationText($0) } ?? "—",
-                caption: nightDetailDebtCaption(debt.latest),
-                accent: nightDetailDebtColor(debt.latest),
-                sparkline: spark(debt.series),
-                sparkColor: StrandPalette.metricRose)
-                .frame(maxWidth: .infinity)
-            #endif
+    private var tiles: [SleepIndicatorTile] {
+        let s = model.night.stages
+        var out: [SleepIndicatorTile] = [
+            SleepIndicatorTile(
+                id: "efficiency", symbol: "bed.double.fill", tint: StrandPalette.restBright,
+                label: String(localized: "Efficiency"),
+                value: model.efficiency.latest.map { "\(Int($0.rounded()))" } ?? "—",
+                unit: model.efficiency.latest == nil ? "" : "%",
+                caption: caption(model.efficiency,
+                                 String(localized: "\(SleepDurationText.format(model.night.timeInBed)) in bed")),
+                usual: usual(model.efficiency) { "\(Int($0.rounded()))%" }),
+            SleepIndicatorTile(
+                id: "restorative", symbol: "sparkles", tint: StrandPalette.sleepREM,
+                label: String(localized: "Restorative"),
+                value: model.restorative.latest.map { "\(Int($0.rounded()))" } ?? "—",
+                unit: model.restorative.latest == nil ? "" : "%",
+                caption: caption(model.restorative,
+                                 String(localized: "\(SleepDurationText.format(s.deep + s.rem)) deep + REM")),
+                usual: usual(model.restorative) { "\(Int($0.rounded()))%" }),
+            SleepIndicatorTile(
+                id: "respiratory", symbol: "lungs.fill", tint: StrandPalette.metricCyan,
+                label: String(localized: "Respiratory"),
+                value: model.respiratory.latest.map(Self.oneDecimal) ?? "—",
+                unit: model.respiratory.latest == nil ? "" : String(localized: "/min"),
+                caption: caption(model.respiratory, String(localized: "breaths while asleep")),
+                usual: usual(model.respiratory) { Self.oneDecimal($0) }),
+        ]
+        if let lowestHR {
+            out.append(SleepIndicatorTile(
+                id: "lowestHR", symbol: "heart.fill", tint: StrandPalette.liquidHeart,
+                label: String(localized: "Lowest HR"),
+                value: "\(Int(lowestHR.bpm.rounded()))", unit: String(localized: "bpm"),
+                caption: String(localized: "at \(AppClock.hourMinuteFormatter().string(from: lowestHR.at))"),
+                usual: nil))
+        } else {
+            out.append(regularityTile)
+        }
+        return out
+    }
 
-            LazyVGrid(columns: tileColumns, alignment: .leading, spacing: NoopMetrics.gap) {
+    private var regularityTile: SleepIndicatorTile {
+        SleepIndicatorTile(
+            id: "consistency", symbol: "clock.fill", tint: StrandPalette.restColor,
+            label: String(localized: "Consistency"),
+            value: model.consistency.latest.map { "\(Int($0.rounded()))" } ?? "—",
+            unit: model.consistency.latest == nil ? "" : "%",
+            caption: model.consistency.latest == nil
+                ? String(localized: "from 3 nights")
+                : caption(model.consistency, String(localized: "bedtime regularity")),
+            usual: nil)
+    }
 
-                StatTile(
-                    label: "Rest",
-                    value: pctValue(perf.latest),
-                    caption: tileCaption(latestDay: perf.latestDay, latest: perf.latest,
-                                         typical: perf.typical, suffix: "%"),
-                    accent: perf.latest.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textPrimary,
-                    sparkline: spark(perf.series),
-                    sparkColor: StrandPalette.restColor)
+    /// With the lowest heart rate in the grid, regularity gets the row under it: the tile once it has a
+    /// value, the progress toward it before.
+    private var regularity: SleepIndicatorsCard.Regularity? {
+        guard lowestHR != nil else { return nil }
+        if model.consistency.latest != nil { return .tile(regularityTile) }
+        return .progress(done: min(model.sleepDebtLedger.nightCount, 3), needed: 3)
+    }
 
-                StatTile(
-                    label: "Efficiency",
-                    value: pctValue(eff.latest),
-                    caption: tileCaption(latestDay: eff.latestDay, latest: eff.latest,
-                                         typical: eff.typical, suffix: "%"),
-                    accent: StrandPalette.statusPositive,
-                    sparkline: spark(eff.series),
-                    sparkColor: StrandPalette.statusPositive)
+    // MARK: Formatting
 
-                StatTile(
-                    label: "Consistency",
-                    value: pctValue(cons.latest),
-                    caption: tileCaption(latestDay: cons.latestDay, latest: cons.latest,
-                                         typical: cons.typical, suffix: "%"),
-                    accent: cons.latest.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textPrimary,
-                    sparkline: spark(cons.series),
-                    sparkColor: StrandPalette.metricCyan)
+    /// A carried (stale) value says so; otherwise the plain description.
+    private func caption(_ metric: SleepModel.Metric, _ description: String) -> String {
+        SleepModel.carriedMetricCaption(latestDay: metric.latestDay, latest: metric.latest) ?? description
+    }
 
-                StatTile(
-                    label: "Hours vs Needed",
-                    value: pctValue(need.latest),
-                    caption: tileCaption(latestDay: need.latestDay, latest: need.latest,
-                                         typical: need.typical, suffix: "%"),
-                    accent: need.latest.map { StrandPalette.recoveryColor(min(100, $0)) } ?? StrandPalette.textPrimary,
-                    sparkline: spark(need.series),
-                    sparkColor: StrandPalette.restColor)
+    /// The usual value, only from the fifth night on — before that "usual" is the night itself.
+    private func usual(_ metric: SleepModel.Metric, _ format: (Double) -> String) -> String? {
+        guard metric.series.count >= 5, let typical = metric.typical else { return nil }
+        return String(localized: "usual \(format(typical))")
+    }
 
-                StatTile(
-                    label: "Restorative",
-                    value: pctValue(rest.latest),
-                    caption: tileCaption(latestDay: rest.latestDay, latest: rest.latest,
-                                         typical: rest.typical, suffix: "%"),
-                    accent: StrandPalette.sleepREM,
-                    sparkline: spark(rest.series),
-                    sparkColor: StrandPalette.sleepREM)
+    static func oneDecimal(_ v: Double) -> String {
+        v.formatted(.number.precision(.fractionLength(1)).locale(AppLanguage.activeLocale))
+    }
+}
 
-                StatTile(
-                    label: "Respiratory",
-                    value: rrValue(resp.latest),
-                    caption: tileCaption(latestDay: resp.latestDay, latest: resp.latest,
-                                         typical: resp.typical, suffix: " rpm", decimals: 1),
-                    accent: StrandPalette.metricPurple,
-                    sparkline: spark(resp.series),
-                    sparkColor: StrandPalette.metricPurple)
+struct SleepIndicatorTile: Identifiable {
+    let id: String
+    let symbol: String
+    let tint: Color
+    let label: String
+    let value: String
+    let unit: String
+    let caption: String
+    let usual: String?
+}
 
-                #if !os(iOS)
-                // macOS keeps the original adaptive dashboard instead of stretching one
-                // phone-width summary tile across an unbounded desktop detail pane.
-                StatTile(
-                    label: "Sleep Debt",
-                    value: debt.latest.map { durationText($0) } ?? "—",
-                    caption: nightDetailDebtCaption(debt.latest),
-                    accent: nightDetailDebtColor(debt.latest),
-                    sparkline: spark(debt.series),
-                    sparkColor: StrandPalette.metricRose)
-                #endif
+/// The indicators card itself, pure, so the render test draws it without a model.
+struct SleepIndicatorsCard: View {
+    enum Regularity {
+        case tile(SleepIndicatorTile)
+        case progress(done: Int, needed: Int)
+    }
+
+    let tiles: [SleepIndicatorTile]
+    var regularity: Regularity? = nil
+
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
+    var body: some View {
+        NoopCard(tint: StrandPalette.restColor) {
+            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                Text("Indicators").strandOverline()
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                    ForEach(tiles) { SleepIndicatorTileView(tile: $0) }
+                }
+                switch regularity {
+                case .tile(let tile):
+                    SleepIndicatorTileView(tile: tile)
+                case .progress(let done, let needed):
+                    ProgressNote(text: String(localized: "Bedtime regularity from \(needed) nights"),
+                                 done: done, total: needed)
+                case nil:
+                    EmptyView()
+                }
             }
         }
     }
+}
 
-    // MARK: - Tile formatting (verbatim lift of the metricGrid-only SleepView helpers)
+struct SleepIndicatorTileView: View {
+    let tile: SleepIndicatorTile
 
-    private func pctValue(_ v: Double?) -> String {
-        v.map { "\(Int($0.rounded()))%" } ?? "—"
-    }
-
-    private func rrValue(_ v: Double?) -> String {
-        v.map { String(format: "%.1f", $0) } ?? "—"
-    }
-
-    /// #1946: a carried prior-day value is stamped "Carried · <date>" instead of "vs typical", so it
-    /// is never passed off as tonight's read. Falls through to `vsTypical` when the value is today's
-    /// own (or there is no value).
-    private func tileCaption(latestDay: String?, latest: Double?, typical: Double?,
-                             suffix: String, decimals: Int = 0) -> String {
-        if let carried = SleepModel.carriedMetricCaption(latestDay: latestDay, latest: latest) {
-            return carried
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: NoopMetrics.space2) {
+                Image(systemName: tile.symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tile.tint)
+                    .frame(width: 26, height: 26)
+                    .background(tile.tint.opacity(0.16), in: Circle())
+                    .accessibilityHidden(true)
+                Text(tile.label)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(tile.value)
+                    .font(StrandFont.number(24))
+                    .foregroundStyle(tile.value == "—" ? StrandPalette.textSecondary : tile.tint)
+                if !tile.unit.isEmpty {
+                    Text(tile.unit)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+            }
+            .monospacedDigit()
+            Text(tile.caption)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let usual = tile.usual {
+                Text(usual)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
         }
-        return vsTypical(latest, typical, suffix: suffix, decimals: decimals)
-    }
-
-    /// "+12% vs typical" / "−0.4 rpm vs typical" — the latest-vs-mean caption every tile carries.
-    private func vsTypical(_ latest: Double?, _ typical: Double?, suffix: String, decimals: Int = 0) -> String {
-        guard let latest, let typical, typical != 0 else { return String(localized: "vs typical - ") }
-        let diff = latest - typical
-        let sign = diff >= 0 ? "+" : "−"
-        let mag = abs(diff)
-        let num = decimals == 0 ? "\(Int(mag.rounded()))" : String(format: "%.\(decimals)f", mag)
-        return String(localized: "\(sign)\(num)\(suffix) vs typical")
-    }
-
-    /// A sparkline needs at least two points; otherwise return nil so the tile stays clean.
-    private func spark(_ series: [Double]) -> [Double]? {
-        let tail = Array(series.suffix(30))
-        return tail.count > 1 ? tail : nil
-    }
-
-    /// Minutes → "Xm" / "Yh Zm" (verbatim of `SleepView.durationText`). Kept local to the card so it
-    /// renders identically whether hosted in Today or shown in the Sleep tab.
-    private func durationText(_ minutes: Double) -> String {
-        let m = Swift.max(0, Int(minutes.rounded()))
-        if m < 60 { return String(localized: "\(m)m") }
-        return String(localized: "\(m / 60)h \(m % 60)m")
-    }
-}
-
-func nightDetailDebtCaption(_ debt: Double?) -> String {
-    guard let debt else { return String(localized: "vs need") }
-    return debt < SleepDebt.onTargetBandMin ? String(localized: "On target") : String(localized: "Below need")
-}
-
-func nightDetailDebtColor(_ debt: Double?) -> Color {
-    guard let debt else { return StrandPalette.textPrimary }
-    switch debt {
-    case ..<SleepDebt.onTargetBandMin: return StrandPalette.statusPositive
-    case ..<60: return StrandPalette.statusWarning
-    default: return StrandPalette.statusCritical
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius,
+                                                                      style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(tile.label): \(tile.value) \(tile.unit), \(tile.caption)"))
     }
 }

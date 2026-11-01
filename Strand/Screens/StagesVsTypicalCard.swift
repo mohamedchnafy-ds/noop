@@ -15,20 +15,32 @@ import WhoopStore
 /// per-stage means from the shared [SleepModel].
 struct StagesVsTypicalCard: View {
     let model: SleepModel
+    /// Personal fork: the stage colours follow Settings → Appearance → Sleep chart, like every other stage
+    /// visual on the Sleep tab.
+    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
+
+    /// Personal fork: no "vs typical" before there is a typical. The means read the same history as the
+    /// Sleep tab's usual ranges, which start at five nights.
+    static let minNights = 5
 
     var body: some View {
         let s = model.night.stages
+        let palette = SleepChartStyle.resolve(sleepChartStyleRaw).stagePalette
+        let nights = model.trendPoints.count
         // Per-stage typical means are computed ONCE in the model build (each a full pass
         // over repo.days) and read here.
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Stages vs typical", overline: "Last night")
-            NoopCard(tint: StrandPalette.restColor) {
-                VStack(alignment: .leading, spacing: NoopMetrics.space4) {
-                    stageRow(stage: String(localized: "Deep"),  last: s.deep,  typical: model.typicalDeepMin,  nightTotal: s.total, color: StrandPalette.sleepDeep)
-                    Divider().overlay(StrandPalette.hairline)
-                    stageRow(stage: String(localized: "REM"),   last: s.rem,   typical: model.typicalRemMin,   nightTotal: s.total, color: StrandPalette.sleepREM)
-                    Divider().overlay(StrandPalette.hairline)
-                    stageRow(stage: String(localized: "Light"), last: s.light, typical: model.typicalLightMin, nightTotal: s.total, color: StrandPalette.sleepLight)
+        NoopCard(tint: StrandPalette.restColor) {
+            VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+                Text("Stages vs your usual night").strandOverline()
+                let ready = nights >= Self.minNights
+                stageRow(.deep, last: s.deep, typical: ready ? model.typicalDeepMin : nil, nightTotal: s.total, palette: palette)
+                Divider().overlay(StrandPalette.hairline)
+                stageRow(.rem, last: s.rem, typical: ready ? model.typicalRemMin : nil, nightTotal: s.total, palette: palette)
+                Divider().overlay(StrandPalette.hairline)
+                stageRow(.light, last: s.light, typical: ready ? model.typicalLightMin : nil, nightTotal: s.total, palette: palette)
+                if !ready {
+                    ProgressNote(text: String(localized: "Your usual night shows from \(Self.minNights) nights"),
+                                 done: nights, total: Self.minNights)
                 }
             }
         }
@@ -41,7 +53,10 @@ struct StagesVsTypicalCard: View {
     /// Same data as before (`last` minutes, `typical` personal mean) — the hatch just renders the typical
     /// context the prior vertical-only marker implied.
     @ViewBuilder
-    private func stageRow(stage label: String, last: Double, typical: Double?, nightTotal: Double, color: Color) -> some View {
+    private func stageRow(_ stage: SleepStage, last: Double, typical: Double?, nightTotal: Double,
+                          palette: SleepStagePalette) -> some View {
+        let label = stage.label
+        let color = StrandPalette.sleepStageColor(stage, palette: palette)
         // Scale both values against a shared per-row max so the typical hatch + marker are meaningful.
         let scaleMax = max(last, typical ?? 0) * 1.18
         let max = scaleMax > 0 ? scaleMax : 1
@@ -52,7 +67,7 @@ struct StagesVsTypicalCard: View {
             guard let typical, typical > 0 else { return "" }
             let diff = last - typical
             let sign = diff >= 0 ? "+" : "−"
-            return String(localized: "\(sign)\(durationText(abs(diff))) vs typ")
+            return String(localized: "\(sign)\(durationText(abs(diff))) vs usual")
         }()
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -72,7 +87,7 @@ struct StagesVsTypicalCard: View {
                 if !deltaText.isEmpty {
                     Text(deltaText)
                         .font(StrandFont.footnote)
-                        .foregroundStyle(last >= (typical ?? last) ? StrandPalette.statusPositive : StrandPalette.statusWarning)
+                        .foregroundStyle(StrandPalette.textSecondary)
                 }
             }
             GeometryReader { geo in
@@ -117,9 +132,7 @@ struct StagesVsTypicalCard: View {
     /// Minutes → "Xm" / "Yh Zm" (verbatim of `SleepView.durationText`). Kept local to the card so it renders
     /// identically whether hosted in Today or shown in the Sleep tab.
     private func durationText(_ minutes: Double) -> String {
-        let m = Swift.max(0, Int(minutes.rounded()))
-        if m < 60 { return String(localized: "\(m)m") }
-        return String(localized: "\(m / 60)h \(m % 60)m")
+        SleepDurationText.format(minutes)
     }
 }
 

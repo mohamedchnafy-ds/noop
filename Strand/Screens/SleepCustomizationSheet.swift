@@ -16,6 +16,12 @@ struct SleepCustomizationSheet: View {
     @Binding private var hiddenSectionsRaw: String
 
     @State private var draft: EditableLayoutDraft<SleepSection>
+    /// The folded sections that were hidden when the sheet opened, so saving keeps them hidden.
+    private let foldedHidden: [SleepSection]
+
+    /// Personal fork: on the Sleep tab the 30-day hours trend is the "30 days" view of the debt card, so
+    /// its own card is not offered here. Its stored slot and hidden flag are kept as they were.
+    static let foldedSections: Set<SleepSection> = [.asleepDuration]
 
     private var isDirty: Bool { draft != initialDraft }
 
@@ -24,7 +30,10 @@ struct SleepCustomizationSheet: View {
         _hiddenSectionsRaw = hiddenSectionsRaw
 
         let fullOrder = SleepLayoutPrefs.decodeOrder(sectionOrderRaw.wrappedValue)
-        let hiddenSet = Set(SleepLayoutPrefs.decodeHidden(hiddenSectionsRaw.wrappedValue))
+            .filter { !Self.foldedSections.contains($0) }
+        let storedHidden = SleepLayoutPrefs.decodeHidden(hiddenSectionsRaw.wrappedValue)
+        let hiddenSet = Set(storedHidden)
+        foldedHidden = storedHidden.filter { Self.foldedSections.contains($0) }
         let d = EditableLayoutDraft(
             visible: fullOrder.filter { !hiddenSet.contains($0) },
             hidden: fullOrder.filter { hiddenSet.contains($0) }
@@ -46,10 +55,8 @@ struct SleepCustomizationSheet: View {
                 configurationLabel: { _ in nil },
                 onConfigure: { _ in },
                 onReset: {
-                    draft = EditableLayoutDraft(
-                        visible: SleepSection.defaultOrder,
-                        allItems: SleepSection.defaultOrder
-                    )
+                    let offered = SleepSection.defaultOrder.filter { !Self.foldedSections.contains($0) }
+                    draft = EditableLayoutDraft(visible: offered, allItems: offered)
                 }
             ) {
                 EmptyView()
@@ -80,8 +87,9 @@ struct SleepCustomizationSheet: View {
     private func save() {
         // Store the FULL order (shown ++ hidden, so a hidden card keeps a stable slot) + the hidden set,
         // matching SleepLayoutPrefs and the Android SleepArrangeSheet.
-        sectionOrderRaw = SleepLayoutPrefs.encode(draft.visible + draft.hidden)
-        hiddenSectionsRaw = SleepLayoutPrefs.encodeHidden(draft.hidden)
+        let folded = SleepSection.defaultOrder.filter { Self.foldedSections.contains($0) }
+        sectionOrderRaw = SleepLayoutPrefs.encode(draft.visible + draft.hidden + folded)
+        hiddenSectionsRaw = SleepLayoutPrefs.encodeHidden(draft.hidden + foldedHidden)
         dismiss()
     }
 }

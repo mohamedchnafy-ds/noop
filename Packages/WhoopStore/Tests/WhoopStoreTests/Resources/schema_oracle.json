@@ -50,7 +50,8 @@
     "v46-lift-log",
     "v47-rr-whoop5-fill",
     "v48-ecg-waveform",
-    "v49-lift-superset-group"
+    "v49-lift-superset-group",
+    "v50-coach-conversations"
   ],
   "divergenceReasons": {
     "android-orphan-synced-column": "REAL COLUMN DRIFT: `synced` exists on Android only. GRDB's v10 note is explicit that stepSample gets no `synced` column ('unused; see StreamStore'), and v12's ppgHrSample never had one either; the Room entities copied the flag from the older per-second entities. Nothing reads it on Android \u2014 the per-row upload flag belongs to an upload path that does not exist there \u2014 so it is dead width, not divergent data. Removing it needs a Room table rebuild.",
@@ -224,6 +225,113 @@
       ],
       "androidColumnOrderDivergence": "battery-alter-append-order",
       "indices": []
+    },
+    "coachConversation": {
+      "platform": "ios_only",
+      "reason": "PERSONAL-FORK: Coach conversation history (GRDB migration `v50-coach-conversations`). The iOS Coach keeps every conversation; the Android app keeps its single `coachMessage` conversation and has no twin. `coachMessage` itself is unchanged on both platforms.",
+      "columns": [
+        {
+          "name": "id",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "title",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "createdAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "updatedAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "pinned",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "titleEdited",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": "0"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "indices": []
+    },
+    "coachConversationMessage": {
+      "platform": "ios_only",
+      "reason": "PERSONAL-FORK: Coach conversation history (GRDB migration `v50-coach-conversations`). The iOS Coach keeps every conversation; the Android app keeps its single `coachMessage` conversation and has no twin. `coachMessage` itself is unchanged on both platforms.",
+      "columns": [
+        {
+          "name": "id",
+          "affinity": "TEXT",
+          "notNull": false,
+          "default": null
+        },
+        {
+          "name": "conversationId",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "role",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "text",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "provider",
+          "affinity": "TEXT",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "createdAt",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        },
+        {
+          "name": "orderIndex",
+          "affinity": "INTEGER",
+          "notNull": true,
+          "default": null
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "indices": [
+        {
+          "name": "idx_coachConversationMessage_conversation",
+          "unique": false,
+          "columns": [
+            "conversationId",
+            "orderIndex"
+          ]
+        }
+      ]
     },
     "coachMessage": {
       "platform": "both",

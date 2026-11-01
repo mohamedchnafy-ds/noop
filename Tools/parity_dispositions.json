@@ -436,6 +436,102 @@
       "identity_sha256": "6aa52285ae46cf0ae75a690feee01765f9401825b6c9845c146163fdf5b2bb3e",
       "platform": "swift",
       "rationale": "A LOCAL binding inside the private v16 ECG decoder (#2847), not a static constant. The ledger's Swift rule treats any four-space `let` in a file-scope function as a candidate `static let`, which is how it finds file-scope constants without parsing, so a local in a top-level `private func` lands in the inventory. The Kotlin twin's equivalent is a local `val` in its own decodeWhoop5HistoricalV16, which the Kotlin rule never inventories because it matches `const val` only, and a Set-valued or object-valued local cannot be `const` in Kotlin at all. There is nothing to pair and nothing to change in either decoder."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::make/1#1",
+      "identity_sha256": "0f2574e5689bd53fc311864a10b2b9ff2fc2213e82e8d8e6d71301eb80368c43",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift",
+      "identity_sha256": "0d42bc96fae273abd1eb79b666ecbd91fdaf27d1197cc7712567af58085ee451",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::maxLength",
+      "identity_sha256": "fc83e332e8125b4dd8e8a9adf9b4a0a09394ff7f2b7e82f8dd8a894879e9da60",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::carryingOver/1#1",
+      "identity_sha256": "7076b5225e36ba493381bc3302c2125c5817756b2c9688b6b5de92813d12eadc",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::coachConversationMessages/1#1",
+      "identity_sha256": "aa8517dd456d984851daa8c23904475a4e1cbc9b4202fea6b64fb5eb45a9a1d4",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::coachConversations/0#1",
+      "identity_sha256": "f4ad7e592333eaede6d3bdeab1bb3f785d75f13570c4709c4febd7f3d848e46a",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::decode/1#1",
+      "identity_sha256": "121f90eaf7d0ae83d145643d548a5fdb397d354bb8bf6a8d270ab5f8ff652c79",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::deleteCoachConversation/1#1",
+      "identity_sha256": "068ba7d76fae4d226c421f663af4c749f2e6f0941fd4d2f373808017aa906489",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::renameCoachConversation/2#1",
+      "identity_sha256": "d5d171cca1f81962f1672b266657a9e7bf1adcff0c949bfe05632652edf20200",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::saveCoachConversation/2#1",
+      "identity_sha256": "2b9b3c95c10348e4029ca69cd69cac6d6a01767b6a227e05166bf020d5b6ec9f",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::setCoachConversationPinned/2#1",
+      "identity_sha256": "a30d86d3d56518b383d7d5f551500493e0cbeae6c2c992f4e6395f715f04b0a9",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/CoachConversationStore.swift::writeCoachConversation/3#1",
+      "identity_sha256": "326f50daa589319e8a4c0eca21cf3131046ac7d7c14c974066f394abe956cadf",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS Coach conversation history (GRDB migration v50; tables declared ios_only in schema_oracle.json). The Android Coach keeps its single coachMessage conversation and has no history, so there is no twin."
     }
   ]
 }

@@ -55,7 +55,11 @@ struct CoachView: View {
     // `#if os(iOS)` guards — the shared file keeps compiling for both targets.
     #if os(iOS)
     @StateObject private var voiceInput = CoachVoiceInput()
+    /// The Lift Log session the card's "Start" hands its plan to (iOS only: the Mac has no session).
+    @EnvironmentObject private var liftSession: LiftSessionController
     #endif
+    /// The reply whose session card is running an action (personal fork, step 6b).
+    @State private var sessionBusy: UUID?
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
     private let customModelTag = "__custom__"
@@ -612,7 +616,8 @@ struct CoachView: View {
             // not arrived) shows nothing; the typing indicator under it says the coach is working.
             let reply = CoachReplyMeta.split(message.text)
             let streaming = coach.sending && message.id == coach.messages.last?.id
-            if !reply.body.isEmpty {
+            let session = reply.meta?.session
+            if !reply.body.isEmpty || session != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     Label {
                         Text("Coach").font(StrandFont.overline).tracking(1)
@@ -621,21 +626,88 @@ struct CoachView: View {
                     }
                     .foregroundStyle(StrandPalette.textSecondary)
                     .accessibilityHidden(true)
-                    Markdown(reply.body)
-                        .markdownTheme(.strand)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 680, alignment: .leading)
-                        .accessibilityLabel("Coach said: \(reply.body)")
+                    if !reply.body.isEmpty {
+                        Markdown(reply.body)
+                            .markdownTheme(.strand)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 680, alignment: .leading)
+                            .accessibilityLabel("Coach said: \(reply.body)")
+                    }
+                    if let session {
+                        sessionCard(session, messageId: message.id)
+                            .frame(maxWidth: 520, alignment: .leading)
+                            .padding(.top, 2)
+                    }
                     if let consulted = reply.meta?.consulted, !consulted.isEmpty {
                         consultedLine(consulted)
                     }
-                    if !streaming { replyActions(message, text: reply.body) }
+                    if !streaming { replyActions(message, text: shareText(reply.body, session: session)) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
+
+    /// The session card of a reply, with its two actions.
+    private func sessionCard(_ session: CoachSessionProposal, messageId: UUID) -> some View {
+        let start: (() -> Void)?
+        #if os(iOS)
+        start = { startSession(messageId: messageId) }
+        #else
+        start = nil
+        #endif
+        return CoachSessionCard(proposal: session, system: unitSystem, busy: sessionBusy == messageId,
+                                onAdd: { addSession(messageId: messageId) }, onStart: start)
+    }
+
+    private var unitSystem: UnitSystem {
+        UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+    }
+
+    /// What Copy, Share and the Journal take from a reply: its words, then its session written out.
+    private func shareText(_ body: String, session: CoachSessionProposal?) -> String {
+        guard let session else { return body }
+        let system = unitSystem
+        let card = session.text(
+            weight: { LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: system)) + " "
+                + LiftFormat.weightUnit(system) },
+            rest: { seconds, after in
+                let rest = CoachSessionProposal.restText(seconds)
+                if let after { return String(localized: "rest \(rest) after \(after)") }
+                return String(localized: "rest \(rest)")
+            })
+        let words = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? card : words + "\n\n" + card
+    }
+
+    private func addSession(messageId: UUID) {
+        guard sessionBusy == nil else { return }
+        sessionBusy = messageId
+        Task {
+            await coach.addSessionToLiftLog(messageId: messageId)
+            sessionBusy = nil
+        }
+    }
+
+    #if os(iOS)
+    /// Start the card's session in the Lift Log, as a program start does; a session already running is
+    /// brought up instead of being replaced.
+    private func startSession(messageId: UUID) {
+        guard sessionBusy == nil else { return }
+        guard !liftSession.isActive else {
+            liftSession.isPresented = true
+            return
+        }
+        sessionBusy = messageId
+        Task {
+            if let start = await coach.liftPlan(messageId: messageId), !start.plan.isEmpty, !liftSession.isActive {
+                liftSession.start(plan: start.plan, programId: start.programId, programName: start.name)
+            }
+            sessionBusy = nil
+        }
+    }
+    #endif
 
     /// What the coach looked at with its tools, under the reply ("What the coach reads": it goes and
     /// fetches the detail itself, then shows it under its answer).
@@ -803,8 +875,14 @@ struct CoachView: View {
     /// of the suggested ones (`CoachPrompts`).
     private var followUps: some View {
         let first = coach.messages.first(where: { $0.role == .user })?.text
+        let lastHasSession = coach.messages.last.map { CoachReplyMeta.split($0.text).meta?.session != nil } ?? false
+        let startsWithBrief = coach.messages.first.map {
+            $0.role == .assistant && $0.text.hasPrefix(AICoachEngine.briefPrefix)
+        } ?? false
+        let prompts = CoachPrompts.followUps(forFirstQuestion: first, lastReplyHasSession: lastHasSession,
+                                             startsWithBrief: startsWithBrief)
         return CoachChipFlow(spacing: 8) {
-            ForEach(CoachPrompts.followUps(forFirstQuestion: first), id: \.self) { prompt in
+            ForEach(prompts, id: \.self) { prompt in
                 Button {
                     send(prompt)
                 } label: {

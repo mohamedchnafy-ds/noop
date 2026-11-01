@@ -103,10 +103,11 @@ enum CoachTools {
 
     // MARK: Definitions
 
-    /// The tools sent with a question. None without "Use my data"; the Lab Book only with the second
-    /// opt-in ("Trends and Lab Book"), the same switch that gates its summary in the fiche.
+    /// The tools sent with a question: `create_program` always (it reads nothing and saves nothing);
+    /// the read tools only with "Use my data", and the Lab Book only with the second opt-in ("Patterns
+    /// and Lab Book"), the same switch that gates its summary in the fiche.
     static func definitions(dataConsent: Bool, labBook: Bool) -> [[String: Any]] {
-        guard dataConsent else { return [] }
+        guard dataConsent else { return [CoachSessionProposal.definition] }
         var tools: [[String: Any]] = [
             tool(.metricHistory,
                  "Daily values of one metric over the last N days (oldest first), with how many days were "
@@ -154,7 +155,7 @@ enum CoachTools {
                               + "each, with their dates. Logged by the user, not medical findings.",
                               properties: [:], required: []))
         }
-        return tools
+        return tools + [CoachSessionProposal.definition]
     }
 
     private static func tool(_ name: Name, _ description: String, properties: [String: Any],

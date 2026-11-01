@@ -23,21 +23,50 @@ final class CoachPromptsTests: XCTestCase {
         for theme in CoachPrompts.Theme.allCases {
             for prompt in theme.prompts {
                 XCTAssertEqual(CoachPrompts.theme(ofFirstQuestion: prompt), theme)
-                XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: prompt), theme.followUps)
+                if theme != .session {
+                    XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: prompt, lastReplyHasSession: false,
+                                                          startsWithBrief: false), theme.followUps)
+                }
             }
         }
     }
 
     func testATypedQuestionGetsTheGenericFollowUps() {
         XCTAssertNil(CoachPrompts.theme(ofFirstQuestion: "My knee hurts on squats"))
-        XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: "My knee hurts on squats"),
+        XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: "My knee hurts on squats", lastReplyHasSession: false,
+                                              startsWithBrief: false),
                        CoachPrompts.genericFollowUps)
     }
 
     /// A brief alone has no question: generic follow-ups.
     func testNoFirstQuestionGetsTheGenericFollowUps() {
         XCTAssertNil(CoachPrompts.theme(ofFirstQuestion: nil))
-        XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: nil), CoachPrompts.genericFollowUps)
+        XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: nil, lastReplyHasSession: false, startsWithBrief: false),
+                       CoachPrompts.genericFollowUps)
+    }
+
+    /// A session asked for and answered in words: offer to turn it into a card.
+    func testASessionAnsweredInWordsOffersTheCard() {
+        let prompts = CoachPrompts.followUps(forFirstQuestion: CoachPrompts.Theme.session.prompts[0],
+                                             lastReplyHasSession: false, startsWithBrief: false)
+        XCTAssertEqual(prompts.first, CoachPrompts.makeThisSession)
+        XCTAssertEqual(prompts.count, 3)
+    }
+
+    /// Once the card is there, the follow-ups change it rather than ask for it again.
+    func testASessionCardGetsTheSessionFollowUpsWhateverTheQuestion() {
+        for question in [nil, "My knee hurts", CoachPrompts.Theme.nutrition.prompts[0]] {
+            XCTAssertEqual(CoachPrompts.followUps(forFirstQuestion: question, lastReplyHasSession: true,
+                                                  startsWithBrief: false),
+                           CoachPrompts.Theme.session.followUps)
+        }
+    }
+
+    /// The brief names today's session: offer to make it.
+    func testABriefOffersToMakeItsSession() {
+        let prompts = CoachPrompts.followUps(forFirstQuestion: nil, lastReplyHasSession: false, startsWithBrief: true)
+        XCTAssertEqual(prompts.first, CoachPrompts.makeThisSession)
+        XCTAssertFalse(prompts.contains(CoachPrompts.Theme.session.followUps[1]))
     }
 
     /// Only an exact suggestion sets the theme; a question that merely starts like one does not.

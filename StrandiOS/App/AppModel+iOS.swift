@@ -35,9 +35,8 @@ extension AppModel {
             case .askCoach:
                 if let question = PendingIntents.consumeCoachQuestion() {
                     router?.openCoach()
-                    Task { @MainActor in
-                        await coach.send(question)
-                    }
+                    // The engine's own task (single flight), so the first-open brief cannot race it.
+                    coach.submit(question)
                 }
             }
         }

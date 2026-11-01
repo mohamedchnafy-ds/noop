@@ -88,6 +88,23 @@ enum TodayEnergy {
         return Split(restingKcal: e.restingKcal, activityKcal: e.activeKcal)
     }
 
+    /// The heart-rate window a day's calories are read over: from that day's sleep-onset marker when the
+    /// day cycle follows sleep (else `dayStart`, its calendar midnight) up to the next day's marker (else
+    /// `dayEnd`: the next midnight, or now for today). Today and Nutrition both read a day's calories over
+    /// this one window, so their "spent" never disagree.
+    static func heartRateWindow(dayStart: Int, dayEnd: Int, dayKey: String, nextDayKey: String,
+                                cycleMarkers: [(day: String, value: Double)]) -> ClosedRange<Int> {
+        let from = cycleMarkers.last(where: { $0.day == dayKey }).map { Int($0.value) } ?? dayStart
+        let toExclusive = cycleMarkers.last(where: { $0.day == nextDayKey }).map { Int($0.value) } ?? dayEnd
+        return from...max(from, toExclusive - 1)
+    }
+
+    /// The split a day shows: the one from the strap's heart rate, else the activity imported from Apple
+    /// Health for that day (no resting part to name), else nil.
+    static func resolvedSplit(_ split: Split?, importedActiveKcal: Double?) -> Split? {
+        split ?? importedActiveKcal.map { Split(restingKcal: 0, activityKcal: $0) }
+    }
+
     /// The default goal: the mean activity of the recent complete days that recorded any, or nil when
     /// fewer than `minGoalDays` did.
     static func defaultGoal(activityByDay: [Double]) -> Double? {

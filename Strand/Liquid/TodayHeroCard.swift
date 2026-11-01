@@ -306,6 +306,88 @@ struct TodayTileLabel: View {
     }
 }
 
+/// The day's meals under the half-gauges (personal fork, Nutrition mockup 4): eaten, the balance against
+/// the calories spent, protein against its goal. A tap opens Nutrition.
+struct TodayNutritionLine: View {
+    struct Model: Equatable {
+        var eatenKcal: Int
+        /// Eaten minus spent; nil while nothing was measured.
+        var balanceKcal: Int?
+        var proteinG: Int
+        var proteinGoalG: Int?
+    }
+
+    let model: Model
+
+    private func number(_ value: Int) -> String {
+        value.formatted(.number.locale(AppLanguage.activeLocale))
+    }
+
+    private func signedText(_ value: Int) -> String {
+        value < 0 ? "\u{2212}" + number(-value) : (value > 0 ? "+" + number(value) : number(0))
+    }
+
+    private var line: Text {
+        let bold = { (value: String) in
+            Text(verbatim: value).foregroundColor(StrandPalette.textPrimary).fontWeight(.semibold)
+        }
+        var text = Text("Eaten \(bold(number(model.eatenKcal)))")
+        if let balance = model.balanceKcal {
+            text = text + Text(verbatim: " · ") + Text("balance \(bold(signedText(balance)))")
+        }
+        if let goal = model.proteinGoalG {
+            text = text + Text(verbatim: " · ")
+                + Text("protein \(bold(number(model.proteinG)))/\(number(goal)) g")
+        } else {
+            text = text + Text(verbatim: " · ") + Text("protein \(bold(number(model.proteinG))) g")
+        }
+        return text
+    }
+
+    private var spoken: String {
+        var parts = [String(localized: "Nutrition: \(number(model.eatenKcal)) kcal eaten")]
+        if let balance = model.balanceKcal { parts.append(String(localized: "balance \(signedText(balance))")) }
+        if let goal = model.proteinGoalG {
+            parts.append(String(localized: "protein \(number(model.proteinG)) of \(number(goal)) g"))
+        } else {
+            parts.append(String(localized: "protein \(number(model.proteinG)) g"))
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    var body: some View {
+        NavigationLink(value: TabRoute.nutrition) {
+            HStack(spacing: 8) {
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(StrandPalette.onDarkSecondary)
+                    .accessibilityHidden(true)
+                line
+                    .font(StrandFont.overlineScaled(12.5))
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .overlay(alignment: .top) {
+                Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: spoken))
+        .accessibilityHint(Text("Opens Nutrition"))
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
 /// Everything the hero card shows, already resolved.
 struct TodayHeroModel {
     struct Ring {
@@ -328,6 +410,8 @@ struct TodayHeroModel {
     var restingHR: TodayVitalRange.Gauge?
     var hrv: TodayVitalRange.Gauge?
     var sourceLabel: String?
+    /// The day's meals, nil when none was logged (the line under the half-gauges is then left out).
+    var nutrition: TodayNutritionLine.Model? = nil
 }
 
 /// The hero card: the three rings, a hairline, then the three half-gauges.
@@ -371,6 +455,11 @@ struct TodayHeroCard: View {
                                title: String(localized: "Rest HR"), unit: "bpm", gauge: model.restingHR)
                 TodayVitalTile(symbol: "waveform.path.ecg", tint: StrandPalette.accent,
                                title: String(localized: "HRV"), unit: "ms", gauge: model.hrv)
+            }
+            if let nutrition = model.nutrition {
+                TodayNutritionLine(model: nutrition)
+                    .padding(.horizontal, NoopMetrics.space2)
+                    .padding(.top, -NoopMetrics.space1)
             }
         }
         .padding(.vertical, NoopMetrics.space4)

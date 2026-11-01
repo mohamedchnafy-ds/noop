@@ -94,7 +94,8 @@ struct DataSourcesView: View {
                 whoopCard.staggeredAppear(index: 0)
                 appleHealthCard.staggeredAppear(index: 1)
                 xiaomiCard.staggeredAppear(index: 2)
-                nutritionCard.staggeredAppear(index: 3)
+                // Personal fork, Nutrition: meals come from the journal, so the CSV import of daily
+                // totals is hidden (its code stays).
                 liftingCard.staggeredAppear(index: 4)
                 activityFileCard.staggeredAppear(index: 5)
                 wearableCard.staggeredAppear(index: 6)

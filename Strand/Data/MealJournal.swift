@@ -9,6 +9,16 @@ import WhoopStore
 
 enum MealJournal {
 
+    /// UserDefaults counter bumped after every write, so a screen showing meals (Today's line under the
+    /// calories, Nutrition) reloads when one is added, edited, starred or deleted elsewhere.
+    static let revisionKey = "nutrition.mealJournalRevision"
+
+    @MainActor
+    private static func bumpMealRevision() {
+        let defaults = UserDefaults.standard
+        defaults.set(defaults.integer(forKey: revisionKey) &+ 1, forKey: revisionKey)
+    }
+
     /// The local day `date` falls on, "yyyy-MM-dd": the journal's day key. Written with the meal, so
     /// travelling to another time zone never moves a meal to another day.
     static func mealDayKey(_ date: Date, calendar: Calendar = .current) -> String {
@@ -48,6 +58,7 @@ enum MealJournal {
                            eatenAt: Int(eatenAt.timeIntervalSince1970), name: name, origin: origin,
                            favorite: favorite, createdAt: stamp, updatedAt: stamp)
         try await store.saveMeal(meal, items: lines)
+        await bumpMealRevision()
         let saved = lines.enumerated().map { index, line -> MealItemRow in
             var row = line
             row.mealId = meal.id
@@ -92,11 +103,13 @@ enum MealJournal {
     /// Mark or unmark a meal as a favorite.
     static func markMealFavorite(_ store: WhoopStore, id: String, favorite: Bool, now: Date = Date()) async throws {
         try await store.setMealFavorite(id: id, favorite: favorite, updatedAt: Int(now.timeIntervalSince1970))
+        await bumpMealRevision()
     }
 
     /// Delete a meal and its lines.
     static func removeMeal(_ store: WhoopStore, id: String) async throws {
         try await store.deleteMeal(id: id)
+        await bumpMealRevision()
     }
 }
 

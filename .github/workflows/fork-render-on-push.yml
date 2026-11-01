@@ -1,5 +1,5 @@
 # Fork-only: render the guided superset screens, the Sleep tab, the Today screen and the Lift Log's
-# Progression to PNG whenever a `render/**` branch is pushed, and publish the images as a prerelease named
+# Progression and the Nutrition screens to PNG whenever a `render/**` branch is pushed, and publish the images as a prerelease named
 # after the branch — the visual check against the mockups before an .ipa is built. Runs the render test
 # classes (LiftSupersetRenderTests, SleepScreenRenderTests, TodayScreenRenderTests, LiftProgressRenderTests)
 # on the macOS app target; the screens are shared SwiftUI, drawn at iPhone size in dark mode, in French.
@@ -37,6 +37,7 @@ jobs:
             -only-testing:StrandTests/SleepScreenRenderTests \
             -only-testing:StrandTests/TodayScreenRenderTests \
             -only-testing:StrandTests/LiftProgressRenderTests \
+            -only-testing:StrandTests/NutritionRenderTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?

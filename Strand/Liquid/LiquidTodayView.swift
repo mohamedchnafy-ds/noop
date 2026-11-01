@@ -75,6 +75,12 @@ struct LiquidTodayView: View {
     @State private var hrDay = TodayHRDayInput()
     /// The activity-calorie goal set in Settings (kcal); 0 means the 14-day default.
     @AppStorage(TodayEnergy.goalKey) private var activityGoalSetting = 0
+    /// The meals of the selected day (personal fork, Nutrition), and the day they were read for.
+    @State private var dayMeals: [MealEntry] = []
+    @State private var dayMealsKey = ""
+    /// Bumped by every meal-journal write, and the protein setting the line's goal reads.
+    @AppStorage(MealJournal.revisionKey) private var mealRevision = 0
+    @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenthsSetting = NutritionGoals.defaultProteinTenths
     @State private var stress: Double?             // StressModel(...).score, 0–3
     @State private var fitnessAge: Double?         // exploreSeries("fitness_age").last
     @State private var vo2max: Double?             // exploreSeries("vo2max_est").last (#1391)
@@ -707,11 +713,37 @@ struct LiquidTodayView: View {
             calories: (energySplit, TodayEnergy.goal(setting: activityGoalSetting, defaultGoal: activityGoalDefault)),
             restingHR: restingHRGauge,
             hrv: hrvGauge,
-            sourceLabel: heroSourceLabel)
+            sourceLabel: heroSourceLabel,
+            nutrition: nutritionLine)
+    }
+
+    /// The Nutrition line under the half-gauges: the selected day's meals against the calories the gauge
+    /// shows, through the same summary Nutrition reads. Nil without a meal that day.
+    private var nutritionLine: TodayNutritionLine.Model? {
+        guard dayMealsKey == selectedDayKey, !dayMeals.isEmpty else { return nil }
+        let day = NutritionDaySummary(dayKey: dayMealsKey, meals: dayMeals, spent: energySplit)
+        let goal = NutritionGoals.gramsFromTenths(
+            tenthsPerKg: NutritionGoals.clampedTenths(proteinTenthsSetting, range: NutritionGoals.proteinTenthsRange,
+                                                      fallback: NutritionGoals.defaultProteinTenths),
+            weightKg: profile.weightKg)
+        return TodayNutritionLine.Model(eatenKcal: day.eaten.kcal, balanceKcal: day.balanceKcal,
+                                        proteinG: Int(day.eaten.proteinG.rounded()),
+                                        proteinGoalG: goal > 0 ? goal : nil)
     }
 
     private var heroCard: some View {
         TodayHeroCard(model: heroModel, animated: dataLoaded, surfaceOpacity: cardOpacity) { guideSection = $0 }
+            // The meals alone, so a meal logged elsewhere refreshes the Nutrition line without a full reload.
+            .task(id: "\(selectedDayKey)-\(mealRevision)-\(repo.refreshSeq)") { await loadDayMeals() }
+    }
+
+    /// The selected day's meals for the Nutrition line (personal fork).
+    private func loadDayMeals() async {
+        let key = selectedDayKey
+        let meals = await NutritionDayReader.mealsOfDay(repo, dayKey: key)
+        guard key == selectedDayKey else { return }
+        dayMeals = meals
+        dayMealsKey = key
     }
 
     // MARK: - Heart rate
@@ -1456,9 +1488,10 @@ struct LiquidTodayView: View {
         let nextDayKey = Repository.localDayKey(cal.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart)
         let cycleMarkers = dayCycleMode == .sleepOnset
             ? await repo.exploreSeries(key: DayCycleIntelligenceIntegration.onsetKey, source: "my-whoop") : []
-        let from = cycleMarkers.last(where: { $0.day == selectedDayKey }).map { Int($0.value) } ?? calendarFrom
-        let toExclusive = cycleMarkers.last(where: { $0.day == nextDayKey }).map { Int($0.value) } ?? calendarTo
-        let to = max(from, toExclusive - 1)
+        let hrWindow = TodayEnergy.heartRateWindow(dayStart: calendarFrom, dayEnd: calendarTo, dayKey: selectedDayKey,
+                                                   nextDayKey: nextDayKey, cycleMarkers: cycleMarkers)
+        let from = hrWindow.lowerBound
+        let to = hrWindow.upperBound
         // #1001: in-progress Effort for TODAY, over the SAME window resolved just above (the day-cycle
         // onset when that mode is on, else calendar midnight → now) with the identical params the daily
         // pass uses, so the live number matches what the engine will eventually persist. Below
@@ -1719,7 +1752,7 @@ struct LiquidTodayView: View {
         let split = await Task.detached(priority: .utility) {
             TodayEnergy.split(hr: dayHr, profile: body, hrmax: hrmax, restingHR: dayRest)
         }.value
-        energySplit = split ?? importedActiveKcalDay.map { TodayEnergy.Split(restingKcal: 0, activityKcal: $0) }
+        energySplit = TodayEnergy.resolvedSplit(split, importedActiveKcal: importedActiveKcalDay)
         if activityGoalDefaultDay != dayKey {
             activityGoalDefault = await defaultActivityGoal(before: calendarFrom, cycleMarkers: cycleMarkers,
                                                             body: body, hrmax: hrmax)

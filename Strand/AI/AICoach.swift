@@ -249,7 +249,16 @@ final class AICoachEngine: ObservableObject {
         didSet { UserDefaults.standard.set(multimodalChartEnabled, forKey: Self.multimodalChartKey) }
     }
 
+    /// What the user told the coach (personal fork), persisted on every change and sent with every
+    /// question. See `CoachProfile`.
+    @Published var coachProfile: CoachProfile = CoachProfile.load() {
+        didSet { if coachProfile != oldValue { coachProfile.save() } }
+    }
+
     private let repo: Repository
+    /// The body profile behind the context's USER PROFILE block and today's calorie and effort figures.
+    /// Nil only where a test builds an engine without one.
+    private let profile: ProfileStore?
     private let session: URLSession
 
     private static let providerKey = "ai.provider"
@@ -258,77 +267,138 @@ final class AICoachEngine: ObservableObject {
     private static let customConnectedKey = "ai.customConnected"
     private static let onDeviceSignalsKey = "ai.includeOnDeviceSignals"
     private static let multimodalChartKey = "ai.multimodalChartEnabled"
-    /// UserDefaults key holding the user's EDITED system prompt. Absent (or blank) means "use the
-    /// built-in default". Small text key, never a secret, so plain UserDefaults is fine. Read FRESH
-    /// per request (see `systemPrompt`) so an edit takes effect on the very next message.
-    static let systemPromptKey = "ai.systemPrompt"
+    /// UserDefaults key holding the user's extra instructions (personal fork): text ADDED to the built-in
+    /// role, never a replacement for it, so the answer format and the rules the coach's later tools rely
+    /// on always hold. Absent or blank means none. Read FRESH per request (see `systemPrompt`) so an edit
+    /// takes effect on the very next message.
+    ///
+    /// It replaces the upstream `ai.systemPrompt` override, which swapped the whole prompt out. That key
+    /// is no longer read and is left as it is on disk.
+    static let extraInstructionsKey = "ai.coachExtraInstructions"
 
-    /// The built-in system prompt that frames every request. Anonymous, frames the assistant only as a
-    /// coach. Exposed (read-only) so the UI's "Reset to default" can restore it and show it when nothing
-    /// custom is stored. Editing the live prompt overrides this via `systemPromptKey`.
+    /// The built-in role that frames every request (personal fork: the coach instructions v1.3, the
+    /// validated v1.2 text adapted to the context the app now sends). French on purpose: it is the text
+    /// that was written and validated for this fork, and it tells the coach to answer in French.
+    ///
+    /// The user's extra instructions are appended to it (`extraInstructionsKey`), never swapped in for it.
     static let defaultSystemPrompt = """
-    You are an elite, supportive recovery and performance coach with a real training methodology. \
-    You may be given a summary of the user's own wearable data (charge 0-100, effort 0-100, rest 0-100, \
-    sleep duration and its deep/REM/light breakdown, sleep efficiency, HRV, resting heart rate) and \
-    recent workouts. Charge is the daily recovery/readiness score, effort is the daily cardiovascular \
-    load score, and rest is the nightly sleep-quality score. A dash in the data means that value was \
-    NOT MEASURED that day — say so rather than treating it as a zero. \
-    Coach using autoregulation:
-    • Readiness → prescription: charge 67-100 = green light to build/push, higher effort is fine; \
-    34-66 = maintain, quality over volume, keep it controlled; 0-33 = active recovery only \
-    (Zone 2, mobility, extra sleep) and protect against accumulating effort debt.
-    • Workout optimisation: progressive overload, polarised ~80/20 intensity, space hard sessions, \
-    program deloads/periodisation, and treat sleep as the single biggest recovery lever.
-    • Always cite the user's ACTUAL numbers, give a concrete plan (today and the week ahead), and \
-    be specific, punchy and motivating - like a coach who knows them.
-    If no data is provided, coach generally and invite them to turn on data access for personalised \
-    advice. You are NOT a doctor - never diagnose; suggest a professional for genuine health concerns.
-    • Strength training: when a LIFT LOG block is present, ground every lifting answer in it — the \
-    session's sets (weight×reps), RPE, estimated 1RM trends, weekly sets per muscle and the programs' \
-    targets. For the next session, give concrete numbers per exercise (load × reps) and say why, \
-    adjusted to today's charge.
-    Reply in the language the user writes in.
-    Format replies in simple Markdown, chat-sized: short paragraphs, **bold** for key numbers, \
-    bullet or numbered lists for plans, ### headings only when structure genuinely helps, and a \
-    small table only for a week-ahead plan. No code blocks.
+    Tu es le coach sportif personnel de l'utilisateur, dans l'app NOOP. Tu t'occupes uniquement de :
+    - l'entraînement (musculation, cardio, mobilité), sa programmation et sa progression ;
+    - la récupération et le sommeil ;
+    - la nutrition du sportif (énergie, protéines, hydratation, repas autour des séances) ;
+    - la prévention des blessures et l'adaptation de l'entraînement à une douleur.
+    Si on te demande autre chose, dis en une phrase que ce n'est pas ton rôle, puis propose un angle sport s'il y en a un.
+
+    ## Comment répondre
+    1. Réponds à la question posée dès la première phrase. Pas d'introduction, pas de récapitulatif de la journée.
+    2. Utilise seulement les données qui concernent la question. Ne parle d'une autre donnée que si elle change ta réponse (par exemple une VFC très basse quand on te demande s'il faut faire une séance lourde) ; une phrase suffit alors.
+    3. Longueur : question simple → 2 à 4 phrases. Analyse → un court paragraphe et 5 puces au plus. Plan ou séance → seulement si on te le demande.
+    4. Termine sans résumé ni conseils en plus. Une seule question de suivi au maximum, et seulement s'il te manque une information pour bien répondre.
+    5. Tutoie, en français, ton direct et encourageant, sans emphase. Pas d'emoji.
+    6. Markdown léger : **gras** pour les chiffres clés, listes courtes. Pas de titre pour une réponse courte, pas de tableau sauf pour un plan sur plusieurs jours.
+
+    ## Lire les données
+    Avec chaque question, tu reçois une fiche de ses données, en anglais :
+    - USER PROFILE : âge, sexe, taille, poids, FC max. Une valeur marquée « app default » n'a pas été saisie : ne t'appuie pas dessus, demande-la si elle compte.
+    - WHAT THE USER TOLD THE COACH : son objectif, son rythme, son matériel, ses douleurs et le reste. Respecte-les. Si un point manque et qu'il compte pour ta réponse, demande-le.
+    - TODAY : les chiffres de l'écran Aujourd'hui. YOUR NORMALS : ses normales personnelles. SLEEP : besoin, dette, réveil habituel, coucher conseillé.
+    - Ensuite : les 14 derniers jours, les moyennes sur 30 jours, les entraînements récents, le stress du jour, le Carnet de force (LIFT LOG), le statut de chaque exercice (LIFT PROGRESSION) et les siestes.
+    - charge = récupération du jour (0-100) ; effort = charge cardio de la journée (0-100) ; rest = durée de la nuit ; deep / REM / light = phases de sommeil ; eff = efficacité du sommeil ; HRV = VFC (ms) ; RHR = FC au repos (bpm) ; SpO2, respiration, skin-temp deviation (température cutanée), steps (pas), calories.
+    - Un tiret « — » ou « not measured » veut dire NON MESURÉ, jamais zéro. Dis-le si une donnée utile manque.
+    - Compare toujours à SES normales (YOUR NORMALS, sinon les moyennes sur 30 jours), pas aux normes générales. Un écart compte quand il est net : VFC sous sa zone normale (ou sous 85 % de sa moyenne), FC au repos au-dessus de sa zone (ou 5 bpm au-dessus de sa moyenne), nuit de moins de 6 h.
+    - Relie les signaux entre eux au lieu de les citer un par un :
+      - VFC en baisse + FC au repos en hausse + nuit courte → fatigue accumulée : alléger.
+      - Charge basse le lendemain d'une grosse séance → attendu, pas inquiétant.
+      - Température cutanée et respiration en hausse ensemble, avec VFC basse → possible début de maladie : repos, pas d'intensité.
+      - Bonne charge mais plusieurs nuits courtes → s'entraîner en gardant des répétitions en réserve, et se coucher plus tôt.
+    - N'invente jamais un chiffre. Quand tu estimes (calories d'un repas, charge à viser), dis que c'est une estimation.
+
+    ## Autorégulation
+    - Charge 67-100 : feu vert, on peut pousser (charges en hausse, 0 à 1 répétition en réserve sur les dernières séries).
+    - Charge 34-66 : séance prévue, qualité plutôt que volume (1 à 2 répétitions en réserve).
+    - Charge 0-33 : récupération active (marche, zone 2 légère, mobilité) et sommeil.
+
+    ## Musculation (Carnet de force)
+    - Quand un bloc LIFT LOG est présent, appuie chaque réponse muscu dessus : séries faites (charge × réps), e1RM, volume hebdomadaire par muscle, programmes.
+    - Pour dire si un exercice progresse, stagne, baisse ou peut monter, reprends son statut dans LIFT PROGRESSION : c'est la règle que l'app affiche, ne la recalcule pas. « ready to go up » donne la charge à viser.
+    - L'utilisateur ne note pas le RPE : ne t'appuie jamais dessus, même si une colonne ou une consigne RPE apparaît. Pour l'intensité, parle en répétitions en réserve.
+    - Double progression : si toutes les séries de travail atteignent le haut de la fourchette de répétitions, propose +2,5 kg (haut du corps) ou +5 kg (bas du corps) ; sinon, garde la charge.
+    - Les lignes A1, A2… sont des supersets : une série de chaque, repos après la dernière.
+    - Repère de volume : 10 à 20 séries par muscle et par semaine selon le niveau et la récupération.
+
+    ## Créer une séance
+    Quand on te demande une séance :
+    - Pars des exercices de son Carnet et de leurs dernières charges. N'ajoute un nouvel exercice que si c'est nécessaire, et dis-le.
+    - Respecte la durée, le matériel et les douleurs qu'il t'a indiqués (WHAT THE USER TOLD THE COACH) ; adapte l'intensité à la charge du jour.
+    - Choisis la structure selon le but, et mélange si c'est utile :
+      - exercice seul pour les mouvements lourds (squat, développé couché, soulevé de terre…), repos 2 à 3 min ;
+      - superset (2 exercices) pour les accessoires, de préférence sur des muscles opposés ou des zones différentes ;
+      - triset (3 exercices ou plus) seulement pour gagner du temps ou en finisher.
+      Si l'utilisateur impose une structure (« tout en supersets », « sans superset »), respecte-la.
+    - Présente-la exactement ainsi, avec une seule phrase avant et rien après :
+      **Nom de la séance** · durée estimée
+      Exercice — séries × réps · charge
+      repos 2:30
+      A1 Exercice — séries × réps · charge
+      A2 Exercice — séries × réps · charge
+      repos 2:00 après A2
+      (un superset = une même lettre avec des numéros qui se suivent : A1, A2, A3… ; un exercice seul n'a pas de lettre ; garde l'ordre d'exécution)
+    - Pour une modification, donne seulement les lignes qui changent, sauf si on te redemande la séance complète.
+
+    ## Nutrition
+    - Protéines : environ 1,6 à 2,2 g par kg de poids de corps et par jour, en 3 à 5 repas.
+    - Utilise son poids (USER PROFILE) et son objectif (WHAT THE USER TOLD THE COACH). S'ils manquent ou sont marqués « app default », demande-les avant de donner des quantités.
+    - Les calories sont une estimation du bracelet.
+    - Pas de régime extrême ni de jeûne prolongé. Compléments : seulement les classiques (créatine, protéine en poudre, caféine, vitamine D), toujours présentés comme facultatifs.
+
+    ## Sécurité
+    Tu n'es pas médecin : ne pose jamais de diagnostic. Douleur vive ou qui s'aggrave, douleur thoracique, malaise, essoufflement anormal → arrêter et consulter. Pour une douleur légère, propose d'adapter l'exercice (amplitude, charge, variante) plutôt que de forcer.
+
+    ## Exemples (chiffres fictifs : ils montrent le ton et la longueur)
+    Question : « Je fais combien de séries de biceps par semaine ? »
+    Réponse : « **9 séries** sur les 7 derniers jours (curl incliné, 3 × 3 séances). C'est le bas de la fourchette : tu peux monter à 12 en ajoutant une série par séance si tes bras récupèrent bien. »
+
+    Question : « J'ai mal dormi, je fais ma séance ? »
+    Réponse : « Oui, mais allégée : **5 h 10** de sommeil et VFC à **38 ms** (ta normale : 41 à 51). Fais Full body B en gardant 2 répétitions en réserve et saute le finisher. Couche-toi tôt ce soir. »
     """
 
-    /// The system prompt actually sent, read FRESH from UserDefaults on every request so an edit in
-    /// the settings takes effect on the next message, with no engine rebuild. A blank/absent stored
-    /// value falls back to `defaultSystemPrompt`, so a user who clears it never sends an empty prompt.
-    var systemPrompt: String {
-        let stored = UserDefaults.standard.string(forKey: Self.systemPromptKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let stored, !stored.isEmpty { return stored }
-        return Self.defaultSystemPrompt
+    /// The role, then the user's extra instructions under their own heading when there are any. Pure, so
+    /// the composition is tested without UserDefaults.
+    nonisolated static func composeSystemPrompt(role: String, extra: String?) -> String {
+        let trimmed = extra?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return role }
+        let heading = "## Consignes de l'utilisateur\n"
+            + "Elles complètent ce qui précède et l'emportent en cas de conflit, sauf sur la sécurité."
+        return role + "\n\n" + heading + "\n" + trimmed
     }
 
-    /// The user's stored prompt override, or the default when nothing custom is set. The UI binds its
-    /// editor to this: writing persists the override; writing a blank string clears it (back to default).
-    var customSystemPrompt: String {
-        get { systemPrompt }
+    /// The system prompt actually sent, read FRESH from UserDefaults on every request so an edit in the
+    /// settings takes effect on the next message, with no engine rebuild.
+    var systemPrompt: String {
+        Self.composeSystemPrompt(role: Self.defaultSystemPrompt,
+                                 extra: UserDefaults.standard.string(forKey: Self.extraInstructionsKey))
+    }
+
+    /// The user's extra instructions, "" when none. The settings editor binds to this: writing persists
+    /// the text, and a blank one clears the key.
+    var extraInstructions: String {
+        get { UserDefaults.standard.string(forKey: Self.extraInstructionsKey) ?? "" }
         set {
-            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty || trimmed == Self.defaultSystemPrompt {
-                UserDefaults.standard.removeObject(forKey: Self.systemPromptKey)
+            if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                UserDefaults.standard.removeObject(forKey: Self.extraInstructionsKey)
             } else {
-                UserDefaults.standard.set(newValue, forKey: Self.systemPromptKey)
+                UserDefaults.standard.set(newValue, forKey: Self.extraInstructionsKey)
             }
             objectWillChange.send()
         }
     }
 
-    /// True when the user has an edited prompt that differs from the built-in default, gates the
-    /// "Reset to default" affordance in the UI.
-    var hasCustomSystemPrompt: Bool {
-        let stored = UserDefaults.standard.string(forKey: Self.systemPromptKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return !(stored ?? "").isEmpty && stored != Self.defaultSystemPrompt
-    }
+    /// True when extra instructions are stored; gates the "Clear" control in the settings.
+    var hasExtraInstructions: Bool { !extraInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    /// Restore the built-in system prompt by clearing the stored override.
-    func resetSystemPrompt() {
-        UserDefaults.standard.removeObject(forKey: Self.systemPromptKey)
+    /// Remove the extra instructions.
+    func clearExtraInstructions() {
+        UserDefaults.standard.removeObject(forKey: Self.extraInstructionsKey)
         objectWillChange.send()
     }
 
@@ -370,22 +440,38 @@ final class AICoachEngine: ObservableObject {
         let systemPromptTokens = systemPrompt.count / 4
         // The data context is typically ~2000-4000 chars depending on the user's data.
         // Use a conservative estimate of 3000 chars (750 tokens) when consent is on.
-        // Higher since the Lift Log joined the context (sessions, progression and programs).
-        let contextTokens = dataConsent ? 1_500 : 50
+        // Higher since the Lift Log joined the context (sessions, progression and programs), and again
+        // since the profile, today's figures, the normals, the sleep block and the Lift Log statuses did.
+        let contextTokens = dataConsent ? 2_300 : 150
         // History tokens: sum of all message texts in the windowed history.
         let historyTokens = windowedMessages().reduce(0) { $0 + $1.text.count / 4 }
         let draftTokens = draft.count / 4
         return systemPromptTokens + contextTokens + historyTokens + draftTokens
     }
 
+    /// Set once the one-time default-model upgrade has been considered, so a model picked by hand
+    /// afterwards, the old default included, is never changed again.
+    static let modelUpgradeKey = "ai.modelUpgradedToSonnet55"
+
+    /// The model to switch a stored choice to, once: an Anthropic connection still on the previous
+    /// built-in default moves to the current one (`AIProvider.anthropic.defaultModel`). Any other model,
+    /// provider or an install already considered keeps its choice (nil).
+    nonisolated static func upgradedModel(provider: AIProvider, stored: String?, alreadyUpgraded: Bool) -> String? {
+        // "claude-sonnet-4-6" is the Anthropic default before Claude Sonnet 5.5.
+        guard !alreadyUpgraded, provider == .anthropic, stored == "claude-sonnet-4-6" else { return nil }
+        return AIProvider.anthropic.defaultModel
+    }
+
     /// Used in place of the metrics context when the user has NOT granted data access.
     private let noConsentNote = """
     NOTE: The user has not granted access to their biometric data. Coach generally and encourage \
-    them to enable "Let the coach use my data" for guidance tailored to their real numbers.
+    them to turn on "Use my data" (Coach menu, "What the coach reads") for guidance tailored to their \
+    real numbers.
     """
 
-    init(repo: Repository, session: URLSession = .shared) {
+    init(repo: Repository, profile: ProfileStore? = nil, session: URLSession = .shared) {
         self.repo = repo
+        self.profile = profile
         self.session = session
 
         // Restore persisted provider / model (falling back to sane defaults).
@@ -393,7 +479,14 @@ final class AICoachEngine: ObservableObject {
             .flatMap(AIProvider.init(rawValue:)) ?? .openAI
         self.provider = storedProvider
 
-        let storedModel = UserDefaults.standard.string(forKey: Self.modelKey)
+        var storedModel = UserDefaults.standard.string(forKey: Self.modelKey)
+        // Once per install: a model still on the previous built-in default moves to the new one.
+        if let upgraded = Self.upgradedModel(provider: storedProvider, stored: storedModel,
+                                             alreadyUpgraded: UserDefaults.standard.bool(forKey: Self.modelUpgradeKey)) {
+            storedModel = upgraded
+            UserDefaults.standard.set(upgraded, forKey: Self.modelKey)
+        }
+        UserDefaults.standard.set(true, forKey: Self.modelUpgradeKey)
         // A persisted custom id is honoured even if it's not in the built-in list.
         if let storedModel, !storedModel.isEmpty {
             self.model = storedModel
@@ -943,7 +1036,7 @@ final class AICoachEngine: ObservableObject {
         // full running history so follow-ups stay coherent; the context only needs to ride the
         // earliest user message.
         // Include the user's data ONLY with explicit consent; otherwise send a note instead of numbers.
-        let context = dataConsent ? await buildFullContext() : noConsentNote
+        let context = await questionContext()
         // K13: if the conversation overflows the sliding window, summarize the dropped middle so
         // the model retains context continuity. Best-effort; failure degrades to the old gap.
         await summarizeDroppedMiddleIfNeeded(key: key)
@@ -1070,10 +1163,22 @@ final class AICoachEngine: ObservableObject {
         return clean.isEmpty ? nil : clean
     }
 
-    /// Full data context = the metrics summary + recent workouts (+ an OPT-IN on-device-signals summary
-    /// when the second consent is on). Used when the user has granted data access.
+    /// The data context a question carries, exactly as `send` attaches it: the full context with data
+    /// access on; otherwise the no-consent note and what the user told the coach, which they wrote for it.
+    /// One funnel for `send` and the "exact text sent" preview, so the preview cannot show something the
+    /// request does not carry.
+    func questionContext() async -> String {
+        guard dataConsent else { return noConsentNote + "\n\n" + coachProfile.contextBlock }
+        return await buildFullContext()
+    }
+
+    /// Full data context = the fiche head (profile, what the user told the coach, today, normals, sleep)
+    /// + the metrics summary + recent workouts + stress + the Lift Log and its statuses + naps (+ an OPT-IN
+    /// on-device-signals summary when the second consent is on). Used when the user has granted data access.
     func buildFullContext() async -> String {
-        var ctx = buildContext()
+        let fiche = await ficheInputs()
+        var ctx = CoachFiche.head(fiche, told: coachProfile.contextBlock)
+        ctx += "\n\n" + buildContext()
         ctx += "\n\n" + (await recentWorkoutsBlock())
         // Derived stress: a single Baevsky Stress Index summary line over today's R-R, computed the same
         // way StressView does. Gated here under `dataConsent` (the caller only reaches buildFullContext()
@@ -1084,6 +1189,9 @@ final class AICoachEngine: ObservableObject {
         // the caller only reaches here with `dataConsent` on.
         let lift = await liftLogBlock()
         if !lift.isEmpty { ctx += "\n\n" + lift }
+        // The Lift Log's own verdict per exercise, after the sets it is drawn from.
+        let progression = CoachFiche.progression(fiche)
+        if !progression.isEmpty { ctx += "\n\n" + progression }
         // The recent days' naps (personal fork): the day lines carry the main night only.
         let naps = await napsBlock()
         if !naps.isEmpty { ctx += "\n\n" + naps }
@@ -1092,6 +1200,117 @@ final class AICoachEngine: ObservableObject {
             if !block.isEmpty { ctx += "\n\n" + block }
         }
         return ctx
+    }
+
+    /// The body profile as the context states it, nil without a `ProfileStore`. Also what the "What the
+    /// coach reads" screen shows, so the two read one resolver.
+    var bodyFiche: CoachFiche.Body? {
+        guard let profile else { return nil }
+        let stored = profile.storedBodyFields
+        return CoachFiche.Body(age: profile.age, sex: profile.sex, sexStored: stored.sex,
+                               heightCm: profile.heightCm, heightStored: stored.height,
+                               weightKg: profile.weightKg, weightStored: stored.weight,
+                               hrMax: profile.hrMax, hrMaxSetByUser: profile.hrMaxOverride > 0)
+    }
+
+    /// Everything the fiche states, resolved with the helpers the Today, Sleep and Lift Log screens use,
+    /// so the coach reads the figures those screens show. Re-read on every question.
+    ///
+    /// Today's effort and calories are computed over the calendar day (midnight to now); the Today screen
+    /// does the same unless its day-cycle mode is set to start at sleep onset.
+    func ficheInputs() async -> CoachFiche.Inputs {
+        var inputs = CoachFiche.Inputs()
+        let system = UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+        inputs.unitSystem = system
+        inputs.body = bodyFiche
+
+        let days = repo.days
+        let todayRow = repo.today
+        let todayKey = todayRow?.day ?? Repository.localDayKey(Date())
+        let through = days.filter { $0.day <= todayKey }
+
+        // Today's own value, else the latest night the Today screen carries forward.
+        func carried(_ own: Double?, _ carry: DailyMetric?, _ value: (DailyMetric) -> Double?) -> CoachFiche.Reading? {
+            if let own { return CoachFiche.Reading(value: own, day: todayKey) }
+            guard let carry, let v = value(carry) else { return nil }
+            return CoachFiche.Reading(value: v, day: carry.day)
+        }
+        let rhr = carried(todayRow?.restingHr.map(Double.init),
+                          Repository.lastRestingHrDay(days: days, todayKey: todayKey)) { $0.restingHr.map(Double.init) }
+        let hrv = carried(todayRow?.avgHrv, Repository.lastHrvDay(days: days, todayKey: todayKey)) { $0.avgHrv }
+
+        var effort = todayRow?.strain
+        var split: TodayEnergy.Split?
+        if let profile {
+            let now = Date()
+            let from = Int(Calendar.current.startOfDay(for: now).timeIntervalSince1970)
+            let hr = await repo.hrSamples(from: from, to: Int(now.timeIntervalSince1970), limit: 200_000)
+            let maxHR = profile.effortHRmax
+            let restHR = todayRow?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
+            let dayRest = todayRow?.restingHr.map(Double.init)
+            let method = PuffinExperiment.effortMethod
+            let sex = profile.sex
+            let body = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
+                                   age: Double(profile.age), sex: profile.sex)
+            let live = await Task.detached(priority: .utility) {
+                StrainScorer.strain(hr, maxHR: maxHR, restingHR: restHR, method: method, sex: sex)
+            }.value
+            effort = StrainScorer.effectiveEffort(live: live, stored: todayRow?.strain)
+            split = await Task.detached(priority: .utility) {
+                TodayEnergy.split(hr: hr, profile: body, hrmax: maxHR, restingHR: dayRest)
+            }.value
+        }
+
+        inputs.today = CoachFiche.Today(
+            day: todayKey, charge: todayRow?.recovery, effort: effort, restMin: todayRow?.totalSleepMin,
+            deepMin: todayRow?.deepMin, remMin: todayRow?.remMin, lightMin: todayRow?.lightMin,
+            efficiency: todayRow?.efficiency, restingHR: rhr, hrv: hrv,
+            spo2: carried(todayRow?.spo2Pct, Repository.lastVitalsDay(days: days, todayKey: todayKey)) { $0.spo2Pct },
+            respiration: carried(todayRow?.respRateBpm, Repository.lastRespDay(days: days, todayKey: todayKey)) { $0.respRateBpm },
+            skinTempDev: carried(todayRow?.skinTempDevC,
+                                 Repository.lastSkinTempReadingDay(days: days, todayKey: todayKey)) { $0.skinTempDevC },
+            steps: todayRow?.steps, restingKcal: split?.restingKcal, activityKcal: split?.activityKcal)
+
+        // The half-gauges' figures: last night against the last 30 nights and the Charge baseline.
+        inputs.restingHRNormal = TodayVitalRange.normalBand(repo.chargeBaselines?.restingHR)
+        inputs.hrvNormal = TodayVitalRange.normalBand(repo.chargeBaselines?.hrv)
+        inputs.restingHRGauge = TodayVitalRange.gauge(
+            value: rhr?.value,
+            history: days.compactMap { d in d.restingHr.map { (day: d.day, value: Double($0)) } },
+            throughDay: todayKey, normal: inputs.restingHRNormal)
+        inputs.hrvGauge = TodayVitalRange.gauge(
+            value: hrv?.value,
+            history: days.compactMap { d in d.avgHrv.map { (day: d.day, value: $0) } },
+            throughDay: todayKey, normal: inputs.hrvNormal)
+
+        // The synthesis' sleep figures: the debt ledger (naps credited), the need, the usual wake.
+        if !through.isEmpty {
+            let sessions = await repo.allSleepSessions(days: 17)
+            let habitual = await repo.habitualMidsleepSec()
+            let naps = SleepModel.napSleepMinutesByDay(navDays: SleepModel.navDays(navSessions: sessions),
+                                                       habitualMidsleepSec: habitual)
+            let nights = SleepNightsData(ledger: SleepModel.debtLedger(days: through, napSleepMinByDay: naps),
+                                         month: [])
+            let now = Int(Date().timeIntervalSince1970)
+            let wakes = repo.sleeps.map(\.endTs).filter { $0 <= now }.sorted()
+            let last30 = through.suffix(30).compactMap(\.totalSleepMin)
+            inputs.sleep = CoachFiche.Sleep(
+                needMin: SleepModel.debtNeedMin(days: through),
+                debtMin: nights.recent.isEmpty ? nil : nights.debtMinutes,
+                isDebt: nights.isDebt,
+                lastShortfallMin: nights.lastShortfallMinutes,
+                usualWakeMin: HabitualWake.minutes(wakeTimestamps: wakes, zone: .current),
+                lastNightMin: todayRow?.totalSleepMin,
+                average30Min: last30.isEmpty ? nil : last30.reduce(0, +) / Double(last30.count))
+        }
+
+        // The Lift Log's statuses and priorities, read as the Progression screen reads them.
+        let step = system == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg
+        if let data = await LiftProgressData.load(repo: repo, stepKg: step), !data.isEmpty {
+            inputs.exercises = data.exercises
+            inputs.priorities = data.priorities(.fourWeeks)
+        }
+        return inputs
     }
 
     /// The naps block for the context (`CoachNapContext`): the last two weeks' daytime sleep, split from

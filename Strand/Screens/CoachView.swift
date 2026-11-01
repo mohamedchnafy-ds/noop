@@ -42,6 +42,9 @@ struct CoachView: View {
     /// #2243: the coach settings, presented as a sheet. See `CoachSettingsView` for why a sheet
     /// rather than a push.
     @State private var showSettings = false
+    /// "What the coach should know about you" and "What the coach reads" (personal fork), from the menu.
+    @State private var showCoachProfile = false
+    @State private var showCoachData = false
 
     // K4: on-device voice input for the composer (iOS only). macOS gets a no-op stub via
     // `#if os(iOS)` guards — the shared file keeps compiling for both targets.
@@ -117,6 +120,12 @@ struct CoachView: View {
         #endif
         // #2243: coach settings. `repo` rides along because the scaffold's environment is not
         // inherited by a sheet's own view tree.
+        .sheet(isPresented: $showCoachProfile) {
+            CoachProfileView().environmentObject(coach).environmentObject(repo)
+        }
+        .sheet(isPresented: $showCoachData) {
+            CoachDataView().environmentObject(coach).environmentObject(repo)
+        }
         .sheet(isPresented: $showSettings) {
             CoachSettingsView()
                 .environmentObject(coach)
@@ -447,6 +456,16 @@ struct CoachView: View {
     private var settingsMenu: some View {
         Menu {
             Section("\(coach.provider.displayName) · \(coach.model)") {
+                Button {
+                    showCoachProfile = true
+                } label: {
+                    Label("What the coach should know about you", systemImage: "person.crop.circle")
+                }
+                Button {
+                    showCoachData = true
+                } label: {
+                    Label("What the coach reads", systemImage: "eye")
+                }
                 Button {
                     showSettings = true
                 } label: {

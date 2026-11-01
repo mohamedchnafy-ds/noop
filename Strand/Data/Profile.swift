@@ -144,6 +144,13 @@ final class ProfileStore: ObservableObject {
     /// Whether a profile photo is set.
     var hasAvatar: Bool { avatarImageData != nil }
 
+    /// Which body fields hold a value the user entered, as opposed to the defaults `init` falls back to
+    /// (male, 75 kg, 178 cm). The coach's context marks the defaults so they are not read as facts
+    /// (personal fork). Age has no such flag: `init` always stores a date of birth.
+    var storedBodyFields: (sex: Bool, weight: Bool, height: Bool) {
+        (d.object(forKey: K.sex) != nil, d.object(forKey: K.weight) != nil, d.object(forKey: K.height) != nil)
+    }
+
     /// Set the profile photo from raw image bytes (e.g. from a `PhotosPicker` / `NSOpenPanel`),
     /// downscaling to a small square so the persisted UserDefaults blob stays tiny. Passing nil
     /// clears it. If downscaling can't decode the bytes, the originals are stored as-is rather than

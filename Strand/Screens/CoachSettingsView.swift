@@ -2,12 +2,13 @@ import SwiftUI
 import StrandDesign
 
 /// Coach settings, split out of `CoachView` so the coach screen is the conversation and nothing else
-/// (#2243). Holds the surfaces that used to stack above the transcript: the data-sharing consent, the
-/// two further opt-ins that depend on it, the editable coach instructions, and the morning brief.
+/// (#2243). Holds the model, a link to what the coach reads (`CoachDataView`, which holds the data-sharing
+/// consent and the summary opt-in in this fork), the Gemini chart opt-in, the extra instructions, and the
+/// morning brief.
 ///
 /// Connection management (the provider pill, Update key, Clear conversation, Disconnect) stays on
 /// `CoachView`, where both the conversation and the key editor are visible. The Kotlin twin
-/// `CoachSettingsScreen` splits on the same line.
+/// `CoachSettingsScreen` keeps the consents on its settings screen: the coach refonte is iPhone only.
 ///
 /// Presented as a sheet rather than pushed. CoachView appears in three places between the two
 /// platforms (a macOS route, an iPhone tab root whose navigation bar is hidden, and an iPhone pillar
@@ -24,9 +25,12 @@ struct CoachSettingsView: View {
     @State private var briefGenerating = false
     @State private var briefStatus: String?
 
-    /// The coach-instructions editor, collapsed until asked for.
+    /// The extra-instructions editor, collapsed until asked for.
     @State private var promptExpanded: Bool = false
     @State private var promptDraft: String = ""
+
+    /// "What the coach reads", opened from its row.
+    @State private var showData = false
 
     var body: some View {
         // Literals, not String(localized:): `title`/`subtitle` are LocalizedStringKey, which converts
@@ -48,13 +52,13 @@ struct CoachSettingsView: View {
                                .accessibilityLabel("Close coach settings")
                        }) {
             modelBar
-            consentBar
-            // v5: a SECOND opt-in, only meaningful once data access is on, folds a summary of the
-            // new on-device signals (your strongest patterns + Lab Book) into the coach context.
-            if coach.dataConsent { onDeviceSignalsBar }
+            dataBar
             if coach.dataConsent && coach.provider == .gemini { multimodalChartBar }
             systemPromptBar
             morningBriefBar
+        }
+        .sheet(isPresented: $showData) {
+            CoachDataView().environmentObject(coach)
         }
         // Opening this screen is the moment a stale catalogue is worth refreshing: a key exists here by
         // definition, and the picker above is about to be read. Rate-limited and silent on failure.
@@ -104,58 +108,35 @@ struct CoachSettingsView: View {
         }
     }
 
-    /// Explicit, revocable permission for the coach to read & send the user's data. Off by default.
-    /// A frosted Charge-tinted card so it reads as part of the green Coach world, not a flat panel.
-    private var consentBar: some View {
-        NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
-            HStack(spacing: 10) {
-                Image(systemName: coach.dataConsent ? "lock.open.fill" : "lock.fill")
-                    .foregroundStyle(coach.dataConsent ? StrandPalette.accent : StrandPalette.textTertiary)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Let the coach use my data")
-                        .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
-                    // The ON line NAMES what a session carries rather than saying "workouts" and
-                    // leaving the reader to guess how much that is: the sport, how long, how far and how
-                    // hard, per session. This toggle is the only place someone is asked to agree to it.
-                    // Android says the same sentence (#2033).
-                    Text(coach.dataConsent
-                         ? "On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate."
-                         : "Off: the coach answers generally and sends none of your metrics.")
-                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+    /// The way to "What the coach reads", which holds the data-access switch and the summary opt-in
+    /// (personal fork), so each switch is shown once. The line states the switch's position.
+    private var dataBar: some View {
+        Button {
+            showData = true
+        } label: {
+            NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
+                HStack(spacing: 10) {
+                    Image(systemName: coach.dataConsent ? "lock.open.fill" : "lock.fill")
+                        .foregroundStyle(coach.dataConsent ? StrandPalette.accent : StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("What the coach reads")
+                            .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
+                        Text(coach.dataConsent
+                             ? "On: your data is sent with each question. See exactly what."
+                             : "Off: the coach answers without any of your numbers.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(StrandFont.footnote.weight(.semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
                 }
-                Spacer(minLength: 8)
-                Toggle("", isOn: $coach.dataConsent)
-                    .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
-                    .accessibilityLabel("Let the coach use my data")
             }
         }
-    }
-
-    /// The v5 second opt-in: include a SUMMARY of the new on-device signals (strongest n-of-1 patterns +
-    /// Lab Book markers). Summary-only, never raw readings, so the no-raw-egress posture holds.
-    private var onDeviceSignalsBar: some View {
-        NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
-            HStack(spacing: 10) {
-                Image(systemName: coach.includeOnDeviceSignals ? "checklist.checked" : "checklist")
-                    .foregroundStyle(coach.includeOnDeviceSignals ? StrandPalette.accent : StrandPalette.textTertiary)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Also share my patterns & Lab Book")
-                        .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
-                    Text(coach.includeOnDeviceSignals
-                         ? "On: a short summary of your strongest patterns and logged health numbers is added. Summaries only, never raw readings."
-                         : "Off: only your core metrics are shared, not your patterns or Lab Book.")
-                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Toggle("", isOn: $coach.includeOnDeviceSignals)
-                    .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
-                    .accessibilityLabel("Also share my patterns and Lab Book with the coach")
-            }
-        }
+        .buttonStyle(.plain)
     }
 
     /// K11: Third opt-in — send a chart image alongside the text when using Gemini's multimodal
@@ -183,28 +164,28 @@ struct CoachSettingsView: View {
         }
     }
 
-    /// Editable system prompt, the instructions that frame the coach. Collapsed by default; expanding
-    /// reveals a TextEditor bound to the engine (edits persist to UserDefaults and take effect on the
-    /// next message) plus a Reset-to-default control.
+    /// The user's extra instructions, added to the coach's built-in role (personal fork: they no longer
+    /// replace it). Collapsed by default; expanding reveals a TextEditor bound to the engine (edits persist
+    /// to UserDefaults and take effect on the next message) plus a Clear control.
     private var systemPromptBar: some View {
         NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
             VStack(alignment: .leading, spacing: promptExpanded ? 10 : 0) {
                 Button {
                     withAnimation(StrandMotion.fade) {
                         promptExpanded.toggle()
-                        if promptExpanded { promptDraft = coach.customSystemPrompt }
+                        if promptExpanded { promptDraft = coach.extraInstructions }
                     }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "text.alignleft")
-                            .foregroundStyle(coach.hasCustomSystemPrompt ? StrandPalette.accent : StrandPalette.textTertiary)
+                            .foregroundStyle(coach.hasExtraInstructions ? StrandPalette.accent : StrandPalette.textTertiary)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("Coach instructions")
+                            Text("Extra instructions")
                                 .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
-                            Text(coach.hasCustomSystemPrompt
-                                 ? "Customised. Your edited instructions frame every reply."
-                                 : "Edit how the coach thinks and talks. Takes effect on your next message.")
+                            Text(coach.hasExtraInstructions
+                                 ? "Added to the coach's built-in role in every reply."
+                                 : "Added to the coach's built-in role. Takes effect on your next message.")
                                 .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -216,7 +197,7 @@ struct CoachSettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(promptExpanded ? "Collapse coach instructions" : "Edit coach instructions")
+                .accessibilityLabel(promptExpanded ? "Collapse extra instructions" : "Edit extra instructions")
 
                 if promptExpanded {
                     TextEditor(text: $promptDraft)
@@ -229,24 +210,24 @@ struct CoachSettingsView: View {
                         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(StrandPalette.hairline, lineWidth: 1))
                         .onChangeCompat(of: promptDraft) { newValue in
-                            coach.customSystemPrompt = newValue
+                            coach.extraInstructions = newValue
                         }
-                        .accessibilityLabel("Coach instructions editor")
+                        .accessibilityLabel("Extra instructions editor")
 
                     HStack {
                         Spacer()
                         Button {
-                            coach.resetSystemPrompt()
-                            promptDraft = coach.customSystemPrompt
+                            coach.clearExtraInstructions()
+                            promptDraft = coach.extraInstructions
                         } label: {
-                            Label("Reset to default", systemImage: "arrow.uturn.backward")
+                            Label("Clear", systemImage: "xmark.circle")
                                 .font(StrandFont.footnote)
                                 .labelStyle(.titleAndIcon)
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(StrandPalette.accent)
-                        .disabled(!coach.hasCustomSystemPrompt)
-                        .accessibilityLabel("Reset coach instructions to default")
+                        .disabled(!coach.hasExtraInstructions)
+                        .accessibilityLabel("Clear extra instructions")
                     }
                 }
             }

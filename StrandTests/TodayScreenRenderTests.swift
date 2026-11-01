@@ -62,15 +62,24 @@ final class TodayScreenRenderTests: XCTestCase {
         TodayHeroCard(model: heroModel, animated: false, onGuide: { _ in })
     }
 
+    private func liveBpm(_ t: Double, alert: Bool) -> Double {
+        if alert {
+            let rise: Double = 13 * (1 - exp(-t / 30))
+            let ripple: Double = 2 * sin(t / 4)
+            return 86 + rise + ripple
+        }
+        let wave: Double = 6 * sin(t / 9) - 4 * cos(t / 23)
+        let climb: Double = t > 70 ? (t - 70) * 0.3 : 0
+        return 69 + wave + climb
+    }
+
     private func liveSamples(alert: Bool) -> [(ts: Int, bpm: Double)] {
         let now = dayStart + 10 * 3600
-        return (0..<90).map { i in
-            let t = Double(i)
-            let bpm = alert
-                ? 86 + 13 * (1 - exp(-t / 30)) + 2 * sin(t / 4)
-                : 69 + 6 * sin(t / 9) - 4 * cos(t / 23) + (t > 70 ? (t - 70) * 0.3 : 0)
-            return (ts: now - 89 + i, bpm: bpm)
+        var out: [(ts: Int, bpm: Double)] = []
+        for i in 0..<90 {
+            out.append((ts: now - 89 + i, bpm: liveBpm(Double(i), alert: alert)))
         }
+        return out
     }
 
     private func hrCard<Card: View>(mode: TodayHRMode, @ViewBuilder card: () -> Card) -> some View {
@@ -113,26 +122,38 @@ final class TodayScreenRenderTests: XCTestCase {
         }
     }
 
-    /// Midnight → 06:50 in 5-minute buckets: awake until 01:51, asleep to 06:04, a spike at waking.
+    /// The made-up night at minute `m` after midnight: awake until 01:51, asleep to 06:04, a spike at waking.
+    private func dayBpm(_ m: Double) -> Double {
+        if m < 111 {
+            let drift: Double = m / 40
+            return 66 - drift + 3 * sin(m / 9)
+        }
+        if m < 364 {
+            let slow: Double = 3 * sin((m - 111) / 60)
+            return 60 - slow + 1.5 * sin(m / 7)
+        }
+        if m < 375 { return 104 - (m - 364) * 3 }
+        return 72 + 4 * sin(m / 6)
+    }
+
+    /// The made-up usual day at hour `h`.
+    private func usualBpm(_ h: Double) -> Double {
+        if h < 1.5 { return 68 - h * 5 }
+        if h < 6.3 { return 59.5 }
+        return h < 6.6 ? 66 : 70
+    }
+
+    /// Midnight → 06:50 in 5-minute buckets.
     private var dayInput: TodayHRDayInput {
         let start = dayStart
         var ts: [Int] = [], bpm: [Double] = []
         for i in 0..<83 {
-            let m = Double(i * 5)
-            let v: Double
-            switch m {
-            case ..<111: v = 66 - m / 40 + 3 * sin(m / 9)
-            case ..<364: v = 60 - 3 * sin((m - 111) / 60) + 1.5 * sin(m / 7)
-            case ..<375: v = 104 - (m - 364) * 3
-            default: v = 72 + 4 * sin(m / 6)
-            }
             ts.append(start + i * 300)
-            bpm.append(v)
+            bpm.append(dayBpm(Double(i * 5)))
         }
         var habitual: [Int: Double] = [:]
         for slot in 0..<288 {
-            let h = Double(slot) / 12
-            habitual[slot] = h < 1.5 ? 68 - h * 5 : (h < 6.3 ? 59.5 : (h < 6.6 ? 66 : 70))
+            habitual[slot] = usualBpm(Double(slot) / 12)
         }
         return TodayHRDayInput(bucketTs: ts, bucketBpm: bpm,
                                segments: hrGapSegments(bucketTs: ts, bucketSeconds: 300),

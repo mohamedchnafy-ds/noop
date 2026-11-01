@@ -1,0 +1,49 @@
+# TEMPORARY (personal fork): fetches the official ANSES Ciqual 2025 food composition table from Recherche
+# Data Gouv (Licence Ouverte Etalab 2.0) and republishes the files as release assets, so the embedded
+# nutrition table can be built from the original without network access in the working session.
+# Lives only on `ci/ciqual-*` branches; never merged.
+name: Temp - Ciqual download
+
+on:
+  push:
+    branches: ['ci/ciqual-*']
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the Ciqual 2025 files
+        run: |
+          set -euo pipefail
+          mkdir out
+          api=https://entrepot.recherche.data.gouv.fr/api
+          curl -sSfL "$api/datasets/:persistentId/?persistentId=doi:10.57745/RDMHWY" -o out/dataset.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open('out/dataset.json'))
+          v = d['data']['latestVersion']
+          with open('out/files.tsv', 'w') as f:
+              for x in v['files']:
+                  df = x['dataFile']
+                  f.write("\t".join(str(df.get(k, '')) for k in ('id', 'filename', 'filesize', 'contentType', 'persistentId', 'originalFileFormat')) + "\n")
+          json.dump({'license': v.get('license'), 'termsOfUse': v.get('termsOfUse'), 'versionNumber': v.get('versionNumber'),
+                     'releaseTime': v.get('releaseTime')}, open('out/license.json', 'w'), indent=1, ensure_ascii=False)
+          PY
+          cat out/files.tsv
+          while IFS=$'\t' read -r id name size type pid orig; do
+            safe=$(echo "$name" | tr ' ' '_')
+            curl -sSfL "$api/access/datafile/$id?format=original" -o "out/$safe" \
+              || curl -sSfL "$api/access/datafile/$id" -o "out/$safe"
+          done < out/files.tsv
+          ls -la out
+      - name: Publish them as release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ciqual-${GITHUB_SHA::7}"
+          gh release create "$tag" out/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Ciqual 2025 download ${GITHUB_SHA::7}" --prerelease \
+            --notes "Temporary: the ANSES Ciqual 2025 table (Licence Ouverte Etalab 2.0), as published on Recherche Data Gouv (doi:10.57745/RDMHWY). Anses. 2025. Ciqual French food composition table."

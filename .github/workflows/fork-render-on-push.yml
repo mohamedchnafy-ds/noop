@@ -1,8 +1,8 @@
-# Fork-only: render the guided superset screens and the Sleep tab to PNG whenever a `render/**` branch is
-# pushed, and publish the images as a prerelease named after the branch — the visual check against the
-# mockups before an .ipa is built. Runs the render test classes (LiftSupersetRenderTests,
-# SleepScreenRenderTests) on the macOS app target; the screens are shared SwiftUI, drawn at iPhone size in
-# dark mode, in French.
+# Fork-only: render the guided superset screens, the Sleep tab and the Lift Log's Progression to PNG whenever
+# a `render/**` branch is pushed, and publish the images as a prerelease named after the branch — the visual
+# check against the mockups before an .ipa is built. Runs the render test classes (LiftSupersetRenderTests,
+# SleepScreenRenderTests, LiftProgressRenderTests) on the macOS app target; the screens are shared SwiftUI,
+# drawn at iPhone size in dark mode, in French.
 name: Screens render (fork, on push)
 
 on:
@@ -35,6 +35,7 @@ jobs:
             -testLanguage fr -testRegion FR \
             -only-testing:StrandTests/LiftSupersetRenderTests \
             -only-testing:StrandTests/SleepScreenRenderTests \
+            -only-testing:StrandTests/LiftProgressRenderTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?

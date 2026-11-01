@@ -1173,6 +1173,44 @@ extension WhoopStore {
                 t.add(column: "supersetGroup", .text)
             }
         }
+        // PERSONAL FORK: Coach conversation history (iOS only; Android keeps its single `coachMessage`
+        // conversation, declared `ios_only` in schema_oracle.json). `coachMessage` held ONE conversation,
+        // retired at midnight. These two tables keep every conversation, so nothing is lost at a day
+        // boundary and an old one can be reopened. Additive: `coachMessage` is left exactly as it is
+        // and its rows are COPIED into a first conversation, never moved.
+        //
+        // IDEMPOTENT for the same reason as v49: every create is `ifNotExists`, and the copy runs only
+        // while the new tables are still empty.
+        migrator.registerMigration("v50-coach-conversations") { db in
+            try db.create(table: "coachConversation", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                // Empty until the first question: the screen then shows its own fallback label.
+                t.column("title", .text).notNull()
+                t.column("createdAt", .integer).notNull()   // unix seconds
+                t.column("updatedAt", .integer).notNull()   // unix seconds; history order
+                t.column("pinned", .integer).notNull().defaults(to: 0)
+                // 1 once the wearer renamed it, so the automatic title never overwrites theirs.
+                t.column("titleEdited", .integer).notNull().defaults(to: 0)
+            }
+            try db.create(table: "coachConversationMessage", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("conversationId", .text).notNull()
+                t.column("role", .text).notNull()       // "user" | "assistant"
+                t.column("text", .text).notNull()
+                t.column("provider", .text).notNull()
+                t.column("createdAt", .integer).notNull()
+                t.column("orderIndex", .integer).notNull()
+            }
+            try db.create(index: "idx_coachConversationMessage_conversation", on: "coachConversationMessage",
+                          columns: ["conversationId", "orderIndex"], options: [.ifNotExists])
+
+            guard try db.tableExists("coachMessage"),
+                  try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM coachConversation") == 0 else { return }
+            let legacy = try Row.fetchAll(db, sql: "SELECT * FROM coachMessage ORDER BY orderIndex ASC")
+                .map(CoachMessageRow.decode)
+            guard !legacy.isEmpty else { return }
+            try WhoopStore.writeCoachConversation(.carryingOver(legacy), messages: legacy, in: db)
+        }
         return migrator
     }
 }

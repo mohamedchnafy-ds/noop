@@ -466,9 +466,9 @@ final class AICoachEngine: ObservableObject {
         // Retire the transcript with the connection. Kotlin has done this since the method existed
         // (CoachViewModel.disconnect) and this side never did, so returning to the setup screen on Apple
         // left the whole conversation sitting behind it — including whatever the user had told a coach
-        // they were in the middle of disconnecting from.
-        messages = []
-        conversationDay = nil
+        // they were in the middle of disconnecting from. The conversation itself stays in the history.
+        stopReply()
+        resetTranscript()
         // The error belongs to the connection being retired, so it goes with it. Kotlin has cleared it
         // here since the method existed and this side never did: harmless while only the chat rendered
         // an error, and a visible defect the moment the setup card does too, because the card this
@@ -505,9 +505,9 @@ final class AICoachEngine: ObservableObject {
         AIKeyStore.clear()
         // Same reasoning as `disconnect`: clearing the key returns the user to the setup screen, and
         // Kotlin empties the transcript when it does. Leaving it meant a "clear my key" on Apple removed
-        // the credential and kept the conversation.
-        messages = []
-        conversationDay = nil
+        // the credential and kept the conversation. The conversation itself stays in the history.
+        stopReply()
+        resetTranscript()
         // The error belongs to the connection being retired, so it goes with it. Kotlin has cleared it
         // here since the method existed and this side never did: harmless while only the chat rendered
         // an error, and a visible defect the moment the setup card does too, because the card this
@@ -671,60 +671,152 @@ final class AICoachEngine: ObservableObject {
     /// Coach screen's `.task` re-fires (e.g. a tab re-select).
     private var didLoadPersistedMessages = false
 
-    /// Load the conversation persisted by a PRIOR launch (PRD-K2), so relaunching doesn't lose it.
+    // MARK: - Conversation history (personal fork, migration v50)
+
+    /// The conversation the transcript belongs to; nil until its first save gives it a row.
+    private var currentConversation: CoachConversationRow?
+
+    /// Every saved conversation, pinned first then most recent, for the history screen.
+    @Published private(set) var conversations: [CoachConversationRow] = []
+
+    /// The id of the conversation on screen, nil for a new one not saved yet.
+    var currentConversationId: String? { currentConversation?.id }
+
+    /// Load the history and reopen today's conversation (PRD-K2), so relaunching doesn't lose it.
     /// Called from the Coach screen's `.task` (mirroring `startBriefIfNeeded`) rather than `init`,
     /// which is synchronous and runs for every screen the app builds, not just Coach. Best-effort: a
     /// store failure just leaves the transcript empty, matching pre-K2 behaviour — never crashes.
     func loadPersistedMessagesIfNeeded() async {
         guard !didLoadPersistedMessages else { return }
         didLoadPersistedMessages = true
-        guard messages.isEmpty, let store = await repo.storeHandle() else { return }
-        guard let rows = try? await store.coachMessages(), !rows.isEmpty else { return }
-        // Recover the day this transcript was last written on FROM THE ROWS. `conversationDay` lives in
-        // memory, so a process restart brought it back nil, and `isStaleConversation(nil, ...)` is false
-        // by design (nothing sent yet is never stale), which meant a restored conversation from any
-        // previous day was never retired, by `send` or by anything else (#2087).
-        let newest = rows.map(\.createdAt).max() ?? 0
-        let lastDay = Self.localEpochDay(Date(timeIntervalSince1970: TimeInterval(newest)))
-        // Retire by NOT restoring. The next append replaces the stored rows wholesale, so nothing is
-        // deleted here and a transcript is never destroyed by merely opening the screen.
+        guard let store = await repo.storeHandle() else { return }
+        conversations = (try? await store.coachConversations()) ?? []
+        guard messages.isEmpty, let latest = conversations.max(by: { $0.updatedAt < $1.updatedAt }) else {
+            return
+        }
+        // Only a conversation last written TODAY is reopened (#1542, #2087: the day comes from the
+        // stored row, since `conversationDay` does not survive a relaunch). An older one is not
+        // restored but stays in the history, where it can be reopened on purpose.
+        let lastDay = Self.localEpochDay(Date(timeIntervalSince1970: TimeInterval(latest.updatedAt)))
         guard !Self.isStaleConversation(lastEpochDay: lastDay, todayEpochDay: Self.localEpochDay()) else {
             return
         }
-        messages = rows
-            .sorted { $0.orderIndex < $1.orderIndex }
-            .map { ChatMessage(id: UUID(uuidString: $0.id) ?? UUID(),
-                                role: ChatMessage.Role(rawValue: $0.role) ?? .user,
-                                text: $0.text) }
+        await putOnScreen(latest, from: store)
         conversationDay = lastDay
     }
 
-    /// Replace the ENTIRE persisted conversation with the current in-memory `messages`. Called once
-    /// per completed send/brief (not per streamed chunk) so a streamed reply's several in-place text
-    /// mutations don't hammer the store. Fire-and-forget; a store failure never blocks the UI — the
-    /// in-memory transcript (what the user sees) is unaffected either way.
-    private func persistMessages() {
-        let snapshot = messages
-        let providerId = provider.rawValue
+    /// Reopen a conversation from the history. Continuing it is a deliberate choice, so it counts as
+    /// today's: the day boundary in `send` does not start a new one under it. Ignored mid-reply.
+    func openConversation(id: String) async {
+        guard activeTurn == nil, id != currentConversation?.id,
+              let row = conversations.first(where: { $0.id == id }),
+              let store = await repo.storeHandle() else { return }
+        await putOnScreen(row, from: store)
+        conversationDay = Self.localEpochDay()
+    }
+
+    /// Start an empty conversation. The current one stays in the history. Ignored mid-reply.
+    func startNewConversation() {
+        guard activeTurn == nil else { return }
+        resetTranscript()
+    }
+
+    /// Rename a conversation. A blank name is ignored; once renamed, the automatic title stops
+    /// applying to it.
+    func renameConversation(id: String, to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if currentConversation?.id == id {
+            currentConversation?.title = trimmed
+            currentConversation?.titleEdited = true
+        }
+        updateHistory { try await $0.renameCoachConversation(id: id, title: trimmed) }
+    }
+
+    /// Pin a conversation to the top of the history, or unpin it.
+    func setConversationPinned(id: String, pinned: Bool) {
+        if currentConversation?.id == id { currentConversation?.pinned = pinned }
+        updateHistory { try await $0.setCoachConversationPinned(id: id, pinned: pinned) }
+    }
+
+    /// Delete a conversation from the history. Deleting the one on screen also stops its reply and
+    /// leaves an empty conversation.
+    func deleteConversation(id: String) {
+        if currentConversation?.id == id {
+            stopReply()
+            resetTranscript()
+        }
+        updateHistory { try await $0.deleteCoachConversation(id: id) }
+    }
+
+    /// Put a stored conversation on screen.
+    private func putOnScreen(_ row: CoachConversationRow, from store: WhoopStore) async {
+        let rows = (try? await store.coachConversationMessages(conversationId: row.id)) ?? []
+        resetTranscript()
+        messages = rows.map {
+            ChatMessage(id: UUID(uuidString: $0.id) ?? UUID(),
+                        role: ChatMessage.Role(rawValue: $0.role) ?? .user,
+                        text: $0.text)
+        }
+        currentConversation = row
+    }
+
+    /// Empty the transcript and detach it from its stored conversation, which is left untouched.
+    private func resetTranscript() {
+        messages = []
+        currentConversation = nil
+        conversationDay = nil
+        droppedSummary = nil      // K13: the summary belongs to the conversation it summarised
+        droppedSummaryKey = []
+        errorText = nil
+        keyRejected = false
+    }
+
+    /// Run one history write, then reload the list. Fire-and-forget, like `persistMessages`.
+    private func updateHistory(_ write: @escaping (WhoopStore) async throws -> Void) {
         Task {
             guard let store = await repo.storeHandle() else { return }
-            let rows = snapshot.enumerated().map { index, m in
-                CoachMessageRow(id: m.id.uuidString, role: m.role.rawValue, text: m.text,
-                                 provider: providerId, createdAt: Int(Date().timeIntervalSince1970),
-                                 orderIndex: index)
-            }
-            try? await store.replaceCoachMessages(rows)
+            try? await write(store)
+            conversations = (try? await store.coachConversations()) ?? conversations
         }
     }
 
-    /// The Coach toolbar's "Clear conversation" action: wipes both the in-memory transcript and the
-    /// persisted table. Fire-and-forget on the store side; the in-memory clear is immediate.
+    /// Save the transcript as the current conversation, with ALL of its turns. Called once per
+    /// completed send/brief (not per streamed chunk) so a streamed reply's several in-place text
+    /// mutations don't hammer the store. Fire-and-forget; a store failure never blocks the UI — the
+    /// in-memory transcript (what the user sees) is unaffected either way.
+    private func persistMessages() {
+        guard !messages.isEmpty else { return }
+        let now = Int(Date().timeIntervalSince1970)
+        var conversation = currentConversation
+            ?? CoachConversationRow(id: UUID().uuidString, title: "", createdAt: now, updatedAt: now)
+        conversation.updatedAt = now
+        if conversation.title.isEmpty, !conversation.titleEdited,
+           let question = messages.first(where: { $0.role == .user }) {
+            conversation.title = CoachConversationTitle.make(fromQuestion: question.text)
+        }
+        currentConversation = conversation
+        let snapshot = messages
+        let providerId = provider.rawValue
+        let saved = conversation
+        updateHistory { store in
+            let rows = snapshot.enumerated().map { index, m in
+                CoachMessageRow(id: m.id.uuidString, role: m.role.rawValue, text: m.text,
+                                provider: providerId, createdAt: now, orderIndex: index)
+            }
+            try await store.saveCoachConversation(saved, messages: rows)
+        }
+    }
+
+    /// The Coach menu's "Clear conversation" action: deletes the conversation on screen from the
+    /// history and leaves an empty one. The in-memory clear is immediate.
     func clearConversation() {
-        messages = []
-        conversationDay = nil
-        droppedSummary = nil      // K13: reset the summary cache on clear
-        droppedSummaryKey = []
-        Task { try? await repo.storeHandle()?.clearCoachMessages() }
+        guard let id = currentConversation?.id else {
+            stopReply()
+            resetTranscript()
+            return
+        }
+        deleteConversation(id: id)
     }
 
     /// K5: surface a brief generated by the SCHEDULED morning-brief notification as the first Coach
@@ -737,17 +829,13 @@ final class AICoachEngine: ObservableObject {
         persistMessages()
     }
 
-    /// Retire yesterday's in-memory chat when Coach is opened, before checking for today's
+    /// Start a new conversation over yesterday's when Coach is opened, before checking for today's
     /// scheduled brief. A process kept alive overnight does not reload persisted messages, so the
-    /// one-time load check cannot clear that chat. Keep the stored rows until a new turn or brief
-    /// replaces them, as the existing restored-chat path does.
+    /// one-time load check cannot do it. Yesterday's conversation stays in the history.
     func retireStaleConversationIfNeeded() {
         guard Self.isStaleConversation(lastEpochDay: conversationDay,
                                        todayEpochDay: Self.localEpochDay()) else { return }
-        messages = []
-        conversationDay = nil
-        droppedSummary = nil
-        droppedSummaryKey = []
+        resetTranscript()
     }
 
     /// K5: append an explicitly-generated brief (the Coach settings "Generate now" button) as a new

@@ -511,6 +511,7 @@ struct CoachView: View {
             CoachHeaderIcon(symbol: "ellipsis")
         }
         .menuStyle(.button)
+        .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "More options"))
     }

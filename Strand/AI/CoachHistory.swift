@@ -69,6 +69,20 @@ enum CoachHistory {
         }
     }
 
+    /// How a row's time is written: the hour today and yesterday (the group already names the day),
+    /// the weekday this week, and the date for pinned and older conversations.
+    enum TimeStyle: Equatable {
+        case hourMinute, weekday, dayMonth
+    }
+
+    static func timeStyle(for group: Group) -> TimeStyle {
+        switch group {
+        case .today, .yesterday: return .hourMinute
+        case .thisWeek: return .weekday
+        case .pinned, .earlier: return .dayMonth
+        }
+    }
+
     /// Whole local days between the day of `timestamp` and the day of `now` (0 = same day).
     static func dayDistance(from timestamp: Int, to now: Date, calendar: Calendar = .current) -> Int {
         let then = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(timestamp)))

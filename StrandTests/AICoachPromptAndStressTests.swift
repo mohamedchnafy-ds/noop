@@ -4,8 +4,10 @@ import WhoopProtocol
 import StrandAnalytics
 
 /// Covers the two small AI-Coach additions:
-///   1. The editable system prompt — persisted in UserDefaults under `AICoachEngine.systemPromptKey`,
-///      read FRESH per request via `systemPrompt`, with a Reset-to-default that clears the override.
+///   1. The built-in role and the user's extra instructions — persisted in UserDefaults under
+///      `AICoachEngine.extraInstructionsKey`, read FRESH per request via `systemPrompt`, ADDED to the
+///      role rather than replacing it (personal fork), with a Clear that removes them. Plus the one-time
+///      default-model upgrade to Claude Sonnet 5.5.
 ///   2. The derived Baevsky Stress Index context line — its pure formatter (`stressIndexSummary`) and
 ///      that the line uses the SAME `StressIndex.stressIndex(rr:)` computation StressView does.
 ///
@@ -13,60 +15,94 @@ import StrandAnalytics
 @MainActor
 final class AICoachPromptAndStressTests: XCTestCase {
 
-    /// A fresh engine plus a clean slate: clear the prompt key before and after so tests don't leak.
+    /// A fresh engine plus a clean slate: clear the key before and after so tests don't leak.
     private func makeEngine() -> AICoachEngine {
-        UserDefaults.standard.removeObject(forKey: AICoachEngine.systemPromptKey)
+        UserDefaults.standard.removeObject(forKey: AICoachEngine.extraInstructionsKey)
         return AICoachEngine(repo: Repository(deviceId: "test-aicoach-prompt"))
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: AICoachEngine.systemPromptKey)
+        UserDefaults.standard.removeObject(forKey: AICoachEngine.extraInstructionsKey)
         super.tearDown()
     }
 
-    // MARK: - Feature 1: editable system prompt
+    // MARK: - Feature 1: built-in role + extra instructions
 
-    func testDefaultsToBuiltInPromptWhenNothingStored() {
+    func testDefaultsToTheBuiltInRoleWhenNothingStored() {
         let engine = makeEngine()
         XCTAssertEqual(engine.systemPrompt, AICoachEngine.defaultSystemPrompt)
-        XCTAssertFalse(engine.hasCustomSystemPrompt)
+        XCTAssertFalse(engine.hasExtraInstructions)
     }
 
-    func testEditPersistsAndIsReadFreshOnNextSend() {
-        let engine = makeEngine()
-        let custom = "You are a terse cycling coach. Answer in two sentences."
-        engine.customSystemPrompt = custom
-
-        // Persisted under the documented key, and surfaced by the fresh-read property.
-        XCTAssertEqual(UserDefaults.standard.string(forKey: AICoachEngine.systemPromptKey), custom)
-        XCTAssertEqual(engine.systemPrompt, custom)
-        XCTAssertTrue(engine.hasCustomSystemPrompt)
-
-        // "Read fresh per send" — a write straight to UserDefaults (as another session might) is
-        // picked up by the next `systemPrompt` read without rebuilding the engine.
-        let edited = custom + " Always cite a number."
-        UserDefaults.standard.set(edited, forKey: AICoachEngine.systemPromptKey)
-        XCTAssertEqual(engine.systemPrompt, edited)
+    func testTheRoleIsTheIntegratedCoachInstructions() {
+        let role = AICoachEngine.defaultSystemPrompt
+        XCTAssertTrue(role.hasPrefix("Tu es le coach sportif personnel de l'utilisateur"))
+        // It names the blocks the context now carries, and no longer asks for a hand-filled profile.
+        for block in ["USER PROFILE", "WHAT THE USER TOLD THE COACH", "TODAY", "YOUR NORMALS", "SLEEP",
+                      "LIFT LOG", "LIFT PROGRESSION"] {
+            XCTAssertTrue(role.contains(block), "the role explains \(block)")
+        }
+        XCTAssertFalse(role.contains("à compléter"))
+        XCTAssertTrue(role.contains("ne t'appuie jamais dessus"), "the RPE rule stays")
     }
 
-    func testResetRestoresDefaultAndClearsTheKey() {
+    func testExtraInstructionsAreAddedToTheRoleNotSwappedIn() {
         let engine = makeEngine()
-        engine.customSystemPrompt = "Custom override."
-        XCTAssertTrue(engine.hasCustomSystemPrompt)
+        let extra = "Réponds toujours en moins de 3 phrases."
+        engine.extraInstructions = extra
 
-        engine.resetSystemPrompt()
-        XCTAssertNil(UserDefaults.standard.string(forKey: AICoachEngine.systemPromptKey))
+        XCTAssertEqual(UserDefaults.standard.string(forKey: AICoachEngine.extraInstructionsKey), extra)
+        XCTAssertTrue(engine.systemPrompt.hasPrefix(AICoachEngine.defaultSystemPrompt))
+        XCTAssertTrue(engine.systemPrompt.contains("## Consignes de l'utilisateur"))
+        XCTAssertTrue(engine.systemPrompt.hasSuffix(extra))
+        XCTAssertTrue(engine.hasExtraInstructions)
+
+        // Read fresh per send: a write straight to UserDefaults is picked up by the next read.
+        UserDefaults.standard.set("Autre consigne.", forKey: AICoachEngine.extraInstructionsKey)
+        XCTAssertTrue(engine.systemPrompt.hasSuffix("Autre consigne."))
+    }
+
+    func testClearRemovesTheExtraInstructions() {
+        let engine = makeEngine()
+        engine.extraInstructions = "Une consigne."
+        engine.clearExtraInstructions()
+        XCTAssertNil(UserDefaults.standard.string(forKey: AICoachEngine.extraInstructionsKey))
         XCTAssertEqual(engine.systemPrompt, AICoachEngine.defaultSystemPrompt)
-        XCTAssertFalse(engine.hasCustomSystemPrompt)
+        XCTAssertFalse(engine.hasExtraInstructions)
     }
 
-    func testBlankOverrideNeverSendsAnEmptyPrompt() {
+    func testBlankExtraInstructionsClearTheKey() {
         let engine = makeEngine()
-        engine.customSystemPrompt = "   \n  "   // whitespace only
-        // A blank override clears the key, so the default is sent — never an empty system prompt.
-        XCTAssertNil(UserDefaults.standard.string(forKey: AICoachEngine.systemPromptKey))
+        engine.extraInstructions = "   \n  "
+        XCTAssertNil(UserDefaults.standard.string(forKey: AICoachEngine.extraInstructionsKey))
         XCTAssertEqual(engine.systemPrompt, AICoachEngine.defaultSystemPrompt)
-        XCTAssertFalse(engine.hasCustomSystemPrompt)
+    }
+
+    func testComposeSystemPromptTrimsAndSkipsBlank() {
+        XCTAssertEqual(AICoachEngine.composeSystemPrompt(role: "R", extra: nil), "R")
+        XCTAssertEqual(AICoachEngine.composeSystemPrompt(role: "R", extra: " \n "), "R")
+        let composed = AICoachEngine.composeSystemPrompt(role: "R", extra: "  X  ")
+        XCTAssertTrue(composed.hasPrefix("R\n\n## Consignes de l'utilisateur\n"))
+        XCTAssertTrue(composed.hasSuffix("\nX"))
+    }
+
+    // MARK: - Default model
+
+    func testTheAnthropicDefaultIsSonnet55() {
+        XCTAssertEqual(AIProvider.anthropic.defaultModel, "claude-sonnet-5-5")
+        XCTAssertEqual(AIProvider.anthropic.modelOptions.first, "claude-sonnet-5-5")
+    }
+
+    func testOnlyThePreviousDefaultIsUpgradedAndOnlyOnce() {
+        XCTAssertEqual(AICoachEngine.upgradedModel(provider: .anthropic, stored: "claude-sonnet-4-6",
+                                                   alreadyUpgraded: false), "claude-sonnet-5-5")
+        XCTAssertNil(AICoachEngine.upgradedModel(provider: .anthropic, stored: "claude-sonnet-4-6",
+                                                 alreadyUpgraded: true), "a later manual pick is kept")
+        XCTAssertNil(AICoachEngine.upgradedModel(provider: .anthropic, stored: "claude-opus-4-8",
+                                                 alreadyUpgraded: false), "a chosen model is kept")
+        XCTAssertNil(AICoachEngine.upgradedModel(provider: .anthropic, stored: nil, alreadyUpgraded: false))
+        XCTAssertNil(AICoachEngine.upgradedModel(provider: .openAI, stored: "claude-sonnet-4-6",
+                                                 alreadyUpgraded: false))
     }
 
     // MARK: - Feature 2: derived stress line

@@ -227,7 +227,7 @@ enum CoachLiftContext {
 
     // MARK: - Formatting
 
-    private static func weight(_ kg: Double, system: UnitSystem) -> String {
+    static func weight(_ kg: Double, system: UnitSystem) -> String {
         LiftFormat.trim((LiftFormat.display(fromKilograms: kg, system: system) * 10).rounded() / 10)
     }
 

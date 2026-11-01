@@ -255,7 +255,7 @@ final class AppModel: ObservableObject {
         // the registry active id once the store opens. Single-device install keeps "my-whoop" throughout.
         self.ble = BLEManager(state: live, deviceId: deviceId)
         self.repo = Repository(deviceId: deviceId)
-        self.coach = AICoachEngine(repo: repo)
+        self.coach = AICoachEngine(repo: repo, profile: profile)
         self.intelligence = IntelligenceEngine(repo: repo, profile: profile, deviceId: deviceId)
         // Route the engine's per-day scoring diagnostic into the SAME shareable strap log every other
         // subsystem writes to (PII-scrubbed by `live.append(log:)`), so a bug report ships proof of what

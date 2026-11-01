@@ -521,16 +521,20 @@ struct SleepPhasesChart: View {
                    style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
     }
 
+    /// The scale's values printed beside the band, in the curve's colour (no tick marks: a dash before a
+    /// number reads as a minus sign). Every other value is dropped when they would sit closer than a line
+    /// of text apart, which happens in the short strips.
     private func drawScale(_ ctx: GraphicsContext, _ s: Series, band: (top: CGFloat, height: CGFloat),
                            g: Geometry, onLeft: Bool, withUnit: Bool = true) {
         let tint = Self.tint(s.curve)
         let edge = onLeft ? g.left : g.left + g.plotWidth
-        for tick in s.scale.ticks {
+        var ticks = s.scale.ticks
+        if ticks.count > 2 {
+            let spacing = CGFloat(s.scale.y(ticks[0]) - s.scale.y(ticks[1])) * band.height
+            if spacing < 18 { ticks = ticks.enumerated().filter { $0.offset % 2 == 0 }.map(\.element) }
+        }
+        for tick in ticks {
             let ty = band.top + CGFloat(s.scale.y(tick)) * band.height
-            var mark = Path()
-            mark.move(to: CGPoint(x: edge, y: ty))
-            mark.addLine(to: CGPoint(x: onLeft ? edge - 4 : edge + 4, y: ty))
-            ctx.stroke(mark, with: .color(tint), lineWidth: 1.5)
             let label = ctx.resolve(Text(tick, format: .number.precision(.fractionLength(s.scale.decimals)))
                 .font(StrandFont.captionNumber.weight(.semibold)).foregroundColor(tint))
             ctx.draw(label, at: CGPoint(x: onLeft ? edge - 6 : edge + 6, y: ty), anchor: onLeft ? .trailing : .leading)

@@ -163,7 +163,7 @@ struct SleepPhasesCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: NoopMetrics.space2)
-            HStack(spacing: 4) {
+            VStack(alignment: .trailing, spacing: 6) {
                 SourceBadge("\(source)", tint: StrandPalette.restColor)
                 if intervals.count >= 2 {
                     Button { showsFullScreen = true } label: {
@@ -178,7 +178,7 @@ struct SleepPhasesCard: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text("Show the chart full screen"))
-                    .padding(.vertical, -5)
+                    .padding(-5)
                 }
             }
         }

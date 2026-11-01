@@ -3,160 +3,258 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
-// MARK: - Sleep-debt ledger (#today-hosted-cards)
+// MARK: - Your nights: sleep debt + hours per night (#today-hosted-cards)
 //
-// The Sleep tab's "Sleep-debt ledger" card, extracted into a standalone view so it can ALSO be hosted in
-// the Today tab. Both the Sleep tab and the Today host render THIS view from the SAME `SleepModel`, so the
-// recency-weighted estimate can never diverge between the two surfaces (the parity contract). The
-// card body + its `debtDeltaBars` strip and the debt-only formatting helpers (`debtHeadline` /
-// `debtTag` / `debtRead` / `debtBalanceColor` / `debtSigned`) are a verbatim lift of the former
-// `SleepView.sleepDebtLedger` (and the helpers only it used); the nap-credited ledger is computed once in
-// `SleepModel.build` (the shared builder) and read here — it is NOT recomputed.
+// The Sleep tab's debt card, a standalone view so the Today tab can host it too. Both surfaces render
+// THIS view from the SAME `SleepModel`, so the recency-weighted estimate can never differ between them
+// (the parity contract). Nothing is recomputed here: the ledger and the 30-day series come from
+// `SleepModel.build`.
+//
+// Personal fork: the ledger and the 30-day hours trend are one card. The headline is the debt with one
+// plain sentence on how it is counted (a share of each shortfall carries to the next night), then the
+// hours of each night as bars against the need, over 14 nights or 30 days.
 
-/// The "Sleep-debt ledger" card. A recency-weighted estimate across the recent fortnight — the
-/// current debt headline, a plain-English read, and a diverging raw per-night delta bar —
-/// rendered from the shared [SleepModel]'s `sleepDebtLedger`. (#242)
 struct SleepDebtLedgerCard: View {
     let model: SleepModel
 
     var body: some View {
-        let ledger = model.sleepDebtLedger
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sleep-debt ledger", overline: "Last 14 nights")
-            NoopCard(tint: StrandPalette.restColor) {
-                if ledger.nightCount == 0 {
+        SleepNightsCard(data: SleepNightsData(ledger: model.sleepDebtLedger, month: model.trendPoints))
+    }
+}
+
+/// What the card draws, built from the ledger and the 30-day series without new arithmetic beyond
+/// lining nights up by day.
+struct SleepNightsData {
+    struct Night: Equatable {
+        let day: String
+        let minutes: Double
+    }
+
+    var debtMinutes: Double
+    var isDebt: Bool
+    var needMinutes: Double
+    /// How far the latest counted night fell short of the need, when it did.
+    var lastShortfallMinutes: Double?
+    var recent: [Night]
+    var month: [Night]
+
+    init(debtMinutes: Double, isDebt: Bool, needMinutes: Double, lastShortfallMinutes: Double?,
+         recent: [Night], month: [Night]) {
+        self.debtMinutes = debtMinutes
+        self.isDebt = isDebt
+        self.needMinutes = needMinutes
+        self.lastShortfallMinutes = lastShortfallMinutes
+        self.recent = recent
+        self.month = month
+    }
+
+    init(ledger: SleepDebtLedger, month: [TrendPoint]) {
+        let last = ledger.nights.last
+        self.init(debtMinutes: ledger.magnitudeMin,
+                  isDebt: ledger.isDebt && ledger.magnitudeMin >= SleepDebt.onTargetBandMin,
+                  needMinutes: ledger.needMin,
+                  lastShortfallMinutes: last.flatMap { $0.deltaMin < 0 ? -$0.deltaMin : nil },
+                  recent: ledger.nights.map { Night(day: $0.day, minutes: $0.sleptMin) },
+                  month: month.map { Night(day: SleepNightsData.dayKey($0.date), minutes: $0.value * 60) })
+    }
+
+    var nightCount: Int { recent.count }
+
+    /// `n` calendar days ending on the newest night of either series, each with its minutes or nil.
+    func slots(_ n: Int, from nights: [Night]) -> [(day: String, minutes: Double?)] {
+        let newest = (recent.map(\.day) + month.map(\.day)).max()
+        guard let newest, let end = Self.parser.date(from: newest) else { return [] }
+        let byDay = Dictionary(nights.map { ($0.day, $0.minutes) }, uniquingKeysWith: { _, b in b })
+        return (0..<n).reversed().map { back in
+            let date = Self.utc.date(byAdding: .day, value: -back, to: end) ?? end
+            let key = Self.dayKey(date)
+            return (key, byDay[key])
+        }
+    }
+
+    static func dayKey(_ date: Date) -> String { parser.string(from: date) }
+
+    private static let utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC") ?? .current
+        return c
+    }()
+
+    private static let parser: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+}
+
+struct SleepNightsCard: View {
+    enum Span: Hashable { case nights14, days30 }
+
+    let data: SleepNightsData
+    @State var range: Span = .nights14
+
+    private var carryPercent: Int { Int((SleepDebt.debtCarryFactor * 100).rounded()) }
+
+    var body: some View {
+        NoopCard(tint: StrandPalette.restColor) {
+            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                HStack(spacing: NoopMetrics.space2) {
+                    Text("Your nights").strandOverline()
+                    Spacer(minLength: NoopMetrics.space2)
+                    SegmentedPillControl([Span.nights14, Span.days30], selection: $range) {
+                        $0 == .nights14 ? String(localized: "14 nights") : String(localized: "30 days")
+                    }
+                    .fixedSize()
+                }
+                if data.recent.isEmpty && data.month.isEmpty {
                     Text("No nights with sleep data yet. Your ledger fills in as you wear the strap to bed.")
                         .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    VStack(alignment: .leading, spacing: NoopMetrics.space4) {
-                        // Headline: net balance (count-up on appear) + the short tag (DEBT / SURPLUS / ON
-                        // TARGET). The number ticks from the accumulated magnitude via the same formatter.
-                        HStack(alignment: .firstTextBaseline) {
-                            CountUpText(
-                                value: ledger.magnitudeMin,
-                                format: { debtHeadline(forMagnitudeMin: $0, ledger: ledger) },
-                                font: StrandFont.number(26),
-                                color: debtBalanceColor(ledger)
-                            )
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                            Spacer(minLength: NoopMetrics.space2)
-                            Text(debtTag(ledger))
-                                .font(StrandFont.captionNumber)
-                                .foregroundStyle(debtBalanceColor(ledger))
-                        }
-                        // Plain-English read.
-                        Text(debtRead(ledger))
-                            .font(StrandFont.subhead)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        // Raw per-night delta bars (above/below base need), intentionally separate
-                        // from the recurrence's current debt estimate.
-                        debtDeltaBars(ledger)
-                        Divider().overlay(StrandPalette.hairline)
-                        ChartFooter([
-                            ("Balance", debtSigned(ledger.balanceMin)),
-                            ("Per-night need", durationText(ledger.needMin)),
-                            ("Nights", "\(ledger.nightCount)"),
-                        ])
-                    }
+                    headline
+                    let n = range == .nights14 ? 14 : 30
+                    let slots = data.slots(n, from: range == .nights14 ? data.recent : data.month)
+                    SleepNightsBars(slots: slots.map { $0.minutes }, needMinutes: data.needMinutes)
+                        .frame(height: 132)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text(barsSummary(slots.compactMap { $0.minutes }, of: n)))
+                    dateRow(slots.map { $0.day })
+                    stats(slots.compactMap { $0.minutes }, of: n)
                 }
             }
         }
     }
 
-    /// The diverging per-night delta strip: each night a bar from the centre line — up
-    /// (accent) for a surplus, down (rose) for a deficit — scaled to the largest |delta|.
+    // MARK: Parts
+
     @ViewBuilder
-    private func debtDeltaBars(_ ledger: SleepDebtLedger) -> some View {
-        let deltas = ledger.nights.map { $0.deltaMin }
-        let scale = max(deltas.map { abs($0) }.max() ?? 1, 1)
-        GeometryReader { geo in
-            let n = max(deltas.count, 1)
-            let slot = geo.size.width / CGFloat(n)
-            let barW = max(2, slot * 0.6)
-            let midY = geo.size.height / 2
-            ZStack(alignment: .topLeading) {
-                // Centre (zero) line.
-                Rectangle()
-                    .fill(StrandPalette.hairline)
-                    .frame(height: 1)
-                    .position(x: geo.size.width / 2, y: midY)
-                ForEach(Array(deltas.enumerated()), id: \.offset) { i, d in
-                    let frac = CGFloat(abs(d) / scale)
-                    let h = max(2, frac * (midY - 2))
-                    let x = slot * CGFloat(i) + slot / 2
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(d >= 0 ? StrandPalette.accent : StrandPalette.metricRose)
-                        .frame(width: barW, height: h)
-                        // Surplus grows upward from the centre, deficit downward.
-                        .position(x: x, y: d >= 0 ? midY - h / 2 : midY + h / 2)
+    private var headline: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if data.isDebt {
+                (Text("Sleep debt").foregroundColor(StrandPalette.textPrimary)
+                 + Text(verbatim: " ").foregroundColor(StrandPalette.textPrimary)
+                 + Text(approximately(data.debtMinutes)).foregroundColor(StrandPalette.restBright))
+                    .font(StrandFont.rounded(20, weight: .semibold))
+                if let short = data.lastShortfallMinutes {
+                    Text("You were \(SleepDurationText.format(short)) short of \(SleepDurationText.format(data.needMinutes)) on the last night. \(carryPercent)% of a shortfall carries over to the next night: that is your debt.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("\(carryPercent)% of a shortfall carries over to the next night. Sleeping your need plus the debt clears it.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+            } else {
+                Text("No sleep debt")
+                    .font(StrandFont.rounded(20, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text("Your recent nights covered your \(SleepDurationText.format(data.needMinutes)) of need.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(height: 56)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Per-night sleep balance: \(ledger.nightCount) nights, net \(debtSigned(ledger.balanceMin))")
     }
 
-    // MARK: - Sleep-debt ledger formatting (verbatim lift of the ledger-only SleepView helpers)
-
-
-    /// The same headline formatter, but for an arbitrary (interpolated) magnitude so `CountUpText` can
-    /// render a coherent string on every frame as the number ticks up. The on-target deadband check
-    /// uses the LIVE magnitude `m` so the headline crosses from "On target" to "≈…" mid-count exactly
-    /// once, matching the final reading. Final-value identical to `debtHeadline(_:)`.
-    private func debtHeadline(forMagnitudeMin m: Double, ledger: SleepDebtLedger) -> String {
-        if m < SleepDebt.onTargetBandMin { return String(localized: "On target") }
-        return "≈\(durationText(m))"
+    /// "≈ 2h 23m": the debt is an estimate, and says so.
+    private func approximately(_ minutes: Double) -> String {
+        String(localized: "≈ \(SleepDurationText.format(minutes))")
     }
 
-    /// Short tag under/beside the headline: DEBT / ON TARGET.
-    private func debtTag(_ ledger: SleepDebtLedger) -> String {
-        if ledger.magnitudeMin < SleepDebt.onTargetBandMin { return String(localized: "balanced") }
-        return ledger.isDebt ? String(localized: "sleep debt") : String(localized: "balanced")
-    }
-
-    /// Plain-English read of the current actionable estimate.
-    private func debtRead(_ ledger: SleepDebtLedger) -> String {
-        let nights = ledger.nightCount
-        let span = nights == 1
-            ? String(localized: "the last night")
-            : String(localized: "the last \(nights) nights")
-        if ledger.magnitudeMin < SleepDebt.onTargetBandMin {
-            return String(localized: "You've effectively met your current sleep need across \(span).")
+    private func dateRow(_ days: [String]) -> some View {
+        HStack {
+            Text(days.first.map(SleepModel.shortDayLabel) ?? "")
+            Spacer()
+            Text(days.isEmpty ? "" : SleepModel.shortDayLabel(days[days.count / 2]))
+            Spacer()
+            Text(days.last.map(SleepModel.shortDayLabel) ?? "")
         }
-        let mag = durationText(ledger.magnitudeMin)
-        if ledger.isDebt {
-            return String(localized: "Add about \(mag) to your base sleep target tonight. Meeting that complete sleep need clears the displayed debt; recent shortfalls carry forward at a reduced weight.")
+        .font(StrandFont.caption)
+        .foregroundStyle(StrandPalette.textSecondary)
+        .accessibilityHidden(true)
+    }
+
+    private func stats(_ values: [Double], of n: Int) -> some View {
+        let mean = values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+        return VStack(spacing: NoopMetrics.space3) {
+            Divider().overlay(StrandPalette.hairline)
+            HStack(alignment: .top) {
+                stat(String(localized: "Average"), mean.map(SleepDurationText.format) ?? "—")
+                stat(String(localized: "Need"), SleepDurationText.format(data.needMinutes))
+                stat(String(localized: "Nights"), String(localized: "\(values.count) / \(n)"))
+            }
         }
-        return String(localized: "You've effectively met your current sleep need across \(span).")
     }
 
-    /// Color the balance by size: balanced → positive green, modest debt → warning,
-    /// heavier debt → critical.
-    private func debtBalanceColor(_ ledger: SleepDebtLedger) -> Color {
-        if ledger.magnitudeMin < SleepDebt.onTargetBandMin || !ledger.isDebt {
-            return StrandPalette.statusPositive
+    private func stat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(value)
+                .font(StrandFont.number(15))
+                .foregroundStyle(StrandPalette.textPrimary)
         }
-        // A debt: amber up to ~3 h accumulated, red beyond.
-        return ledger.magnitudeMin < 180 ? StrandPalette.statusWarning : StrandPalette.statusCritical
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
-    /// Signed "+1h 20m" / "−2h 10m" / "0m" balance string.
-    private func debtSigned(_ minutes: Double) -> String {
-        if abs(minutes) < 1 { return String(localized: "0m") }
-        let sign = minutes >= 0 ? "+" : "−"
-        return "\(sign)\(durationText(abs(minutes)))"
+    private func barsSummary(_ values: [Double], of n: Int) -> String {
+        let mean = values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+        return String(localized: "Hours asleep per night: \(values.count) of \(n) nights recorded, average \(SleepDurationText.format(mean)), need \(SleepDurationText.format(data.needMinutes))")
     }
+}
 
-    /// Minutes → "Xm" / "Yh Zm" (verbatim of `SleepView.durationText`). Kept local to the card so it
-    /// renders identically whether hosted in Today or shown in the Sleep tab.
-    private func durationText(_ minutes: Double) -> String {
-        let m = Swift.max(0, Int(minutes.rounded()))
-        if m < 60 { return String(localized: "\(m)m") }
-        return String(localized: "\(m / 60)h \(m % 60)m")
+/// The bars: one slot per day, the minutes asleep as a bar, the need as a dashed line, the part of the
+/// need a night did not cover as a dashed outline, an empty day as a dot.
+struct SleepNightsBars: View {
+    let slots: [Double?]
+    let needMinutes: Double
+
+    var body: some View {
+        Canvas { ctx, size in
+            guard !slots.isEmpty else { return }
+            let top: CGFloat = 18
+            let maxMin = max(needMinutes * 1.12, (slots.compactMap { $0 }.max() ?? 0) * 1.08, 60)
+            func y(_ m: Double) -> CGFloat { size.height - CGFloat(m / maxMin) * (size.height - top) }
+            let slot = size.width / CGFloat(slots.count)
+            let barW = min(14, slot * 0.6)
+
+            var base = Path()
+            base.move(to: CGPoint(x: 0, y: size.height - 0.5))
+            base.addLine(to: CGPoint(x: size.width, y: size.height - 0.5))
+            ctx.stroke(base, with: .color(StrandPalette.hairline), lineWidth: 1)
+
+            let needY = y(needMinutes)
+            var needLine = Path()
+            needLine.move(to: CGPoint(x: 0, y: needY))
+            needLine.addLine(to: CGPoint(x: size.width, y: needY))
+            ctx.stroke(needLine, with: .color(StrandPalette.textSecondary.opacity(0.7)),
+                       style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            let needText = ctx.resolve(Text("need \(SleepDurationText.format(needMinutes))")
+                .font(StrandFont.caption).foregroundColor(StrandPalette.textSecondary))
+            ctx.draw(needText, at: CGPoint(x: 0, y: needY - 3), anchor: .bottomLeading)
+
+            for (i, value) in slots.enumerated() {
+                let cx = slot * (CGFloat(i) + 0.5)
+                guard let value, value > 0 else {
+                    ctx.fill(Path(ellipseIn: CGRect(x: cx - 2, y: size.height - 6, width: 4, height: 4)),
+                             with: .color(StrandPalette.hairlineStrong))
+                    continue
+                }
+                if value < needMinutes {
+                    let gap = CGRect(x: cx - barW / 2, y: needY, width: barW, height: max(0, y(value) - needY))
+                    ctx.stroke(Path(roundedRect: gap, cornerRadius: 3), with: .color(StrandPalette.textSecondary.opacity(0.8)),
+                               style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                }
+                let bar = CGRect(x: cx - barW / 2, y: y(value), width: barW, height: size.height - y(value))
+                ctx.fill(Path(roundedRect: bar, cornerRadius: 3), with: .color(StrandPalette.restBright))
+            }
+        }
     }
 }

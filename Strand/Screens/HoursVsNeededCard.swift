@@ -32,7 +32,7 @@ struct HoursVsNeededCard: View {
                 value: pctValue(need.latest),
                 caption: tileCaption(latestDay: need.latestDay, latest: need.latest,
                                      typical: need.typical, suffix: "%"),
-                accent: need.latest.map { StrandPalette.recoveryColor(min(100, $0)) } ?? StrandPalette.textPrimary,
+                accent: need.latest == nil ? StrandPalette.textPrimary : StrandPalette.restBright,
                 sparkline: spark(need.series),
                 sparkColor: StrandPalette.restColor)
                 .frame(maxWidth: .infinity)
@@ -56,7 +56,8 @@ struct HoursVsNeededCard: View {
 
     /// "+12% vs typical" — the latest-vs-mean caption the metric tile carries.
     private func vsTypical(_ latest: Double?, _ typical: Double?, suffix: String, decimals: Int = 0) -> String {
-        guard let latest, let typical, typical != 0 else { return String(localized: "vs typical - ") }
+        // Personal fork: no "vs typical" line until there is a typical (it used to read "vs typical -").
+        guard let latest, let typical, typical != 0 else { return "" }
         let diff = latest - typical
         let sign = diff >= 0 ? "+" : "−"
         let mag = abs(diff)

@@ -15,6 +15,8 @@ import WhoopStore
 struct AsleepDurationData {
     let points: [TrendPoint]
     let typicalTotalMin: Double?
+    /// The need the bars are drawn against: the Sleep tab's one need (`SleepModel.debtNeedMin`).
+    var needMin: Double? = nil
 
     /// yyyy-MM-dd → Date (en_US_POSIX, UTC) — matches `SleepView.dayParser`.
     private static let dayParser: DateFormatter = {
@@ -40,103 +42,68 @@ struct AsleepDurationData {
         let points = recent.count >= 2 ? recent : mk(days[...])
         let totals = days.compactMap { $0.totalSleepMin }.filter { $0 > 0 }
         let typical = totals.isEmpty ? nil : totals.reduce(0, +) / Double(totals.count)
-        return AsleepDurationData(points: points, typicalTotalMin: typical)
+        return AsleepDurationData(points: points, typicalTotalMin: typical, needMin: SleepModel.debtNeedMin(days: days))
     }
 }
 
-/// The "Asleep duration" trend card. Renders [AsleepDurationData] with the shared chart components.
+/// The "Asleep duration" trend card. Personal fork: the same bars as the Sleep tab's "Your nights" card
+/// over 30 days (one slot per day, the need as a dashed line), with plain durations.
 struct AsleepDurationCard: View {
     let data: AsleepDurationData
 
     var body: some View {
         let pts = data.points
-        let avg = data.typicalTotalMin.map { $0 / 60.0 }
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Asleep duration", overline: "Trend")
-            ChartCard(
-                title: "Hours asleep",
-                subtitle: String(localized: "Per night, trailing 30 days"),
-                trailing: avg.map { String(localized: "\(String(format: "%.1f", $0)) h avg") },
-                height: NoopMetrics.chartHeight,
-                tint: StrandPalette.restColor,
-                chart: {
-                    if pts.count >= 2 {
-                        TrendChart(points: pts,
-                                   gradient: StrandPalette.restGradient,
-                                   valueRange: Self.trendRange(pts),
-                                   showsBars: true,
-                                   height: NoopMetrics.chartHeight,
-                                   valueFormat: { String(format: "%.1f h", $0) },
-                                   accessibilityLabel: String(localized: "Hours asleep trend"))
-                    } else {
-                        Self.sparsePlaceholder
-                    }
-                },
-                footer: {
-                    HStack {
-                        ChartFooter([
-                            ("Avg",    avg.map { String(format: "%.1f h", $0) } ?? "—"),
-                            ("Min",    pts.map(\.value).min().map { String(format: "%.1f h", $0) } ?? "—"),
-                            ("Max",    pts.map(\.value).max().map { String(format: "%.1f h", $0) } ?? "—"),
-                            ("Nights", "\(pts.count)"),
-                        ])
-                        durationTrendStat(pts)
-                    }
+        let nights = SleepNightsData(debtMinutes: 0, isDebt: false, needMinutes: data.needMin ?? 480,
+                                     lastShortfallMinutes: nil, recent: [],
+                                     month: pts.map { SleepNightsData.Night(day: SleepNightsData.dayKey($0.date),
+                                                                             minutes: $0.value * 60) })
+        let slots = nights.slots(30, from: nights.month)
+        let values = pts.map { $0.value * 60 }
+        NoopCard(tint: StrandPalette.restColor) {
+            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Hours asleep").strandOverline()
+                    Spacer(minLength: NoopMetrics.space2)
+                    Text("Per night, trailing 30 days")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
                 }
-            )
-        }
-    }
-
-    /// A padded value range so the line isn't flat against the axis (verbatim of `SleepView.trendRange`).
-    private static func trendRange(_ pts: [TrendPoint]) -> ClosedRange<Double> {
-        let vals = pts.map(\.value)
-        let lo = Swift.max(0, (vals.min() ?? 0) - 1)
-        let hi = (vals.max() ?? 9) + 1
-        return lo...Swift.max(hi, lo + 1)
-    }
-
-    private static var sparsePlaceholder: some View {
-        Text("Not enough nights yet.")
-            .font(StrandFont.subhead)
-            .foregroundStyle(StrandPalette.textTertiary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(NoopPanelSurface(tint: StrandPalette.restColor, cornerRadius: 12))
-    }
-
-    /// Recent-half mean minus earlier-half mean (verbatim of `SleepView.durationTrendChange`). Direction
-    /// is neutral: more sleep isn't automatically better, so the chip conveys movement without a verdict.
-    private static func durationTrendChange(_ points: [TrendPoint]) -> Double? {
-        guard points.count >= 4 else { return nil }
-        let midpoint = points.count / 2
-        let earlier = points.prefix(midpoint).map(\.value)
-        let recent = points.suffix(points.count - midpoint).map(\.value)
-        guard !earlier.isEmpty, !recent.isEmpty else { return nil }
-        return recent.reduce(0, +) / Double(recent.count)
-            - earlier.reduce(0, +) / Double(earlier.count)
-    }
-
-    @ViewBuilder
-    private func durationTrendStat(_ points: [TrendPoint]) -> some View {
-        let delta = Self.durationTrendChange(points)
-        let deltaText = delta.map {
-            let sign = $0 >= 0 ? "+" : "−"
-            return "\(sign)\(String(format: "%.1f h", abs($0)))"
-        }
-        VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
-            Text("Trend")
-                .textCase(.uppercase)
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textTertiary)
-            if let deltaText {
-                TrendChip(text: deltaText, color: StrandPalette.textTertiary)
-            } else {
-                Text("—")
-                    .font(StrandFont.captionNumber)
+                if pts.count >= 2 {
+                    SleepNightsBars(slots: slots.map { $0.minutes }, needMinutes: nights.needMinutes)
+                        .frame(height: 132)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(Text("Hours asleep trend"))
+                    HStack {
+                        Text(slots.first.map { SleepModel.shortDayLabel($0.day) } ?? "")
+                        Spacer()
+                        Text(slots.last.map { SleepModel.shortDayLabel($0.day) } ?? "")
+                    }
+                    .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
+                    .accessibilityHidden(true)
+                    Divider().overlay(StrandPalette.hairline)
+                    HStack(alignment: .top) {
+                        stat(String(localized: "Average"), data.typicalTotalMin.map(SleepDurationText.format) ?? "—")
+                        stat(String(localized: "Min"), values.min().map(SleepDurationText.format) ?? "—")
+                        stat(String(localized: "Max"), values.max().map(SleepDurationText.format) ?? "—")
+                        stat(String(localized: "Nights"), "\(pts.count)")
+                    }
+                } else {
+                    Text("Not enough nights yet.")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                }
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: "\(String(localized: "Trend")): \(deltaText ?? "—")"))
+    }
+
+    private func stat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
+            Text(value).font(StrandFont.number(15)).foregroundStyle(StrandPalette.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }

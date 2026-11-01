@@ -1,8 +1,9 @@
-# Fork-only: render the guided superset screens to PNG whenever a `render/**` branch is pushed, and
-# publish the images as a prerelease named after the branch — the visual check against the mockups
-# before an .ipa is built. Runs one test class (LiftSupersetRenderTests) on the macOS app target; the
-# screens are shared SwiftUI, drawn at iPhone size in dark mode, in French.
-name: Superset screens render (fork, on push)
+# Fork-only: render the guided superset screens and the Sleep tab to PNG whenever a `render/**` branch is
+# pushed, and publish the images as a prerelease named after the branch — the visual check against the
+# mockups before an .ipa is built. Runs the render test classes (LiftSupersetRenderTests,
+# SleepScreenRenderTests) on the macOS app target; the screens are shared SwiftUI, drawn at iPhone size in
+# dark mode, in French.
+name: Screens render (fork, on push)
 
 on:
   push:
@@ -33,6 +34,7 @@ jobs:
           xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
             -testLanguage fr -testRegion FR \
             -only-testing:StrandTests/LiftSupersetRenderTests \
+            -only-testing:StrandTests/SleepScreenRenderTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?
@@ -53,5 +55,5 @@ jobs:
           sleep 3
           gh release create "$TAG" "$RUNNER_TEMP"/render/*.png --repo "$GITHUB_REPOSITORY" --prerelease \
             --target "$GITHUB_SHA" \
-            --title "Superset screens · ${GITHUB_REF_NAME} · ${GITHUB_SHA:0:7}" \
-            --notes "Rendered by LiftSupersetRenderTests at ${GITHUB_SHA:0:7}."
+            --title "Screens · ${GITHUB_REF_NAME} · ${GITHUB_SHA:0:7}" \
+            --notes "Rendered by LiftSupersetRenderTests and SleepScreenRenderTests at ${GITHUB_SHA:0:7}."

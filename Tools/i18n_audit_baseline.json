@@ -1115,10 +1115,6 @@
       "Min-max normalized · sparse series widened past \\(range.phrase) · \\(inspectHint)"
     ],
     [
-      "Strand/Screens/ConsistencyCard.swift",
-      "vs typical - "
-    ],
-    [
       "Strand/Screens/CoupledView.swift",
       "Recovery \\(Int(r.rounded())) percent"
     ],
@@ -1263,10 +1259,6 @@
       "\\(n) more nights of wear, plus your age and sex below, and we can show your Fitness Age."
     ],
     [
-      "Strand/Screens/HoursVsNeededCard.swift",
-      "vs typical - "
-    ],
-    [
       "Strand/Screens/HydrationView.swift",
       "Progress toward today's goal"
     ],
@@ -1371,10 +1363,6 @@
       "\\(row.time), \\(row.value), \\(row.source)"
     ],
     [
-      "Strand/Screens/NightDetailCard.swift",
-      "vs typical - "
-    ],
-    [
       "Strand/Screens/RhythmView.swift",
       "More varied"
     ],
@@ -1447,14 +1435,6 @@
       "\\(name) is larger than the \\(cap) NOOP restores without asking. That limit guards against a malicious archive expanding to fill this \\(Platform.deviceNoun) — a backup you exported yourself is not that. Restoring it needs the space the database will take. You'll be asked to choose the file again."
     ],
     [
-      "Strand/Screens/SleepDebtLedgerCard.swift",
-      "Add about \\(mag) to your base sleep target tonight. Meeting that complete sleep need clears the displayed debt; recent shortfalls carry forward at a reduced weight."
-    ],
-    [
-      "Strand/Screens/SleepDebtLedgerCard.swift",
-      "You've effectively met your current sleep need across \\(span)."
-    ],
-    [
       "Strand/Screens/SleepModel.swift",
       "\\(Night.spanFmt.string(from: onsetDay)) → \\(Night.dateFmt.string(from: wakeDay))"
     ],
@@ -1467,72 +1447,12 @@
       "Removes this sleep and recomputes the day without it. You can undo for a few seconds after."
     ],
     [
-      "Strand/Screens/SleepView.swift",
-      "Sleep deleted."
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "Sleep deleted. NOOP won't detect sleep between \\(clockTime(banner.displayStart)) and \\(clockTime(banner.windowEnd)) again."
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "Undo sleep deletion"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "\\(durationText(night.timeInBed)) in bed · \\(efficiencyText(night)) efficiency · \\(stageCaption)"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "about your usual"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "above your usual"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "below your usual"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "raw on-device stages"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "stages approximate (on-device)"
-    ],
-    [
       "Strand/Screens/SmartAlarmView.swift",
       "Notifications are off"
     ],
     [
       "Strand/Screens/SmartAlarmView.swift",
       "Open Settings"
-    ],
-    [
-      "Strand/Screens/StagesCard.swift",
-      "\\(durationText(night.timeInBed)) in bed · \\(efficiencyText(night)) efficiency · \\(stageCaption)"
-    ],
-    [
-      "Strand/Screens/StagesCard.swift",
-      "about your usual"
-    ],
-    [
-      "Strand/Screens/StagesCard.swift",
-      "above your usual"
-    ],
-    [
-      "Strand/Screens/StagesCard.swift",
-      "below your usual"
-    ],
-    [
-      "Strand/Screens/StagesCard.swift",
-      "raw on-device stages"
-    ],
-    [
-      "Strand/Screens/StagesCard.swift",
-      "stages approximate (on-device)"
     ],
     [
       "Strand/Screens/StressView.swift",

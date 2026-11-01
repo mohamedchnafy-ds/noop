@@ -2298,7 +2298,7 @@ internal fun stageSharePercent(label: String, s: Stages): Int {
  * both fill the strip — it shows the SHAPE of movement, not an absolute scale the strap doesn't calibrate.
  * HONESTY: an empty series (no persisted motionJSON on any group fragment — older rows) renders an honest
  * "no movement detail" note instead of a fabricated flat zero trace. Mirrors the Swift MotionTrace + the
- * SleepView motionStrip. Presentation-only.
+ * movement strip of the Swift SleepPhasesChart. Presentation-only.
  */
 @Composable
 private fun MotionStrip(epochs: List<Double>) {
@@ -2309,7 +2309,7 @@ private fun MotionStrip(epochs: List<Double>) {
     // trace was) and states the scale in the same breath. The trace is normalised to THIS night's peak,
     // so the tallest spike is full height whatever its absolute size and heights do not compare between
     // nights. The strap calibrates no absolute magnitude, so saying "relative to tonight" is the honest
-    // axis label rather than a number. Twin of the Swift `motionStrip` label.
+    // axis label rather than a number. Twin of the movement strip label in the Swift `SleepPhasesChart`.
     Text(
         uiString(R.string.l10n_sleep_screen_move_relative_to_tonight_fd71d87b),
         style = NoopType.footnote,

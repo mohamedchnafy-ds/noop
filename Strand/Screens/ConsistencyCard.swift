@@ -33,7 +33,7 @@ struct ConsistencyCard: View {
                 value: pctValue(cons.latest),
                 caption: tileCaption(latestDay: cons.latestDay, latest: cons.latest,
                                      typical: cons.typical, suffix: "%"),
-                accent: cons.latest.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textPrimary,
+                accent: cons.latest == nil ? StrandPalette.textPrimary : StrandPalette.restColor,
                 sparkline: spark(cons.series),
                 sparkColor: StrandPalette.metricCyan)
                 .frame(maxWidth: .infinity)
@@ -57,7 +57,8 @@ struct ConsistencyCard: View {
 
     /// "+12% vs typical" — the latest-vs-mean caption the metric tile carries.
     private func vsTypical(_ latest: Double?, _ typical: Double?, suffix: String, decimals: Int = 0) -> String {
-        guard let latest, let typical, typical != 0 else { return String(localized: "vs typical - ") }
+        // Personal fork: no "vs typical" line until there is a typical (it used to read "vs typical -").
+        guard let latest, let typical, typical != 0 else { return "" }
         let diff = latest - typical
         let sign = diff >= 0 ? "+" : "−"
         let mag = abs(diff)

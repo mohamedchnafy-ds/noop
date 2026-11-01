@@ -207,7 +207,7 @@ struct SleepNightDial: View {
                 .font(StrandFont.subhead.weight(.semibold))
                 .foregroundStyle(primary)
             if let needMinutes {
-                Text("of \(SleepDurationText.format(needMinutes))")
+                Text("out of \(SleepDurationText.format(needMinutes))")
                     .font(StrandFont.subhead)
                     .foregroundStyle(secondary)
             }

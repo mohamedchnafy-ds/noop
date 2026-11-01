@@ -219,8 +219,8 @@ struct SleepNightsBars: View {
     var body: some View {
         Canvas { ctx, size in
             guard !slots.isEmpty else { return }
-            let top: CGFloat = 16
-            let maxMin = max(needMinutes * 1.3, (slots.compactMap { $0 }.max() ?? 0) * 1.08, 60)
+            let top: CGFloat = 18
+            let maxMin = max(needMinutes * 1.12, (slots.compactMap { $0 }.max() ?? 0) * 1.08, 60)
             func y(_ m: Double) -> CGFloat { size.height - CGFloat(m / maxMin) * (size.height - top) }
             let slot = size.width / CGFloat(slots.count)
             let barW = min(14, slot * 0.6)

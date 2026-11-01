@@ -98,6 +98,7 @@ struct SleepPhasesCard: View {
                 Text(subtitle)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: NoopMetrics.space2)
             SourceBadge("\(source)", tint: StrandPalette.restColor)

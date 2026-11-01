@@ -30,6 +30,10 @@ import org.junit.Test
  *    so a TalkBack user currently hears a different order from the one they would see.
  *
  * Both are worth a look, and neither is pinned here.
+ *
+ * Personal fork: the Apple Sleep tab was redesigned. Its stage order now lives in three literal lists: the
+ * stage totals the Sleep detail and the hosted card hand to the shared `SleepPhasesCard`, and the lanes of
+ * the shared `SleepPhasesChart`. Those are what the Apple half pins.
  */
 class SleepStageRowOrderTest {
 
@@ -54,27 +58,34 @@ class SleepStageRowOrderTest {
         return Regex(marker).findAll(src.substring(start, end)).map { it.groupValues[1].lowercase() }.toList()
     }
 
+    /** The stage cases of the literal list that starts at [marker], up to its closing bracket. */
+    private fun listOrder(src: String, marker: String): List<String> {
+        val start = src.indexOf(marker)
+        assertTrue("missing list: $marker", start >= 0)
+        val end = src.indexOf("]", start + marker.length)
+        assertTrue("unterminated list: $marker", end > start)
+        return Regex("""\.(awake|rem|light|deep)\b""").findAll(src.substring(start, end))
+            .map { it.groupValues[1] }.toList()
+    }
+
+    private fun appleSleepDetail() = listOrder(source("Strand/Screens/SleepView.swift"), "stages: [SleepStage.")
+    private fun appleHostedCard() = listOrder(source("Strand/Screens/StagesCard.swift"), "stages: [SleepStage.")
+    private fun appleLanes() = listOrder(source("Strand/Screens/SleepPhasesChart.swift"),
+                                         "private static let lanes: [SleepStage] = [")
+
     @Test
-    fun `apple sleep detail lists both its row stacks in chart-depth order`() {
-        val src = source("Strand/Screens/SleepView.swift")
-        assertEquals("breakdown rows", expected,
-                     order(src, "private func stageBreakdownRows", """stageBreakdownRow\(\.(\w+)"""))
-        assertEquals("timeline rows", expected,
-                     order(src, "private func stageTimeline(", """stageTimelineRow\(\.(\w+)"""))
+    fun `apple sleep detail lists its stage totals and lanes in chart-depth order`() {
+        assertEquals("stage totals", expected, appleSleepDetail())
+        assertEquals("stage lanes", expected, appleLanes())
     }
 
     /**
-     * The hosted card is the half PR #2536 left behind, and it is not a dead surface: `LiquidTodayView`
-     * renders it and Liquid Today is the default. Leaving it would have made Today and Sleep detail disagree
-     * on exactly the axis the report is about.
+     * The hosted card is not a dead surface: `LiquidTodayView` renders it and Liquid Today is the default.
+     * Leaving it would make Today and Sleep detail disagree on exactly the axis the report is about.
      */
     @Test
-    fun `apple hosted stages card lists both its row stacks in chart-depth order`() {
-        val src = source("Strand/Screens/StagesCard.swift")
-        assertEquals("breakdown rows", expected,
-                     order(src, "private func stageBreakdownRows", """stageBreakdownRow\(\.(\w+)"""))
-        assertEquals("timeline rows", expected,
-                     order(src, "private func stageTimeline(", """stageTimelineRow\(\.(\w+)"""))
+    fun `apple hosted stages card lists its stage totals in chart-depth order`() {
+        assertEquals("stage totals", expected, appleHostedCard())
     }
 
     /** Android routes every surface through these two, so pinning them covers all of its screens. */
@@ -102,14 +113,9 @@ class SleepStageRowOrderTest {
     @Test
     fun `every stage row stack agrees, so no two screens can disagree`() {
         val all = listOf(
-            order(source("Strand/Screens/SleepView.swift"), "private func stageBreakdownRows",
-                  """stageBreakdownRow\(\.(\w+)"""),
-            order(source("Strand/Screens/SleepView.swift"), "private func stageTimeline(",
-                  """stageTimelineRow\(\.(\w+)"""),
-            order(source("Strand/Screens/StagesCard.swift"), "private func stageBreakdownRows",
-                  """stageBreakdownRow\(\.(\w+)"""),
-            order(source("Strand/Screens/StagesCard.swift"), "private func stageTimeline(",
-                  """stageTimelineRow\(\.(\w+)"""),
+            appleSleepDetail(),
+            appleHostedCard(),
+            appleLanes(),
             order(source("android/app/src/main/java/com/noop/ui/SleepStageBreakdownUi.kt"),
                   "internal fun StageBreakdownRows", """StageBreakdownRow\("(\w+)""""),
         )

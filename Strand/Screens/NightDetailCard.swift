@@ -158,6 +158,9 @@ struct SleepIndicatorsCard: View {
 struct SleepIndicatorTileView: View {
     let tile: SleepIndicatorTile
 
+    /// One height for every tile, so a two-line caption does not make its row uneven.
+    static let minHeight: CGFloat = 96
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: NoopMetrics.space2) {
@@ -195,7 +198,7 @@ struct SleepIndicatorTileView: View {
                     .foregroundStyle(StrandPalette.textSecondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: Self.minHeight, alignment: .topLeading)
         .padding(12)
         .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius,
                                                                       style: .continuous))

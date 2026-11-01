@@ -35,6 +35,8 @@ enum TabRoute: Hashable {
     case health
     case hydration
     case coupled
+    /// The Lift Log (personal fork: Today's "today's session" row).
+    case liftLog
 }
 
 extension View {
@@ -71,6 +73,7 @@ extension View {
             case .health: HealthView()
             case .hydration: HydrationView()
             case .coupled: CoupledView()
+            case .liftLog: LiftLogView()
             }
         }
     }

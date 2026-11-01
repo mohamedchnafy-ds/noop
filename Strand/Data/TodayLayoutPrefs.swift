@@ -136,3 +136,41 @@ enum TodayLayoutPrefs {
         return decodeOrder(orderRaw).filter { !hidden.contains($0) }
     }
 }
+
+// MARK: - Liquid Today, layout v2 (personal fork)
+//
+// The redesigned Liquid Today draws Heart Rate then Synthesis directly under the hero and no longer draws
+// the Recovery Vitals card (its three numbers moved into the hero). The stored order keeps its wire format
+// and every section token, so Android and the classic Today read it unchanged: the removed section is
+// filtered at display, and the move is applied to the saved order once.
+
+extension TodayLayoutPrefs {
+    /// Set once the saved order has been moved to the v2 layout, so a later rearrangement is never undone.
+    static let liquidLayoutV2Key = "today.liquidLayoutV2"
+
+    /// Sections the Liquid Today no longer draws. Kept in the enum and in the stored order for parity.
+    static let liquidRemovedSections: Set<TodaySection> = [.recoveryVitals]
+
+    /// `raw` with Heart Rate then Synthesis moved directly under the hero, every other section keeping its
+    /// relative place (an empty order starts from the default one).
+    static func liquidV2Order(_ raw: String) -> String {
+        var order = decodeOrder(raw)
+        order.removeAll { $0 == .heartRate || $0 == .synthesis }
+        let at = order.firstIndex(of: .hero).map { $0 + 1 } ?? 0
+        order.insert(contentsOf: [.heartRate, .synthesis], at: at)
+        return encode(order)
+    }
+
+    /// What the Liquid Today renders: the saved visible order without the sections it no longer draws.
+    static func liquidVisibleOrder(orderRaw: String, hiddenRaw: String) -> [TodaySection] {
+        visibleOrder(orderRaw: orderRaw, hiddenRaw: hiddenRaw).filter { !liquidRemovedSections.contains($0) }
+    }
+}
+
+/// The Key-Metrics tiles and Your-Cards cards the Liquid Today hides because the hero now shows the same
+/// number (personal fork). Hidden at display and in its editors only: the stored selections are untouched,
+/// so Android and the classic Today keep them.
+enum LiquidTodayDuplicates {
+    static let keyMetrics: Set<KeyMetric> = [.charge, .effort, .rest, .hrv, .restingHr, .calories]
+    static let cards: Set<DashboardCard> = [.hrv, .restingHr, .calories]
+}

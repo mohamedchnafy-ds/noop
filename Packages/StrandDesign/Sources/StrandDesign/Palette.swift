@@ -263,6 +263,10 @@ public enum StrandPalette {
     public static var metricPurple: Color { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#3A80D6", dark: "#4A90E2") }
     public static var metricAmber:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C2792E", dark: "#D98A3D") }
     public static var metricRose:   Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#C84E1E", dark: "#E0662F") }
+    /// Today's calories (personal fork): bright gold for the activity part, dark copper for the resting
+    /// part. Told apart by lightness as well as hue, so the two halves of one gauge never read as one.
+    public static let caloriesActivity = Color(light: "#B07F1E", dark: "#F2C46B")
+    public static let caloriesResting = Color(light: "#8A5530", dark: "#A8693A")
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
     //

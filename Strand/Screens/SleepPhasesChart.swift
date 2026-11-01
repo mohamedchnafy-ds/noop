@@ -564,7 +564,11 @@ struct SleepPhasesChart: View {
         var ticks = s.scale.ticks
         if ticks.count > 2 {
             let spacing = CGFloat(s.scale.y(ticks[0]) - s.scale.y(ticks[1])) * band.height
-            if spacing < 18 { ticks = ticks.enumerated().filter { $0.offset % 2 == 0 }.map(\.element) }
+            if spacing < 18 {
+                // Keep the zero line's label when there is one: it is the night's own reference.
+                let keep = (ticks.firstIndex(of: 0) ?? 0) % 2
+                ticks = ticks.enumerated().filter { $0.offset % 2 == keep }.map(\.element)
+            }
         }
         for tick in ticks {
             let ty = band.top + CGFloat(s.scale.y(tick)) * band.height

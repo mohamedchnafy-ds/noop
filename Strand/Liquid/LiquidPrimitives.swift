@@ -217,14 +217,6 @@ enum LiquidRender {
         func y(_ v: Double) -> Double {
             size.height - Self.pad - (v - minValue) / span * (size.height - 2 * Self.pad)
         }
-
-        /// The sample nearest a touch at `xPosition`, clamped to the series.
-        func nearestIndex(toX xPosition: Double) -> Int {
-            guard count >= 2 else { return 0 }
-            let plotWidth = max(1, size.width - 2 * Self.pad)
-            let raw = ((xPosition - Self.pad) / plotWidth * Double(count - 1)).rounded()
-            return min(count - 1, max(0, Int(raw)))
-        }
     }
 
     /// The live heart-rate curve as a glowing liquid thread with a travelling glint.
@@ -617,12 +609,21 @@ struct LiquidScoreGauge: View {
     /// fork: the Effort bubble's optimal-strain target). Nil draws nothing, which keeps every other caller
     /// byte-identical.
     var targetRange: ClosedRange<Double>? = nil
+    /// A ring of `total` segments, `filled` of them lit, hugging the vessel (personal fork: the Charge
+    /// calibration nights). Nil draws nothing, which keeps every other caller byte-identical.
+    var segments: (filled: Int, total: Int)? = nil
+    /// Text drawn in place of the number (the calibration "1/4"). Nil keeps the number.
+    var centerText: String? = nil
+    /// What an empty gauge says in place of the dash (personal fork: Today's "no data"). Nil keeps "–".
+    var noDataText: String? = nil
+    /// Point size of the caption and the no-data text. Nil keeps the size scaled from the diameter.
+    var captionSize: CGFloat? = nil
 
     @State private var shown: Double = 0
 
     private var frac: Double? { score.map { max(0, min(1, $0 / maxValue)) } }
     private var centerFont: Font { StrandFont.rounded(diameter * 26 / Self.homeHeroDiameter) }
-    private var captionFont: Font { StrandFont.rounded(diameter * 0.085, weight: .medium) }
+    private var captionFont: Font { StrandFont.rounded(captionSize ?? diameter * 0.085, weight: .medium) }
     /// Ring thickness and the breathing room between the vessel's edge and the arc, scaled with the gauge.
     private var arcWidth: CGFloat { max(2, diameter * 3 / Self.homeHeroDiameter) }
 
@@ -648,16 +649,46 @@ struct LiquidScoreGauge: View {
         }
     }
 
+    /// The calibration segments: `total` short arcs with small gaps, the first `filled` in the tint.
+    @ViewBuilder
+    private var segmentArc: some View {
+        if let segments, segments.total > 0 {
+            let ringDiameter = diameter + arcWidth * 2 + 2
+            let gap = 0.025
+            ZStack {
+                ForEach(0..<segments.total, id: \.self) { i in
+                    let from = Double(i) / Double(segments.total) + gap / 2
+                    let to = Double(i + 1) / Double(segments.total) - gap / 2
+                    Circle()
+                        .trim(from: from, to: to)
+                        .stroke(i < segments.filled ? tint : tint.opacity(0.18),
+                                style: StrokeStyle(lineWidth: arcWidth, lineCap: .butt))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            .frame(width: ringDiameter, height: ringDiameter)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
     var body: some View {
         ZStack {
             targetArc
+            segmentArc
             LiquidVessel(value: frac, tint: tint, animated: animated,
                          tapPassesThrough: tapPassesThrough)
                 .frame(width: diameter, height: diameter)
             VStack(spacing: captionText == nil ? 0 : 1) {
                 Group {
-                    if score != nil {
-                        CountUpNumber(value: shown, font: centerFont, decimals: decimals)
+                    if let centerText {
+                        Text(verbatim: centerText).font(centerFont).monospacedDigit()
+                    } else if let score {
+                        // A still gauge (before the first load, or a one-pass render) shows the value
+                        // itself: the count-up only runs once the gauge is live.
+                        CountUpNumber(value: animated ? shown : score, font: centerFont, decimals: decimals)
+                    } else if let noDataText {
+                        Text(noDataText).font(captionFont)
                     } else {
                         Text("–").font(centerFont)
                     }

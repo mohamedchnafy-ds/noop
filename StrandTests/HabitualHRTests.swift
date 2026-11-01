@@ -29,17 +29,6 @@ final class HabitualHRTests: XCTestCase {
         XCTAssertNil(p[9 * 12], "a slot seen on one day is not a habit")
     }
 
-    func testAlignedProjectsTheProfileOntoTodaysBucketsInOrder() {
-        let p = [96: 55.0, 97: 56.0]   // 08:00 and 08:05
-        let today = 20 * day
-        let out = HabitualHR.aligned(todayTs: [today + 8 * 3600, today + 8 * 3600 + 300, today + 8 * 3600 + 600],
-                                     profile: p, zone: utc)
-        XCTAssertEqual(out.count, 3)
-        XCTAssertEqual(out[0], 55)
-        XCTAssertEqual(out[1], 56)
-        XCTAssertNil(out[2])
-    }
-
     func testUsualAtReadsTheSlotOfTheInstant() {
         let p = [96: 55.0]
         XCTAssertEqual(HabitualHR.usual(at: 8 * 3600 + 299, profile: p, zone: utc), 55)

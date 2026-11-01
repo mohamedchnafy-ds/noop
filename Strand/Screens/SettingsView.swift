@@ -1874,6 +1874,8 @@ struct SettingsView: View {
     /// Opt-in liquid Today redesign (default ON in this build). Off falls back to the
     /// classic dashboard immediately, no rebuild. Same data either way.
     @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
+    /// Today's activity-calorie goal in kcal; 0 uses the 14-day average (personal fork, Today v2).
+    @AppStorage(TodayEnergy.goalKey) private var activityKcalGoal = 0
     private var liquidTodayCard: some View {
         SettingsSection(
             icon: "drop.fill",
@@ -1889,6 +1891,22 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
                 Text("Replaces the Today tab with the prototype redesign. Turn it off any time to return to the classic dashboard. Reads the same live data from your strap.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // Personal fork (Today v2): the goal the gold part of Today's calories gauge fills toward.
+                Stepper(value: $activityKcalGoal, in: 0...3000, step: 50) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Activity calorie goal")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text(activityKcalGoal > 0 ? String(localized: "\(activityKcalGoal) kcal a day")
+                                                  : String(localized: "Automatic (14-day average)"))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                }
+                Text("Calories burned through movement and exercise, on top of what your body burns at rest. Set it to zero to use your average over the last 14 full days.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

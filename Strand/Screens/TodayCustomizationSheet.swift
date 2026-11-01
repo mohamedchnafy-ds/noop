@@ -13,6 +13,22 @@ enum TodayCustomizationDestination: String, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
+/// What a Today shell leaves out of the editors because it does not draw it (personal fork: the Liquid
+/// Today's removed section and its duplicated tiles and cards). Left-out items keep their stored state on
+/// save, so another shell (or Android) reading the same selection still finds them.
+struct TodayCustomizationExclusions {
+    var sections: Set<TodaySection> = []
+    var keyMetrics: Set<KeyMetric> = []
+    var cards: Set<DashboardCard> = []
+
+    static let none = TodayCustomizationExclusions()
+    static let liquid = TodayCustomizationExclusions(
+        sections: TodayLayoutPrefs.liquidRemovedSections,
+        keyMetrics: LiquidTodayDuplicates.keyMetrics,
+        cards: LiquidTodayDuplicates.cards
+    )
+}
+
 struct TodayCustomizationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -28,6 +44,12 @@ struct TodayCustomizationSheet: View {
     private let initialHostedDraft: EditableLayoutDraft<HostedCard>
     private let initialDetailed: Bool
     private let initialWindowDays: Int
+    private let exclusions: TodayCustomizationExclusions
+    /// Left-out items as they were stored, written back unchanged on save.
+    private let keptSections: [TodaySection]
+    private let keptHiddenSections: [TodaySection]
+    private let keptKeyMetrics: [KeyMetric]
+    private let keptCards: [DashboardCard]
 
     @Binding private var sectionOrderRaw: String
     @Binding private var hiddenSectionsRaw: String
@@ -71,7 +93,8 @@ struct TodayCustomizationSheet: View {
         keyMetricsDetailed: Binding<Bool>,
         keyMetricsWindowDays: Binding<Int>,
         dashboardCardsRaw: Binding<String>,
-        hostedCardsRaw: Binding<String>
+        hostedCardsRaw: Binding<String>,
+        exclusions: TodayCustomizationExclusions = .none
     ) {
         _sectionOrderRaw = sectionOrderRaw
         _hiddenSectionsRaw = hiddenSectionsRaw
@@ -81,19 +104,29 @@ struct TodayCustomizationSheet: View {
         _dashboardCardsRaw = dashboardCardsRaw
         _hostedCardsRaw = hostedCardsRaw
 
-        let fullSectionOrder = TodayLayoutPrefs.decodeOrder(sectionOrderRaw.wrappedValue)
-        let hiddenSectionSet = Set(TodayLayoutPrefs.decodeHidden(hiddenSectionsRaw.wrappedValue))
+        self.exclusions = exclusions
+        let storedSectionOrder = TodayLayoutPrefs.decodeOrder(sectionOrderRaw.wrappedValue)
+        let storedHidden = TodayLayoutPrefs.decodeHidden(hiddenSectionsRaw.wrappedValue)
+        let storedMetrics = KeyMetricPrefs.decodeEnabled(keyMetricsRaw.wrappedValue)
+        let storedCards = DashboardCardPrefs.decodeEnabled(dashboardCardsRaw.wrappedValue)
+        keptSections = storedSectionOrder.filter { exclusions.sections.contains($0) }
+        keptHiddenSections = storedHidden.filter { exclusions.sections.contains($0) }
+        keptKeyMetrics = storedMetrics.filter { exclusions.keyMetrics.contains($0) }
+        keptCards = storedCards.filter { exclusions.cards.contains($0) }
+
+        let fullSectionOrder = storedSectionOrder.filter { !exclusions.sections.contains($0) }
+        let hiddenSectionSet = Set(storedHidden)
         let sections = EditableLayoutDraft(
             visible: fullSectionOrder.filter { !hiddenSectionSet.contains($0) },
             hidden: fullSectionOrder.filter { hiddenSectionSet.contains($0) }
         )
         let metrics = EditableLayoutDraft(
-            visible: KeyMetricPrefs.decodeEnabled(keyMetricsRaw.wrappedValue),
-            allItems: KeyMetric.defaultOrder
+            visible: storedMetrics.filter { !exclusions.keyMetrics.contains($0) },
+            allItems: KeyMetric.defaultOrder.filter { !exclusions.keyMetrics.contains($0) }
         )
         let cards = EditableLayoutDraft(
-            visible: DashboardCardPrefs.decodeEnabled(dashboardCardsRaw.wrappedValue),
-            allItems: DashboardCard.canonicalOrder
+            visible: storedCards.filter { !exclusions.cards.contains($0) },
+            allItems: DashboardCard.canonicalOrder.filter { !exclusions.cards.contains($0) }
         )
         let hosted = EditableLayoutDraft(
             visible: HostedCardPrefs.decodeEnabled(hostedCardsRaw.wrappedValue),
@@ -196,21 +229,17 @@ struct TodayCustomizationSheet: View {
     private func resetCurrentLayout() {
         switch currentDestination {
         case .today:
-            sectionDraft = EditableLayoutDraft(
-                visible: TodaySection.defaultOrder,
-                allItems: TodaySection.defaultOrder
-            )
+            let sections = TodaySection.defaultOrder.filter { !exclusions.sections.contains($0) }
+            sectionDraft = EditableLayoutDraft(visible: sections, allItems: sections)
         case .keyMetrics:
-            keyMetricDraft = EditableLayoutDraft(
-                visible: KeyMetric.defaultOrder,
-                allItems: KeyMetric.defaultOrder
-            )
+            let metrics = KeyMetric.defaultOrder.filter { !exclusions.keyMetrics.contains($0) }
+            keyMetricDraft = EditableLayoutDraft(visible: metrics, allItems: metrics)
             detailed = false
             windowDays = 14
         case .yourCards:
             dashboardDraft = EditableLayoutDraft(
-                visible: DashboardCard.defaultSelection,
-                allItems: DashboardCard.canonicalOrder
+                visible: DashboardCard.defaultSelection.filter { !exclusions.cards.contains($0) },
+                allItems: DashboardCard.canonicalOrder.filter { !exclusions.cards.contains($0) }
             )
         case .addedCards:
             hostedDraft = EditableLayoutDraft(
@@ -225,12 +254,12 @@ struct TodayCustomizationSheet: View {
     }
 
     private func save() {
-        sectionOrderRaw = TodayLayoutPrefs.encode(sectionDraft.visible + sectionDraft.hidden)
-        hiddenSectionsRaw = TodayLayoutPrefs.encodeHidden(sectionDraft.hidden)
-        keyMetricsRaw = KeyMetricPrefs.encode(keyMetricDraft.visible)
+        sectionOrderRaw = TodayLayoutPrefs.encode(sectionDraft.visible + sectionDraft.hidden + keptSections)
+        hiddenSectionsRaw = TodayLayoutPrefs.encodeHidden(sectionDraft.hidden + keptHiddenSections)
+        keyMetricsRaw = KeyMetricPrefs.encode(keyMetricDraft.visible + keptKeyMetrics)
         keyMetricsDetailed = detailed
         keyMetricsWindowDays = windowDays
-        dashboardCardsRaw = DashboardCardPrefs.encode(dashboardDraft.visible)
+        dashboardCardsRaw = DashboardCardPrefs.encode(dashboardDraft.visible + keptCards)
         hostedCardsRaw = HostedCardPrefs.encode(hostedDraft.visible)
         dismiss()
     }

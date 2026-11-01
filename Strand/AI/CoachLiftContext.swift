@@ -108,10 +108,7 @@ enum CoachLiftContext {
         // 4. The programs and their targets — what "next session" means.
         let withItems = programs.filter { !$0.items.isEmpty }
         if !withItems.isEmpty {
-            let lastDone: [String: Int] = performed.reduce(into: [:]) { acc, s in
-                guard let id = s.row.programId else { return }
-                acc[id] = max(acc[id] ?? 0, s.row.startTs)
-            }
+            let lastDone = LiftRotation.lastDone(performed.map { (programId: $0.row.programId, startTs: $0.row.startTs) })
             lines.append("")
             lines.append("Programs (planned targets; the rest is per set, in seconds):")
             for program in withItems.prefix(maxPrograms) {
@@ -126,9 +123,10 @@ enum CoachLiftContext {
                 }
             }
             // A rotation's next day is the one done least recently; a program never done comes first.
-            if withItems.count > 1, let next = withItems.min(by: {
-                (lastDone[$0.row.id] ?? 0) < (lastDone[$1.row.id] ?? 0)
-            }) {
+            // `LiftRotation` owns the rule, so the Today synthesis names the same program.
+            if withItems.count > 1,
+               let nextId = LiftRotation.next(programIds: withItems.map(\.row.id), lastDone: lastDone),
+               let next = withItems.first(where: { $0.row.id == nextId }) {
                 lines.append("  Likely next in the rotation (done least recently): \(next.row.name)")
             }
         }
@@ -139,7 +137,7 @@ enum CoachLiftContext {
     // MARK: - Pieces
 
     private static func isWorking(_ set: LiftSetRow) -> Bool {
-        !set.isWarmup && LiftMetrics.isPerformed(reps: set.reps)
+        LiftRotation.isWorking(set)
     }
 
     /// `2026-10-30 Superset A, 52 min, session RPE 7`

@@ -117,9 +117,10 @@ struct CoachMealCard: View {
                 .foregroundStyle(StrandPalette.textSecondary)
             HStack(spacing: 4) {
                 mealTotalValue(title: "kcal", value: NutritionFormat.whole(total.kcal), tint: StrandPalette.onDarkSecondary)
-                mealTotalValue(title: "Protein", value: NutritionFormat.gramsUnit(Int(total.proteinG.rounded())),
+                // Short labels: four columns share the card's width ("PROTÉINES" would be cut).
+                mealTotalValue(title: "Prot.", value: NutritionFormat.gramsUnit(Int(total.proteinG.rounded())),
                            tint: NutritionMacro.protein.tint)
-                mealTotalValue(title: "Carbs", value: NutritionFormat.gramsUnit(Int(total.carbsG.rounded())),
+                mealTotalValue(title: "Carb.", value: NutritionFormat.gramsUnit(Int(total.carbsG.rounded())),
                            tint: NutritionMacro.carbs.tint)
                 mealTotalValue(title: "Fat", value: NutritionFormat.gramsUnit(Int(total.fatG.rounded())),
                            tint: NutritionMacro.fat.tint)
@@ -161,15 +162,16 @@ struct CoachMealCard: View {
             if proposal.mealId == nil {
                 NoopButton("Add to journal", systemImage: "plus", kind: .primary, fullWidth: true, action: onAdd)
                     .disabled(busy)
-                    .layoutPriority(1.45)
             } else {
                 Label("In your journal", systemImage: "checkmark")
                     .font(StrandFont.subhead.weight(.semibold))
                     .foregroundStyle(StrandPalette.accent)
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
+            // Edit keeps its label at its own width; "Add to journal" takes the rest.
             NoopButton("Edit", systemImage: "pencil", kind: .secondary, fullWidth: true, action: onEdit)
                 .disabled(busy)
+                .fixedSize(horizontal: true, vertical: false)
         }
     }
 }

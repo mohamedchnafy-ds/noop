@@ -775,6 +775,37 @@ final class AICoachEngine: ObservableObject {
     /// The id of the conversation on screen, nil for a new one not saved yet.
     var currentConversationId: String? { currentConversation?.id }
 
+    /// The conversation on screen as stored (title, pin, last write), nil for a new one not saved yet.
+    /// Read by the header; a rename or a pin reloads `conversations`, which redraws it.
+    var currentConversationRow: CoachConversationRow? { currentConversation }
+
+    /// The heading a brief starts with, in the app's language (personal fork; was English only).
+    static var briefPrefix: String { String(localized: "Today's brief") + "\n\n" }
+
+    /// Ask the last question again in place of its answer (the reply's "Redo" action). Only when the
+    /// last message is an answer to a question, and never mid-reply. Goes through `submit`, like every
+    /// other question.
+    func regenerateLastReply() {
+        guard activeTurn == nil, messages.last?.role == .assistant,
+              let index = messages.lastIndex(where: { $0.role == .user }) else { return }
+        let question = messages[index].text
+        messages.removeSubrange(index...)
+        submit(question)
+    }
+
+    /// What the history screen shows and searches for each stored conversation, read from the store.
+    func conversationDigests() async -> [String: CoachConversationDigest] {
+        guard let store = await repo.storeHandle() else { return [:] }
+        var digests: [String: CoachConversationDigest] = [:]
+        for row in conversations {
+            let rows = (try? await store.coachConversationMessages(conversationId: row.id)) ?? []
+            digests[row.id] = CoachConversationDigest(
+                messages: rows.map { (role: ChatMessage.Role(rawValue: $0.role) ?? .user, text: $0.text) },
+                briefPrefix: Self.briefPrefix)
+        }
+        return digests
+    }
+
     /// Load the history and reopen today's conversation (PRD-K2), so relaunching doesn't lose it.
     /// Called from the Coach screen's `.task` (mirroring `startBriefIfNeeded`) rather than `init`,
     /// which is synchronous and runs for every screen the app builds, not just Coach. Best-effort: a
@@ -884,9 +915,13 @@ final class AICoachEngine: ObservableObject {
         var conversation = currentConversation
             ?? CoachConversationRow(id: UUID().uuidString, title: "", createdAt: now, updatedAt: now)
         conversation.updatedAt = now
-        if conversation.title.isEmpty, !conversation.titleEdited,
-           let question = messages.first(where: { $0.role == .user }) {
-            conversation.title = CoachConversationTitle.make(fromQuestion: question.text)
+        if conversation.title.isEmpty, !conversation.titleEdited {
+            if let question = messages.first(where: { $0.role == .user }) {
+                conversation.title = CoachConversationTitle.make(fromQuestion: question.text)
+            } else if messages.first?.text.hasPrefix(Self.briefPrefix) == true {
+                // A brief has no question to name it; the next question does not rename it either.
+                conversation.title = String(localized: "Today's brief")
+            }
         }
         currentConversation = conversation
         let snapshot = messages
@@ -917,7 +952,7 @@ final class AICoachEngine: ObservableObject {
     /// No-op if a conversation already exists, so it never duplicates into an active chat.
     func surfaceScheduledBrief(_ text: String) {
         guard messages.isEmpty else { return }
-        appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        appendMessage(ChatMessage(role: .assistant, text: Self.briefPrefix + text))
         conversationDay = Self.localEpochDay()
         persistMessages()
     }
@@ -936,7 +971,7 @@ final class AICoachEngine: ObservableObject {
     /// mid-conversation tap still shows the fresh brief.
     func appendGeneratedBrief(_ text: String) {
         retireStaleConversationIfNeeded()
-        appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        appendMessage(ChatMessage(role: .assistant, text: Self.briefPrefix + text))
         conversationDay = Self.localEpochDay()
         persistMessages()
     }
@@ -1067,7 +1102,7 @@ final class AICoachEngine: ObservableObject {
             [(.user, context + "\n\n---\n\n" + Self.briefInstruction)]
 
         // An empty brief removes its placeholder rather than leaving a bare heading.
-        await streamAssistantTurn(key: key, wire: wire, prefix: "Today's brief\n\n", emptyText: nil)
+        await streamAssistantTurn(key: key, wire: wire, prefix: Self.briefPrefix, emptyText: nil)
     }
 
     /// Stream one assistant turn into the transcript (K1), shared by `send` and `startBriefIfNeeded`.

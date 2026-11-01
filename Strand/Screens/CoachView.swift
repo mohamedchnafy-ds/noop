@@ -37,8 +37,13 @@ struct CoachView: View {
     @State private var customModelDraft: String = ""
     @FocusState private var composerFocused: Bool
 
-    /// K2: confirmation gate for the destructive "Clear conversation" toolbar action.
+    /// K2: confirmation gate for the destructive "Delete conversation" menu action.
     @State private var showClearConfirm = false
+    /// The conversations history (personal fork), opened from the header's left button.
+    @State private var showHistory = false
+    /// The rename prompt of the conversation on screen, and the name being typed.
+    @State private var showRename = false
+    @State private var renameDraft = ""
     /// #2243: the coach settings, presented as a sheet. See `CoachSettingsView` for why a sheet
     /// rather than a push.
     @State private var showSettings = false
@@ -55,10 +60,6 @@ struct CoachView: View {
     /// Sentinel tag for the "Custom…" entry in the model Picker.
     private let customModelTag = "__custom__"
 
-    /// Contextual suggestion chips, derived from today's bands by `AICoachEngine.suggestions`
-    /// (→ `CoachSuggestions`). Falls back to a stable generic set when there is no data. Recomputed
-    /// on each body evaluation so a fresh sync immediately updates the chips.
-    private var suggestions: [String] { coach.suggestions }
 
     var body: some View {
         Group {
@@ -78,46 +79,9 @@ struct CoachView: View {
                 }
             }
         }
-        // macOS only. On iOS these actions live in `settingsMenu` instead, because this bar is hidden for
-        // a primary tab root and VISIBLE in the pillar sheet, so leaving them here would render nothing
-        // on the Coach tab and a duplicate of the menu in the sheet. One control per platform, reachable
-        // in both of iOS's presentations. The `#if` sits on the CHAIN rather than inside the builder:
-        // `ToolbarContentBuilder` is not relied on to accept an empty body, and the one other
-        // conditional toolbar here (CoupledView) always yields an item on both platforms. (#2206)
-        #if os(macOS)
-        .toolbar {
-            if coach.isConfigured {
-                ToolbarItem {
-                    Button {
-                        toggleKeyEditor()
-                    } label: {
-                        Label("Update key", systemImage: "key.fill")
-                    }
-                }
-                // K2: wipe the persisted + in-memory conversation. Confirmed, since it's destructive.
-                ToolbarItem {
-                    Button(role: .destructive) {
-                        showClearConfirm = true
-                    } label: {
-                        Label("Clear conversation", systemImage: "trash")
-                    }
-                    .help("Clear the saved conversation")
-                    .accessibilityLabel("Clear conversation")
-                    .disabled(coach.messages.isEmpty)
-                }
-                ToolbarItem {
-                    Button(role: .destructive) {
-                        coach.disconnect()
-                        keyDraft = ""
-                    } label: {
-                        Label("Disconnect", systemImage: "gearshape")
-                    }
-                    .help("Forget the saved key and disconnect")
-                    .accessibilityLabel("Disconnect provider")
-                }
-            }
-        }
-        #endif
+        // Personal fork: the toolbar the macOS app carried (Update key, Clear, Disconnect) is gone. Those
+        // actions live in the header's ⋯ menu on every platform, so the iPhone pillar sheet, whose bar
+        // is visible, and the Mac never show them twice.
         // #2243: coach settings. `repo` rides along because the scaffold's environment is not
         // inherited by a sheet's own view tree.
         .sheet(isPresented: $showCoachProfile) {
@@ -131,22 +95,31 @@ struct CoachView: View {
                 .environmentObject(coach)
                 .environmentObject(repo)
         }
+        .sheet(isPresented: $showHistory) {
+            CoachHistoryView().environmentObject(coach).environmentObject(repo)
+        }
         .confirmationDialog(
-            "Clear conversation?",
+            "Delete this conversation?",
             isPresented: $showClearConfirm,
             titleVisibility: .visible
         ) {
-            Button("Clear", role: .destructive) { coach.clearConversation() }
+            Button("Delete", role: .destructive) { coach.clearConversation() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This deletes the saved conversation from this device. Coach history is your own notes, not medical advice.")
+            Text("It is removed from this device and from your conversations.")
+        }
+        .alert("Rename conversation", isPresented: $showRename) {
+            TextField("Name", text: $renameDraft)
+            Button("Rename") {
+                if let id = coach.currentConversationId { coach.renameConversation(id: id, to: renameDraft) }
+            }
+            Button("Cancel", role: .cancel) {}
         }
         // K2 + K5 ordering matters and every step gates on an EMPTY transcript, so this is ONE `.task`
         // running sequentially (separate `.task`s can interleave at their await points on the same
         // actor): restore whatever the prior launch persisted, THEN surface a brief the scheduled
-        // notification already generated (if any), THEN the interactive first-open brief — so
-        // `startBriefIfNeeded` only ever runs over the network when BOTH of the above left the
-        // transcript genuinely empty.
+        // notification already generated (if any). Personal fork: the interactive brief no longer
+        // starts on its own; it is the empty screen's "Today's brief" card.
         .task {
             await coach.loadPersistedMessagesIfNeeded()
             coach.retireStaleConversationIfNeeded()
@@ -158,8 +131,6 @@ struct CoachView: View {
                 coach.surfaceScheduledBrief(stored)
             }
             CoachBriefScheduler.activateIfEnabled { await coach.generateBrief() }
-            // On the engine's own task, not this view's: leaving the tab mid-brief must not cancel it.
-            coach.beginBriefIfNeeded()
         }
         // #1862: a question handed over by the Today launcher sheet. Cleared BEFORE sending so a view
         // rebuild mid-flight cannot send it twice, and gated on `isConfigured` so an unconfigured handoff
@@ -180,12 +151,6 @@ struct CoachView: View {
             if !isSending && !coach.messages.isEmpty {
                 triggerReplyHaptic()
             }
-        }
-        // A consent toggle AFTER the initial load re-checks the brief (the original `.task(id:)`
-        // behaviour); the guard inside `startBriefIfNeeded` (messages.isEmpty) keeps this a no-op once
-        // a conversation exists.
-        .onChangeCompat(of: coach.dataConsent) { _ in
-            coach.beginBriefIfNeeded()
         }
     }
 
@@ -423,39 +388,96 @@ struct CoachView: View {
         #endif
     }
 
-    /// The slim header: the title, a pulse while a reply is on its way, and the gear that holds
-    /// everything else.
+    /// The header (personal fork, Coach mockups 1 and 8): the history on the left, the conversation's
+    /// title and when it was last written, a new conversation, and the ⋯ menu that holds everything else.
     private var chatHeader: some View {
-        HStack(spacing: 10) {
-            Text("Coach")
-                .font(StrandFont.rounded(24))
-                .foregroundStyle(StrandPalette.textPrimary)
-            if coach.sending {
-                StatePill("Thinking", tone: .accent, pulsing: true)
+        HStack(spacing: 8) {
+            headerButton("clock.arrow.circlepath", label: "Conversations") { showHistory = true }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(headerTitle)
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                if coach.sending {
+                    StatePill("Thinking", tone: .accent, pulsing: true)
+                } else {
+                    Text(headerSubtitle)
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                }
             }
-            Spacer(minLength: 0)
-            settingsMenu
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            headerButton("square.and.pencil", label: "New conversation") { coach.startNewConversation() }
+                .disabled(coach.sending || coach.messages.isEmpty)
+            optionsMenu
         }
     }
 
-    /// Everything that is not the conversation, behind ONE button: the provider and model in use,
-    /// the coach settings (#2243's sheet), and — on iOS — the connection actions.
+    /// The conversation's title, or "New conversation" before its first save.
+    private var headerTitle: String {
+        let title = coach.currentConversationRow?.title ?? ""
+        return title.isEmpty ? String(localized: "New conversation") : title
+    }
+
+    /// "Coach · today 09:12" for a saved conversation, "Coach" for a new one.
+    private var headerSubtitle: String {
+        guard let row = coach.currentConversationRow else { return String(localized: "Coach") }
+        let date = Date(timeIntervalSince1970: TimeInterval(row.updatedAt))
+        let time = AppClock.hourMinuteFormatter().string(from: date)
+        switch CoachHistory.dayDistance(from: row.updatedAt, to: Date()) {
+        case ..<1: return String(localized: "Coach · today \(time)")
+        case 1: return String(localized: "Coach · yesterday \(time)")
+        default: return String(localized: "Coach · \(date.formatted(.dateTime.day().month(.abbreviated)))")
+        }
+    }
+
+    private func headerButton(_ symbol: String, label: LocalizedStringKey,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            CoachHeaderIcon(symbol: symbol)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
+    }
+
+    /// Everything that is not the conversation, behind ONE button (Coach mockup 8): the conversation
+    /// on screen, what the coach knows and reads, its settings, and the connection.
     ///
     /// #2206: on iOS the connection actions cannot live in the toolbar. `RootTabView.tab(...)` wraps
     /// every primary tab root in a NavigationStack and applies `.toolbar(.hidden, for: .navigationBar)`,
     /// so Clear conversation and Disconnect placed there rendered nowhere — and Disconnect was the only
-    /// route back to the setup card, leaving a key that could be set once and never changed. CoachView
-    /// is also presented as a pillar sheet whose bar IS visible, so keeping both routes would draw
-    /// nothing on the tab and two of everything in the sheet. macOS keeps its toolbar for those
-    /// actions and gets only the settings here. A menu also puts two taps in front of a destructive
-    /// action, the protection the toolbar's separation gives.
+    /// route back to the setup card, leaving a key that could be set once and never changed. Personal
+    /// fork: the Mac now uses this menu too, so no platform shows these actions twice. A menu also puts
+    /// two taps in front of a destructive action.
     ///
     /// Worth knowing before changing `disconnect()`: neither `hasKey` nor `isConfigured` is published,
     /// since `hasKey` reads the Keychain on each evaluation. The setup card reappears because
     /// `disconnect()` ALSO assigns the published `messages`, which is what re-evaluates the body.
-    private var settingsMenu: some View {
+    private var optionsMenu: some View {
         Menu {
-            Section("\(coach.provider.displayName) · \(coach.model)") {
+            if let row = coach.currentConversationRow {
+                Section {
+                    Button {
+                        renameDraft = row.title
+                        showRename = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    Button {
+                        coach.setConversationPinned(id: row.id, pinned: !row.pinned)
+                    } label: {
+                        Label(row.pinned ? "Unpin" : "Pin", systemImage: row.pinned ? "pin.slash" : "pin")
+                    }
+                    Button(role: .destructive) {
+                        showClearConfirm = true
+                    } label: {
+                        Label("Delete conversation", systemImage: "trash")
+                    }
+                }
+            }
+            Section {
                 Button {
                     showCoachProfile = true
                 } label: {
@@ -472,55 +494,38 @@ struct CoachView: View {
                     Label("Coach settings", systemImage: "slider.horizontal.3")
                 }
             }
-            #if os(iOS)
-            Section {
+            Section("\(coach.provider.displayName) · \(coach.model)") {
                 Button {
                     toggleKeyEditor()
                 } label: {
                     Label("Update key", systemImage: "key.fill")
                 }
-                Button {
-                    showClearConfirm = true
-                } label: {
-                    Label("Clear conversation", systemImage: "trash")
-                }
-                .disabled(coach.messages.isEmpty)
                 Button(role: .destructive) {
                     coach.disconnect()
                     keyDraft = ""
                 } label: {
-                    Label("Disconnect", systemImage: "gearshape")
+                    Label("Disconnect", systemImage: "power")
                 }
             }
-            #endif
         } label: {
-            Image(systemName: "gearshape")
-                .font(StrandFont.headline)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
+            CoachHeaderIcon(symbol: "ellipsis")
         }
-        .accessibilityLabel(String(localized: "Coach settings"))
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "More options"))
     }
 
     /// What sits under the transcript: a problem that needs the user (an error, a rejected key), the
-    /// prompt chips while the keyboard is down, the composer, and a token warning only when a question
-    /// would be large enough to matter.
+    /// composer, and a token warning only when a question would be large enough to matter. Personal
+    /// fork: the suggestions moved into the transcript (the empty screen, and the follow-ups under the
+    /// last answer), so no row scrolls sideways here and swipes between tabs stay what they were.
     private var bottomPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let error = coach.errorText, !error.isEmpty {
                 errorBanner(error)
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
-            // K7: follow-up chips after an assistant reply, otherwise the initial chips. Hidden while
-            // typing, so the keyboard does not leave the transcript a sliver.
-            if !composerFocused {
-                if showFollowUpChips {
-                    followUpChips
-                } else {
-                    suggestionChips
-                }
-            }
             composer
             // K12: the estimate, now only when it is worth a warning.
             if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -535,15 +540,21 @@ struct CoachView: View {
             ScrollView {
                 // Lazy so off-screen bubbles aren't all resident/laid-out at once; with the
                 // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    if coach.messages.isEmpty {
-                        emptyTranscript
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    if coach.messages.isEmpty && !coach.sending {
+                        CoachEmptyState(briefAvailable: coach.dataConsent,
+                                        providerName: coach.provider.displayName,
+                                        onBrief: { coach.beginBriefIfNeeded() },
+                                        onAsk: { send($0) },
+                                        onShowData: { showCoachData = true })
                     }
                     ForEach(coach.messages) { message in
                         bubble(message).id(message.id)
                     }
                     if coach.sending {
                         typingIndicator.id("typing")
+                    } else if showFollowUps {
+                        followUps
                     }
                 }
                 .padding(.horizontal, chatHPadding)
@@ -573,24 +584,6 @@ struct CoachView: View {
         }
     }
 
-    private var emptyTranscript: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Ask your first question")
-                .font(StrandFont.headline)
-                .foregroundStyle(StrandPalette.textPrimary)
-            Text("Coach reads a summary of your last two weeks, 30-day averages, recent workouts and your Lift Log sessions, then answers in plain language. Try a suggestion below.")
-                .font(StrandFont.subhead)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            // What leaves the device, said before the first question rather than under every answer.
-            privacyFootnote
-                .padding(.top, 6)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(16)
-        .frostedCardSurface()
-    }
-
     @ViewBuilder
     private func bubble(_ message: ChatMessage) -> some View {
         switch message.role {
@@ -604,51 +597,78 @@ struct CoachView: View {
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .frame(maxWidth: 520, alignment: .trailing)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("You said: \(message.text)")
         case .assistant:
-            // LLM replies arrive as Markdown (bold, lists, headings, tables),             // rendered with the chat-bubble-sized Strand theme. User bubbles stay
-            // verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
-            // The reply sits on a frosted Charge-tinted surface, a card, not a flat box.
-            // K8: context menu (long-press / right-click) with Copy, Share, and Save actions.
-            HStack {
+            // Personal fork (Coach mockup 2): the answer reads full width, with no card around it, under
+            // a small "Coach" mark, and its actions sit in a row underneath. LLM replies arrive as
+            // Markdown (bold, lists, headings, tables), rendered with the chat-sized Strand theme; user
+            // bubbles stay verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
+            VStack(alignment: .leading, spacing: 6) {
+                Label {
+                    Text("Coach").font(StrandFont.overline).tracking(1)
+                } icon: {
+                    Image(systemName: "sparkles").font(StrandFont.caption)
+                }
+                .foregroundStyle(StrandPalette.textSecondary)
+                .accessibilityHidden(true)
                 Markdown(message.text)
                     .markdownTheme(.strand)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
-                    .frame(maxWidth: 560, alignment: .leading)
-                    // K8: Copy / Share / Save context menu on assistant replies.
-                    .contextMenu {
-                        Button {
-                            #if os(macOS)
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(message.text, forType: .string)
-                            #else
-                            UIPasteboard.general.string = message.text
-                            #endif
-                        } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
-                        }
-                        ShareLink(item: message.text) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
-                        Button {
-                            saveAdvice(message.text)
-                        } label: {
-                            Label("Save to Journal", systemImage: "square.and.pencil")
-                        }
-                    }
-                Spacer(minLength: 48)
+                    .frame(maxWidth: 680, alignment: .leading)
+                    .accessibilityLabel("Coach said: \(message.text)")
+                replyActions(message)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Coach said: \(message.text)")
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// Copy, save to the Journal, redo (the last answer to a question only) and share.
+    private func replyActions(_ message: ChatMessage) -> some View {
+        HStack(spacing: 0) {
+            replyAction("doc.on.doc", label: "Copy") { copy(message.text) }
+            replyAction("square.and.pencil", label: "Save to Journal") { saveAdvice(message.text) }
+            if message.id == coach.messages.last?.id, !coach.sending,
+               coach.messages.contains(where: { $0.role == .user }) {
+                replyAction("arrow.clockwise", label: "Redo") { coach.regenerateLastReply() }
+            }
+            ShareLink(item: message.text) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .frame(width: 44, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Share"))
+        }
+        .padding(.leading, -12)
+    }
+
+    private func replyAction(_ symbol: String, label: LocalizedStringKey,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 44, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
+    }
+
+    private func copy(_ text: String) {
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
+        #endif
     }
 
     private var typingIndicator: some View {
@@ -737,65 +757,36 @@ struct CoachView: View {
         if !showKeyEditor { keyFix = "" }
     }
 
-    private var suggestionChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                // Strength prompts first (personal fork), then the ones derived from today's bands.
-                ForEach(AICoachEngine.liftSuggestions + suggestions, id: \.self) { prompt in
-                    Button {
-                        send(prompt)
-                    } label: {
-                        Text(prompt)
-                            .font(StrandFont.captionNumber)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
-                            .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    }
-                    // Liquid tap response: the physical settle-inward every tappable liquid
-                    // affordance gets, replacing the flat `.plain` press.
-                    .buttonStyle(LiquidPressStyle())
-                    .disabled(coach.sending)
-                    .accessibilityLabel("Suggested prompt: \(prompt)")
-                }
-            }
-            .padding(.vertical, 1)
-        }
-    }
-
-    /// K7: True when follow-up chips should show instead of the initial contextual chips —
-    /// i.e. the transcript is non-empty, the last message is from the assistant, and a reply
-    /// is not currently in flight.
-    private var showFollowUpChips: Bool {
+    /// K7: True when follow-ups should show under the last message: it is an answer and no reply is
+    /// on its way.
+    private var showFollowUps: Bool {
         guard let last = coach.messages.last, !coach.sending else { return false }
         return last.role == .assistant
     }
 
-    /// K7: Follow-up suggestion chips shown after each assistant reply, so the user can dig
-    /// deeper without typing. Uses the static `AICoachEngine.followUpSuggestions` list.
-    private var followUpChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(AICoachEngine.followUpSuggestions, id: \.self) { prompt in
-                    Button {
-                        send(prompt)
-                    } label: {
-                        Text(prompt)
-                            .font(StrandFont.captionNumber)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
-                            .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    }
-                    .buttonStyle(LiquidPressStyle())
-                    .disabled(coach.sending)
-                    .accessibilityLabel("Follow-up prompt: \(prompt)")
+    /// K7, personal fork (Coach mockup 2): two or three follow-ups under the last answer, wrapped rather
+    /// than scrolled sideways. They follow the theme of the conversation's first question when it is one
+    /// of the suggested ones (`CoachPrompts`).
+    private var followUps: some View {
+        let first = coach.messages.first(where: { $0.role == .user })?.text
+        return CoachChipFlow(spacing: 8) {
+            ForEach(CoachPrompts.followUps(forFirstQuestion: first), id: \.self) { prompt in
+                Button {
+                    send(prompt)
+                } label: {
+                    Text(prompt)
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 40)
+                        .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
+                        .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
                 }
+                .buttonStyle(LiquidPressStyle())
+                .accessibilityLabel("Follow-up prompt: \(prompt)")
             }
-            .padding(.vertical, 1)
         }
+        .padding(.top, 2)
     }
 
     /// K12: A subtle token estimate shown below the composer when the draft is non-empty.
@@ -817,21 +808,19 @@ struct CoachView: View {
         .padding(.top, 2)
     }
 
-    /// The input bar, a frosted overlay surface holding the field + Send, so the composer reads as a
-    /// distinct docked surface above the canvas rather than two floating controls.
+    /// The input capsule (Coach mockup 1): the field, the microphone, and a round Send that appears once
+    /// there is something to send. While a reply streams it becomes Stop, which keeps the text received
+    /// so far. The photo button of the mockups comes with photos.
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            TextField("Ask Coach about your data…", text: $draft, axis: .vertical)
+        HStack(alignment: .bottom, spacing: 4) {
+            TextField("Ask Coach…", text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(StrandFont.body)
                 .foregroundStyle(StrandPalette.textPrimary)
                 .lineLimit(1...5)
                 .focused($composerFocused)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
+                .padding(.leading, 14)
+                .padding(.vertical, 12)
                 .onSubmit { send(draft) }
                 .accessibilityLabel("Question")
 
@@ -840,28 +829,37 @@ struct CoachView: View {
             micButton
             #endif
 
-            // Docked icon-only send affordance: a crisp accent-filled square sized to the
-            // composer row (not the full 48pt control height), so it routes through the same
-            // token fill/label colours as the button system without overpowering the field.
-            // While a reply streams it becomes Stop, which keeps the text received so far.
-            Button {
-                if coach.sending { coach.stopReply() } else { send(draft) }
-            } label: {
-                Image(systemName: coach.sending ? "stop.fill" : "arrow.up")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 44, height: 38)
-                    .foregroundStyle(StrandPalette.goldDeepText)
-                    .background(StrandPalette.accent,
-                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            if coach.sending || hasDraft || !micAvailable {
+                Button {
+                    if coach.sending { coach.stopReply() } else { send(draft) }
+                } label: {
+                    Image(systemName: coach.sending ? "stop.fill" : "arrow.up")
+                        .font(StrandFont.headline)
+                        .frame(width: 40, height: 40)
+                        .foregroundStyle(StrandPalette.goldDeepText)
+                        .background(StrandPalette.accent, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!coach.sending && !hasDraft)
+                .padding(2)
+                .accessibilityLabel(coach.sending ? Text("Stop") : Text("Send"))
             }
-            .buttonStyle(.plain)
-            .disabled(!coach.sending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel(coach.sending ? Text("Stop") : Text("Send"))
         }
-        .padding(8)
-        .background(NoopPanelSurface(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        .padding(2)
+        .background(NoopPanelSurface(cornerRadius: 26))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
+    }
+
+    private var hasDraft: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    /// Whether the capsule has a microphone, so a Send button is needed even with an empty field.
+    private var micAvailable: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
     }
 
     // MARK: - K4: Voice input (iOS only)
@@ -877,19 +875,16 @@ struct CoachView: View {
             Group {
                 if voiceInput.isRecording {
                     Image(systemName: "stop.circle.fill")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(StrandFont.title2)
                         .foregroundStyle(StrandPalette.statusCritical)
                 } else {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 15, weight: .semibold))
+                    Image(systemName: "mic")
+                        .font(StrandFont.headline)
                         .foregroundStyle(canUseVoice ? StrandPalette.textSecondary : StrandPalette.textTertiary)
                 }
             }
-            .frame(width: 36, height: 38)
-            .background(StrandPalette.surfaceInset,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(!micButtonEnabled)

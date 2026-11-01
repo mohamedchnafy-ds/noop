@@ -7,6 +7,12 @@ import WhoopStore
 /// printed beside each curve, and what a touch reads.
 final class SleepPhasesChartTests: XCTestCase {
 
+    private func assertClose(_ a: [Double], _ b: [Double], accuracy: Double,
+                                file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(a.count == b.count && zip(a, b).allSatisfy { abs($0 - $1) <= accuracy },
+                      "\(a) != \(b)", file: file, line: line)
+    }
+
     // MARK: Where the curves go
 
     func testHeartRateAndHRVShareTheLanesAndTheTemperatureDropsBelow() {
@@ -68,6 +74,15 @@ final class SleepPhasesChartTests: XCTestCase {
         XCTAssertLessThan(scale.y(100), scale.y(50))
         XCTAssertGreaterThan(scale.y(50), 0)
         XCTAssertLessThan(scale.y(100), 1)
+    }
+
+    // MARK: Temperature as its gap to the night
+
+    func testTemperatureReadsAsItsGapToTheNightsMedian() {
+        // A strap whose provisional mapping reads ~40 °C still shows the night's own rise and dip.
+        assertClose(SleepPhasesChartMath.gapToMedian([39.5, 40.0, 40.4, 41.0]), [-0.7, -0.2, 0.2, 0.8], accuracy: 1e-9)
+        XCTAssertEqual(SleepPhasesChartMath.gapToMedian([33.0, 34.0, 35.0]), [-1, 0, 1])
+        XCTAssertEqual(SleepPhasesChartMath.gapToMedian([]), [])
     }
 
     // MARK: Reading the chart

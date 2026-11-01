@@ -12,7 +12,9 @@ import WhoopStore
 // when it is the one curve on, and otherwise gets a strip of its own under the lanes, as movement always
 // does. Every curve has a printed scale with its unit. A touch (or a drag) on the chart reads the time,
 // the stage and each curve's value at that moment, and a line per curve under the chart gives its range.
-// Display only: the series arrive as read.
+// The skin temperature is shown as its gap to the night's own median: a WHOOP 4.0's raw-to-°C mapping is
+// provisional and its offset differs between straps (#938), so the absolute degrees can read 40 °C while
+// the night's rise and dips still hold. Display only: the series arrive as read.
 
 /// Where each curve goes, kept pure so it can be tested without drawing.
 enum SleepCurveLayout {
@@ -127,6 +129,15 @@ enum SleepPhasesChartMath {
         }
     }
 
+    /// Each value minus the values' median, so a curve reads as its gap to its own night. Empty in, empty out.
+    static func gapToMedian(_ values: [Double]) -> [Double] {
+        let sorted = values.sorted()
+        guard !sorted.isEmpty else { return [] }
+        let n = sorted.count
+        let median = n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+        return values.map { $0 - median }
+    }
+
     /// The reading closest to `t`, if one lies within `tolerance` seconds of it.
     static func value(at t: TimeInterval, in points: [(t: TimeInterval, v: Double)],
                       tolerance: TimeInterval = 300) -> Double? {
@@ -208,7 +219,9 @@ struct SleepPhasesChart: View {
         switch curve {
         case .heartRate: pts = SleepPhasesChartMath.points(heartRate, nightStart: nightStart, origin: origin, span: span)
         case .hrv: pts = SleepPhasesChartMath.points(hrv, nightStart: nightStart, origin: origin, span: span)
-        case .skinTemp: pts = SleepPhasesChartMath.points(skinTemp, nightStart: nightStart, origin: origin, span: span)
+        case .skinTemp:
+            let raw = SleepPhasesChartMath.points(skinTemp, nightStart: nightStart, origin: origin, span: span)
+            pts = Array(zip(raw.map(\.t), SleepPhasesChartMath.gapToMedian(raw.map(\.v)))).map { (t: $0.0, v: $0.1) }
         }
         guard pts.count >= 2, let scale = SleepCurveScale.make(pts.map(\.v)) else { return nil }
         return Series(curve: curve, points: pts, scale: scale)
@@ -321,7 +334,7 @@ struct SleepPhasesChart: View {
                             if let v = SleepPhasesChartMath.value(at: reading, in: s.points) {
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                     Circle().fill(Self.tint(s.curve)).frame(width: 7, height: 7)
-                                    Text(v, format: .number.precision(.fractionLength(Self.valueDecimals(s.curve))))
+                                    Text(Self.number(v, Self.valueDecimals(s.curve), signed: s.curve == .skinTemp))
                                         .font(StrandFont.subhead.weight(.semibold))
                                         .foregroundStyle(Self.tint(s.curve))
                                     Text(Self.unit(s.curve))
@@ -363,7 +376,7 @@ struct SleepPhasesChart: View {
                             .font(StrandFont.footnote.weight(.semibold))
                             .foregroundStyle(StrandPalette.textPrimary)
                             .frame(width: 92, alignment: .leading)
-                        Text("lowest \(Self.number(values.min() ?? 0, d)) · highest \(Self.number(values.max() ?? 0, d)) \(Self.unit(s.curve))")
+                        Text(Self.rangeText(s.curve, values: values, decimals: d))
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
@@ -400,11 +413,31 @@ struct SleepPhasesChart: View {
         }
     }
 
+    /// A strip's own title: the curve and its unit, and for the temperature what the values are measured from.
+    static func stripTitle(_ curve: SleepCurveLayout.Curve) -> String {
+        curve == .skinTemp
+            ? "\(name(curve)) · \(String(localized: "vs the night")) (\(unit(curve)))"
+            : "\(name(curve)) · \(unit(curve))"
+    }
+
     /// Readings print whole except the skin temperature, which moves by tenths of a degree.
     static func valueDecimals(_ curve: SleepCurveLayout.Curve) -> Int { curve == .skinTemp ? 1 : 0 }
 
-    private static func number(_ v: Double, _ decimals: Int) -> String {
-        v.formatted(.number.precision(.fractionLength(decimals)))
+    /// A value as printed: `signed` puts a "+" before a gap above the median ("+0,4"), never before 0.
+    private static func number(_ v: Double, _ decimals: Int, signed: Bool = false) -> String {
+        let style = FloatingPointFormatStyle<Double>().precision(.fractionLength(decimals))
+        return signed ? v.formatted(style.sign(strategy: .always(includingZero: false))) : v.formatted(style)
+    }
+
+    /// The line under the chart: the curve's lowest and highest, or for the temperature how far it went
+    /// below and above the night's median.
+    private static func rangeText(_ curve: SleepCurveLayout.Curve, values: [Double], decimals d: Int) -> String {
+        let lo = values.min() ?? 0
+        let hi = values.max() ?? 0
+        if curve == .skinTemp {
+            return String(localized: "from \(number(lo, d, signed: true)) to \(number(hi, d, signed: true)) \(unit(curve)) vs the night")
+        }
+        return String(localized: "lowest \(number(lo, d)) · highest \(number(hi, d)) \(unit(curve))")
     }
 
     // MARK: Drawing
@@ -479,7 +512,7 @@ struct SleepPhasesChart: View {
             }
             stroke(ctx, s, x: x, band: band)
             drawScale(ctx, s, band: band, g: g, onLeft: false, withUnit: false)
-            chip(ctx, Text(verbatim: "\(Self.name(s.curve)) · \(Self.unit(s.curve))").font(StrandFont.caption.weight(.semibold))
+            chip(ctx, Text(verbatim: Self.stripTitle(s.curve)).font(StrandFont.caption.weight(.semibold))
                     .foregroundColor(Self.tint(s.curve)),
                  at: CGPoint(x: g.left + 6, y: stripTop + 4))
         }
@@ -535,7 +568,7 @@ struct SleepPhasesChart: View {
         }
         for tick in ticks {
             let ty = band.top + CGFloat(s.scale.y(tick)) * band.height
-            let label = ctx.resolve(Text(tick, format: .number.precision(.fractionLength(s.scale.decimals)))
+            let label = ctx.resolve(Text(Self.number(tick, s.scale.decimals, signed: s.curve == .skinTemp))
                 .font(StrandFont.captionNumber.weight(.semibold)).foregroundColor(tint))
             ctx.draw(label, at: CGPoint(x: onLeft ? edge - 6 : edge + 6, y: ty), anchor: onLeft ? .trailing : .leading)
         }
@@ -570,7 +603,7 @@ struct SleepPhasesChart: View {
         for s in placed.onStages + placed.below {
             let values = s.points.map(\.v)
             let d = Self.valueDecimals(s.curve)
-            parts.append("\(Self.name(s.curve)): \(String(localized: "lowest \(Self.number(values.min() ?? 0, d)) · highest \(Self.number(values.max() ?? 0, d)) \(Self.unit(s.curve))"))")
+            parts.append("\(Self.name(s.curve)): \(Self.rangeText(s.curve, values: values, decimals: d))")
         }
         return parts.joined(separator: ". ")
     }

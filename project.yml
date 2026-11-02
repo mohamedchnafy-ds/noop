@@ -91,6 +91,10 @@ targets:
       # The stress screen is shared with iOS and prints levels through the widget's parity formatter,
       # so its Foundation-only trace model belongs to the macOS app module as well.
       - StrandiOSShared/StressTrace.swift
+      # The day widgets' snapshot and faces (personal fork, chantier 6): the app module words the snapshot
+      # (`DayWidgetsContent`, shared with iOS), so `StrandTests` covers it and renders the faces to PNG.
+      - StrandiOSShared/DayWidgetsSnapshot.swift
+      - StrandiOSShared/DayWidgetViews.swift
     # Oura BYO-app OAuth credentials. OuraConfig.xcconfig is a tracked wrapper that optionally
     # includes the untracked, gitignored Strand/Oura/OuraSecrets.xcconfig (template at
     # OuraSecrets.example.xcconfig) — absent secrets leave the $(OURA_*) references in the

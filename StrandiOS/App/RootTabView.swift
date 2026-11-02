@@ -253,6 +253,11 @@ struct RootTabView: View {
         // through the change callback. Both route through the same screens as the centre FAB.
         .onAppear {
             presentPendingHomeScreenQuickActionIfPossible()
+            openWidgetRoute(router.widgetRoute)
+        }
+        // A day widget's tap (personal fork): its screen, on a cold launch through onAppear above.
+        .onChange(of: router.widgetRoute) { _, route in
+            openWidgetRoute(route)
         }
         .onChange(of: homeScreenQuickActions.pendingAction) { _, _ in
             presentPendingHomeScreenQuickActionIfPossible()
@@ -280,6 +285,24 @@ struct RootTabView: View {
         .sheet(isPresented: $liftSession.isPresented) {
             LiftSessionView { }
         }
+    }
+
+    /// Opens the screen a day widget asked for: Sleep as its tab, Training and Nutrition pushed on Today's
+    /// stack (the routes Today's own rows push), over any sheet the shell had up.
+    private func openWidgetRoute(_ route: TabRoute?) {
+        guard let route else { return }
+        router.widgetRoute = nil
+        showDevices = false
+        routedPillar = nil
+        quickAction = nil
+        if route == .sleep {
+            selectedTab = 2
+            return
+        }
+        var path = NavigationPath()
+        path.append(route)
+        tabPaths[0] = path
+        selectedTab = 0
     }
 
     /// Mandatory launch gates defer an external action. Once the shell is available, an explicit Home

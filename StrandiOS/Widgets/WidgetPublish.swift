@@ -117,6 +117,10 @@ extension WidgetSnapshot {
             stressDay: stress?.day ?? storedStress?.stressDay
         )
         saveAndReloadIfChanged(snap)
+        // The day widgets (personal fork, chantier 6) ride every full publish, spaced by their own gate.
+        // Not awaited: the callers that wait on this publish (the post-offload Health write-back) do not
+        // wait on the day's heart-rate read the calories need.
+        Task { await DayWidgetsSnapshot.publishDayWidgets(from: model) }
     }
 
     /// Publish fields that come directly from the live BLE state without re-reading the Rest metric

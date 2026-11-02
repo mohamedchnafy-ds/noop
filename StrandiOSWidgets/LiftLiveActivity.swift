@@ -1,6 +1,7 @@
 import WidgetKit
 import SwiftUI
 import ActivityKit
+import AppIntents
 import StrandDesign
 
 /// Live Activity for a running Lift Log session — the minimised session bar, on the Lock Screen and
@@ -24,7 +25,7 @@ struct LiftLiveActivity: Widget {
             let tint = tint(context.state)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(context.state.exercise, systemImage: "dumbbell.fill")
+                    Label(context.state.exercise, systemImage: icon(context.state))
                         .font(.caption).lineLimit(1)
                         .foregroundStyle(tint)
                 }
@@ -40,13 +41,26 @@ struct LiftLiveActivity: Widget {
                                      : StrandPalette.metricRose)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        Text(context.state.detail ?? context.state.status)
-                            .font(.caption).lineLimit(1)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                        Spacer(minLength: 8)
-                        clock(context.state, tint: tint)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    VStack(spacing: 10) {
+                        HStack {
+                            Text(statusLine(context.state))
+                                .font(.caption).lineLimit(1)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                            Spacer(minLength: 8)
+                            // Sized by a hidden "00:00", as the Lock Screen's clock is: a running timer takes
+                            // all the width it is offered.
+                            Text(verbatim: "00:00")
+                                .font(Self.clockFont)
+                                .monospacedDigit()
+                                .hidden()
+                                .overlay(alignment: .trailing) {
+                                    clock(context.state, tint: tint)
+                                        .font(Self.clockFont)
+                                        .multilineTextAlignment(.trailing)
+                                }
+                        }
+                        // The banner's buttons, worded short (personal fork): "Skip", "+30 s", the pause icon.
+                        buttonRow(context.state, compact: true)
                     }
                 }
             } compactLeading: {
@@ -74,7 +88,7 @@ struct LiftLiveActivity: Widget {
                             .multilineTextAlignment(.trailing)
                     }
             } minimal: {
-                Image(systemName: "dumbbell.fill").foregroundStyle(tint)
+                Image(systemName: icon(context.state)).foregroundStyle(tint)
             }
         }
     }
@@ -84,70 +98,164 @@ struct LiftLiveActivity: Widget {
     /// The Dynamic Island's compact face, shared by its heart rate, its clock and that clock's template.
     private static let islandFont = Font.system(size: 13, weight: .semibold, design: .rounded)
 
-    /// Green while working, amber through the rest — the sheet's and the bar's colour language.
+    /// Green while working, amber through the rest — the sheet's and the bar's colour language. Grey while
+    /// paused: nothing is running.
     private func tint(_ state: LiftActivityAttributes.ContentState) -> Color {
-        state.isResting ? StrandPalette.metricAmber : StrandPalette.statusPositive
+        if state.isPaused { return StrandPalette.textSecondary }
+        return state.isResting ? StrandPalette.metricAmber : StrandPalette.statusPositive
+    }
+
+    /// The dumbbell, or the pause sign while the session stands still.
+    private func icon(_ state: LiftActivityAttributes.ContentState) -> String {
+        state.isPaused ? "pause.fill" : "dumbbell.fill"
+    }
+
+    /// "Resting after set 2 — 8 x 30 kg": the status, with the set's numbers when there are any.
+    private func statusLine(_ state: LiftActivityAttributes.ContentState) -> String {
+        state.detail.map { "\(state.status) — \($0)" } ?? state.status
+    }
+
+    // MARK: - Buttons (personal fork)
+    //
+    // Each runs `LiftBannerActionIntent` in NOOP's process, which takes the same step the app's own button
+    // takes and pushes the banner's next state. Which buttons, and their words, come from the app
+    // (`LiftSessionController.bannerControls`): the extension has no catalog and no session.
+
+    /// The banner's buttons in one row: the main one (done, skip, resume) takes the room left, the others
+    /// keep a fixed width. Nothing at all when there are none (the warm-up, an older build's banner).
+    @ViewBuilder
+    private func buttonRow(_ state: LiftActivityAttributes.ContentState, compact: Bool) -> some View {
+        let buttons = state.buttons ?? []
+        if !buttons.isEmpty {
+            HStack(spacing: 8) {
+                ForEach(buttons, id: \.action) { button in
+                    Button(intent: LiftBannerActionIntent(action: button.action)) {
+                        buttonFace(button, compact: compact)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func buttonFace(_ button: LiftBannerButton, compact: Bool) -> some View {
+        let main = Self.isMain(button.action)
+        let ink = Self.ink(button.action)
+        let text = compact ? button.compactLabel : button.label
+        // On the Lock Screen the icon goes with the words; in the island a short word stands alone, and a
+        // button with none (Pause) is its icon.
+        let symbol = compact ? (text == nil ? Self.symbol(button.action) : nil) : Self.symbol(button.action)
+        return HStack(spacing: 6) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .bold))
+            }
+            if let text {
+                Text(text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+        .font(.system(size: compact ? 13 : 14, weight: .semibold))
+        .foregroundStyle(ink)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: main ? .infinity : nil)
+        .frame(width: main ? nil : (compact ? 64 : 84), height: compact ? 36 : 40)
+        .background(main ? ink.opacity(0.22) : StrandPalette.textPrimary.opacity(0.10), in: Capsule())
+        .accessibilityLabel(button.label)
+    }
+
+    /// The button that answers the moment: done during a set, skip during a rest, resume during a pause.
+    private static func isMain(_ action: LiftBannerAction) -> Bool {
+        switch action {
+        case .finishRound, .skipRest, .resume: return true
+        case .addRest, .pause:                 return false
+        }
+    }
+
+    /// Green for done, amber for the rest, the accent for resume — the colours of what they lead to.
+    private static func ink(_ action: LiftBannerAction) -> Color {
+        switch action {
+        case .finishRound:      return StrandPalette.statusPositive
+        case .skipRest:         return StrandPalette.metricAmber
+        case .resume:           return StrandPalette.accent
+        case .addRest, .pause:  return StrandPalette.textPrimary
+        }
+    }
+
+    private static func symbol(_ action: LiftBannerAction) -> String? {
+        switch action {
+        case .finishRound: return "checkmark"
+        case .skipRest:    return "forward.end.fill"
+        case .addRest:     return nil
+        case .pause:       return "pause.fill"
+        case .resume:      return "play.fill"
+        }
     }
 
     private func lockScreen(_ state: LiftActivityAttributes.ContentState) -> some View {
         // Width goes to the words. The icon and the numbers sit nearer the banner's edges, and the heart
         // rate stacks over the clock instead of beside it, so the exercise and the next set lose less to
         // truncation — at the same sizes (Utku, 21 Sep 2026: "the writings are usually cut too quick").
-        HStack(spacing: 10) {
-            Image(systemName: "dumbbell.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(tint(state))
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: icon(state))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(tint(state))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.exercise)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .lineLimit(1)
-                Text(state.detail.map { "\(state.status) — \($0)" } ?? state.status)
-                    .font(.caption)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
-                // The set coming up, alone on the line, arriving pre-localized from the app (the
-                // extension has no catalog). It puts the set number before the exercise, so the tail
-                // truncation a long name needs cuts the name and keeps the number.
-                Text(state.next)
-                    .font(.caption2)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-
-            Spacer(minLength: 6)
-
-            // Heart rate over the clock, both flush right. A running `Text(timerInterval:)` takes all the
-            // width it is offered, so the clock's width comes from a hidden "00:00" in the same font —
-            // the widest a set or a rest shows under an hour — and the live clock is right-aligned over
-            // it. Sized from the timer itself, a working set's count-up spread across the whole banner.
-            //
-            // The heart rate is ALWAYS present, dash and all. A readout that vanishes when the strap
-            // stops reading is indistinguishable from a missing feature — which is exactly how it
-            // was first reported.
-            VStack(alignment: .trailing, spacing: 2) {
-                Label {
-                    Text(state.bpm.map(String.init) ?? "—").monospacedDigit()
-                } icon: {
-                    Image(systemName: "heart.fill")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(state.exercise)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .lineLimit(1)
+                    Text(statusLine(state))
+                        .font(.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                    // The set coming up, alone on the line, arriving pre-localized from the app (the
+                    // extension has no catalog). It puts the set number before the exercise, so the tail
+                    // truncation a long name needs cuts the name and keeps the number.
+                    Text(state.next)
+                        .font(.caption2)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(state.bpm == nil
-                                 ? StrandPalette.textTertiary
-                                 : StrandPalette.metricRose)
 
-                Text(verbatim: "00:00")
-                    .font(Self.clockFont)
-                    .monospacedDigit()
-                    .hidden()
-                    .overlay(alignment: .trailing) {
-                        clock(state, tint: tint(state))
-                            .font(Self.clockFont)
-                            .multilineTextAlignment(.trailing)
+                Spacer(minLength: 6)
+
+                // Heart rate over the clock, both flush right. A running `Text(timerInterval:)` takes all the
+                // width it is offered, so the clock's width comes from a hidden "00:00" in the same font —
+                // the widest a set or a rest shows under an hour — and the live clock is right-aligned over
+                // it. Sized from the timer itself, a working set's count-up spread across the whole banner.
+                //
+                // The heart rate is ALWAYS present, dash and all. A readout that vanishes when the strap
+                // stops reading is indistinguishable from a missing feature — which is exactly how it
+                // was first reported.
+                VStack(alignment: .trailing, spacing: 2) {
+                    Label {
+                        Text(state.bpm.map(String.init) ?? "—").monospacedDigit()
+                    } icon: {
+                        Image(systemName: "heart.fill")
                     }
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(state.bpm == nil
+                                     ? StrandPalette.textTertiary
+                                     : StrandPalette.metricRose)
+
+                    Text(verbatim: "00:00")
+                        .font(Self.clockFont)
+                        .monospacedDigit()
+                        .hidden()
+                        .overlay(alignment: .trailing) {
+                            clock(state, tint: tint(state))
+                                .font(Self.clockFont)
+                                .multilineTextAlignment(.trailing)
+                        }
+                }
             }
+            // Done / skip, +30 s, pause — or resume (personal fork). Below the words, so they keep the width.
+            buttonRow(state, compact: false)
         }
         .padding(.vertical, 14)
         .padding(.leading, 10)
@@ -170,17 +278,20 @@ struct LiftLiveActivity: Widget {
     /// to a count-up. A rest with no length (the sheet is complete) has no range to count and shows
     /// the same 0:00. A working set counts up from its start; a zero-length range would render
     /// nothing, so that end is pushed a day out — well beyond any session.
+    ///
+    /// PAUSED (personal fork), both stand still at the pause's instant through `pauseTime`, the same API's
+    /// frozen form: no push is needed to stop them, and the app's own clocks read the same instant.
     private func clock(_ state: LiftActivityAttributes.ContentState, tint: Color) -> some View {
         Group {
             if let ends = state.restEndsAt {
-                if ends > state.stageStartedAt {
-                    Text(timerInterval: state.stageStartedAt...ends, countsDown: true)
+                if ends > state.stageStartedAt, state.pausedAt.map({ $0 < ends }) ?? true {
+                    Text(timerInterval: state.stageStartedAt...ends, pauseTime: state.pausedAt, countsDown: true)
                 } else {
                     Text(verbatim: "0:00")
                 }
             } else {
                 Text(timerInterval: state.stageStartedAt...state.stageStartedAt.addingTimeInterval(86_400),
-                     countsDown: false)
+                     pauseTime: state.pausedAt, countsDown: false)
             }
         }
         .monospacedDigit()

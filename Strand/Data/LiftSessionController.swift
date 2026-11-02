@@ -222,6 +222,14 @@ final class LiftSessionController: ObservableObject {
 
     /// The one action. `fromStrap` earns a single confirming buzz, unless the tap reads as a knock.
     func advance(fromStrap: Bool = false) {
+        guard engine != nil else { return }
+        if fromStrap, isPaused {
+            // No buzz: a paused session does not move on from the wrist (personal fork). Resume first.
+            log("Lift Log: that double-tap was not acted on — the session is paused")
+            return
+        }
+        // A button pressed on purpose picks a paused session up first, so the step it takes is timed.
+        resumeIfPaused()
         guard let current = engine else { return }
         let stamp = Int(Date().timeIntervalSince1970)
         if fromStrap {
@@ -257,6 +265,58 @@ final class LiftSessionController: ObservableObject {
         advance()
     }
 
+    // MARK: - Pause (personal fork)
+
+    /// The session stands still (`LiftSessionEngine.pauseSession`).
+    var isPaused: Bool { engine?.isPaused == true }
+
+    /// Stand the session still: every clock stops, the rest's warning and end wait (`scheduleRestTimers`), a
+    /// strap double-tap does nothing, and the time paused is left out of the length the session saves.
+    func pause() {
+        // Checked before touching `engine`: a mutating call through the published property publishes even
+        // when it declines.
+        guard isActive, !isPaused else { return }
+        engine?.pauseSession(now: Self.unixNow)
+        log("Lift Log: session paused")
+        persist()
+    }
+
+    /// Pick the session up where it stood.
+    func resumeFromPause() {
+        guard isPaused else { return }
+        resumeIfPaused()
+        log("Lift Log: session resumed")
+    }
+
+    /// Resume without a log line — the first thing every action pressed on purpose does.
+    private func resumeIfPaused() {
+        guard isPaused else { return }
+        engine?.resumeSession(now: Self.unixNow)
+        persist()
+    }
+
+    /// The buttons the Lock Screen banner and the Dynamic Island offer for the session as it stands
+    /// (personal fork): a rest → skip it, +30 s, pause; a set or a round → done, pause; paused → resume.
+    /// None during the warm-up, nor once every set is done, when the one thing left is Finish, in the app.
+    enum BannerControl: String, Equatable {
+        /// "Round done" for a superset, "Set done" for a line on its own — the same step.
+        case roundDone, setDone
+        case skipRest, addRest, pause, resume
+    }
+
+    static func bannerControls(_ engine: LiftSessionEngine?) -> [BannerControl] {
+        guard let engine, !engine.isFinished else { return [] }
+        if engine.isPaused { return [.resume] }
+        switch engine.stage {
+        case .working(let slot):
+            return [engine.isInSuperset(slot.exerciseIndex) ? .roundDone : .setDone, .pause]
+        case .resting:
+            return engine.allCompleted ? [.pause] : [.skipRest, .addRest, .pause]
+        case .warmup, .finished:
+            return []
+        }
+    }
+
     /// How much one tap on the rest screen's "+30 s" adds.
     static let restExtensionSec = 30
     /// The step of the ready screen's rest control.
@@ -269,6 +329,7 @@ final class LiftSessionController: ObservableObject {
         // Checked before touching `engine`: a mutating call through the published property publishes even
         // when it declines.
         guard case .resting = engine?.stage else { return }
+        resumeIfPaused()
         engine?.extendRest(by: seconds, now: Self.unixNow)
         persist()
     }
@@ -285,7 +346,9 @@ final class LiftSessionController: ObservableObject {
     /// recorded, with whatever was typed for it, and the rounds left are dropped — along with anything
     /// typed or marked for them, which would otherwise come back if a round were added again.
     func endBlock() {
-        guard let current = engine, current.currentSlot != nil else { return }
+        guard engine?.currentSlot != nil else { return }
+        resumeIfPaused()
+        guard let current = engine else { return }
         let recordedBefore = current.sets.count
         engine?.endBlock(now: Self.unixNow)
         applyPendingInput(from: recordedBefore)
@@ -357,18 +420,41 @@ final class LiftSessionController: ObservableObject {
         var stageStartedAt: Date
         /// When the running rest is due to end. Nil while working.
         var restEndsAt: Date?
+        /// When the running pause began: the clocks stand at this instant. Nil when not paused.
+        var pausedAt: Date? = nil
+        /// What the banner's buttons do, in order (`bannerControls`).
+        var controls: [BannerControl] = []
+
+        var isPaused: Bool { pausedAt != nil }
     }
 
     func presentation(system: UnitSystem) -> Presentation? {
+        guard let shown = runningPresentation(system: system), let engine else { return nil }
+        guard let pausedAt = engine.pausedAt else { return shown }
+        // Paused (the validated mockup): "Paused" where the exercise was, and for a rest the time it still
+        // has, frozen — "Resting after round 2 · 1:24 left". The clock stands at the same instant.
+        var paused = shown
+        paused.exercise = String(localized: "Paused")
+        paused.pausedAt = Date(timeIntervalSince1970: TimeInterval(pausedAt))
+        if let left = engine.restRemaining(now: pausedAt), left > 0 {
+            paused.status = String(localized: "\(shown.status) · \(ActiveWorkoutClock.clock(left)) left")
+            paused.detail = nil
+        }
+        return paused
+    }
+
+    /// The session as it reads while running — `presentation`, before a pause is applied to it.
+    private func runningPresentation(system: UnitSystem) -> Presentation? {
         guard let engine, !engine.isFinished else { return nil }
         let started = Date(timeIntervalSince1970: TimeInterval(engine.stageStartedAt))
         let next = Self.nextLine(engine)
+        let controls = Self.bannerControls(engine)
 
         guard let slot = engine.currentSlot, let item = engine.planItem(for: slot) else {
             return Presentation(isResting: false,
                                 exercise: programName ?? String(localized: "Session"),
                                 status: String(localized: "Warm-up"), detail: nil, next: next,
-                                stageStartedAt: started, restEndsAt: nil)
+                                stageStartedAt: started, restEndsAt: nil, controls: controls)
         }
 
         let detail = setNumbers(for: slot, system: system)
@@ -376,7 +462,8 @@ final class LiftSessionController: ObservableObject {
         let superset = engine.isInSuperset(slot.exerciseIndex)
         switch engine.stage {
         case .resting(_, let endsAt):
-            let ready = endsAt <= Self.unixNow
+            // Read on the session's clock, so a paused rest that still had time is not "ready".
+            let ready = endsAt <= engine.clockNow(Self.unixNow)
             return Presentation(
                 isResting: true, exercise: exercise,
                 status: ready ? String(localized: "Ready for the next set")
@@ -384,14 +471,15 @@ final class LiftSessionController: ObservableObject {
                                           : String(localized: "Resting after set \(slot.setIndex)")),
                 detail: detail, next: next,
                 stageStartedAt: started,
-                restEndsAt: Date(timeIntervalSince1970: TimeInterval(endsAt)))
+                restEndsAt: Date(timeIntervalSince1970: TimeInterval(endsAt)),
+                controls: controls)
         default:
             return Presentation(
                 isResting: false, exercise: exercise,
                 status: superset ? String(localized: "Round \(slot.setIndex)")
                                  : String(localized: "Set \(slot.setIndex)"),
                 detail: detail, next: next,
-                stageStartedAt: started, restEndsAt: nil)
+                stageStartedAt: started, restEndsAt: nil, controls: controls)
         }
     }
 
@@ -508,7 +596,8 @@ final class LiftSessionController: ObservableObject {
 
     /// Begin a specific set — the out-of-order path, for when a machine is occupied.
     func start(_ slot: LiftSlot, fromStrap: Bool = false) {
-        guard engine != nil else { return }
+        guard engine != nil, !(fromStrap && isPaused) else { return }
+        resumeIfPaused()
         if fromStrap { buzz(LiftSessionController.advanceConfirmBuzzes) }
         let stamp = Int(Date().timeIntervalSince1970)
         engine?.start(slot, now: stamp)
@@ -591,6 +680,7 @@ final class LiftSessionController: ObservableObject {
     }
 
     func finish() {
+        // The engine ends a running pause itself, so the length saved leaves it out.
         engine?.finish(now: Int(Date().timeIntervalSince1970))
         persist()
     }
@@ -802,7 +892,12 @@ final class LiftSessionController: ObservableObject {
 
     /// Re-arm the rest's timers when the rest changed — a new rest, a rest undone or cut short, no rest.
     private func scheduleRestTimers() {
-        let endsAt: Int? = { if case .resting(_, let end) = engine?.stage { return end }; return nil }()
+        // A paused rest has no moments to wait for: its timers go, and come back with the rest's new end
+        // when the session resumes (`LiftSessionEngine.resumeSession`).
+        let endsAt: Int? = {
+            guard engine?.isPaused != true, case .resting(_, let end) = engine?.stage else { return nil }
+            return end
+        }()
         guard endsAt != scheduledRestEnd else { return }
         scheduledRestEnd = endsAt
         restTimers.forEach { $0.cancel() }
@@ -835,7 +930,7 @@ final class LiftSessionController: ObservableObject {
     }
 
     private func fireRestWarningIfDue() {
-        guard let engine, case .resting(_, let endsAt) = engine.stage else { return }
+        guard let engine, !engine.isPaused, case .resting(_, let endsAt) = engine.stage else { return }
         guard warnedFor != endsAt else { return }
         guard endsAt - Self.unixNow <= LiftSessionController.restWarningLeadSec else { return }
         warnedFor = endsAt

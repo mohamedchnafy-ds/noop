@@ -39,9 +39,11 @@ struct LiftSessionDetailSheet: View {
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
+    /// The session's length, pauses left out: its workout row's, the rule every screen that states it reads
+    /// (`TrainingDays.liftSessionSeconds`, personal fork).
     private var durationSec: Int {
         guard let end = session.endTs else { return 0 }
-        return max(0, end - session.startTs)
+        return TrainingDays.liftSessionSeconds(startTs: session.startTs, endTs: end, workout: workout)
     }
 
     var body: some View {

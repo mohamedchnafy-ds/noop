@@ -57,6 +57,12 @@ final class LiftSupersetRenderTests: XCTestCase {
         resting.advance(now: now - 97)                // round 2 starts
         resting.advance(now: now - 45)                // round 2 done: rest until now + 75
         try render(resting, name: "3-repos")
+
+        // The same rest, paused 20 s ago with 1:35 left (personal fork): grey "Paused", the ring and the
+        // clocks standing still, and Resume as the one action.
+        var paused = resting
+        paused.pauseSession(now: now - 20)
+        try render(paused, name: "4-repos-en-pause")
     }
 
     private func render(_ engine: LiftSessionEngine, name: String) throws {

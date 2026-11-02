@@ -35,6 +35,10 @@ enum LiftSessionPersistence {
         /// as absent and the session resumes with nothing pending, which is exactly right.
         var pendingValues: [PendingValue]?
         var pendingWarmups: [SlotBox]?
+        /// The running pause's start and the seconds of pauses already over (personal fork). Optional for
+        /// the same reason: a snapshot written before pauses existed decodes as a session never paused.
+        var pausedAt: Int?
+        var pausedTotalSec: Int?
 
         struct PendingValue: Codable, Equatable {
             var exerciseIndex: Int
@@ -180,7 +184,10 @@ enum LiftSessionPersistence {
                 },
             pendingWarmups: pendingWarmups
                 .sorted { ($0.exerciseIndex, $0.setIndex) < ($1.exerciseIndex, $1.setIndex) }
-                .map { Snapshot.SlotBox(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex) })
+                .map { Snapshot.SlotBox(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex) },
+            // Written only when there is something to say, so a session never paused encodes as before.
+            pausedAt: engine.pausedAt,
+            pausedTotalSec: engine.pausedTotalSec > 0 ? engine.pausedTotalSec : nil)
     }
 
     /// The numbers typed in advance, back as the controller holds them.
@@ -224,7 +231,8 @@ enum LiftSessionPersistence {
                             restSec: $0.restSec)
         }
         return LiftSessionEngine(restoring: plan, startTs: s.startSec,
-                                 stage: unbox(s.stage), sets: sets, stageStartedAt: s.stageStartedAt)
+                                 stage: unbox(s.stage), sets: sets, stageStartedAt: s.stageStartedAt,
+                                 pausedAt: s.pausedAt, pausedTotalSec: s.pausedTotalSec ?? 0)
     }
 
     private static func box(_ stage: LiftSessionEngine.Stage) -> Snapshot.StageBox {

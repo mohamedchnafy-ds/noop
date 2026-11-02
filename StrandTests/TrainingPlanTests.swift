@@ -161,6 +161,18 @@ final class TrainingPlanTests: XCTestCase {
         XCTAssertEqual(split.others.map(\.sport), ["detected"])
     }
 
+    /// A session's length is its own workout row's, which leaves its pauses out (personal fork); without a row,
+    /// end − start. The calendar's minutes read the same number.
+    func testALiftSessionsLengthIsItsWorkoutRowsLeavingPausesOut() {
+        let start = ts(1, 14)
+        let row = workout(start, sport: "Strength Training")               // 3 000 s recorded
+        XCTAssertEqual(TrainingDays.liftSessionSeconds(startTs: start, endTs: start + 3_600, workout: row), 3_000)
+        XCTAssertEqual(TrainingDays.liftSessionSeconds(startTs: start, endTs: start + 3_600, workout: nil), 3_600)
+        let done = TrainingLiftDone(sessionId: "s", programId: "A", name: "Full body A", startTs: start,
+                                    endTs: start + 3_600, workingSets: 12, effort: nil, activeSeconds: 3_000)
+        XCTAssertEqual(done.minutes, 50)
+    }
+
     // MARK: - Program summary
 
     func testProgramSummaryShapeBlocksAndLength() {

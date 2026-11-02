@@ -131,6 +131,19 @@ struct StrandiOSApp: App {
         // Before any view or publisher exists: the first push to the Lock Screen banner must find the
         // session already running, or it ends the banner iOS kept alive across the restart.
         liftSession.resumeSaved()
+        // The banner's buttons (personal fork): `LiftBannerActionIntent` runs here, in NOOP's process, and
+        // lands on the session — then pushes the banner's next state itself, because a process iOS woke only
+        // for the tap has no view to do it. Registered after `resumeSaved`, so a tap that woke NOOP finds the
+        // session it was meant for.
+        LiftBannerActionRelay.handler = { [weak liftSession, weak liftActivity, weak model] action in
+            guard let liftSession, let liftActivity, let model else { return }
+            Self.performLiftBannerAction(action, session: liftSession, model: model)
+            // The unit system from the defaults `unitSystemRaw` reads: there may be no view to ask.
+            let system = UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "")
+                ?? .metric
+            Self.pushLiftBanner(session: liftSession, activity: liftActivity, model: model, system: system)
+            await liftActivity.flushUpdate()
+        }
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
@@ -423,12 +436,20 @@ struct StrandiOSApp: App {
     /// push — see `LiftLiveActivityController.update`.
     @MainActor
     private func pushLiftActivity(alert: Bool = false) {
-        let system = UnitSystem(rawValue: unitSystemRaw) ?? .metric
-        guard let p = liftSession.presentation(system: system) else {
-            liftActivity.update(state: nil)
+        Self.pushLiftBanner(session: liftSession, activity: liftActivity, model: model,
+                            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric, alert: alert)
+    }
+
+    /// `pushLiftActivity`, reachable without a view: a banner button runs in a process iOS may have woken for
+    /// the tap alone, before any scene exists.
+    @MainActor
+    static func pushLiftBanner(session: LiftSessionController, activity: LiftLiveActivityController,
+                               model: AppModel, system: UnitSystem, alert: Bool = false) {
+        guard let p = session.presentation(system: system) else {
+            activity.update(state: nil)
             return
         }
-        let lightUp = liftActivity.update(
+        let lightUp = activity.update(
             state: LiftActivityAttributes.ContentState(
                 isResting: p.isResting,
                 exercise: p.exercise,
@@ -437,10 +458,50 @@ struct StrandiOSApp: App {
                 bpm: model.live.connected ? (model.bpm ?? model.live.heartRate) : nil,
                 next: p.next,
                 stageStartedAt: p.stageStartedAt,
-                restEndsAt: p.restEndsAt),
+                restEndsAt: p.restEndsAt,
+                pausedAt: p.pausedAt,
+                buttons: p.controls.map { Self.liftBannerButton($0) }),
             alert: alert)
         // One line per strap step into NOOP's strap log: whether the Lock Screen was asked to light.
         if let lightUp { model.live.append(log: AppModel.stamped(lightUp.logLine)) }
+    }
+
+    /// A banner control in the banner's words, localized here: the extension has no catalog.
+    static func liftBannerButton(_ control: LiftSessionController.BannerControl) -> LiftBannerButton {
+        switch control {
+        case .roundDone:
+            return LiftBannerButton(action: .finishRound, label: String(localized: "Round done"),
+                                    compactLabel: String(localized: "Round done"))
+        case .setDone:
+            return LiftBannerButton(action: .finishRound, label: String(localized: "Set done"),
+                                    compactLabel: String(localized: "Set done"))
+        case .skipRest:
+            return LiftBannerButton(action: .skipRest, label: String(localized: "Skip rest"),
+                                    compactLabel: String(localized: "Skip"))
+        case .addRest:
+            return LiftBannerButton(action: .addRest, label: String(localized: "+30 s"),
+                                    compactLabel: String(localized: "+30 s"))
+        case .pause:
+            return LiftBannerButton(action: .pause, label: String(localized: "Pause"), compactLabel: nil)
+        case .resume:
+            return LiftBannerButton(action: .resume, label: String(localized: "Resume"),
+                                    compactLabel: String(localized: "Resume"))
+        }
+    }
+
+    /// A banner button's step: the same call the app's own button makes, and one strap-log line, since the
+    /// tap happened with NOOP out of sight.
+    @MainActor
+    static func performLiftBannerAction(_ action: LiftBannerAction, session: LiftSessionController,
+                                        model: AppModel) {
+        model.live.append(log: AppModel.stamped("Lift Log: Lock Screen button — \(action.rawValue)"))
+        switch action {
+        case .finishRound: session.advance()
+        case .skipRest:    session.skipRest()
+        case .addRest:     session.extendRest()
+        case .pause:       session.pause()
+        case .resume:      session.resumeFromPause()
+        }
     }
 }
 

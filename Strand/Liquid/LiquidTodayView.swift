@@ -1849,6 +1849,14 @@ struct LiquidTodayView: View {
         func shape(_ programId: String?) -> (supersets: Int, singles: Int) {
             LiftRotation.shape(labels: (programId.flatMap { itemsByProgram[$0] } ?? []).map(\.supersetGroup))
         }
+        // A session's length is its own workout row's, pauses left out — the rule the Training calendar
+        // and the Workouts list read (`TrainingDays.liftSessionSeconds`).
+        let lookbackDays = max(1, (Int(Date().timeIntervalSince1970) - lookbackFrom) / 86_400 + 1)
+        let recentWorkouts = await repo.workoutRows(days: lookbackDays)
+        let liftWorkouts = TrainingDays.splitLiftWorkouts(recentWorkouts, liftStarts: performed.map(\.startTs)).lift
+        func length(_ row: LiftSessionRow, end: Int) -> Int {
+            TrainingDays.liftSessionSeconds(startTs: row.startTs, endTs: end, workout: liftWorkouts[row.startTs])
+        }
         let ofDay = rows.filter { $0.startTs >= calendarFrom && $0.startTs < calendarTo }
         if let running = ofDay.first(where: { $0.endTs == nil }), isToday {
             let s = shape(running.programId)
@@ -1858,7 +1866,7 @@ struct LiquidTodayView: View {
         }
         if let done = ofDay.first(where: { row in performed.contains { $0.id == row.id } }) {
             let s = shape(done.programId)
-            let minutes = done.endTs.map { max(0, $0 - done.startTs) / 60 }
+            let minutes = done.endTs.map { length(done, end: $0) / 60 }
             todaySession = .init(name: done.programName ?? String(localized: "Session"),
                                  state: .done(minutes: minutes), supersets: s.supersets, singles: s.singles,
                                  typicalMinutes: nil)
@@ -1892,7 +1900,7 @@ struct LiquidTodayView: View {
         }
         let s = shape(next.id)
         let finished = performed.filter { $0.programId == next.id }
-            .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: $0) } }
+            .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: row.startTs + length(row, end: $0)) } }
         todaySession = .init(name: next.name, state: .next, supersets: s.supersets, singles: s.singles,
                              typicalMinutes: LiftRotation.typicalMinutes(finished))
     }

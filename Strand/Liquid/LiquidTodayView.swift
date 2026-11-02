@@ -155,6 +155,9 @@ struct LiquidTodayView: View {
 
     // day navigation (0 = today, 1 = yesterday, …)
     @State private var selectedDayOffset = 0
+    /// Today's logical day key, re-read on a clock; it joins the load task's id, so the day turns on screen.
+    @State private var dayTick = Repository.logicalDayKey(Date())
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showDayPicker = false
     @State private var heartRateCardFrame: CGRect = .null
     private static let daySwipeSpace = "liquidTodayDaySwipeSpace"
@@ -487,7 +490,12 @@ struct LiquidTodayView: View {
         .liquidMediumHaptic(trigger: pullHaptic)
         // hydrationSeq joins the id so logging a drink re-reads the card immediately, the same trigger set
         // classic TodayView's reloadHydration() uses.
-        .task(id: "\(repo.refreshSeq)-\(selectedDayOffset)-\(repo.hydrationSeq)-\(hydrationEnabled)-\(dayCycleModeRaw)-\(activityGoalSetting)") {
+        // The day key joins too, so the screen turns to the new day at midnight on its own (the clock is
+        // read every 30 seconds while the screen is up, and on return to the app).
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in refreshDayTick() }
+        .onAppear { refreshDayTick() }
+        .onChangeCompat(of: scenePhase) { phase in if phase == .active { refreshDayTick() } }
+        .task(id: "\(repo.refreshSeq)-\(selectedDayOffset)-\(repo.hydrationSeq)-\(hydrationEnabled)-\(dayCycleModeRaw)-\(activityGoalSetting)-\(dayTick)") {
             DashboardCardPrefs.migrateLegacyStepsAverage()
             applyLayoutV2IfNeeded()
             await load()
@@ -669,9 +677,15 @@ struct LiquidTodayView: View {
         return String(localized: "target \(lo)–\(hi)")
     }
 
-    /// The night's sleep in the Sleep tab's format ("3h 41m"); the naps stay on the Sleep tab.
+    /// The night's sleep in the Sleep tab's format ("3h 41m"); the naps stay on the Sleep tab. On today,
+    /// before tonight is banked (the day turns at midnight), the last night carries, on the same freshness
+    /// rule as the Rest score above it (`TodayView.isCarryStale`), so the ring and its line name one night.
     private var restCaption: String? {
-        guard let minutes = displayDay?.totalSleepMin, minutes > 0 else { return nil }
+        if let minutes = displayDay?.totalSleepMin, minutes > 0 { return SleepDurationText.format(minutes) }
+        guard selectedDayOffset == 0,
+              let carry = repo.days.last(where: { $0.day < selectedDayKey && ($0.totalSleepMin ?? 0) > 0 }),
+              !TodayView.isCarryStale(priorDayKey: carry.day, todayKey: selectedDayKey),
+              let minutes = carry.totalSleepMin else { return nil }
         return SleepDurationText.format(minutes)
     }
 
@@ -1864,6 +1878,12 @@ struct LiquidTodayView: View {
             .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: $0) } }
         todaySession = .init(name: next.name, state: .next, supersets: s.supersets, singles: s.singles,
                              typicalMinutes: LiftRotation.typicalMinutes(finished))
+    }
+
+    /// Re-reads today's logical day key; a change (midnight, or the 04:00 roll in sleep mode) reloads.
+    private func refreshDayTick() {
+        let key = Repository.logicalDayKey(Date())
+        if key != dayTick { dayTick = key }
     }
 
     /// Moves Heart Rate then Synthesis under the hero in the saved order, once (Today v2). An order saved

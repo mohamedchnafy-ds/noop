@@ -448,8 +448,8 @@ struct RootTabView: View {
 
     // The "More" tab is the app's catch-all index. Fork: the ~30 rows (formerly four collapsible
     // sections) are grouped into six rows on the shared page chrome (ScreenScaffold title1 + subtitle,
-    // one grouped NoopCard). Nutrition opens its screen directly; every other group opens a screen
-    // listing its entries (`MoreGroupScreen`). Every former destination stays reachable from one group.
+    // one grouped NoopCard). Training and Nutrition open their screen directly; every other group opens
+    // a screen listing its entries (`MoreGroupScreen`). Every former destination stays reachable.
     private func moreTab(path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
         NavigationStack(path: path) {
             ScreenScaffold(title: "More", subtitle: "Everything else, in six places",
@@ -502,13 +502,10 @@ private struct MoreGroupScreen: View {
 
     @ViewBuilder private var rows: some View {
         switch group {
-        case .training:
-            MoreRow("Lift Log", "dumbbell.fill", .liftLog)
-            MoreRow("Workouts", "figure.run", .workouts)
-            MoreRow("Intervals", "timer", .intervals)
-            MoreRow("Live", "waveform.path.ecg", .live)
-        case .nutrition:
-            MoreRow("Nutrition", "fork.knife", .nutrition)
+        case .training, .nutrition:
+            // Both open their own screen (`MoreDestination.destination`): Training holds the Lift Log,
+            // Workouts (« All history »), Intervals and Live; Nutrition is one screen.
+            EmptyView()
         case .healthRecovery:
             MoreRow("Health", "heart.text.square.fill", .health)
             MoreRow("Stress", "bolt.heart.fill", .stress)
@@ -571,6 +568,7 @@ private enum MoreDestination: Hashable {
 
     @ViewBuilder var destination: some View {
         switch self {
+        case .hub(.training):  LiftLogView()
         case .hub(.nutrition): NutritionView()
         case .hub(let group):  MoreGroupScreen(group: group)
         case .insightsHub:     InsightsHubView()

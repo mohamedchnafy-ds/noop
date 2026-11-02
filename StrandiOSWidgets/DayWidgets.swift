@@ -58,6 +58,7 @@ struct DaySessionWidgetView: View {
 
     var body: some View {
         DaySessionWidgetFace(session: entry.current?.session, labels: entry.labels, size: daySize(family))
+            .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
             .widgetURL(DayWidgetsSnapshot.Link.session.url)
     }
 }
@@ -68,6 +69,7 @@ struct DayNutritionWidgetView: View {
 
     var body: some View {
         DayNutritionWidgetFace(nutrition: entry.current?.nutrition, labels: entry.labels, size: daySize(family))
+            .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
             .widgetURL(DayWidgetsSnapshot.Link.nutrition.url)
     }
 }
@@ -78,7 +80,25 @@ struct DaySleepWidgetView: View {
 
     var body: some View {
         DaySleepWidgetFace(sleep: entry.current?.sleep, labels: entry.labels, size: daySize(family))
+            .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
             .widgetURL(DayWidgetsSnapshot.Link.sleep.url)
+    }
+}
+
+/// Nothing ever read from the App Group: the group this extension reads and whether its signature grants it
+/// ("group.… ✓" / "✗"), so a sideload that left the widgets outside the app's group says so on screen.
+private struct DayWidgetsGroupNote: View {
+    let entry: DayWidgetsEntry
+
+    var body: some View {
+        if entry.snapshot == nil {
+            Text(WidgetSnapshot.suiteNameDiagnostic)
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.5)
+                .frame(maxWidth: 190, alignment: .leading)
+        }
     }
 }
 

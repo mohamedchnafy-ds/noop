@@ -11,6 +11,9 @@ import Foundation
 // it compiles into both the macOS and iOS targets and is unit-tested in `StrandTests` (the same split
 // `BackupSync` uses). It mirrors the Android `MoreSectionPrefs` one-for-one: same `more.expandedSections`
 // key suffix, same CSV-of-titles encoding, same Insights+Body default, so the two platforms behave the same.
+//
+// Fork: the iPhone More tab no longer has collapsible sections (six groups, see `MoreHub.swift`), so iOS
+// no longer reads this key. The type stays as the reference the Android twin is written against.
 
 /// Pure persistence model for the More tab's collapsible-group state. The stored value is the set of
 /// EXPANDED group titles as a sorted, comma-joined string; an empty string is a valid state (every group

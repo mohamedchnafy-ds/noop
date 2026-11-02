@@ -172,6 +172,7 @@ final class TrainingRenderTests: XCTestCase {
             .background(StrandPalette.surfaceBase)
             .environment(\.colorScheme, .dark)
             .environment(\.locale, Locale(identifier: "fr_FR"))
+            .environment(\.trainingMenusAsLabels, true)
 
         let renderer = ImageRenderer(content: screen)
         renderer.scale = 3

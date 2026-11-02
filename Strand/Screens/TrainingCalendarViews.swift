@@ -121,6 +121,39 @@ enum TrainingText {
 /// The two views of the screen.
 enum TrainingViewMode: Hashable { case week, month }
 
+/// Set by the render tests: the PNG renderer cannot draw a `Menu`, so `TrainingMenu` then draws its
+/// label alone.
+private struct TrainingMenusAsLabelsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var trainingMenusAsLabels: Bool {
+        get { self[TrainingMenusAsLabelsKey.self] }
+        set { self[TrainingMenusAsLabelsKey.self] = newValue }
+    }
+}
+
+/// A menu without its indicator, drawn as its label alone in the render tests.
+struct TrainingMenu<Content: View, Label: View>: View {
+    private let content: () -> Content
+    private let label: () -> Label
+    @Environment(\.trainingMenusAsLabels) private var asLabel
+
+    init(@ViewBuilder content: @escaping () -> Content, @ViewBuilder label: @escaping () -> Label) {
+        self.content = content
+        self.label = label
+    }
+
+    var body: some View {
+        if asLabel {
+            label()
+        } else {
+            Menu(content: content, label: label).menuIndicator(.hidden)
+        }
+    }
+}
+
 /// "Week | Month" in the header.
 struct TrainingModeSwitch: View {
     @Binding var mode: TrainingViewMode
@@ -492,7 +525,7 @@ struct TrainingDaySection: View {
                         }
                         .buttonStyle(NoopButtonStyle(.primary, fullWidth: true))
                         if !others.isEmpty && !isRunning {
-                            Menu {
+                            TrainingMenu {
                                 ForEach(others) { other in
                                     Button { onStart(other.id) } label: { Text(verbatim: other.name) }
                                 }
@@ -506,7 +539,6 @@ struct TrainingDaySection: View {
                                     .overlay(Capsule().stroke(StrandPalette.hairlineStrong, lineWidth: 1))
                                     .contentShape(Capsule())
                             }
-                            .menuIndicator(.hidden)
                             .fixedSize()
                         }
                     }

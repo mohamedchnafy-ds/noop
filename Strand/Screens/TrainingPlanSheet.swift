@@ -87,7 +87,7 @@ struct TrainingPlanForm: View {
                 .font(StrandFont.body)
                 .foregroundStyle(StrandPalette.textPrimary)
                 .frame(width: 96, alignment: .leading)
-            Menu {
+            TrainingMenu {
                 Button { draft.assignProgram(nil, weekday: weekday) } label: { Text("Rest") }
                 ForEach(programs) { program in
                     Button { draft.assignProgram(program.id, weekday: weekday) } label: { Text(verbatim: program.name) }
@@ -110,7 +110,6 @@ struct TrainingPlanForm: View {
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .contentShape(Rectangle())
             }
-            .menuIndicator(.hidden)
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 52)

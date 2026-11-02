@@ -107,7 +107,9 @@ final class LiftProgressTests: XCTestCase {
                  session("c", daysAgo: 14, "RDL", [(50, 9)]),         // 65
                  session("d", daysAgo: 7, "RDL", [(50, 8)])]          // 63.3
         guard case let .declining(percent)? = status(s) else { return XCTFail("expected a decline") }
-        XCTAssertEqual(percent, (50 * (1 + 8.0 / 30) / 70 - 1) * 100, accuracy: 0.001)
+        let e1rm: Double = 50 * (1 + 8.0 / 30)
+        let expected: Double = (e1rm / 70 - 1) * 100
+        XCTAssertEqual(percent, expected, accuracy: 0.001)
     }
 
     func testAStepUpThatLowersTheEstimateIsNotADecline() {

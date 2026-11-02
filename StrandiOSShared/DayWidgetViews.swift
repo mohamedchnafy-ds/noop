@@ -80,12 +80,19 @@ struct DaySessionWidgetFace: View {
         DayWidgetHeader(symbol: "dumbbell.fill", title: labels.sessionTitle, tint: StrandPalette.effortBright)
     }
 
+    @ViewBuilder
     private var name: some View {
-        Text(session?.name ?? labels.noData)
-            .font(StrandFont.rounded(19, weight: .bold))
-            .foregroundStyle(session?.name == nil ? StrandPalette.textSecondary : StrandPalette.textPrimary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+        if let name = session?.name {
+            Text(name)
+                .font(StrandFont.rounded(19, weight: .bold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        } else {
+            Text(labels.noData)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+        }
     }
 
     @ViewBuilder
@@ -287,9 +294,7 @@ struct DayNutritionWidgetFace: View {
                                 after: " " + nutrition.protein.rest),
                     tint: StrandPalette.metricCyan)
             } else {
-                Spacer(minLength: 0)
-                noData
-                Spacer(minLength: 0)
+                noData.padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -321,8 +326,7 @@ struct DayNutritionWidgetFace: View {
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
                 } else {
-                    Spacer(minLength: 0)
-                    noData
+                    noData.padding(.top, 6)
                     Spacer(minLength: 0)
                 }
             }

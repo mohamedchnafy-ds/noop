@@ -135,7 +135,7 @@ final class NutritionRenderTests: XCTestCase {
         let said = "150 g de riz basmati, un blanc de poulet grillé et une pomme"
         let capture = VStack(alignment: .leading, spacing: 32) {
             NutritionCaptureBody(mode: .voice, text: .constant(said), isListening: true)
-            NutritionCaptureBody(mode: .voice, text: .constant(said), phase: .working, isListening: true)
+            NutritionCaptureBody(mode: .voice, text: .constant(said), phase: .working, isListening: false)
         }
         try render(AnyView(capture), name: "10-dicter")
 

@@ -118,14 +118,13 @@ struct NutritionCaptureBody: View {
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textSecondary)
             Group {
-                if isListening {
-                    // While listening, the live transcript as plain text: it is not editable until the end.
+                if isListening || working {
+                    // While listening or finding the foods, the text as plain text: not editable meanwhile.
                     Text(verbatim: text.isEmpty ? "…" : text)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 } else {
                     TextField("", text: $text, prompt: Text("150 g of rice, a chicken breast…"), axis: .vertical)
                         .lineLimit(3...8)
-                        .disabled(working)
                 }
             }
             .font(StrandFont.body)

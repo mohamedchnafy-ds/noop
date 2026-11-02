@@ -28,6 +28,11 @@ enum NutritionFormat {
         (estimated ? "≈ " : "") + editable(grams) + " g"
     }
 
+    /// A total's grams: one decimal under 10 g ("0,3 g", "4,5 g"), whole above ("17 g").
+    static func totalGramsText(_ grams: Double) -> String {
+        grams < 10 ? editable(grams) + " g" : gramsUnit(Int(grams.rounded()))
+    }
+
     /// "1 844 kcal".
     static func kcalUnit(_ value: Int) -> String { whole(value) + " kcal" }
 

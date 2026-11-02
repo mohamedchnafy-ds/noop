@@ -187,11 +187,11 @@ struct MealTotalsRow: View {
         HStack(spacing: 4) {
             mealTotalValue(title: "kcal", value: NutritionFormat.whole(total.kcal), tint: StrandPalette.onDarkSecondary)
             // Short labels: four columns share the card's width ("PROTÉINES" would be cut).
-            mealTotalValue(title: "Prot.", value: NutritionFormat.gramsUnit(Int(total.proteinG.rounded())),
+            mealTotalValue(title: "Prot.", value: NutritionFormat.totalGramsText(total.proteinG),
                        tint: NutritionMacro.protein.tint)
-            mealTotalValue(title: "Carb.", value: NutritionFormat.gramsUnit(Int(total.carbsG.rounded())),
+            mealTotalValue(title: "Carb.", value: NutritionFormat.totalGramsText(total.carbsG),
                        tint: NutritionMacro.carbs.tint)
-            mealTotalValue(title: "Fat", value: NutritionFormat.gramsUnit(Int(total.fatG.rounded())),
+            mealTotalValue(title: "Fat", value: NutritionFormat.totalGramsText(total.fatG),
                        tint: NutritionMacro.fat.tint)
         }
     }

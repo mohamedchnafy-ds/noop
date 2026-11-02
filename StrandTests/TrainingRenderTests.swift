@@ -83,6 +83,7 @@ final class TrainingRenderTests: XCTestCase {
     }
 
     func testRenderWeek() throws {
+        let calendar = self.calendar
         let week = days(TrainingCalendar.weekDates(from: date(2), calendar: calendar))
         let tally = TrainingDays.sessionTally(week)
         let all = summaries
@@ -120,6 +121,7 @@ final class TrainingRenderTests: XCTestCase {
     }
 
     func testRenderMonth() throws {
+        let calendar = self.calendar
         let cells = TrainingCalendar.monthCells(containing: date(1), calendar: calendar)
         let monthDays = days(cells.compactMap { $0 })
         let byKey = Dictionary(uniqueKeysWithValues: monthDays.map { ($0.key, $0) })

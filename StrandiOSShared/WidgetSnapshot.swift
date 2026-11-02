@@ -98,7 +98,11 @@ public struct WidgetSnapshot: Codable, Equatable {
     /// key is somehow absent (each process reads its OWN bundle, so the app and the widget extension
     /// each carry the key in their generated Info.plist).
     public static let suiteName: String = {
-        resolveSuiteName(infoDictionary: Bundle.main.infoDictionary ?? [:])
+        resolveSuiteName(infoDictionary: Bundle.main.infoDictionary ?? [:],
+                         hostInfoDictionary: containingAppInfoDictionary(),
+                         profileGroups: profileGroups(bundleURL: Bundle.main.bundleURL)
+                             + profileGroups(bundleURL: containingAppURL(bundleURL: Bundle.main.bundleURL)),
+                         isGranted: groupContainerExists)
     }()
     public static let storageKey = "noop.widget.snapshot"
 
@@ -110,15 +114,42 @@ public struct WidgetSnapshot: Codable, Equatable {
     /// Reading only the build-time `AppGroupIdentifier` therefore points at an unprovisioned container
     /// in a sideloaded build, even though the host app and widget extension were both signed correctly.
     ///
+    /// Not every bundle gets that list, though (personal fork): SideStore's "Keep App Extensions (Use Main
+    /// Profile)" signs the widget extension with the app's own profile — so it is granted the app's group —
+    /// but leaves `ALTAppGroups` out of the extension's Info.plist. The extension then fell back to the
+    /// build-time identifier, a container nobody writes to, and every widget stayed empty. So an extension
+    /// also reads its containing app's list (`hostInfoDictionary`), and the first candidate the signature
+    /// provably grants (`isGranted`: iOS hands out a group's container only to an entitled process) wins.
+    /// The groups the signing profile lists (`profileGroups`, read from `embedded.mobileprovision`) are
+    /// candidates too, for a signer that writes no `ALTAppGroups` at all. When none can be proven, the
+    /// earlier rule applies, over this bundle's list or else the app's.
+    ///
     /// Normal Xcode builds don't carry `ALTAppGroups`, so they keep using `AppGroupIdentifier`.
-    static func resolveSuiteName(infoDictionary: [String: Any]) -> String {
-        let configured = (infoDictionary["AppGroupIdentifier"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let altGroups = (infoDictionary["ALTAppGroups"] as? [String])?
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { $0.hasPrefix("group.") && !$0.isEmpty } ?? []
+    static func resolveSuiteName(infoDictionary: [String: Any], hostInfoDictionary: [String: Any] = [:],
+                                 profileGroups: [String] = [],
+                                 isGranted: (String) -> Bool = { _ in false }) -> String {
+        let configured = trimmedGroup(infoDictionary["AppGroupIdentifier"])
+            ?? trimmedGroup(hostInfoDictionary["AppGroupIdentifier"])
+        let own = provisionedGroups(infoDictionary)
+        let host = provisionedGroups(hostInfoDictionary)
 
-        if let configured, !configured.isEmpty,
+        var candidates: [String] = []
+        func consider(_ group: String) {
+            if !candidates.contains(group) { candidates.append(group) }
+        }
+        if let configured {
+            for group in own + host + profileGroups where group == configured || group.hasPrefix(configured + ".") {
+                consider(group)
+            }
+            consider(configured)
+        }
+        for group in own + host + profileGroups { consider(group) }
+        if let granted = candidates.first(where: isGranted) {
+            return granted
+        }
+
+        let altGroups = own.isEmpty ? host : own
+        if let configured,
            let provisioned = altGroups.first(where: {
                $0 == configured || $0.hasPrefix(configured + ".")
            }) {
@@ -127,10 +158,71 @@ public struct WidgetSnapshot: Codable, Equatable {
         if altGroups.count == 1, let provisioned = altGroups.first {
             return provisioned
         }
-        if let configured, !configured.isEmpty {
+        if let configured {
             return configured
         }
         return "group.com.noopapp.noop"
+    }
+
+    /// A bundle's `ALTAppGroups`, trimmed, keeping only real group identifiers.
+    private static func provisionedGroups(_ info: [String: Any]) -> [String] {
+        (info["ALTAppGroups"] as? [String])?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.hasPrefix("group.") && !$0.isEmpty } ?? []
+    }
+
+    private static func trimmedGroup(_ value: Any?) -> String? {
+        guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+        return text
+    }
+
+    /// The containing app's bundle when `bundleURL` is an app extension (`….app/PlugIns/X.appex`), else nil.
+    static func containingAppURL(bundleURL: URL) -> URL? {
+        guard bundleURL.pathExtension == "appex" else { return nil }
+        return bundleURL.deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    /// The containing app's Info.plist when this process is an app extension, else empty.
+    static func containingAppInfoDictionary(bundleURL: URL = Bundle.main.bundleURL) -> [String: Any] {
+        guard let app = containingAppURL(bundleURL: bundleURL) else { return [:] }
+        return (NSDictionary(contentsOf: app.appendingPathComponent("Info.plist")) as? [String: Any]) ?? [:]
+    }
+
+    /// The App Groups the signing profile of the bundle at `bundleURL` lists: the plist inside its
+    /// `embedded.mobileprovision` (a signed envelope around plain XML). Empty without a profile.
+    static func profileGroups(bundleURL: URL?) -> [String] {
+        guard let bundleURL,
+              let data = try? Data(contentsOf: bundleURL.appendingPathComponent("embedded.mobileprovision")) else {
+            return []
+        }
+        return profileGroups(provisioningProfile: data)
+    }
+
+    /// The application groups listed in a provisioning profile's entitlements.
+    static func profileGroups(provisioningProfile data: Data) -> [String] {
+        guard let text = String(data: data, encoding: .isoLatin1),
+              let start = text.range(of: "<?xml"),
+              let end = text.range(of: "</plist>", range: start.lowerBound..<text.endIndex),
+              let xml = text[start.lowerBound..<end.upperBound].data(using: .isoLatin1),
+              let plist = try? PropertyListSerialization.propertyList(from: xml, format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let groups = entitlements["com.apple.security.application-groups"] as? [String] else {
+            return []
+        }
+        return provisionedGroups(["ALTAppGroups": groups])
+    }
+
+    /// Whether this process's signature grants `group`: iOS returns a group's container only to a process
+    /// entitled to it.
+    static func groupContainerExists(_ group: String) -> Bool {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) != nil
+    }
+
+    /// "group.… ✓" when this process is granted the group it reads, "group.… ✗" when it is not — shown by an
+    /// empty day widget, so a sideload that left the extension outside the app's group says so on screen.
+    static var suiteNameDiagnostic: String {
+        suiteName + (groupContainerExists(suiteName) ? " \u{2713}" : " \u{2717}")
     }
 
     /// Debug-only canary: trips on the first run after a misprovisioning so the silent no-op gets

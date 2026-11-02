@@ -35,10 +35,21 @@ public struct LiftActivityAttributes: ActivityAttributes {
         public var stageStartedAt: Date
         /// When the running rest is due to end; the widget counts DOWN to it. Nil while working.
         public var restEndsAt: Date?
+        /// When the session was paused (personal fork): both clocks stand at this instant
+        /// (`Text(timerInterval:pauseTime:)`). Nil while it runs.
+        ///
+        /// This and `buttons` are OPTIONAL with no default to decode: a banner started by an older build
+        /// carries neither, and must still decode — as a running session with no buttons.
+        public var pausedAt: Date?
+        /// The banner's buttons, in order, already worded app-side like every other string here.
+        public var buttons: [LiftBannerButton]?
+
+        public var isPaused: Bool { pausedAt != nil }
 
         public init(isResting: Bool, exercise: String, status: String, detail: String?,
                     bpm: Int?, next: String,
-                    stageStartedAt: Date, restEndsAt: Date?) {
+                    stageStartedAt: Date, restEndsAt: Date?,
+                    pausedAt: Date? = nil, buttons: [LiftBannerButton]? = nil) {
             self.isResting = isResting
             self.exercise = exercise
             self.status = status
@@ -47,11 +58,41 @@ public struct LiftActivityAttributes: ActivityAttributes {
             self.next = next
             self.stageStartedAt = stageStartedAt
             self.restEndsAt = restEndsAt
+            self.pausedAt = pausedAt
+            self.buttons = buttons
         }
     }
 
     /// Nothing is fixed for the life of a session: everything the banner shows can change mid-session and
     /// travels in `ContentState`.
     public init() {}
+}
+
+/// What a button on the Lift Log banner does (personal fork). Each is a step the session already takes from
+/// the app (`LiftSessionController`), run in the app's process by `LiftBannerActionIntent`.
+public enum LiftBannerAction: String, Codable, Hashable, CaseIterable {
+    /// The set or the round being worked is done — the strap double-tap's step.
+    case finishRound
+    case skipRest
+    /// +30 s on the running rest.
+    case addRest
+    case pause
+    case resume
+}
+
+/// One button of the Lift Log banner: what it does and its words, localized APP-SIDE (the extension ships no
+/// string catalog).
+public struct LiftBannerButton: Codable, Hashable {
+    public var action: LiftBannerAction
+    /// On the Lock Screen: "Skip rest", "Round done", "Pause"…
+    public var label: String
+    /// In the Dynamic Island, where room is short: "Skip", "+30 s"… Nil shows the icon alone.
+    public var compactLabel: String?
+
+    public init(action: LiftBannerAction, label: String, compactLabel: String?) {
+        self.action = action
+        self.label = label
+        self.compactLabel = compactLabel
+    }
 }
 #endif

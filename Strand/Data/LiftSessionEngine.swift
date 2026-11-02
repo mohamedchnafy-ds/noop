@@ -139,8 +139,15 @@ struct LiftSessionEngine: Equatable {
     /// Completed sets in COMPLETION order — which is the order they happened, not the plan's order,
     /// and is what `ord` is written from.
     private(set) var sets: [LiftRecordedSet]
-    /// When the current stage began, so a set's duration is measurable.
+    /// When the current stage began, so a set's duration is measurable. Moved forward by the length of a
+    /// pause when the session resumes (`resumeSession(now:)`), so a stage's clock leaves the pause out.
     private(set) var stageStartedAt: Int
+    /// When the running pause began (unix seconds), nil when the session is not paused (personal fork).
+    /// A pause stands every clock still — the set's, the rest's countdown and the session's — and the
+    /// heart rate keeps being read.
+    private(set) var pausedAt: Int?
+    /// Seconds spent in pauses that are over. Left out of the session's recorded length.
+    private(set) var pausedTotalSec: Int
 
     /// Undo stack: whole-state snapshots rather than inverse operations. A gym is a bad place to be
     /// one tap ahead of yourself, and restoring a snapshot cannot get the arithmetic wrong the way a
@@ -165,6 +172,8 @@ struct LiftSessionEngine: Equatable {
         self.stage = .warmup
         self.sets = []
         self.stageStartedAt = startTs
+        self.pausedAt = nil
+        self.pausedTotalSec = 0
     }
 
     /// Rebuild an interrupted session — see `LiftSessionPersistence`.
@@ -172,12 +181,16 @@ struct LiftSessionEngine: Equatable {
     /// The undo history is deliberately NOT restored: it is a within-sitting convenience, and a
     /// stack that survives a relaunch invites reaching back past a save boundary.
     init(restoring plan: [LiftPlanItem], startTs: Int, stage: Stage,
-         sets: [LiftRecordedSet], stageStartedAt: Int) {
+         sets: [LiftRecordedSet], stageStartedAt: Int,
+         pausedAt: Int? = nil, pausedTotalSec: Int = 0) {
         self.plan = plan
         self.startTs = startTs
         self.stage = stage
         self.sets = sets
         self.stageStartedAt = stageStartedAt
+        // A finished session has no pause running.
+        self.pausedAt = stage == .finished ? nil : pausedAt
+        self.pausedTotalSec = max(0, pausedTotalSec)
     }
 
     // MARK: - The sheet
@@ -308,7 +321,9 @@ struct LiftSessionEngine: Equatable {
     /// round of it is left. Asked BEFORE mutating, so a caller holding the engine in a published
     /// property does not publish a change that changes nothing.
     func isNextRoundDue(at now: Int) -> Bool {
-        guard case .resting(let slot, let endsAt) = stage, isInSuperset(slot.exerciseIndex),
+        // A paused rest is not running out: its round waits for the session to resume.
+        guard pausedAt == nil,
+              case .resting(let slot, let endsAt) = stage, isInSuperset(slot.exerciseIndex),
               endsAt <= now, let next = slotAfter(slot) else { return false }
         return supersetMembers(of: next.exerciseIndex) == supersetMembers(of: slot.exerciseIndex)
     }
@@ -370,7 +385,67 @@ struct LiftSessionEngine: Equatable {
     /// actually means: the user has not moved on yet.
     func restRemaining(now: Int) -> Int? {
         guard case .resting(_, let endsAt) = stage else { return nil }
-        return max(0, endsAt - now)
+        return max(0, endsAt - clockNow(now))
+    }
+
+    // MARK: - Pause (personal fork)
+    //
+    // A pause stands the session still: the rest's countdown, the set's clock and the session's clock all
+    // stop where they are, nothing runs out (no warning buzz, no superset round starting by itself), and the
+    // time spent paused is left out of the length the session saves. Instants already written stay true: a
+    // set keeps the second it really ended, and the heart rate of the pause is still the strap's. On resume
+    // the running stage's start — and a rest's end, when the rest had time left — move forward by the length
+    // of the pause, so every clock picks up where it stood. Not an undo step: it edits no set.
+
+    var isPaused: Bool { pausedAt != nil }
+
+    /// The instant the session's clocks read: `now`, or the start of the running pause.
+    func clockNow(_ now: Int) -> Int {
+        guard let pausedAt else { return now }
+        return min(pausedAt, now)
+    }
+
+    /// What the running stage's clock reads — counting up through a set or the warm-up.
+    func stageSeconds(now: Int) -> Int {
+        max(0, clockNow(now) - stageStartedAt)
+    }
+
+    /// What the session's clock reads: time since the start, pauses left out.
+    func sessionSeconds(now: Int) -> Int {
+        activeSeconds(until: now)
+    }
+
+    /// The session's length at `end`, pauses left out — what a finished session saves as its duration.
+    /// Through `ActiveWorkoutClock.activeElapsed`, the one pause-aware elapsed calculation the live
+    /// workout's clocks already share.
+    func activeSeconds(until end: Int) -> Int {
+        func date(_ ts: Int) -> Date { Date(timeIntervalSince1970: TimeInterval(ts)) }
+        return Int(ActiveWorkoutClock.activeElapsed(start: date(startTs), pausedAt: pausedAt.map(date),
+                                                    pausedDuration: TimeInterval(pausedTotalSec),
+                                                    now: date(end)))
+    }
+
+    /// Stand the session still. False, and nothing changed, when it is already paused or finished.
+    @discardableResult
+    mutating func pauseSession(now: Int) -> Bool {
+        guard pausedAt == nil, stage != .finished else { return false }
+        pausedAt = max(now, stageStartedAt)
+        return true
+    }
+
+    /// Pick the session up where it stood. False, and nothing changed, when it was not paused.
+    @discardableResult
+    mutating func resumeSession(now: Int) -> Bool {
+        guard let since = pausedAt else { return false }
+        let gap = max(0, now - since)
+        pausedAt = nil
+        pausedTotalSec += gap
+        stageStartedAt += gap
+        // A rest with time left keeps that time; one already over before the pause stays over.
+        if case .resting(let slot, let endsAt) = stage, endsAt > since {
+            stage = .resting(slot, endsAt: endsAt + gap)
+        }
+        return true
     }
 
     /// The nearest earlier set of this exercise already performed in THIS session. Nil for the first
@@ -635,6 +710,9 @@ struct LiftSessionEngine: Equatable {
     /// not silently lost.
     mutating func finish(now: Int) {
         guard stage != .finished else { return }
+        // A session finished while paused ends its pause first, so the rest it closes out and the length
+        // it saves both leave the pause out.
+        resumeSession(now: now)
         pushHistory()
         if case .resting(let slot, _) = stage {
             let round = roundSlots(for: slot)

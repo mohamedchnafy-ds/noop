@@ -333,12 +333,18 @@ struct LiftLogView: View {
         let workouts = await repo.workoutRows(days: Self.historyDays + 1)
         let split = TrainingDays.splitLiftWorkouts(workouts, liftStarts: done.map { $0.row.startTs })
         let scale = effortScale
+        // A session's length is its own workout row's, pauses left out (`TrainingDays.liftSessionSeconds`).
+        func length(_ row: LiftSessionRow, end: Int) -> Int {
+            TrainingDays.liftSessionSeconds(startTs: row.startTs, endTs: end, workout: split.lift[row.startTs])
+        }
         lifts = done.map { entry in
-            TrainingLiftDone(sessionId: entry.row.id, programId: entry.row.programId,
-                             name: entry.row.programName ?? String(localized: "Session"),
-                             startTs: entry.row.startTs, endTs: entry.row.endTs ?? entry.row.startTs,
-                             workingSets: entry.working,
-                             effort: split.lift[entry.row.startTs]?.strain.map { UnitFormatter.effortDisplay($0, scale: scale) })
+            let end = entry.row.endTs ?? entry.row.startTs
+            return TrainingLiftDone(sessionId: entry.row.id, programId: entry.row.programId,
+                                    name: entry.row.programName ?? String(localized: "Session"),
+                                    startTs: entry.row.startTs, endTs: end,
+                                    workingSets: entry.working,
+                                    effort: split.lift[entry.row.startTs]?.strain.map { UnitFormatter.effortDisplay($0, scale: scale) },
+                                    activeSeconds: length(entry.row, end: end))
         }
         activities = split.others.map { row in
             TrainingActivityDone(sport: WorkoutSource.displaySport(row.sport),
@@ -350,7 +356,10 @@ struct LiftLogView: View {
 
         summaries = rows.map { program in
             let finished = done.filter { $0.row.programId == program.id }
-                .compactMap { entry in entry.row.endTs.map { (startTs: entry.row.startTs, endTs: $0) } }
+                .compactMap { entry in
+                    entry.row.endTs.map { (startTs: entry.row.startTs,
+                                           endTs: entry.row.startTs + length(entry.row, end: $0)) }
+                }
             return TrainingDays.programSummary(id: program.id, name: program.name,
                                                items: itemsByProgram[program.id] ?? [], finished: finished)
         }

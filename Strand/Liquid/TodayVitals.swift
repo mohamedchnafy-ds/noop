@@ -65,7 +65,11 @@ enum TodayVitalRange {
 
 /// Today's energy split into resting and activity calories, and the activity goal the half-gauge fills
 /// toward. Recomputed from the day's heart rate with the SAME estimator and inputs the stored daily total
-/// comes from (`Calories.estimateDayEnergy`), so the two parts always add up to that total.
+/// comes from (`Calories.estimateDayEnergy`), except inside the day's recorded sessions (Lift Log, manual
+/// or detected workouts), where activity is the session's own estimate (`Calories.estimateBoutCalories`,
+/// the figure the session shows) above the resting energy of that stretch. The whole-day gate counts only
+/// heart rate above 50 % of the reserve as activity, so a strength session, which mostly stays below it,
+/// read as rest; the session gate is 30 %.
 enum TodayEnergy {
     /// Complete days the default goal averages over.
     static let goalWindowDays = 14
@@ -81,11 +85,45 @@ enum TodayEnergy {
         var totalKcal: Double { restingKcal + activityKcal }
     }
 
-    /// The day's split from its heart rate, or nil when there is none.
-    static func split(hr: [HRSample], profile: UserProfile, hrmax: Double?, restingHR: Double?) -> Split? {
+    /// A session needs this many heart-rate samples inside it to replace the whole-day estimate there.
+    static let minSessionSamples = 2
+
+    /// The day's split from its heart rate and its recorded sessions (unix-second windows, see
+    /// `sessionWindows`), or nil when there is no heart rate. Resting is the whole-day estimator's;
+    /// activity is the whole-day estimator's outside the sessions, and inside each one the session
+    /// estimate minus the resting energy of the same samples (never below zero).
+    static func dayEnergySplit(hr: [HRSample], sessions: [ClosedRange<Int>], profile: UserProfile,
+                               hrmax: Double?, restingHR: Double?) -> Split? {
         guard !hr.isEmpty else { return nil }
-        let e = Calories.estimateDayEnergy(hr, profile: profile, hrmax: hrmax, restingHR: restingHR)
-        return Split(restingKcal: e.restingKcal, activityKcal: e.activeKcal)
+        let day = Calories.estimateDayEnergy(hr, profile: profile, hrmax: hrmax, restingHR: restingHR)
+        var activity = day.activeKcal
+        for window in sessions {
+            let inside = hr.filter { window.contains($0.ts) }
+            guard inside.count >= minSessionSamples else { continue }
+            let stretch = Calories.estimateDayEnergy(inside, profile: profile, hrmax: hrmax, restingHR: restingHR)
+            let session = Calories.estimateBoutCalories(inside, profile: profile, hrmax: hrmax,
+                                                        restingHR: restingHR).0
+            activity += max(0, session - stretch.restingKcal) - stretch.activeKcal
+        }
+        return Split(restingKcal: day.restingKcal, activityKcal: max(0, activity))
+    }
+
+    /// The windows of `workouts` that overlap `window`, clipped to it, oldest first, with overlapping or
+    /// touching ones merged (the same session recorded twice, by hand and detected, counts once).
+    static func sessionWindows(_ workouts: [WorkoutRow], within window: ClosedRange<Int>) -> [ClosedRange<Int>] {
+        let clipped = workouts.compactMap { w -> ClosedRange<Int>? in
+            let lo = max(w.startTs, window.lowerBound), hi = min(w.endTs, window.upperBound)
+            return lo < hi ? lo...hi : nil
+        }.sorted { $0.lowerBound < $1.lowerBound }
+        var merged: [ClosedRange<Int>] = []
+        for r in clipped {
+            if let last = merged.last, r.lowerBound <= last.upperBound {
+                merged[merged.count - 1] = last.lowerBound...max(last.upperBound, r.upperBound)
+            } else {
+                merged.append(r)
+            }
+        }
+        return merged
     }
 
     /// The heart-rate window a day's calories are read over: from that day's sleep-onset marker when the
@@ -155,11 +193,17 @@ enum TodayHRAlert {
     static let floorWindowDays = 14
     static let floorMinDays = 3
 
+    /// While calibrating (no usual rate for this time yet), the high threshold sits this far above the
+    /// resting rate instead; the low threshold falls back to the resting rate itself.
+    static let provisionalHighMarginBpm = 30.0
+
     enum Side: Equatable { case high, low }
 
     struct Thresholds: Equatable {
         let high: Double?
         let low: Double?
+        /// True when a side came from the resting-rate fallback (too little history yet).
+        var provisional: Bool = false
     }
 
     struct Crossing: Equatable {
@@ -170,9 +214,15 @@ enum TodayHRAlert {
         func minutes(now: Int) -> Int { max(0, now - sinceTs) / 60 }
     }
 
-    /// High = usual at this time + `highMarginBpm`; low = the awake floor.
-    static func thresholds(usualNow: Double?, awakeFloor: Double?) -> Thresholds {
-        Thresholds(high: usualNow.map { $0 + highMarginBpm }, low: awakeFloor)
+    /// High = usual at this time + `highMarginBpm`; low = the awake floor. Either side missing (fewer than
+    /// three days of history) falls back to the resting rate: high = rest + `provisionalHighMarginBpm`,
+    /// low = rest, marked provisional. A low at or above the high is dropped.
+    static func thresholds(usualNow: Double?, awakeFloor: Double?, restingHR: Double? = nil) -> Thresholds {
+        let high = usualNow.map { $0 + highMarginBpm } ?? restingHR.map { $0 + provisionalHighMarginBpm }
+        var low = awakeFloor ?? restingHR
+        if let l = low, let h = high, l >= h { low = nil }
+        let provisional = restingHR != nil && (usualNow == nil || awakeFloor == nil)
+        return Thresholds(high: high, low: low, provisional: provisional && (high != nil || low != nil))
     }
 
     /// The run of the latest samples beyond one threshold, when it has lasted `minDurationSec`. Samples

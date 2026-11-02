@@ -47,6 +47,16 @@ struct TrainingWeekPlan: Codable, Equatable {
         return copy
     }
 
+    /// What the plan says for `date`: a program, or rest; nil when the plan does not decide (no plan, or
+    /// a day before it applies), so the rotation decides. The one resolver the calendar, Today's Synthesis
+    /// and the Coach read.
+    func planDecision(for date: Date, calendar: Calendar) -> TrainingPlanDecision? {
+        guard !isEmpty else { return nil }
+        guard appliesToDay(TrainingCalendar.trainingDayKey(date, calendar: calendar)) else { return nil }
+        let weekday = TrainingCalendar.isoWeekday(date, calendar: calendar)
+        return plannedProgramId(weekday: weekday).map(TrainingPlanDecision.program) ?? .rest
+    }
+
     /// True when the plan applies to the day `key` ("yyyy-MM-dd").
     func appliesToDay(_ key: String) -> Bool {
         guard let since else { return true }
@@ -77,6 +87,12 @@ struct TrainingWeekPlan: Codable, Equatable {
     func storeWeekPlan(_ defaults: UserDefaults = .standard) {
         defaults.set(encodedWeekPlan(), forKey: Self.storageKey)
     }
+}
+
+/// What the week plan says for one day.
+enum TrainingPlanDecision: Equatable {
+    case rest
+    case program(String)
 }
 
 /// Monday-first calendar arithmetic for the week strip and the month grid.
@@ -206,8 +222,8 @@ enum TrainingDays {
         let activitiesByDay = Dictionary(grouping: activities) { dayKey($0.startTs) }
         return dates.map { date in
             let key = TrainingCalendar.trainingDayKey(date, calendar: calendar)
-            let planned = plan.appliesToDay(key)
-                ? plan.plannedProgramId(weekday: TrainingCalendar.isoWeekday(date, calendar: calendar)) : nil
+            var planned: String?
+            if case .program(let id) = plan.planDecision(for: date, calendar: calendar) { planned = id }
             return TrainingDay(date: calendar.startOfDay(for: date), key: key, isToday: key == todayKey,
                                isPast: key < todayKey, plannedProgramId: planned,
                                lifts: (liftsByDay[key] ?? []).sorted { $0.startTs < $1.startTs },

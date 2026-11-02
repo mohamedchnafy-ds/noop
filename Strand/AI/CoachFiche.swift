@@ -277,6 +277,47 @@ enum CoachFiche {
         return lines.joined(separator: "\n")
     }
 
+    /// The week plan of the Training screen (personal fork): each weekday's program, then this week —
+    /// sessions done against planned, missed days, and what today holds. `week` is Monday to Sunday,
+    /// built by `TrainingDays.buildTrainingDays` (the calendar's own resolver). "" without a plan.
+    static func weekPlanText(_ plan: TrainingWeekPlan, programNames: [String: String],
+                             week: [TrainingDay]) -> String {
+        let weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        let planned = (1...7).compactMap { weekday -> String? in
+            guard let id = plan.plannedProgramId(weekday: weekday), let name = programNames[id] else { return nil }
+            return "\(weekdays[weekday - 1]): \(name)"
+        }
+        guard !planned.isEmpty else { return "" }
+        func dayName(_ day: TrainingDay) -> String {
+            weekdays[max(0, min(6, (week.firstIndex(of: day) ?? 0)))]
+        }
+        func programName(_ id: String?) -> String { id.flatMap { programNames[$0] } ?? "a program" }
+
+        var lines = [
+            "WEEK PLAN (fixed days the user set in the Training screen; every other day is a rest day; when "
+                + "the user asks what to do today, follow this plan rather than the rotation line of the LIFT LOG):",
+            "  " + planned.joined(separator: "; "),
+        ]
+        guard week.count == 7 else { return lines.joined(separator: "\n") }
+        let tally = TrainingDays.sessionTally(week)
+        lines.append("  This week (Monday to Sunday): \(tally.done) Lift Log session\(tally.done == 1 ? "" : "s") "
+                     + "done for \(tally.planned) planned (a session done on another day still counts).")
+        let missed = week.filter(\.isMissed).map { "\(dayName($0)) (\(programName($0.plannedProgramId)))" }
+        if !missed.isEmpty { lines.append("  Missed so far: " + missed.joined(separator: ", ")) }
+        if let today = week.first(where: \.isToday) {
+            let line: String
+            if today.hasLift {
+                line = "done (" + today.lifts.map(\.name).joined(separator: ", ") + ")"
+            } else if let id = today.plannedProgramId {
+                line = "\(programName(id)) planned, not done yet"
+            } else {
+                line = "rest day"
+            }
+            lines.append("  Today (\(dayName(today))): " + line)
+        }
+        return lines.joined(separator: "\n")
+    }
+
     static func statusText(_ status: LiftProgress.Status, unit: String, system: UnitSystem) -> String {
         switch status {
         case .notEnough(let n):

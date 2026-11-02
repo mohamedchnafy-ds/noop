@@ -51,7 +51,7 @@ struct TrainingPlanForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("One program per day. The calendar follows this plan.")
+            Text("One program per day. The calendar, Today's Synthesis and the Coach follow this plan.")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

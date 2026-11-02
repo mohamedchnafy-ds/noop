@@ -322,6 +322,11 @@ final class TodayVitalsTests: XCTestCase {
         XCTAssertNotNil(row.subtitle)
         let none = TodaySynthesisLogic.sessionRow(nil, route: nil)
         XCTAssertNil(none.subtitle)
+        // A rest day of the Training week plan says so (personal fork).
+        let rest = TodaySynthesisLogic.sessionRow(
+            .init(name: "Rest", state: .rest, supersets: 0, singles: 0, typicalMinutes: nil), route: nil)
+        XCTAssertEqual(rest.value, "Rest")
+        XCTAssertNotNil(rest.subtitle)
     }
 
     func testBedtimeRowWithoutAUsualWakeSaysNoData() {

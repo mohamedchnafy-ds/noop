@@ -557,8 +557,9 @@ final class AICoachEngine: ObservableObject {
     var isConfigured: Bool { provider == .custom ? customConnected : hasKey }
 
     /// The key to send with a request: the stored key, or an empty string for the keyless Custom
-    /// provider. `nil` means "not configured", the caller surfaces `.noKey`.
-    private var resolvedKey: String? {
+    /// provider. `nil` means "not configured", the caller surfaces `.noKey`. Internal for the one-shot
+    /// meal estimate (`AICoachMealEstimate.swift`).
+    var resolvedKey: String? {
         if let k = AIKeyStore.read() {
             // Only send the stored key to the provider it was SAVED for, never Bearer one provider's
             // key (e.g. a cloud OpenAI/Anthropic secret) to another provider's endpoint, above all the
@@ -1322,8 +1323,9 @@ final class AICoachEngine: ObservableObject {
     }
 
     /// One tool round, streamed through `CoachStreamRelay`: `onText` gets the round's text so far on the
-    /// main actor (throttled like `streamProvider`), and the finished turn is returned.
-    private func streamToolRound(key: String, body: Data, onText: (String) -> Void) async throws -> AnthropicTurn {
+    /// main actor (throttled like `streamProvider`), and the finished turn is returned. Internal for the
+    /// one-shot meal estimate.
+    func streamToolRound(key: String, body: Data, onText: (String) -> Void) async throws -> AnthropicTurn {
         let client = AnthropicClient()
         let session = self.session
         let events: AsyncThrowingStream<AnthropicStreamEvent, Error> = CoachStreamRelay.events { emit in

@@ -12,7 +12,7 @@ import WhoopStore
 struct NutritionView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
-    /// The Coach the Photo and Dictate tiles hand over to (personal fork, Nutrition 4c).
+    /// The Coach whose key the Photo and Dictate tiles use, and the label reading of the scanner.
     @EnvironmentObject private var coach: AICoachEngine
     @EnvironmentObject private var router: NavRouter
 
@@ -32,6 +32,11 @@ struct NutritionView: View {
     @State private var scannerRequested = false
     @State private var showScanner = false
     @State private var scannerExit: ScannerExit?
+    // Personal fork: Dictate and Photo open the capture sheet once the editor has closed, and its
+    // proposal opens back in the editor, every quantity editable, once the capture sheet has closed.
+    @State private var captureRequested: NutritionCaptureMode?
+    @State private var capture: NutritionCaptureMode?
+    @State private var capturedDraft: MealEntry?
 
     private enum ScannerExit {
         case manual, coach
@@ -138,9 +143,13 @@ struct NutritionView: View {
         .sheet(item: $editor, onDismiss: openRequestedScanner) { target in
             NutritionMealEditor(target: target, day: day,
                                 onBarcode: barcodeScannerAvailable ? { scannerRequested = true } : nil,
-                                onPhoto: coachTakesPhotos ? { openCoach(.photoLibrary) } : nil,
-                                onDictate: coachTakesDictation ? { openCoach(.dictate) } : nil)
+                                onPhoto: coach.canEstimateMeals ? { captureRequested = .photo } : nil,
+                                onDictate: coach.canEstimateMeals ? { captureRequested = .voice } : nil)
                 .environmentObject(repo)
+        }
+        .sheet(item: $capture, onDismiss: openCapturedDraft) { mode in
+            NutritionMealCaptureSheet(mode: mode) { proposal in capturedDraft = proposal.draftEntry() }
+                .environmentObject(coach)
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $showScanner, onDismiss: afterScanner) {
@@ -246,15 +255,6 @@ struct NutritionView: View {
         CoachBriefScheduler.coachMasterEnabled && coach.isConfigured && coach.provider == .anthropic
     }
 
-    /// Dictation is the iPhone's composer microphone.
-    private var coachTakesDictation: Bool {
-        #if os(iOS)
-        return CoachBriefScheduler.coachMasterEnabled && coach.isConfigured
-        #else
-        return false
-        #endif
-    }
-
     /// The barcode scanner is the iPhone's camera.
     private var barcodeScannerAvailable: Bool {
         #if os(iOS)
@@ -264,11 +264,23 @@ struct NutritionView: View {
         #endif
     }
 
-    /// The Barcode tile closed the editor: open the scanner now that the sheet is gone.
+    /// A tile closed the editor: open the scanner or the capture sheet now that the sheet is gone.
     private func openRequestedScanner() {
+        if let mode = captureRequested {
+            captureRequested = nil
+            capture = mode
+            return
+        }
         guard scannerRequested else { return }
         scannerRequested = false
         showScanner = true
+    }
+
+    /// The capture sheet closed on a proposal: open it in the editor, as a meal not saved yet.
+    private func openCapturedDraft() {
+        guard let draft = capturedDraft else { return }
+        capturedDraft = nil
+        editor = .draft(draft)
     }
 
     /// The scanner closed on "Enter by hand" (the editor opens) or on a label sent to the Coach.
@@ -280,12 +292,6 @@ struct NutritionView: View {
         case .coach?: router.openCoach()
         case nil: break
         }
-    }
-
-    /// Open the Coach with its photo picker or its microphone; the meal it describes comes back as a card.
-    private func openCoach(_ action: CoachComposerAction) {
-        coach.pendingComposerAction = action
-        router.openCoach()
     }
 
     private func delete(_ entry: MealEntry) {

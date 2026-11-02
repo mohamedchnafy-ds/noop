@@ -129,6 +129,16 @@ final class NutritionRenderTests: XCTestCase {
                                              onReread: {}, onAdd: {})),
                    name: "9-code-barres-connu")
 
+        // Dictate and Photo without the Coach screen: the capture sheet listening, then finding the foods
+        // (the text field itself is a native control the renderer cannot draw). The proposal opens in the
+        // meal editor.
+        let said = "150 g de riz basmati, un blanc de poulet grillé et une pomme"
+        let capture = VStack(alignment: .leading, spacing: 32) {
+            NutritionCaptureBody(mode: .voice, text: .constant(said), isListening: true)
+            NutritionCaptureBody(mode: .voice, text: .constant(said), phase: .working, isListening: false)
+        }
+        try render(AnyView(capture), name: "10-dicter")
+
         XCTAssertEqual(day.eaten.kcal, 1_495)
         XCTAssertEqual(day.balanceKcal, -605)
         XCTAssertEqual(plan.intakeKcal, 2_560)

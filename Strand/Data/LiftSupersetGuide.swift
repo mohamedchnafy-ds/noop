@@ -63,6 +63,15 @@ struct LiftSupersetGuide: Equatable {
     var lastRoundSec: Int?
     var canAddRound: Bool
     var canRemoveRound: Bool
+    /// When the session was paused (unix seconds): the screens' clocks stand at this instant and the one
+    /// action offered is Resume. Nil while the session runs (personal fork).
+    var pausedAt: Int? = nil
+
+    /// The instant the screens' clocks read: `now`, or the start of the running pause.
+    func clockNow(_ now: Int) -> Int {
+        guard let pausedAt else { return now }
+        return min(pausedAt, now)
+    }
 
     /// The guided screen for `engine` at `now`, or nil when the session sheet applies.
     static func make(_ engine: LiftSessionEngine, now: Int) -> LiftSupersetGuide? {
@@ -89,7 +98,7 @@ struct LiftSupersetGuide: Equatable {
                 // The block just left, or a line on its own, is behind: what is shown is where the
                 // session goes next — the same slot `advance` would start.
                 anchor = next
-                phase = .ready(restEndsAt: endsAt > now ? endsAt : nil)
+                phase = .ready(restEndsAt: endsAt > engine.clockNow(now) ? endsAt : nil)
             }
         }
         let members = engine.supersetMembers(of: anchor.exerciseIndex)
@@ -127,7 +136,8 @@ struct LiftSupersetGuide: Equatable {
             restSec: engine.restAfter(LiftSlot(exerciseIndex: lead, setIndex: 1)),
             lastRoundSec: lastRoundSec,
             canAddRound: rounds < LiftSessionEngine.maxSetsPerExercise,
-            canRemoveRound: engine.canRemoveSet(fromExercise: lead))
+            canRemoveRound: engine.canRemoveSet(fromExercise: lead),
+            pausedAt: engine.pausedAt)
     }
 
     // MARK: - Last time

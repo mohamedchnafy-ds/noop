@@ -139,7 +139,8 @@ struct LiftSessionView: View {
         let lead = guide.lead
         return LiftSupersetScreen(
             guide: guide,
-            sessionStart: engine.startTs,
+            // Paused time already over moves the session clock's start; a running pause freezes it there.
+            sessionStart: engine.startTs + engine.pausedTotalSec,
             lastTime: LiftSupersetGuide.lastTime(rows: guide.members.map { lastRows[$0.exercise] ?? [] }),
             unitSystem: unitSystem,
             canUndo: engine.canUndo,
@@ -164,7 +165,9 @@ struct LiftSessionView: View {
                 endBlock: { session.endBlock() },
                 showSession: { showingList = true },
                 undo: { session.undo() },
-                finish: { openFinish() }))
+                finish: { openFinish() },
+                pause: { session.pause() },
+                resume: { session.resumeFromPause() }))
     }
 
     /// A weight or rep count of a superset member, as a bare field: the guided screen puts it in its chip.
@@ -917,10 +920,11 @@ struct LiftSessionView: View {
     private func controlBar(_ engine: LiftSessionEngine) -> some View {
         VStack(spacing: NoopMetrics.rowSpacing) {
             HStack(spacing: 14) {
-                clock(String(localized: "Session"), tint: StrandPalette.textPrimary) { $0 - engine.startTs }
+                clock(String(localized: "Session"), tint: StrandPalette.textPrimary) { engine.sessionSeconds(now: $0) }
                 stageClock(engine)
                 heartRate()
                 Spacer(minLength: 0)
+                pauseButton(engine)
                 Button { session.undo() } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 15, weight: .semibold))
@@ -932,10 +936,18 @@ struct LiftSessionView: View {
             }
 
             HStack(spacing: NoopMetrics.rowSpacing) {
-                Button { session.advance() } label: {
-                    Text(actionLabel(engine)).frame(maxWidth: .infinity)
+                // Paused, the big button picks the session up: every clock above is standing still.
+                if engine.isPaused {
+                    Button { session.resumeFromPause() } label: {
+                        Text("Resume").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.noopPrimary)
+                } else {
+                    Button { session.advance() } label: {
+                        Text(actionLabel(engine)).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.noopPrimary)
                 }
-                .buttonStyle(.noopPrimary)
 
                 Button {
                     openFinish()
@@ -951,6 +963,23 @@ struct LiftSessionView: View {
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
             Rectangle().fill(StrandPalette.textTertiary.opacity(0.15)).frame(height: 0.5)
+        }
+    }
+
+    /// Pause or resume the session (personal fork) — beside Undo, out of the way of the big button. Not
+    /// offered during the warm-up, which is not timed as part of any set.
+    @ViewBuilder
+    private func pauseButton(_ engine: LiftSessionEngine) -> some View {
+        if engine.stage != .warmup {
+            Button {
+                if engine.isPaused { session.resumeFromPause() } else { session.pause() }
+            } label: {
+                Image(systemName: engine.isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(engine.isPaused ? StrandPalette.accent : StrandPalette.textSecondary)
+            .accessibilityLabel(engine.isPaused ? String(localized: "Resume") : String(localized: "Pause"))
         }
     }
 
@@ -991,23 +1020,26 @@ struct LiftSessionView: View {
         }
     }
 
+    /// The running stage's clock. Paused, it stands still in grey under "Paused" (personal fork).
     @ViewBuilder
     private func stageClock(_ engine: LiftSessionEngine) -> some View {
         switch engine.stage {
         case .working:
-            clock(String(localized: "This set"), tint: StrandPalette.statusPositive) {
-                $0 - engine.stageStartedAt
+            clock(engine.isPaused ? String(localized: "Paused") : String(localized: "This set"),
+                  tint: engine.isPaused ? StrandPalette.textSecondary : StrandPalette.statusPositive) {
+                engine.stageSeconds(now: $0)
             }
         case .resting:
             // "Rest period", never "Rest": the catalog's "Rest" key is NOOP's SLEEP metric, so this
             // label rendered as "Erholung" (recovery) in German — the exact collision CLAUDE.md and
             // the handover brief both warn about. Reintroduced by the workout-sheet rewrite.
-            clock(String(localized: "Rest period"), tint: StrandPalette.metricAmber) {
+            clock(engine.isPaused ? String(localized: "Paused") : String(localized: "Rest period"),
+                  tint: engine.isPaused ? StrandPalette.textSecondary : StrandPalette.metricAmber) {
                 engine.restRemaining(now: $0) ?? 0
             }
         case .warmup, .finished:
             clock(String(localized: "Warm-up"), tint: StrandPalette.textSecondary) {
-                $0 - engine.stageStartedAt
+                engine.stageSeconds(now: $0)
             }
         }
     }
@@ -1302,7 +1334,8 @@ struct LiftSessionView: View {
         // it from the heart rate the strap MEASURED, never from typed sets and reps.
         let workout = WorkoutRow(
             startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport,
-            source: "manual", durationS: Double(max(0, endTs - engine.startTs)),
+            // Pauses left out (personal fork): the length the session was actually run for.
+            source: "manual", durationS: Double(engine.activeSeconds(until: endTs)),
             energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
             distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
         await repo.saveManualWorkout(workout)
@@ -1311,8 +1344,10 @@ struct LiftSessionView: View {
         askCoachAfterSave = false
         await finishAndDismiss()
         if askCoach {
+            // The prompt states the session's length from these two: pauses left out, like the saved row.
             coach.pendingPrompt = CoachSessionPrompt.prompt(
-                programName: row.programName, startTs: engine.startTs, endTs: endTs,
+                programName: row.programName, startTs: engine.startTs,
+                endTs: engine.startTs + engine.activeSeconds(until: endTs),
                 sessionRpe: LiftFormat.number(sessionRpeText), sets: rows, system: unitSystem)
             router.openCoach()
         }

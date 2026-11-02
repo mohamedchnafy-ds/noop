@@ -35,6 +35,9 @@ final class LiftLiveActivityController {
     private let authInfo = ActivityAuthorizationInfo()
     /// Guards against two pushes both firing `Activity.request` before the first has returned.
     private var isStarting = false
+    /// The last update sent to iOS, so a banner button can wait for its own push to go out before its
+    /// intent returns (`flushUpdate`).
+    private var pendingUpdate: Task<Void, Never>?
     /// How long iOS may keep showing the activity as fresh without a push. Generous, because a long
     /// rest legitimately produces no content change at all — the clock is ticking client-side.
     private static let staleAfter: TimeInterval = 15 * 60
@@ -101,6 +104,8 @@ final class LiftLiveActivityController {
             waitingForForeground = false
         }
 
+        // A pause and the buttons are things a person notices too (personal fork).
+        let buttonsKey = (state.buttons ?? []).map { "\($0.action.rawValue):\($0.label)" }.joined(separator: ",")
         // Everything a person would notice, EXCLUDING the clocks (which tick client-side) and the
         // heart rate (handled by its own interval below).
         let signature = [
@@ -108,13 +113,14 @@ final class LiftLiveActivityController {
             state.detail ?? "", state.next,
             "\(state.stageStartedAt.timeIntervalSince1970)",
             "\(state.restEndsAt?.timeIntervalSince1970 ?? 0)",
+            "\(state.pausedAt?.timeIntervalSince1970 ?? 0)",
+            buttonsKey,
         ].joined(separator: "|")
 
         let contentChanged = signature != lastSignature
         let heartRateDue = LiftBannerPushPolicy.heartRateDue(
             shown: lastState?.bpm, latest: state.bpm, sinceLastPush: Date().timeIntervalSince(lastPush))
-        let content = ActivityContent(state: state,
-                                      staleDate: Date().addingTimeInterval(Self.staleAfter))
+        let content = ActivityContent(state: state, staleDate: Self.staleDate(for: state))
 
         if let activity {
             let appOnScreen = UIApplication.shared.applicationState == .active
@@ -129,9 +135,9 @@ final class LiftLiveActivityController {
                     body: LocalizedStringResource(stringLiteral: state.detail.map { "\(state.status) — \($0)" }
                                                   ?? state.status),
                     sound: .named(Self.silentAlertSound))
-                Task { await activity.update(content, alertConfiguration: stepAlert) }
+                pendingUpdate = Task { await activity.update(content, alertConfiguration: stepAlert) }
             } else {
-                Task { await activity.update(content) }
+                pendingUpdate = Task { await activity.update(content) }
             }
             return alert ? (lightsScreen ? .askedIOS : .appOnScreen) : nil
         } else {
@@ -180,8 +186,21 @@ final class LiftLiveActivityController {
         next.bpm = bpm
         lastState = next
         lastPush = Date()
-        let content = ActivityContent(state: next, staleDate: Date().addingTimeInterval(Self.staleAfter))
-        Task { await activity.update(content) }
+        let content = ActivityContent(state: next, staleDate: Self.staleDate(for: next))
+        pendingUpdate = Task { await activity.update(content) }
+    }
+
+    /// When iOS may grey the banner for want of a push. Never while paused (personal fork): a paused session
+    /// can stand still for as long as it likes, and its frozen clock is exactly right the whole time.
+    private static func staleDate(for state: LiftActivityAttributes.ContentState) -> Date? {
+        state.isPaused ? nil : Date().addingTimeInterval(staleAfter)
+    }
+
+    /// Returns once the last update sent to the banner has reached iOS. A banner button's intent waits for
+    /// it: once the intent returns, iOS may suspend NOOP again, and an update still queued would leave the
+    /// banner showing the step before the tap.
+    func flushUpdate() async {
+        await pendingUpdate?.value
     }
 
     func end() async {

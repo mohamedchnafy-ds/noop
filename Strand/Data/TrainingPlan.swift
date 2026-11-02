@@ -150,8 +150,11 @@ struct TrainingLiftDone: Equatable {
     var workingSets: Int
     /// The Effort of the session's own workout row, already in the wearer's scale, when it has one.
     var effort: String?
+    /// How long the session was run for, pauses left out (`TrainingDays.liftSessionSeconds`). Nil reads as
+    /// end − start.
+    var activeSeconds: Int? = nil
 
-    var minutes: Int { max(0, endTs - startTs) / 60 }
+    var minutes: Int { (activeSeconds ?? max(0, endTs - startTs)) / 60 }
 }
 
 /// Any other workout of the day: run, ride, intervals, a detected bout, an import.
@@ -244,6 +247,15 @@ enum TrainingDays {
             total + day.lifts.reduce(0) { $0 + $1.minutes } + day.activities.reduce(0) { $0 + $1.minutes }
         }
         return (activities, minutes)
+    }
+
+    /// How long a finished Lift Log session was run for, in seconds: its own workout row's duration — which
+    /// leaves the session's pauses out (personal fork) — else end − start. The one rule every surface that
+    /// states a session's length reads (the calendar, the Synthèse, a program's usual length), so none of
+    /// them can disagree with the Workouts list, which shows that same row.
+    static func liftSessionSeconds(startTs: Int, endTs: Int, workout: WorkoutRow?) -> Int {
+        if let duration = workout?.durationS, duration > 0 { return Int(duration.rounded()) }
+        return max(0, endTs - startTs)
     }
 
     /// Splits workout rows into the rows of Lift Log sessions (each session writes one, at the same

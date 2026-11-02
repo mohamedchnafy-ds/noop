@@ -31,7 +31,7 @@ struct LiftSessionBar: View {
                 // stacks over the clock, so the words get the width (Utku, 21 Sep 2026, with a screenshot
                 // of the bar: "more place for writings"). Same sizes as before.
                 HStack(spacing: 10) {
-                    Image(systemName: "dumbbell.fill")
+                    Image(systemName: engine.isPaused ? "pause.fill" : "dumbbell.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(tint(engine))
                         .accessibilityHidden(true)
@@ -76,14 +76,24 @@ struct LiftSessionBar: View {
                     }
 
                     // The same action the sheet's button performs, so a set can be closed out
-                    // without opening anything.
-                    Button { session.advance() } label: {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundStyle(tint(engine))
+                    // without opening anything — and, paused, the way to pick the session up.
+                    if engine.isPaused {
+                        Button { session.resumeFromPause() } label: {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 26, weight: .semibold))
+                                .foregroundStyle(StrandPalette.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "Resume"))
+                    } else {
+                        Button { session.advance() } label: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 26, weight: .semibold))
+                                .foregroundStyle(tint(engine))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Next")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Next")
                 }
                 .padding(.leading, 12)
                 .padding(.trailing, 8)
@@ -98,6 +108,8 @@ struct LiftSessionBar: View {
     }
 
     private func tint(_ engine: LiftSessionEngine) -> Color {
+        // Grey while paused, as the Lock Screen banner is: nothing is running.
+        if engine.isPaused { return StrandPalette.textSecondary }
         switch engine.stage {
         case .working:  return StrandPalette.statusPositive
         case .resting:  return StrandPalette.metricAmber
@@ -108,6 +120,6 @@ struct LiftSessionBar: View {
     /// Rest counts DOWN (that is the number you act on); everything else counts up. Written as the Lock
     /// Screen writes the same clock — "0:45", "0:00", "1:05:00" — through NOOP's one running-clock format.
     private func bigClock(_ engine: LiftSessionEngine) -> LiftRunningClock {
-        LiftRunningClock { now in engine.restRemaining(now: now) ?? now - engine.stageStartedAt }
+        LiftRunningClock { now in engine.restRemaining(now: now) ?? engine.stageSeconds(now: now) }
     }
 }

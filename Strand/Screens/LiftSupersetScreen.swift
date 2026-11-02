@@ -45,6 +45,9 @@ struct LiftSupersetScreen: View {
         var showSession: () -> Void
         var undo: () -> Void
         var finish: () -> Void
+        /// Stand the session still, and pick it up again (personal fork).
+        var pause: () -> Void = {}
+        var resume: () -> Void = {}
     }
 
     let guide: LiftSupersetGuide
@@ -107,11 +110,35 @@ struct LiftSupersetScreen: View {
 
     @ViewBuilder
     private var bottom: some View {
-        switch guide.phase {
-        case .ready: readyBottom
-        case .working: workingBottom
-        case .resting: restingBottom
+        // Paused, whatever the screen, the one action is to pick the session up: every clock stands still.
+        if isPaused {
+            resumeBottom
+        } else {
+            switch guide.phase {
+            case .ready: readyBottom
+            case .working: workingBottom
+            case .resting: restingBottom
+            }
         }
+    }
+
+    private var isPaused: Bool { guide.pausedAt != nil }
+
+    private var resumeBottom: some View {
+        Button(action: actions.resume) {
+            HStack(spacing: 10) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 20, weight: .bold))
+                Text("Resume")
+            }
+            .font(StrandFont.rounded(20, weight: .heavy))
+            .foregroundStyle(StrandPalette.surfaceBase)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(LiftGuidePressStyle())
     }
 
     // MARK: - Ready
@@ -230,7 +257,7 @@ struct LiftSupersetScreen: View {
             Image(systemName: "timer")
                 .font(.system(size: 12, weight: .bold))
             Text("Rest period")
-            LiftRunningClock { max(0, endsAt - $0) }
+            LiftRunningClock { max(0, endsAt - guide.clockNow($0)) }
         }
         .font(StrandFont.rounded(13, weight: .bold))
         .foregroundStyle(StrandPalette.metricAmber)
@@ -316,12 +343,12 @@ struct LiftSupersetScreen: View {
 
     private func workingClock(startedAt: Int) -> some View {
         VStack(spacing: 2) {
-            Text("Set in progress")
+            Text(isPaused ? String(localized: "Paused") : String(localized: "Set in progress"))
                 .font(StrandFont.rounded(13, weight: .bold))
                 .tracking(2)
                 .textCase(.uppercase)
-                .foregroundStyle(StrandPalette.effortColor)
-            LiftRunningClock { $0 - startedAt }
+                .foregroundStyle(isPaused ? StrandPalette.textSecondary : StrandPalette.effortColor)
+            LiftRunningClock { max(0, guide.clockNow($0) - startedAt) }
                 .font(StrandFont.rounded(72, weight: .heavy))
                 .tracking(-3)
                 .foregroundStyle(StrandPalette.textPrimary)
@@ -391,12 +418,12 @@ struct LiftSupersetScreen: View {
 
     private func restCountdown(startedAt: Int, endsAt: Int, next: Int) -> some View {
         VStack(spacing: 8) {
-            Text("Resting")
+            Text(isPaused ? String(localized: "Paused") : String(localized: "Resting"))
                 .font(StrandFont.rounded(13, weight: .bold))
                 .tracking(2)
                 .textCase(.uppercase)
-                .foregroundStyle(StrandPalette.metricAmber)
-            LiftRestRing(startedAt: startedAt, endsAt: endsAt)
+                .foregroundStyle(isPaused ? StrandPalette.textSecondary : StrandPalette.metricAmber)
+            LiftRestRing(startedAt: startedAt, endsAt: endsAt, pausedAt: guide.pausedAt)
                 .frame(width: 230, height: 230)
             LiftRoundSegments(rounds: guide.rounds, done: guide.doneRounds, current: nil)
                 .padding(.top, 8)
@@ -475,12 +502,27 @@ struct LiftSupersetScreen: View {
             Spacer(minLength: 8)
             HStack(spacing: 4) {
                 Text("Session")
-                LiftRunningClock { $0 - sessionStart }
+                LiftRunningClock { max(0, guide.clockNow($0) - sessionStart) }
             }
             .font(StrandFont.rounded(13, weight: .regular))
             .foregroundStyle(StrandPalette.textSecondary)
+            pauseButton
             menuButton
         }
+    }
+
+    /// Pause or resume the session (personal fork), in the same round button as the menu beside it.
+    private var pauseButton: some View {
+        Button(action: isPaused ? actions.resume : actions.pause) {
+            Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(isPaused ? StrandPalette.accent : StrandPalette.textSecondary)
+                .frame(width: 30, height: 30)
+                .background(StrandPalette.surfaceRaised, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isPaused ? String(localized: "Resume") : String(localized: "Pause"))
     }
 
     private var menuButton: some View {
@@ -676,11 +718,13 @@ struct LiftRoundSegments: View {
 struct LiftRestRing: View {
     let startedAt: Int
     let endsAt: Int
+    /// The running pause's start: the ring stands still at this instant (personal fork).
+    var pausedAt: Int? = nil
 
     var body: some View {
         TimelineView(.periodic(from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)) {
             context in
-            let now = Int(context.date.timeIntervalSince1970)
+            let now = min(Int(context.date.timeIntervalSince1970), pausedAt ?? .max)
             let total = max(1, endsAt - startedAt)
             let left = max(0, endsAt - now)
             ZStack {

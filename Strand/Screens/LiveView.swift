@@ -156,6 +156,10 @@ struct LiveView: View {
                 } else if activeIsOura {
                     ringControls
                 }
+                #if os(iOS)
+                // What the Lock Screen banner shows beside the bpm outside a gym session (personal fork).
+                LiveHRBannerSideSetting()
+                #endif
                 manageDevicesRow
                 LiveLogCard()
             }

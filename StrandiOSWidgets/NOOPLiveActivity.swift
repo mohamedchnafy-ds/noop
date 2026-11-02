@@ -13,34 +13,31 @@ struct NOOPLiveActivity: Widget {
         context.isStale ? nil : context.state.bpm
     }
 
+    /// The figure beside the bpm, for the face (personal fork). Nil for a banner started by an older build.
+    static func side(_ state: NOOPActivityAttributes.ContentState) -> LiveHRBannerFace.Side? {
+        guard let raw = state.sideKind, let kind = LiveHRBannerFace.Side.Kind(rawValue: raw),
+              let label = state.sideLabel else { return nil }
+        return LiveHRBannerFace.Side(kind: kind, label: label, value: state.sideValue, detail: state.sideDetail,
+                                     fraction: state.effort.map { Double($0) / 100 }, score: state.recovery)
+    }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: NOOPActivityAttributes.self) { context in
-            // Lock Screen / banner presentation.
-            HStack(spacing: 14) {
-                Image(systemName: "waveform.path.ecg")
-                    .font(.title2)
-                    .foregroundStyle(StrandPalette.statusCritical)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(context.attributes.title)
-                        .font(.caption).foregroundStyle(StrandPalette.textSecondary)
-                    Text("\(Self.shownBpm(context).map(String.init) ?? "–") bpm")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                Spacer()
-                // Charge + Effort (#446) on the banner, mirroring the Dynamic Island expanded stats.
-                HStack(spacing: 12) {
-                    if let r = context.state.recovery {
-                        bannerStat(label: "Charge", value: "\(r)%")
-                    }
-                    if let e = context.state.effort {
-                        bannerStat(label: "Effort", value: "\(e)")
-                    }
-                }
+            // Lock Screen / banner presentation: the face the wearer chose the side of (personal fork), or the
+            // original layout for a banner an older build started.
+            if let side = Self.side(context.state) {
+                LiveHRBannerFace(subtitle: context.state.subtitle ?? context.attributes.title,
+                                 bpm: Self.shownBpm(context), side: side)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .activityBackgroundTint(StrandPalette.surfaceBase)
+                    .activitySystemActionForegroundColor(StrandPalette.textPrimary)
+            } else {
+                legacyBanner(context)
+                    .padding()
+                    .activityBackgroundTint(StrandPalette.surfaceBase)
+                    .activitySystemActionForegroundColor(StrandPalette.textPrimary)
             }
-            .padding()
-            .activityBackgroundTint(StrandPalette.surfaceBase)
-            .activitySystemActionForegroundColor(StrandPalette.textPrimary)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -48,18 +45,23 @@ struct NOOPLiveActivity: Widget {
                         .foregroundStyle(StrandPalette.statusCritical)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    // Charge + Effort (#446) — one more stat alongside the leading live HR.
-                    HStack(spacing: 10) {
-                        if let r = context.state.recovery {
-                            statColumn(label: "Charge", value: "\(r)%")
-                        }
-                        if let e = context.state.effort {
-                            statColumn(label: "Effort", value: "\(e)")
+                    // The figure the wearer chose (personal fork); Charge + Effort (#446) for an older banner.
+                    if let side = Self.side(context.state) {
+                        statColumn(label: side.label, value: side.value ?? "–")
+                    } else {
+                        HStack(spacing: 10) {
+                            if let r = context.state.recovery {
+                                statColumn(label: "Charge", value: "\(r)%")
+                            }
+                            if let e = context.state.effort {
+                                statColumn(label: "Effort", value: "\(e)")
+                            }
                         }
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.attributes.title).font(.caption).foregroundStyle(.secondary)
+                    Text(context.state.subtitle ?? context.attributes.title)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             } compactLeading: {
                 Image(systemName: "heart.fill").foregroundStyle(StrandPalette.statusCritical)
@@ -67,6 +69,32 @@ struct NOOPLiveActivity: Widget {
                 Text("\(Self.shownBpm(context).map(String.init) ?? "–")")
             } minimal: {
                 Image(systemName: "heart.fill").foregroundStyle(StrandPalette.statusCritical)
+            }
+        }
+    }
+
+    /// The banner as it was before the wearer could choose its side: Charge and Effort beside the bpm.
+    private func legacyBanner(_ context: ActivityViewContext<NOOPActivityAttributes>) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "waveform.path.ecg")
+                .font(.title2)
+                .foregroundStyle(StrandPalette.statusCritical)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(context.attributes.title)
+                    .font(.caption).foregroundStyle(StrandPalette.textSecondary)
+                Text("\(Self.shownBpm(context).map(String.init) ?? "–") bpm")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(StrandPalette.textPrimary)
+            }
+            Spacer()
+            // Charge + Effort (#446) on the banner, mirroring the Dynamic Island expanded stats.
+            HStack(spacing: 12) {
+                if let r = context.state.recovery {
+                    bannerStat(label: "Charge", value: "\(r)%")
+                }
+                if let e = context.state.effort {
+                    bannerStat(label: "Effort", value: "\(e)")
+                }
             }
         }
     }

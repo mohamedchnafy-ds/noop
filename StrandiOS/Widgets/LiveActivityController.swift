@@ -3,6 +3,8 @@ import Foundation
 import ActivityKit
 import Combine
 import UIKit
+import StrandAnalytics
+import WhoopStore
 
 /// Starts, updates, and ends the live-HR Live Activity on the Lock Screen and in the Dynamic Island: the heart rate
 /// while the strap measures it, the dash while it does not. It follows the strap from process start (`follow`).
@@ -38,6 +40,14 @@ final class LiveActivityController {
     /// Banners NOOP has asked iOS to remove (`removeLeftovers`), so a tick that arrives before iOS has dropped one from
     /// its list neither asks again nor logs it twice.
     private var removing: Set<String> = []
+    /// The figure beside the bpm, kept between ticks (personal fork): rebuilt only when the store refreshed, the
+    /// choice or the Effort scale changed, or the sleep figures arrived — not on every heart-rate tick.
+    private var sideMemo: (key: String, content: LiveHRBannerSideContent)?
+    /// The Synthèse's sleep figures for the Sleep side, read off the main path (they read the sleep sessions) once
+    /// per store refresh (`sleepFiguresSeq`).
+    private var sleepFigures: SleepSynthesisFigures?
+    private var sleepFiguresSeq: Int?
+    private var sleepFiguresLoading = false
     /// How long after the last push iOS treats the banner as fresh; after that the banner draws the dash
     /// (`NOOPLiveActivity.shownBpm`). A WHOOP 5.0 taken off the wrist goes quiet, and with nothing arriving iOS
     /// suspends NOOP, so no timer of NOOP's can clear the number: iOS's own stale date is what does it, in at most
@@ -62,10 +72,11 @@ final class LiveActivityController {
             .store(in: &cancellables)
         // The switch is the one way to be rid of the banner, so it acts at once — not at the next heart-rate tick,
         // which a strap off the wrist may not send for hours.
+        // The figure beside the bpm (personal fork) follows its choice, made in the Live HR screen, the same way.
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: DispatchQueue.main)
-            .map { _ in UnitPrefs.liveActivityEnabled() }
-            .prepend(UnitPrefs.liveActivityEnabled())
+            .map { _ in "\(UnitPrefs.liveActivityEnabled())|\(LiveHRBannerSide.storedSide().rawValue)" }
+            .prepend("\(UnitPrefs.liveActivityEnabled())|\(LiveHRBannerSide.storedSide().rawValue)")
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] _ in self?.refreshBanner() }
@@ -86,10 +97,44 @@ final class LiveActivityController {
         guard let model else { return }
         let connected = model.live.connected
         let day = model.repo.cachedWidgetAnchor()
-        update(bpm: connected ? (model.bpm ?? model.live.heartRate) : nil,
+        let bpm = connected ? (model.bpm ?? model.live.heartRate) : nil
+        // The zone on the line above the bpm, as the Today card's live subtitle names it (personal fork).
+        let zone = bpm.flatMap { $0 > 0 ? model.profile.hrZoneSet.zoneNumber(forBPM: Double($0)) : nil }
+        update(bpm: bpm,
                recovery: day?.recovery.map { Int($0.rounded()) }, connected: connected, standsAside: standsAside(),
                appActive: appActive ?? (UIApplication.shared.applicationState == .active),
-               effort: day?.strain.map { Int($0.rounded()) })
+               effort: day?.strain.map { Int($0.rounded()) },
+               subtitle: LiveHRBannerFigures.subtitle(zone: zone),
+               side: sideContent(model: model, day: day))
+    }
+
+    /// The figure beside the bpm, rebuilt only when what it reads changed (`sideMemo`). The Sleep side's debt and
+    /// bedtime come from `Repository.sleepSynthesisFigures`, loaded once per store refresh; the banner shows the
+    /// night meanwhile and is refreshed when they arrive.
+    private func sideContent(model: AppModel, day: DailyMetric?) -> LiveHRBannerSideContent {
+        let side = LiveHRBannerSide.storedSide()
+        let seq = model.repo.refreshSeq
+        if side == .sleep, sleepFiguresSeq != seq, !sleepFiguresLoading {
+            sleepFiguresLoading = true
+            Task { [weak self, weak model] in
+                guard let model else { return }
+                let figures = await model.repo.sleepSynthesisFigures()
+                guard let self else { return }
+                self.sleepFigures = figures
+                self.sleepFiguresSeq = seq
+                self.sleepFiguresLoading = false
+                self.refreshBanner()
+            }
+        }
+        let scaleRaw = UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? ""
+        let key = [side.rawValue, "\(seq)", day?.day ?? "", scaleRaw, "\(sleepFiguresSeq ?? -1)"].joined(separator: "|")
+        if let memo = sideMemo, memo.key == key { return memo.content }
+        let dayKey = day?.day ?? Repository.logicalDayKey(Date())
+        let content = LiveHRBannerFigures.sideContent(side, day: day, days: model.repo.days, dayKey: dayKey,
+                                                      effortScale: UnitPrefs.resolveEffortScale(scaleRaw),
+                                                      sleep: sleepFigures)
+        sideMemo = (key, content)
+        return content
     }
 
     /// Drive the activity from the latest live values (`LiveHRBannerLifecycle` decides start / push / end). Starts
@@ -99,7 +144,7 @@ final class LiveActivityController {
     /// (`standsAside`). Pushed when what it shows changes, and often enough to stay fresh (`LiveHRBannerPushPolicy`,
     /// `staleAfter`).
     private func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, appActive: Bool,
-                        effort: Int?) {
+                        effort: Int?, subtitle: String, side: LiveHRBannerSideContent) {
         guard authInfo.areActivitiesEnabled else { return }
 
         // A banner iOS ended (after about eight hours) or the user swiped away is gone: forget it, so the next time
@@ -151,7 +196,9 @@ final class LiveActivityController {
         // left a fabricated "live" HR standing). No timed end: a timer in a suspended app fires at its next wake,
         // which is typically the strap coming back — exactly when the banner should stay.
         let state = NOOPActivityAttributes.ContentState(bpm: connected ? bpm : nil, recovery: recovery,
-                                                        bonded: connected, effort: effort)
+                                                        bonded: connected, effort: effort, subtitle: subtitle,
+                                                        sideKind: side.side.rawValue, sideLabel: side.label,
+                                                        sideValue: side.value, sideDetail: side.detail)
 
         if step == .renew, activity != nil {
             // The fresh banner first, then the old one goes, so the Lock Screen is never without one; if iOS refuses

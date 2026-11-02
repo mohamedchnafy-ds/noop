@@ -1582,23 +1582,16 @@ final class AICoachEngine: ObservableObject {
             history: days.compactMap { d in d.avgHrv.map { (day: d.day, value: $0) } },
             throughDay: todayKey, normal: inputs.hrvNormal)
 
-        // The synthesis' sleep figures: the debt ledger (naps credited), the need, the usual wake.
-        if !through.isEmpty {
-            let sessions = await repo.allSleepSessions(days: 17)
-            let habitual = await repo.habitualMidsleepSec()
-            let naps = SleepModel.napSleepMinutesByDay(navDays: SleepModel.navDays(navSessions: sessions),
-                                                       habitualMidsleepSec: habitual)
-            let nights = SleepNightsData(ledger: SleepModel.debtLedger(days: through, napSleepMinByDay: naps),
-                                         month: [])
-            let now = Int(Date().timeIntervalSince1970)
-            let wakes = repo.sleeps.map(\.endTs).filter { $0 <= now }.sorted()
+        // The synthesis' sleep figures: the debt ledger (naps credited), the need, the usual wake — one funnel
+        // with the live heart-rate banner (`Repository.sleepSynthesisFigures`).
+        if let sleep = await repo.sleepSynthesisFigures() {
             let last30 = through.suffix(30).compactMap(\.totalSleepMin)
             inputs.sleep = CoachFiche.Sleep(
-                needMin: SleepModel.debtNeedMin(days: through),
-                debtMin: nights.recent.isEmpty ? nil : nights.debtMinutes,
-                isDebt: nights.isDebt,
-                lastShortfallMin: nights.lastShortfallMinutes,
-                usualWakeMin: HabitualWake.minutes(wakeTimestamps: wakes, zone: .current),
+                needMin: sleep.needMin,
+                debtMin: sleep.debtMin,
+                isDebt: sleep.isDebt,
+                lastShortfallMin: sleep.lastShortfallMin,
+                usualWakeMin: sleep.usualWakeMin,
                 lastNightMin: todayRow?.totalSleepMin,
                 average30Min: last30.isEmpty ? nil : last30.reduce(0, +) / Double(last30.count))
         }

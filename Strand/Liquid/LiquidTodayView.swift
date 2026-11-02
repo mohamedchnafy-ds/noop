@@ -680,13 +680,11 @@ struct LiquidTodayView: View {
     /// The night's sleep in the Sleep tab's format ("3h 41m"); the naps stay on the Sleep tab. On today,
     /// before tonight is banked (the day turns at midnight), the last night carries, on the same freshness
     /// rule as the Rest score above it (`TodayView.isCarryStale`), so the ring and its line name one night.
+    /// One rule with the live heart-rate banner's Sleep figure (`LiveHRBannerFigures.nightSleepMinutes`).
     private var restCaption: String? {
-        if let minutes = displayDay?.totalSleepMin, minutes > 0 { return SleepDurationText.format(minutes) }
-        guard selectedDayOffset == 0,
-              let carry = repo.days.last(where: { $0.day < selectedDayKey && ($0.totalSleepMin ?? 0) > 0 }),
-              !TodayView.isCarryStale(priorDayKey: carry.day, todayKey: selectedDayKey),
-              let minutes = carry.totalSleepMin else { return nil }
-        return SleepDurationText.format(minutes)
+        LiveHRBannerFigures.nightSleepMinutes(own: displayDay, days: repo.days, dayKey: selectedDayKey,
+                                              carries: selectedDayOffset == 0)
+            .map { SleepDurationText.format($0) }
     }
 
     /// The Charge ring's line: calibration progress, or whose night a carried score is.

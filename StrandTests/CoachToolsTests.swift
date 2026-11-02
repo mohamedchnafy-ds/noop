@@ -14,7 +14,7 @@ final class CoachToolsTests: XCTestCase {
     /// none reads the user's data and none saves anything.
     func testOnlyTheCardsWithoutDataAccess() {
         XCTAssertEqual(names(CoachTools.definitions(dataConsent: false, labBook: true)),
-                       ["create_program", "search_foods", "log_meal"])
+                       ["create_program", "search_foods", "log_meal", "read_label"])
     }
 
     func testTheLabBookToolOnlyWithTheSecondOptIn() {
@@ -24,7 +24,7 @@ final class CoachToolsTests: XCTestCase {
 
     func testEveryToolIsNamedOnceAndHasAnObjectSchema() throws {
         let tools = CoachTools.definitions(dataConsent: true, labBook: true)
-        let cards = ["create_program", "search_foods", "log_meal"]
+        let cards = ["create_program", "search_foods", "log_meal", "read_label"]
         XCTAssertEqual(Set(names(tools)), Set(CoachTools.Name.allCases.map(\.rawValue) + cards))
         XCTAssertEqual(names(tools).count, CoachTools.Name.allCases.count + cards.count)
         for tool in tools {

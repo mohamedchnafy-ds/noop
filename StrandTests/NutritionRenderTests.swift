@@ -109,6 +109,26 @@ final class NutritionRenderTests: XCTestCase {
         }
         try render(AnyView(cards), name: "6-coach-repas")
 
+        // Nutrition 4d: the product card the Coach makes from a label, and the scanner's two panels
+        // (mockups 8, 7 and 9), without the camera.
+        let skyr = MealPer100(kcal: 63, proteinG: 11, carbsG: 4, fatG: 0.2)
+        let product = CoachMealProposal(
+            name: "Skyr nature 0 %", eatenAt: at(10, 30), origin: .barcode,
+            lines: [.init(name: "Skyr nature 0 %", ciqualCode: nil, grams: 150, estimated: false, per100: skyr)],
+            mealId: nil, barcode: "3017620422003")
+        try render(AnyView(CoachMealCard(proposal: product, busy: false, onAdd: {}, onEdit: {})),
+                   name: "7-coach-etiquette")
+        let unknown = VStack(spacing: 24) {
+            BarcodeUnknownPanel(barcode: "3017620422003", canReadLabel: true, onPhoto: {}, onManual: {})
+            BarcodeUnknownPanel(barcode: "3017620422003", canReadLabel: false, onPhoto: {}, onManual: {})
+        }
+        try render(AnyView(unknown), name: "8-code-barres-inconnu")
+        let known = BarcodeProduct(barcode: "3017620422003", name: "Skyr nature 0 %", per100: skyr,
+                                   lastGrams: 150, lastEatenAt: at(10, 30))
+        try render(AnyView(BarcodeKnownPanel(product: known, grams: .constant(150), saving: false,
+                                             onReread: {}, onAdd: {})),
+                   name: "9-code-barres-connu")
+
         XCTAssertEqual(day.eaten.kcal, 1_495)
         XCTAssertEqual(day.balanceKcal, -605)
         XCTAssertEqual(plan.intakeKcal, 2_560)

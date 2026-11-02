@@ -28,6 +28,11 @@ enum NutritionFormat {
         (estimated ? "≈ " : "") + editable(grams) + " g"
     }
 
+    /// A total's grams: one decimal under 10 g ("0,3 g", "4,5 g"), whole above ("17 g").
+    static func totalGramsText(_ grams: Double) -> String {
+        grams < 10 ? editable(grams) + " g" : gramsUnit(Int(grams.rounded()))
+    }
+
     /// "1 844 kcal".
     static func kcalUnit(_ value: Int) -> String { whole(value) + " kcal" }
 
@@ -87,6 +92,24 @@ enum NutritionFormat {
     /// The protein / carbs / fat line of a meal: "P 22 · G 82 · L 11" in French.
     static func macroLine(_ n: MealNutrients) -> String {
         String(localized: "P \(grams(n.proteinG)) · C \(grams(n.carbsG)) · F \(grams(n.fatG))")
+    }
+
+    /// A food's values for 100 g, to one decimal: "63 kcal · P 11 · C 4 · F 0,2".
+    static func per100Line(_ p: MealPer100) -> String {
+        kcalUnit(Int(p.kcal.rounded())) + " · "
+            + String(localized: "P \(editable(p.proteinG)) · C \(editable(p.carbsG)) · F \(editable(p.fatG))")
+    }
+
+    /// "barcode 3017620422003".
+    static func barcodeLine(_ code: String) -> String {
+        String(localized: "barcode \(code)")
+    }
+
+    /// Under a product's portion: "= values for 100 g × 1,5 · no request sent".
+    static func portionFormula(_ grams: Double) -> String {
+        let ratio = (MealMath.tenth(grams) / 100)
+            .formatted(.number.precision(.fractionLength(0...3)).grouping(.never).locale(locale))
+        return String(localized: "= values for 100 g × \(ratio) · no request sent")
     }
 
     /// The meal's name, with the quantity when it is one food weighed: "Skyr nature · 150 g".

@@ -111,7 +111,8 @@ enum CoachTools {
     /// and Lab Book"), the same switch that gates its summary in the fiche.
     static func definitions(dataConsent: Bool, labBook: Bool) -> [[String: Any]] {
         // The cards: the session, and the meal with the Ciqual search it needs. None reads the user's data.
-        let cards = [CoachSessionProposal.definition, CoachMealProposal.searchDefinition, CoachMealProposal.logDefinition]
+        let cards = [CoachSessionProposal.definition, CoachMealProposal.searchDefinition, CoachMealProposal.logDefinition,
+                     CoachMealProposal.labelDefinition]
         guard dataConsent else { return cards }
         var tools: [[String: Any]] = [
             tool(.metricHistory,

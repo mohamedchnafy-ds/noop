@@ -39,6 +39,7 @@ jobs:
             -only-testing:StrandTests/LiftProgressRenderTests \
             -only-testing:StrandTests/NutritionRenderTests \
             -only-testing:StrandTests/MoreHubRenderTests \
+            -only-testing:StrandTests/TrainingRenderTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?

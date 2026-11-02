@@ -16,39 +16,69 @@ import WhoopStore
 // So the lifting figures are shown BESIDE Effort and never folded into it, matching the choice the
 // imported-lifting path already made (`strain: nil, // never a fabricated cardiovascular strain`).
 
+// Personal fork: this screen is now « Training » (mockup « NOOP – Entraînement et Plus »). It keeps the
+// Lift Log's programs, editor, import, session start and session detail, and adds the week plan
+// (`TrainingWeekPlan`, fixed days), a week strip and a month grid of what was planned and done (Lift Log
+// sessions in Effort blue, every other workout in orange), the Progression counts, and the other
+// activities (start one, intervals, live heart rate, all history).
+
 struct LiftLogView: View {
     @EnvironmentObject var repo: Repository
 
     /// Saved programs, most-recently-touched first. Loaded off the store on appear/refresh.
     @State private var programs: [LiftProgramRow] = []
+    /// The same programs as the Training screen shows them (shape, usual length, last done, blocks).
+    @State private var summaries: [TrainingProgramSummary] = []
     @State private var loaded = false
 
     /// The program being created or edited (nil = the editor is closed).
     @State private var editing: ProgramEditTarget?
     @State private var importing = false
+    @State private var planning = false
     /// The live session, owned at the app root so it survives this screen going away.
     @EnvironmentObject private var session: LiftSessionController
-    /// Recent finished sessions, newest first.
-    @State private var history: [LiftSessionRow] = []
+    /// Lift Log sessions done (finished, with a working set) and every other workout, over the history.
+    @State private var lifts: [TrainingLiftDone] = []
+    @State private var activities: [TrainingActivityDone] = []
+    /// The stored rows of the sessions done, for their detail sheet.
+    @State private var sessionsById: [String: LiftSessionRow] = [:]
     /// Every finished session, judged: the Progression card and the screens it opens (personal fork).
     @State private var progress = LiftProgressData()
     /// The session whose detail sheet is open.
     @State private var viewing: SessionDetailTarget?
+    /// The week plan, kept on the iPhone.
+    @State private var plan = TrainingWeekPlan()
+    @State private var mode: TrainingViewMode = .week
+    /// The chosen day; the week and the month shown are the ones holding it.
+    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
+    private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
+
+    /// How far back the calendar reads (sessions, workouts).
+    private static let historyDays = 400
+    private var calendar: Calendar { .current }
 
     var body: some View {
-        ScreenScaffold(
-            title: "Lift Log",
-            subtitle: "Build a program once, then tap through it at the gym. Kept on \(Platform.deviceNounPhrase).",
-            onRefresh: { await load() }
-        ) {
+        ScreenScaffold(title: nil, onRefresh: { await load() }) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
-                headerCard
-                programsSection
-                LiftProgressCard(data: progress, unitSystem: unitSystem)
-                historySection
+                header
+                if mode == .week { weekSection } else { monthSection }
+                daySection
+                TrainingProgramsCard(programs: summaries, plan: plan, weekdays: TrainingText.shortWeekdays(calendar),
+                                     loaded: loaded,
+                                     onEdit: { id in
+                                         editing = ProgramEditTarget(id: id, program: programs.first { $0.id == id })
+                                     },
+                                     onNew: { editing = ProgramEditTarget(id: "new", program: nil) },
+                                     onImport: { importing = true },
+                                     onPlan: { planning = true })
+                TrainingProgressSummaryCard(data: progress) {
+                    LiftProgressView(data: progress, unitSystem: unitSystem)
+                }
+                otherActivities
             }
         }
         // Also on a saved session: the session sheet lives above this screen and cannot tell it
@@ -65,119 +95,176 @@ struct LiftLogView: View {
         .sheet(item: $viewing) { target in
             LiftSessionDetailSheet(session: target.session) { await load() }
         }
+        .sheet(isPresented: $planning) {
+            TrainingPlanSheet(programs: summaries, plan: plan) { saved in
+                var next = saved
+                if next.since == nil {
+                    next.since = TrainingCalendar.trainingDayKey(Date(), calendar: calendar)
+                }
+                next.storeWeekPlan()
+                plan = next
+            }
+        }
     }
 
     // MARK: - Header
 
-    private var headerCard: some View {
-        NoopCard(tint: StrandPalette.effortColor) {
-            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-                HStack(spacing: NoopMetrics.rowSpacing) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(StrandPalette.effortColor)
-                        .frame(width: 30, height: 30)
-                        .background(StrandPalette.effortColor.opacity(0.14),
-                                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Your log book")
-                            .font(StrandFont.headline)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                        Text("Programs, sessions and per-set history")
-                            .font(StrandFont.caption)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                Text("Lifting adds volume and set counts. It never changes your Effort, which stays measured from heart rate.")
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    // MARK: - Programs
-
-    private var programsSection: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Programs", overline: "Saved")
-
-            if !loaded {
-                ComingSoon(what: "Reading your programs…", symbol: "dumbbell")
-            } else if programs.isEmpty {
-                emptyState
-            } else {
-                ForEach(programs, id: \.id) { program in
-                    programRow(program)
-                }
-            }
-
-            HStack(spacing: NoopMetrics.rowSpacing) {
-                Button {
-                    editing = ProgramEditTarget(id: "new", program: nil)
-                } label: {
-                    Label("New program", systemImage: "plus")
-                }
-                .buttonStyle(NoopButtonStyle(.secondary))
-
-                // Filling a dozen exercise lines by hand on a phone is the most tedious thing in the
-                // feature; a spreadsheet on a computer does it in a couple of minutes.
-                Button {
-                    importing = true
-                } label: {
-                    Label("Import", systemImage: "tablecells")
-                }
-                .buttonStyle(NoopButtonStyle(.secondary))
-            }
-        }
-    }
-
-    private var emptyState: some View {
-        NoopCard {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("No programs yet")
-                    .font(StrandFont.headline)
+    /// The title, the week or month shown, and the Week | Month switch.
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Training")
+                    .font(StrandFont.rounded(28))
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("A program is a name and an ordered list of exercises with your targets — working sets, reps, weight, rest and your own technique note.")
-                    .font(StrandFont.footnote)
+                Text(verbatim: mode == .week
+                     ? TrainingText.weekTitle(monday: TrainingCalendar.mondayOf(selectedDate, calendar: calendar),
+                                              calendar: calendar)
+                     : TrainingText.monthTitle(selectedDate))
+                    .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            TrainingModeSwitch(mode: $mode)
+        }
+    }
+
+    // MARK: - Week and month
+
+    private func days(_ dates: [Date]) -> [TrainingDay] {
+        TrainingDays.buildTrainingDays(dates, plan: plan, lifts: lifts, activities: activities,
+                                       now: Date(), calendar: calendar)
+    }
+
+    private var weekSection: some View {
+        let monday = TrainingCalendar.mondayOf(selectedDate, calendar: calendar)
+        let week = days(TrainingCalendar.weekDates(from: monday, calendar: calendar))
+        let tally = TrainingDays.sessionTally(week)
+        let isCurrent = monday == TrainingCalendar.mondayOf(Date(), calendar: calendar)
+        return VStack(alignment: .leading, spacing: 10) {
+            TrainingPeriodBar(label: TrainingText.tallyLine(done: tally.done, planned: tally.planned,
+                                                            current: isCurrent ? String(localized: "This week") : nil),
+                              onPrevious: { shift(days: -7) }, onNext: { shift(days: 7) })
+            TrainingWeekStrip(days: week, selectedKey: key(selectedDate),
+                              weekdays: TrainingText.shortWeekdays(calendar)) { selectedDate = $0.date }
+            TrainingLegend()
+        }
+    }
+
+    private var monthSection: some View {
+        let cells = TrainingCalendar.monthCells(containing: selectedDate, calendar: calendar)
+        let monthDays = days(cells.compactMap { $0 })
+        let byKey = Dictionary(uniqueKeysWithValues: monthDays.map { ($0.key, $0) })
+        let tally = TrainingDays.sessionTally(monthDays)
+        let totals = TrainingDays.periodTotals(monthDays)
+        let isCurrent = TrainingCalendar.monthStart(selectedDate, calendar: calendar)
+            == TrainingCalendar.monthStart(Date(), calendar: calendar)
+        return VStack(alignment: .leading, spacing: 10) {
+            TrainingPeriodBar(label: TrainingText.tallyLine(done: tally.done, planned: tally.planned,
+                                                            current: isCurrent ? String(localized: "This month") : nil),
+                              onPrevious: { shift(months: -1) }, onNext: { shift(months: 1) })
+            NoopCard(padding: 10) {
+                VStack(alignment: .leading, spacing: 8) {
+                    TrainingMonthGrid(cells: cells.map { $0.flatMap { byKey[key($0)] } },
+                                      selectedKey: key(selectedDate),
+                                      weekdays: TrainingText.narrowWeekdays(calendar)) { selectedDate = $0.date }
+                    TrainingLegend().padding(.horizontal, 6)
+                }
+            }
+            TrainingMonthTotals(done: tally.done, planned: tally.planned,
+                                activities: totals.activities, minutes: totals.minutes)
+        }
+    }
+
+    // MARK: - The chosen day
+
+    private var daySection: some View {
+        let day = days([selectedDate]).first
+        let planned = day?.plannedProgramId.flatMap { id in summaries.first { $0.id == id } }
+        return Group {
+            if let day {
+                TrainingDaySection(day: day, planned: planned,
+                                   others: summaries.filter { $0.id != planned?.id },
+                                   isRunning: session.isActive,
+                                   onStart: { id in
+                                       guard let program = programs.first(where: { $0.id == id }) else { return }
+                                       Task { await start(program) }
+                                   },
+                                   onOpenLift: { lift in
+                                       if let row = sessionsById[lift.sessionId] {
+                                           viewing = SessionDetailTarget(id: row.id, session: row)
+                                       }
+                                   })
             }
         }
     }
 
-    private func programRow(_ program: LiftProgramRow) -> some View {
-        NoopCard {
-            HStack(spacing: NoopMetrics.gap) {
-                Button {
-                    editing = ProgramEditTarget(id: program.id, program: program)
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(program.name)
-                            .font(StrandFont.headline)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                        if let note = program.note, !note.isEmpty {
-                            Text(note)
-                                .font(StrandFont.caption)
-                                .foregroundStyle(StrandPalette.textSecondary)
-                                .lineLimit(3)
-                        }
-                        Text("Tap to edit")
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textTertiary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+    // MARK: - Other activities
 
-                Button(session.isActive ? "Running" : "Start") { Task { await start(program) } }
-                    .buttonStyle(.noopPrimary)
-                    .frame(maxWidth: 110)
-                    .accessibilityLabel("Start this program")
+    private var otherActivities: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Other activities").strandOverline()
+            NoopCard(padding: 0) {
+                VStack(spacing: 0) {
+                    TrainingStartActivityRow()
+                    NavigationLink {
+                        IntervalTimerView()
+                    } label: {
+                        TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
+                                                 symbol: "timer", tint: StrandPalette.metricRose)
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink {
+                        LiveView()
+                    } label: {
+                        TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
+                                                 symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart,
+                                                 showsDivider: false)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
             }
+            NavigationLink {
+                WorkoutsView()
+            } label: {
+                HStack {
+                    Text("All history")
+                        .font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Spacer(minLength: 8)
+                    Text("lifting and cardio")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Navigation in time
+
+    private func key(_ date: Date) -> String { TrainingCalendar.trainingDayKey(date, calendar: calendar) }
+
+    private func shift(days: Int) {
+        selectedDate = calendar.date(byAdding: .day, value: days, to: selectedDate) ?? selectedDate
+    }
+
+    /// Moves to the same day number of another month (clamped to its length), or today when that month
+    /// is the current one.
+    private func shift(months: Int) {
+        guard let moved = calendar.date(byAdding: .month, value: months, to: selectedDate) else { return }
+        if TrainingCalendar.monthStart(moved, calendar: calendar) == TrainingCalendar.monthStart(Date(), calendar: calendar) {
+            selectedDate = calendar.startOfDay(for: Date())
+        } else {
+            selectedDate = moved
         }
     }
 
@@ -219,66 +306,101 @@ struct LiftLogView: View {
         session.start(plan: plan, programId: program.id, programName: program.name)
     }
 
-    // MARK: - History
-
-    private var historySection: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sessions", overline: "Recent")
-            if history.isEmpty {
-                NoopCard {
-                    Text("Finished sessions land here, with every set you logged.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
-            } else {
-                ForEach(history, id: \.id) { session in
-                    Button {
-                        viewing = SessionDetailTarget(id: session.id, session: session)
-                    } label: {
-                        historyRow(session)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private func historyRow(_ session: LiftSessionRow) -> some View {
-        NoopCard {
-            HStack(spacing: NoopMetrics.gap) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(session.programName ?? String(localized: "Session"))
-                        .font(StrandFont.headline)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Text(Date(timeIntervalSince1970: TimeInterval(session.startTs))
-                            .formatted(date: .abbreviated, time: .shortened))
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-
     // MARK: - Load
 
     private func load() async {
         guard let store = await repo.storeHandle() else { return }
-        programs = (try? await store.liftPrograms(deviceId: repo.deviceId)) ?? []
+        let owner = repo.deviceId
+        let rows = (try? await store.liftPrograms(deviceId: owner)) ?? []
+        var itemsByProgram: [String: [LiftProgramItemRow]] = [:]
+        for program in rows {
+            itemsByProgram[program.id] = (try? await store.liftProgramItems(programId: program.id)) ?? []
+        }
 
+        // Sessions done: finished, with at least one working set (the rotation's rule).
         let now = Int(Date().timeIntervalSince1970)
-        history = ((try? await store.liftSessions(deviceId: repo.deviceId,
-                                                  fromTs: now - 180 * 86_400,
-                                                  toTs: now)) ?? [])
-            .filter { $0.endTs != nil }                 // an abandoned session is not history
-            .sorted { $0.startTs > $1.startTs }
+        let sessions = (try? await store.liftSessions(deviceId: owner,
+                                                      fromTs: now - Self.historyDays * 86_400,
+                                                      toTs: now + 86_400)) ?? []
+        var done: [(row: LiftSessionRow, working: Int)] = []
+        for row in sessions where row.endTs != nil {
+            let sets = (try? await store.liftSets(sessionId: row.id)) ?? []
+            let working = sets.filter(LiftRotation.isWorking).count
+            if working > 0 { done.append((row, working)) }
+        }
+
+        // Every workout but the sessions' own rows, so a Lift Log session is never counted twice.
+        let workouts = await repo.workoutRows(days: Self.historyDays + 1)
+        let split = TrainingDays.splitLiftWorkouts(workouts, liftStarts: done.map { $0.row.startTs })
+        let scale = effortScale
+        lifts = done.map { entry in
+            TrainingLiftDone(sessionId: entry.row.id, programId: entry.row.programId,
+                             name: entry.row.programName ?? String(localized: "Session"),
+                             startTs: entry.row.startTs, endTs: entry.row.endTs ?? entry.row.startTs,
+                             workingSets: entry.working,
+                             effort: split.lift[entry.row.startTs]?.strain.map { UnitFormatter.effortDisplay($0, scale: scale) })
+        }
+        activities = split.others.map { row in
+            TrainingActivityDone(sport: WorkoutSource.displaySport(row.sport),
+                                 source: Self.trainingSourceLabel(row.source),
+                                 startTs: row.startTs, endTs: row.endTs,
+                                 kcal: row.energyKcal.map { Int($0.rounded()) })
+        }
+        sessionsById = Dictionary(done.map { ($0.row.id, $0.row) }, uniquingKeysWith: { first, _ in first })
+
+        summaries = rows.map { program in
+            let finished = done.filter { $0.row.programId == program.id }
+                .compactMap { entry in entry.row.endTs.map { (startTs: entry.row.startTs, endTs: $0) } }
+            return TrainingDays.programSummary(id: program.id, name: program.name,
+                                               items: itemsByProgram[program.id] ?? [], finished: finished)
+        }
+        programs = rows
+        // A deleted program frees its day.
+        plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(rows.map(\.id)))
+
         let step = unitSystem == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg
         if let data = await LiftProgressData.load(repo: repo, stepKg: step) { progress = data }
         loaded = true
+    }
+
+    /// Where another activity comes from, in a word.
+    static func trainingSourceLabel(_ source: String) -> String {
+        switch WorkoutSource.classify(source) {
+        case .detected: return String(localized: "detected")
+        case .manual: return String(localized: "recorded")
+        case .apple: return String(localized: "Apple Health")
+        case .whoop: return "WHOOP"
+        case .lifting, .activityFile: return String(localized: "imported")
+        }
+    }
+}
+
+/// « Start an activity »: names a sport, then opens the live workout — the same flow as Workouts' Start
+/// workout (`WorkoutStartControl`). Its own view so only this row observes `AppModel`.
+private struct TrainingStartActivityRow: View {
+    @EnvironmentObject var model: AppModel
+    @State private var showLiveWorkout = false
+    @State private var showStartSport = false
+
+    var body: some View {
+        Button {
+            if model.activeWorkout == nil { showStartSport = true } else { showLiveWorkout = true }
+        } label: {
+            TrainingActivityRowLabel(title: "Start an activity",
+                                     detail: "Run, ride, walk… with the strap's heart rate",
+                                     symbol: "figure.run", tint: StrandPalette.metricRose)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showLiveWorkout) {
+            LiveWorkoutView(onClose: { showLiveWorkout = false })
+                .environmentObject(model.live)
+        }
+        .workoutSelectionCover(isPresented: $showStartSport) {
+            StartWorkoutSheet { name in
+                model.startWorkout(sport: name)
+                showLiveWorkout = true
+            }
+        }
     }
 }
 

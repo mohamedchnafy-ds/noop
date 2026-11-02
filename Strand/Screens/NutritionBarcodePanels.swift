@@ -29,17 +29,20 @@ struct BarcodePanel<Content: View>: View {
     }
 }
 
-/// While the camera looks for a barcode.
+/// While the camera looks for a barcode, and while Open Food Facts is asked for one (`searching`).
 struct BarcodeLookingPanel: View {
+    var searching = false
     let onManual: () -> Void
 
     var body: some View {
         BarcodePanel {
             VStack(alignment: .leading, spacing: NoopMetrics.space4) {
-                Text("Point the camera at the barcode")
+                (searching ? Text("Searching Open Food Facts…") : Text("Point the camera at the barcode"))
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("A product you have already added is recognised on your iPhone, without a network.")
+                (searching
+                    ? Text("Only the barcode is sent. A product you have already added is recognised on your iPhone, without a network.")
+                    : Text("A product you have already added is recognised on your iPhone, without a network."))
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -54,6 +57,8 @@ struct BarcodeUnknownPanel: View {
     let barcode: String
     /// The Coach is on, connected, and reads photos (Anthropic).
     let canReadLabel: Bool
+    /// What Open Food Facts said, when it was asked: not found, or not reachable.
+    var miss: OpenFoodFacts.Lookup? = nil
     let onPhoto: () -> Void
     let onManual: () -> Void
 
@@ -78,6 +83,13 @@ struct BarcodeUnknownPanel: View {
                             .font(StrandFont.footnote.monospacedDigit())
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
+                }
+                if let missText {
+                    missText
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, NoopMetrics.space3)
                 }
                 Group {
                     if canReadLabel {
@@ -116,6 +128,15 @@ struct BarcodeUnknownPanel: View {
         }
     }
 
+    /// One line on why Open Food Facts did not give the product.
+    private var missText: Text? {
+        switch miss {
+        case .notFound?: return Text("Open Food Facts does not have this product (or not its values for 100 g).")
+        case .unreachable?: return Text("Open Food Facts could not be reached (no network?).")
+        case .found?, nil: return nil
+        }
+    }
+
     private func barcodeNote(symbol: String, text: LocalizedStringKey) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space2) {
             Image(systemName: symbol)
@@ -150,13 +171,17 @@ struct BarcodeKnownPanel: View {
                             .font(StrandFont.headline)
                             .foregroundStyle(StrandPalette.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("label read by the Coach · on your iPhone")
+                        (product.source == .openFoodFacts
+                            ? Text("Open Food Facts (ODbL) · check the values before adding")
+                            : Text("already in your journal · on your iPhone"))
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
                     Spacer(minLength: 0)
                     if let onReread {
-                        Button("Read the label again", action: onReread)
+                        Button(action: onReread) {
+                            product.source == .openFoodFacts ? Text("Read the label") : Text("Read the label again")
+                        }
                             .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.accent)
                             .buttonStyle(.plain)
@@ -188,7 +213,8 @@ struct BarcodeKnownPanel: View {
                     .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(StrandPalette.hairline, lineWidth: NoopMetrics.hairlineWidth))
                     .padding(.top, NoopMetrics.space3)
-                Text(verbatim: NutritionFormat.portionFormula(grams))
+                Text(verbatim: product.source == .openFoodFacts ? NutritionFormat.portionRatio(grams)
+                                                                : NutritionFormat.portionFormula(grams))
                     .font(StrandFont.caption.monospacedDigit())
                     .foregroundStyle(StrandPalette.textSecondary)
                     .padding(.top, NoopMetrics.space1)

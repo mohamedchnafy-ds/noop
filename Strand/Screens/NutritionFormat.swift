@@ -107,9 +107,18 @@ enum NutritionFormat {
 
     /// Under a product's portion: "= values for 100 g × 1,5 · no request sent".
     static func portionFormula(_ grams: Double) -> String {
-        let ratio = (MealMath.tenth(grams) / 100)
+        String(localized: "= values for 100 g × \(portionFactor(grams)) · no request sent")
+    }
+
+    /// Under a product found on Open Food Facts: "= values for 100 g × 1,5".
+    static func portionRatio(_ grams: Double) -> String {
+        String(localized: "= values for 100 g × \(portionFactor(grams))")
+    }
+
+    /// The portion as a multiple of 100 g, up to three decimals ("1,5").
+    static func portionFactor(_ grams: Double) -> String {
+        (MealMath.tenth(grams) / 100)
             .formatted(.number.precision(.fractionLength(0...3)).grouping(.never).locale(locale))
-        return String(localized: "= values for 100 g × \(ratio) · no request sent")
     }
 
     /// The meal's name, with the quantity when it is one food weighed: "Skyr nature · 150 g".

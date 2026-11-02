@@ -30,7 +30,10 @@ struct NutritionBarcodeScanner: View {
         case looking
         /// A barcode was read; the journal is being searched.
         case reading(String)
-        case unknown(String)
+        /// Not in the journal: Open Food Facts is being asked.
+        case searching(String)
+        /// Neither in the journal nor usable from Open Food Facts (`miss` says which; nil when not asked).
+        case unknown(String, miss: OpenFoodFacts.Lookup?)
         case known(BarcodeProduct)
     }
 
@@ -118,7 +121,9 @@ struct NutritionBarcodeScanner: View {
         switch phase {
         case .looking: return "Looking for a barcode"
         case .reading, .unknown: return "Barcode read"
-        case .known: return "Product recognised · no network"
+        case .searching: return "Searching Open Food Facts…"
+        case .known(let product):
+            return product.source == .openFoodFacts ? "Found on Open Food Facts" : "Product recognised · no network"
         }
     }
 
@@ -140,8 +145,10 @@ struct NutritionBarcodeScanner: View {
         switch phase {
         case .looking, .reading:
             BarcodeLookingPanel(onManual: onManual)
-        case .unknown(let code):
-            BarcodeUnknownPanel(barcode: code, canReadLabel: canReadLabel,
+        case .searching:
+            BarcodeLookingPanel(searching: true, onManual: onManual)
+        case .unknown(let code, let miss):
+            BarcodeUnknownPanel(barcode: code, canReadLabel: canReadLabel, miss: miss,
                                 onPhoto: { showLabelCamera = true }, onManual: onManual)
         case .known(let product):
             BarcodeKnownPanel(product: product, grams: $grams, saving: saving,
@@ -155,7 +162,7 @@ struct NutritionBarcodeScanner: View {
     private var currentBarcode: String? {
         switch phase {
         case .looking: return nil
-        case .reading(let code), .unknown(let code): return code
+        case .reading(let code), .searching(let code), .unknown(let code, _): return code
         case .known(let product): return product.barcode
         }
     }
@@ -166,7 +173,8 @@ struct NutritionBarcodeScanner: View {
         cameraAccess = granted ? .authorized : .denied
     }
 
-    /// A barcode in front of the camera: look it up in the journal, on the device.
+    /// A barcode in front of the camera: look it up in the journal, on the device, then (setting on) on
+    /// Open Food Facts, sending only the barcode.
     private func found(_ raw: String) {
         guard phase == .looking, let code = BarcodeCatalog.normalizedBarcode(raw) else { return }
         phase = .reading(code)
@@ -183,8 +191,20 @@ struct NutritionBarcodeScanner: View {
             if let product {
                 grams = BarcodeCatalog.startingGrams(product)
                 phase = .known(product)
+                return
+            }
+            guard OpenFoodFacts.isEnabled else {
+                phase = .unknown(code, miss: nil)
+                return
+            }
+            phase = .searching(code)
+            let lookup = await OpenFoodFacts.lookupProduct(barcode: code)
+            guard phase == .searching(code) else { return }
+            if case .found(let online) = lookup {
+                grams = BarcodeCatalog.startingGrams(online)
+                phase = .known(online)
             } else {
-                phase = .unknown(code)
+                phase = .unknown(code, miss: lookup)
             }
         }
     }

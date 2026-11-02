@@ -3,21 +3,28 @@ import WhoopStore
 
 // Personal fork, Nutrition 4d: packaged products, known by their barcode.
 //
-// No product database is queried (docs/SCOPE.md allows no such request): the first time a barcode is
-// scanned, the Coach reads the product's nutrition label from a photo (`read_label`), and the meal the
-// wearer adds keeps the product's values for 100 g on its line, with `foodRef = "ean:<code>"`. The next
-// scan finds that line in the journal, on the iPhone, with no request at all. No table of its own.
+// The first time a barcode is scanned, Open Food Facts is asked for it (`OpenFoodFacts`, 2 Nov 2026; only
+// the barcode is sent, and the setting can turn it off); when it has no usable product, or there is no
+// network, the Coach reads the product's nutrition label from a photo (`read_label`). The meal the wearer
+// adds keeps the product's values for 100 g on its line, with `foodRef = "ean:<code>"`. The next scan finds
+// that line in the journal, on the iPhone, with no request at all. No table of its own.
 
 /// A product the journal already holds: its last line with that barcode.
 struct BarcodeProduct: Equatable {
     let barcode: String
     let name: String
-    /// Values for 100 g, as read from the label.
+    /// Values for 100 g, as read from the label or given by Open Food Facts.
     let per100: MealPer100
     /// The quantity added last time, when it was weighed.
     let lastGrams: Double?
     /// Unix seconds of the meal it was last added with.
     let lastEatenAt: Int
+    /// Where the values come from: the journal (on the iPhone) or Open Food Facts (to check before adding).
+    var source: Source = .journal
+
+    enum Source: Equatable {
+        case journal, openFoodFacts
+    }
 }
 
 enum BarcodeCatalog {

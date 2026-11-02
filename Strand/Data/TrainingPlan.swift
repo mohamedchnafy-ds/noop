@@ -252,16 +252,14 @@ enum TrainingDays {
         let lines = items.sorted { $0.ord < $1.ord }
         let labels = lines.map(\.supersetGroup)
         let shape = LiftRotation.shape(labels: labels)
+        // A superset reads "A1 Squat · A2 Row" with the tags the session screens use (`LiftSuperset.tag`:
+        // the superset's position among the program's supersets, whatever its stored label).
         let blocks = LiftSuperset.blocks(labels).map { range -> TrainingBlockPreview in
-            let block = Array(lines[range])
-            let text: String
-            if block.count > 1, let label = LiftSuperset.normalizedLabel(block[0].supersetGroup) {
-                text = block.enumerated().map { "\(label)\($0.offset + 1) \($0.element.exercise)" }
-                    .joined(separator: " · ")
-            } else {
-                text = block.map(\.exercise).joined(separator: " · ")
-            }
-            return TrainingBlockPreview(text: text, sets: block.first?.targetSets)
+            let text = range.map { index in
+                [LiftSuperset.tag(of: index, in: labels), lines[index].exercise]
+                    .compactMap { $0 }.joined(separator: " ")
+            }.joined(separator: " · ")
+            return TrainingBlockPreview(text: text, sets: lines[range.lowerBound].targetSets)
         }
         return TrainingProgramSummary(
             id: id, name: name, supersets: shape.supersets, singles: shape.singles,

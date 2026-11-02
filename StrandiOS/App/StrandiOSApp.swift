@@ -271,6 +271,9 @@ struct StrandiOSApp: App {
                 .onReceive(liftSession.changesSettled) { _ in pushLiftActivity() }
                 // A strap double-tap lights the Lock Screen on the step it took.
                 .onReceive(liftSession.strapStepTaken) { _ in pushLiftActivity(alert: true) }
+                // The day widgets follow a meal, the week plan and a saved session at once (personal fork).
+                .modifier(DayWidgetsRefreshHooks(model: model,
+                                                 savedSessions: liftSession.$savedSessions.eraseToAnyPublisher()))
                 // #911/#759: republish the Home/Lock-Screen widget whenever the dashboard caches actually
                 // change mid-session. The only other publish site is the scenePhase .active handler, so
                 // during a long foreground session the widget froze at the last-foreground snapshot while
@@ -334,6 +337,9 @@ struct StrandiOSApp: App {
                 .onOpenURL { url in
                     if url.host == "import-health" {
                         model.handleHealthImportURL(url)
+                    } else if let link = DayWidgetsSnapshot.Link(url: url) {
+                        // A day widget's tap (personal fork): the screen it summarises.
+                        router.openWidgetRoute(DayWidgetsContent.widgetRoute(link))
                     }
                 }
                 .alert("Import Apple Health data?", isPresented: healthImportAlertPresented) {

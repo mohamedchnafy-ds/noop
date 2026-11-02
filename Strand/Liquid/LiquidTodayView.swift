@@ -1822,87 +1822,13 @@ struct LiquidTodayView: View {
         return TodayEnergy.defaultGoal(activityByDay: activity)
     }
 
-    /// Today's session from the Lift Log: the one running or done that day, else (today only) the program
-    /// the week plan sets for today (personal fork, Training) — or rest —, and without a plan the next
-    /// program of the rotation; with its blocks and its usual length.
+    /// Today's session from the Lift Log, resolved by `TodaySessionResolver` — the funnel the "Today's
+    /// session" widget reads too (personal fork, chantier 6).
     private func loadTodaySession(calendarFrom: Int, calendarTo: Int, isToday: Bool) async {
-        guard let store = await repo.storeHandle() else {
-            todaySession = nil
-            hasLiftPrograms = false
-            return
-        }
-        let owner = repo.deviceId
-        let programs = (try? await store.liftPrograms(deviceId: owner)) ?? []
-        var itemsByProgram: [String: [LiftProgramItemRow]] = [:]
-        for program in programs {
-            itemsByProgram[program.id] = (try? await store.liftProgramItems(programId: program.id)) ?? []
-        }
-        let withItems = programs.filter { !(itemsByProgram[$0.id] ?? []).isEmpty }
-        hasLiftPrograms = !programs.isEmpty
-        let lookbackFrom = calendarTo - CoachLiftContext.lookbackDays * 86_400
-        let rows = (try? await store.liftSessions(deviceId: owner, fromTs: lookbackFrom, toTs: calendarTo)) ?? []
-        var performed: [LiftSessionRow] = []
-        for row in rows {
-            let sets = (try? await store.liftSets(sessionId: row.id)) ?? []
-            if sets.contains(where: LiftRotation.isWorking) { performed.append(row) }
-        }
-        func shape(_ programId: String?) -> (supersets: Int, singles: Int) {
-            LiftRotation.shape(labels: (programId.flatMap { itemsByProgram[$0] } ?? []).map(\.supersetGroup))
-        }
-        // A session's length is its own workout row's, pauses left out — the rule the Training calendar
-        // and the Workouts list read (`TrainingDays.liftSessionSeconds`).
-        let lookbackDays = max(1, (Int(Date().timeIntervalSince1970) - lookbackFrom) / 86_400 + 1)
-        let recentWorkouts = await repo.workoutRows(days: lookbackDays)
-        let liftWorkouts = TrainingDays.splitLiftWorkouts(recentWorkouts, liftStarts: performed.map(\.startTs)).lift
-        func length(_ row: LiftSessionRow, end: Int) -> Int {
-            TrainingDays.liftSessionSeconds(startTs: row.startTs, endTs: end, workout: liftWorkouts[row.startTs])
-        }
-        let ofDay = rows.filter { $0.startTs >= calendarFrom && $0.startTs < calendarTo }
-        if let running = ofDay.first(where: { $0.endTs == nil }), isToday {
-            let s = shape(running.programId)
-            todaySession = .init(name: running.programName ?? String(localized: "Session"), state: .running,
-                                 supersets: s.supersets, singles: s.singles, typicalMinutes: nil)
-            return
-        }
-        if let done = ofDay.first(where: { row in performed.contains { $0.id == row.id } }) {
-            let s = shape(done.programId)
-            let minutes = done.endTs.map { length(done, end: $0) / 60 }
-            todaySession = .init(name: done.programName ?? String(localized: "Session"),
-                                 state: .done(minutes: minutes), supersets: s.supersets, singles: s.singles,
-                                 typicalMinutes: nil)
-            return
-        }
-        guard isToday else {
-            todaySession = nil
-            return
-        }
-        // The week plan decides when it has a say about today (`TrainingWeekPlan.planDecision`, the
-        // resolver the Training calendar reads); a deleted or empty program frees its day.
-        let plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(withItems.map(\.id)))
-        let planned = plan.planDecision(for: Date(timeIntervalSince1970: TimeInterval(calendarFrom)),
-                                        calendar: .current)
-        let nextId: String?
-        switch planned {
-        case .rest:
-            todaySession = .init(name: String(localized: "Rest"), state: .rest, supersets: 0, singles: 0,
-                                 typicalMinutes: nil)
-            return
-        case .program(let id):
-            nextId = id
-        case nil:
-            nextId = LiftRotation.next(
-                programIds: withItems.map(\.id),
-                lastDone: LiftRotation.lastDone(performed.map { (programId: $0.programId, startTs: $0.startTs) }))
-        }
-        guard let nextId, let next = withItems.first(where: { $0.id == nextId }) else {
-            todaySession = nil
-            return
-        }
-        let s = shape(next.id)
-        let finished = performed.filter { $0.programId == next.id }
-            .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: row.startTs + length(row, end: $0)) } }
-        todaySession = .init(name: next.name, state: .next, supersets: s.supersets, singles: s.singles,
-                             typicalMinutes: LiftRotation.typicalMinutes(finished))
+        let resolved = await TodaySessionResolver.resolveTodaySession(repo: repo, calendarFrom: calendarFrom,
+                                                                       calendarTo: calendarTo, isToday: isToday)
+        todaySession = resolved?.session
+        hasLiftPrograms = resolved?.hasPrograms ?? false
     }
 
     /// Re-reads today's logical day key; a change (midnight, or the 04:00 roll in sleep mode) reloads.

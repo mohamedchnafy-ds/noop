@@ -88,6 +88,13 @@ final class NavRouter: ObservableObject {
     /// directly today; this route exists for deep-link parity so a future shell/inbox item can raise it
     /// the same way as every other destination.
     func openLiveSession() { requestedDestination = .liveSession }
+    /// A screen a day widget's tap asked for (personal fork, chantier 6): Training, Nutrition or Sleep. The iOS
+    /// shell opens it on Today's stack (Sleep as its tab), then clears it.
+    @Published var widgetRoute: TabRoute?
+
+    /// Open the screen a day widget summarises.
+    func openWidgetRoute(_ route: TabRoute) { widgetRoute = route }
+
     /// A journal day-offset (daysBack; -1 = Tomorrow) the Today journal widget deep-linked to, so tapping
     /// a SPECIFIC day's bar opens the journal at THAT day instead of always today (#656). InsightsView
     /// consumes it on appear and clears it back to nil. nil = open at today (the default).

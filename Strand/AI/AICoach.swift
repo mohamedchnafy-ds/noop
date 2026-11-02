@@ -1493,6 +1493,9 @@ final class AICoachEngine: ObservableObject {
         // The Lift Log's own verdict per exercise, after the sets it is drawn from.
         let progression = CoachFiche.progression(fiche)
         if !progression.isEmpty { ctx += "\n\n" + progression }
+        // The Training week plan (personal fork), when one is set.
+        let weekPlan = await trainingWeekPlanBlock()
+        if !weekPlan.isEmpty { ctx += "\n\n" + weekPlan }
         // The recent days' naps (personal fork): the day lines carry the main night only.
         let naps = await napsBlock()
         if !naps.isEmpty { ctx += "\n\n" + naps }
@@ -1624,6 +1627,36 @@ final class AICoachEngine: ObservableObject {
         let mainByDay = Dictionary(repo.days.compactMap { d in d.totalSleepMin.map { (d.day, $0) } },
                                    uniquingKeysWith: { _, last in last })
         return CoachNapContext.summary(naps: naps, mainSleepMinByDay: mainByDay, zone: .current)
+    }
+
+    /// The Training week plan for the context (`CoachFiche.weekPlanText`): this week's days built by the
+    /// calendar's own resolver, from the Lift Log sessions done (finished, with a working set). "" without
+    /// a plan or a store.
+    func trainingWeekPlanBlock() async -> String {
+        guard let store = await repo.storeHandle() else { return "" }
+        let programs = (try? await store.liftPrograms(deviceId: repo.deviceId)) ?? []
+        let plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(programs.map(\.id)))
+        guard !plan.isEmpty else { return "" }
+        let calendar = Calendar.current
+        let now = Date()
+        let monday = TrainingCalendar.mondayOf(now, calendar: calendar)
+        let rows = (try? await store.liftSessions(deviceId: repo.deviceId,
+                                                  fromTs: Int(monday.timeIntervalSince1970),
+                                                  toTs: Int(now.timeIntervalSince1970) + 86_400)) ?? []
+        var lifts: [TrainingLiftDone] = []
+        for row in rows {
+            guard let end = row.endTs else { continue }
+            let working = ((try? await store.liftSets(sessionId: row.id)) ?? []).filter(LiftRotation.isWorking).count
+            guard working > 0 else { continue }
+            lifts.append(TrainingLiftDone(sessionId: row.id, programId: row.programId,
+                                          name: row.programName ?? "Session", startTs: row.startTs, endTs: end,
+                                          workingSets: working, effort: nil))
+        }
+        let week = TrainingDays.buildTrainingDays(TrainingCalendar.weekDates(from: monday, calendar: calendar),
+                                                  plan: plan, lifts: lifts, activities: [], now: now,
+                                                  calendar: calendar)
+        let names = Dictionary(programs.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        return CoachFiche.weekPlanText(plan, programNames: names, week: week)
     }
 
     /// The Lift Log block for the context (`CoachLiftContext`): the last few weeks of sessions with

@@ -52,6 +52,14 @@ final class TrainingPlanTests: XCTestCase {
         XCTAssertTrue(plan.appliesToDay("2020-01-01"))
     }
 
+    func testPlanDecisionIsTheProgramRestOrNothingBeforeThePlan() {
+        let plan = TrainingWeekPlan(programs: ["1": "A", "3": "B"], since: "2026-11-02")
+        XCTAssertEqual(plan.planDecision(for: date(2, 9), calendar: calendar), .program("A"))
+        XCTAssertEqual(plan.planDecision(for: date(3, 9), calendar: calendar), .rest)
+        XCTAssertNil(plan.planDecision(for: date(28, 9, month: 10), calendar: calendar))  // before the plan
+        XCTAssertNil(TrainingWeekPlan().planDecision(for: date(2, 9), calendar: calendar)) // no plan
+    }
+
     // MARK: - Calendar
 
     func testIsoWeekdayAndMondayWhateverTheFirstWeekday() {
@@ -120,6 +128,21 @@ final class TrainingPlanTests: XCTestCase {
         XCTAssertNil(days[0].plannedProgramId)
         XCTAssertFalse(days[0].isMissed)
         XCTAssertEqual(days[1].plannedProgramId, "A")
+    }
+
+    func testCoachWeekPlanTextNamesTheDaysTheCountMissedAndToday() {
+        let plan = TrainingWeekPlan(programs: ["1": "A", "3": "B", "5": "C"], since: "2026-11-02")
+        let week = TrainingDays.buildTrainingDays(TrainingCalendar.weekDates(from: date(2), calendar: calendar),
+                                                  plan: plan, lifts: [lift(3, 18, program: "B")],
+                                                  activities: [], now: date(4, 10), calendar: calendar)
+        let text = CoachFiche.weekPlanText(plan, programNames: ["A": "Full body A", "B": "Full body B", "C": "Full body C"],
+                                           week: week)
+        XCTAssertTrue(text.hasPrefix("WEEK PLAN"), text)
+        XCTAssertTrue(text.contains("Monday: Full body A; Wednesday: Full body B; Friday: Full body C"), text)
+        XCTAssertTrue(text.contains("1 Lift Log session done for 3 planned"), text)
+        XCTAssertTrue(text.contains("Missed so far: Monday (Full body A)"), text)
+        XCTAssertTrue(text.contains("Today (Wednesday): Full body B planned, not done yet"), text)
+        XCTAssertEqual(CoachFiche.weekPlanText(TrainingWeekPlan(), programNames: [:], week: week), "")
     }
 
     // MARK: - Workouts

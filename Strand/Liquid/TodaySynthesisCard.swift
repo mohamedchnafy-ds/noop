@@ -102,6 +102,8 @@ enum TodaySynthesisLogic {
             case next
             case running
             case done(minutes: Int?)
+            /// The week plan (personal fork, Training) has no session today.
+            case rest
         }
 
         var name: String
@@ -139,6 +141,8 @@ enum TodaySynthesisLogic {
             subtitle = String(localized: "in progress")
         case .done(let minutes):
             subtitle = minutes.map { String(localized: "done · \($0) min") } ?? String(localized: "done")
+        case .rest:
+            subtitle = String(localized: "rest day in your plan")
         case .next:
             var parts: [String] = []
             if session.supersets > 0 {

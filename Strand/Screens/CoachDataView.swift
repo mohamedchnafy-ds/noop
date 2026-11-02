@@ -133,7 +133,7 @@ struct CoachDataView: View {
     @ViewBuilder
     private var trainingRows: some View {
         CoachDataRow(symbol: "dumbbell.fill", tint: StrandPalette.effortColor, title: "Lift Log",
-                     detail: String(localized: "8 weeks of sets, programs, Progression statuses"))
+                     detail: String(localized: "8 weeks of sets, programs, Progression statuses, week plan"))
         divider
         CoachDataRow(symbol: "figure.run", tint: StrandPalette.metricAmber, title: "Workouts",
                      detail: String(localized: "The last 6 in 30 days: sport, duration, heart rate, calories"))

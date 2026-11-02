@@ -1824,8 +1824,9 @@ struct LiquidTodayView: View {
         return TodayEnergy.defaultGoal(activityByDay: activity)
     }
 
-    /// Today's session from the Lift Log: the one running or done that day, else (today only) the next
-    /// program of the rotation, with its blocks and its usual length.
+    /// Today's session from the Lift Log: the one running or done that day, else (today only) the program
+    /// the week plan sets for today (personal fork, Training) — or rest —, and without a plan the next
+    /// program of the rotation; with its blocks and its usual length.
     private func loadTodaySession(calendarFrom: Int, calendarTo: Int, isToday: Bool) async {
         guard let store = await repo.storeHandle() else {
             todaySession = nil
@@ -1865,11 +1866,29 @@ struct LiquidTodayView: View {
                                  typicalMinutes: nil)
             return
         }
-        guard isToday,
-              let nextId = LiftRotation.next(
+        guard isToday else {
+            todaySession = nil
+            return
+        }
+        // The week plan decides when it has a say about today (`TrainingWeekPlan.planDecision`, the
+        // resolver the Training calendar reads); a deleted or empty program frees its day.
+        let plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(withItems.map(\.id)))
+        let planned = plan.planDecision(for: Date(timeIntervalSince1970: TimeInterval(calendarFrom)),
+                                        calendar: .current)
+        let nextId: String?
+        switch planned {
+        case .rest:
+            todaySession = .init(name: String(localized: "Rest"), state: .rest, supersets: 0, singles: 0,
+                                 typicalMinutes: nil)
+            return
+        case .program(let id):
+            nextId = id
+        case nil:
+            nextId = LiftRotation.next(
                 programIds: withItems.map(\.id),
-                lastDone: LiftRotation.lastDone(performed.map { (programId: $0.programId, startTs: $0.startTs) })),
-              let next = withItems.first(where: { $0.id == nextId }) else {
+                lastDone: LiftRotation.lastDone(performed.map { (programId: $0.programId, startTs: $0.startTs) }))
+        }
+        guard let nextId, let next = withItems.first(where: { $0.id == nextId }) else {
             todaySession = nil
             return
         }

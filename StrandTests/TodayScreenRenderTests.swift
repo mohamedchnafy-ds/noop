@@ -95,13 +95,14 @@ final class TodayScreenRenderTests: XCTestCase {
     private func liveCard() -> some View {
         let samples = liveSamples(alert: false)
         let values = samples.map(\.bpm)
+        let thresholds = TodayHRAlert.thresholds(usualNow: 71, awakeFloor: 58, restingHR: 62)
         return hrCard(mode: .live) {
             TodayHRCardBody(
                 tint: StrandPalette.liquidHeart, bpm: 75, showsBeat: true,
                 subtitle: String(localized: "Live · resting zone"),
-                chart: TodayHRCardLogic.liveChart(samples: samples, band: 62...71, alert: nil),
+                chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: nil),
                 lineWidth: 2.5, emptyText: "",
-                caption: [.init(text: String(localized: "rest \(62) → usual \(71)"))],
+                caption: TodayHRCardLogic.liveCaption(thresholds, crossed: nil),
                 stats: (values.min(), values.reduce(0, +) / Double(values.count), values.max()))
         }
     }
@@ -109,15 +110,59 @@ final class TodayScreenRenderTests: XCTestCase {
     private func alertCard() -> some View {
         let samples = liveSamples(alert: true)
         let values = samples.map(\.bpm)
+        let thresholds = TodayHRAlert.thresholds(usualNow: 71, awakeFloor: 58, restingHR: 62)
         let crossing = TodayHRAlert.Crossing(side: .high, threshold: 91, sinceTs: samples[samples.count - 1].ts - 240)
         return hrCard(mode: .live) {
             TodayHRCardBody(
-                tint: StrandPalette.statusWarning, bpm: 98, showsBeat: true,
-                subtitle: String(localized: "Higher than usual at rest · \(4) min"), subtitleIsWarning: true,
-                chart: TodayHRCardLogic.liveChart(samples: samples, band: 62...71, alert: crossing),
+                tint: TodayHRChartModel.sideColor(.high), bpm: 98, showsBeat: true,
+                subtitle: String(localized: "Higher than usual at rest · \(4) min"), subtitleSide: .high,
+                chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: crossing),
                 lineWidth: 2.5, emptyText: "",
-                caption: [.init(text: String(localized: "rest \(62) → usual \(71)")),
-                          .init(text: String(localized: "threshold \(91)"), isWarning: true)],
+                caption: TodayHRCardLogic.liveCaption(thresholds, crossed: .high),
+                stats: (values.min(), values.reduce(0, +) / Double(values.count), values.max()))
+        }
+    }
+
+    /// Below the low threshold while awake and still: the curve and the number turn green.
+    private func lowAlertCard() -> some View {
+        let now = dayStart + 10 * 3600
+        let samples = (0..<90).map { i -> (ts: Int, bpm: Double) in
+            let t = Double(i)
+            let fall: Double = 8 * (1 - exp(-t / 25))
+            let ripple: Double = 1.2 * sin(t / 5)
+            return (ts: now - 89 + i, bpm: 62 - fall + ripple)
+        }
+        let values = samples.map(\.bpm)
+        let thresholds = TodayHRAlert.thresholds(usualNow: 71, awakeFloor: 58, restingHR: 62)
+        let crossing = TodayHRAlert.Crossing(side: .low, threshold: 58, sinceTs: now - 200)
+        return hrCard(mode: .live) {
+            TodayHRCardBody(
+                tint: TodayHRChartModel.sideColor(.low), bpm: 54, showsBeat: true,
+                subtitle: String(localized: "Lower than usual while awake · \(3) min"), subtitleSide: .low,
+                chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: crossing),
+                lineWidth: 2.5, emptyText: "",
+                caption: TodayHRCardLogic.liveCaption(thresholds, crossed: .low),
+                stats: (values.min(), values.reduce(0, +) / Double(values.count), values.max()))
+        }
+    }
+
+    /// During calibration (fewer than three days of history): provisional thresholds from the resting rate.
+    private func provisionalCard() -> some View {
+        let now = dayStart + 10 * 3600
+        let samples = (0..<90).map { i -> (ts: Int, bpm: Double) in
+            let t = Double(i)
+            let wave: Double = 7 * sin(t / 11) + 2 * cos(t / 4)
+            return (ts: now - 89 + i, bpm: 81 + wave)
+        }
+        let values = samples.map(\.bpm)
+        let thresholds = TodayHRAlert.thresholds(usualNow: nil, awakeFloor: nil, restingHR: 62)
+        return hrCard(mode: .live) {
+            TodayHRCardBody(
+                tint: StrandPalette.liquidHeart, bpm: 86, showsBeat: true,
+                subtitle: String(localized: "Live · resting zone"),
+                chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: nil),
+                lineWidth: 2.5, emptyText: "",
+                caption: TodayHRCardLogic.liveCaption(thresholds, crossed: nil),
                 stats: (values.min(), values.reduce(0, +) / Double(values.count), values.max()))
         }
     }
@@ -271,6 +316,12 @@ final class TodayScreenRenderTests: XCTestCase {
         try render(alertCard()
             .padding(.horizontal, NoopMetrics.screenHPadding)
             .padding(.vertical, 24), height: nil, clipped: false, name: "4-fc-seuil")
+        try render(VStack(spacing: 16) {
+            lowAlertCard()
+            provisionalCard()
+        }
+        .padding(.horizontal, NoopMetrics.screenHPadding)
+        .padding(.vertical, 24), height: nil, clipped: false, name: "4b-fc-seuil-bas-et-provisoire")
 
         // The calories half-gauge in the morning, after a session and past its goal.
         try render(calorieStates()

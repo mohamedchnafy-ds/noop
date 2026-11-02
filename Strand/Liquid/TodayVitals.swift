@@ -193,11 +193,17 @@ enum TodayHRAlert {
     static let floorWindowDays = 14
     static let floorMinDays = 3
 
+    /// While calibrating (no usual rate for this time yet), the high threshold sits this far above the
+    /// resting rate instead; the low threshold falls back to the resting rate itself.
+    static let provisionalHighMarginBpm = 30.0
+
     enum Side: Equatable { case high, low }
 
     struct Thresholds: Equatable {
         let high: Double?
         let low: Double?
+        /// True when a side came from the resting-rate fallback (too little history yet).
+        var provisional: Bool = false
     }
 
     struct Crossing: Equatable {
@@ -208,9 +214,15 @@ enum TodayHRAlert {
         func minutes(now: Int) -> Int { max(0, now - sinceTs) / 60 }
     }
 
-    /// High = usual at this time + `highMarginBpm`; low = the awake floor.
-    static func thresholds(usualNow: Double?, awakeFloor: Double?) -> Thresholds {
-        Thresholds(high: usualNow.map { $0 + highMarginBpm }, low: awakeFloor)
+    /// High = usual at this time + `highMarginBpm`; low = the awake floor. Either side missing (fewer than
+    /// three days of history) falls back to the resting rate: high = rest + `provisionalHighMarginBpm`,
+    /// low = rest, marked provisional. A low at or above the high is dropped.
+    static func thresholds(usualNow: Double?, awakeFloor: Double?, restingHR: Double? = nil) -> Thresholds {
+        let high = usualNow.map { $0 + highMarginBpm } ?? restingHR.map { $0 + provisionalHighMarginBpm }
+        var low = awakeFloor ?? restingHR
+        if let l = low, let h = high, l >= h { low = nil }
+        let provisional = restingHR != nil && (usualNow == nil || awakeFloor == nil)
+        return Thresholds(high: high, low: low, provisional: provisional && (high != nil || low != nil))
     }
 
     /// The run of the latest samples beyond one threshold, when it has lasted `minDurationSec`. Samples

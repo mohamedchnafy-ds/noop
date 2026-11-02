@@ -65,6 +65,8 @@ struct NutritionMealEditor: View {
     @State private var recents: [MealEntry] = []
     @State private var saving = false
     @State private var confirmDelete = false
+    /// The Ciqual search that adds a food to a weighed meal.
+    @State private var showFoodSearch = false
     @FocusState private var focused: Bool
 
     init(target: NutritionEditorTarget, day: Date, onBarcode: (() -> Void)? = nil,
@@ -226,6 +228,17 @@ struct NutritionMealEditor: View {
         } message: {
             Text("It is removed from your journal.")
         }
+        .sheet(isPresented: $showFoodSearch) {
+            NutritionFoodSearchSheet { food in addFood(food) }
+        }
+    }
+
+    /// A food picked in the Ciqual search, added to the weighed meal at 100 g (editable at once).
+    private func addFood(_ food: CiqualFood) {
+        let line = MealJournal.measuredMealLine(name: NutritionFoodSearchSheet.displayName(food), grams: 100,
+                                                estimated: false, per100: food.per100, foodRef: food.foodRef)
+        lines.append(line)
+        gramsTexts[line.id] = NutritionFormat.editable(line.grams ?? 100)
     }
 
     // MARK: Adding
@@ -446,6 +459,14 @@ struct NutritionMealEditor: View {
                 }
                 weighedLine(line)
             }
+            Button { showFoodSearch = true } label: {
+                Label("Add a food", systemImage: "plus.circle")
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
             let total = MealMath.totals(weighedLines.map(\.nutrients))
             HStack {
                 Text("Total")

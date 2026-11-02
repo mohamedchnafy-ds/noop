@@ -247,6 +247,8 @@ final class AppModel: ObservableObject {
     private var smartAlarmRearmTimer: Timer?
 
     init() {
+        // Personal fork: the day turns at midnight, decided before the first scoring pass reads it.
+        Repository.applyMidnightDayDefaultOnce()
         let live = LiveState()
         self.live = live
         // SEED every subsystem with the same id (`deviceId`, "my-whoop" at launch). The store/registry

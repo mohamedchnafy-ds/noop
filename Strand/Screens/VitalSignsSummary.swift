@@ -470,9 +470,9 @@ enum BodyVitalSigns {
         readings.compactMap(\.day).max().map(BodyVitalReading.dayLabel)
     }
 
-    /// The LOGICAL local day for `now` (rolls at 04:00 local). Self-contained so this helper stays pure
-    /// and independent of the @MainActor Repository — same boundary, mirrored here for the readings build.
-    static func logicalDayKey(_ now: Date, rolloverHour: Int = 4) -> String {
+    /// The LOGICAL local day for `now` (rolls with `Repository.logicalDayRolloverHour`: 04:00 local, or
+    /// midnight when the day cycle is set to 00:00), mirrored here for the readings build.
+    static func logicalDayKey(_ now: Date, rolloverHour: Int = Repository.logicalDayRolloverHour) -> String {
         localDayFormatter.string(from: now.addingTimeInterval(-Double(rolloverHour) * 3_600))
     }
 

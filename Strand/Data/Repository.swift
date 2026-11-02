@@ -733,21 +733,38 @@ final class Repository: ObservableObject {
     }()
     nonisolated static func localDayKey(_ date: Date) -> String { dayKeyFormatter.string(from: date) }
 
-    /// The hour the LOGICAL day rolls (04:00 local). Between midnight and this hour, "Today" stays put.
-    nonisolated static let logicalDayRolloverHour = 4
+    /// The hour the LOGICAL day rolls. Between midnight and this hour, "Today" stays put: 04:00 local while
+    /// the day cycle follows main sleep (the upstream default), 00:00 when the day cycle is set to midnight
+    /// (personal fork), so Today, the widgets and the vitals carry turn with the calendar day.
+    nonisolated static var logicalDayRolloverHour: Int {
+        DayCycleMode.persisted(UserDefaults.standard.string(forKey: DayCycleMode.storageKey)) == .midnight ? 0 : 4
+    }
+
+    /// Personal fork (2 Nov 2026): the day turns at midnight. Set once, at launch, by
+    /// `applyMidnightDayDefaultOnce`; a later choice in Settings is kept.
+    nonisolated static let midnightDayDefaultKey = "fork.dayCycleMidnightDefault.v1"
+
+    /// Moves the day cycle to 00:00 the first time this build launches, before the first scoring pass, so
+    /// every day is computed over the calendar day from then on. Runs once; Settings can switch it back.
+    nonisolated static func applyMidnightDayDefaultOnce(_ defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: midnightDayDefaultKey) else { return }
+        defaults.set(DayCycleMode.midnight.rawValue, forKey: DayCycleMode.storageKey)
+        defaults.set(true, forKey: midnightDayDefaultKey)
+    }
 
     /// The LOGICAL local day for `now` , the calendar date of `now - rolloverHour hours`. Rolls at
-    /// 04:00 local rather than midnight, so the small hours after midnight still resolve to the prior
+    /// 04:00 local rather than midnight (unless the day cycle is set to 00:00, see
+    /// `logicalDayRolloverHour`), so the small hours after midnight still resolve to the prior
     /// calendar date's row instead of an empty new-calendar-day row (#144). Pure + injectable so the
     /// boundary is testable (23:59 → same day, 01:00 → previous day, 04:01 → new day). Presentation-only:
     /// used solely to pick which stored row is Today and to anchor the Today HR-trend window start; stored
     /// row keys are never rewritten.
-    static func logicalDay(_ now: Date, rolloverHour: Int = logicalDayRolloverHour) -> Date {
+    nonisolated static func logicalDay(_ now: Date, rolloverHour: Int = logicalDayRolloverHour) -> Date {
         now.addingTimeInterval(-Double(rolloverHour) * 3_600)
     }
 
     /// `yyyy-MM-dd` key for the logical day of `now` (see `logicalDay`).
-    static func logicalDayKey(_ now: Date, rolloverHour: Int = logicalDayRolloverHour) -> String {
+    nonisolated static func logicalDayKey(_ now: Date, rolloverHour: Int = logicalDayRolloverHour) -> String {
         localDayKey(logicalDay(now, rolloverHour: rolloverHour))
     }
 

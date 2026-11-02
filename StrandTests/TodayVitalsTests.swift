@@ -108,6 +108,21 @@ final class TodayVitalsTests: XCTestCase {
         XCTAssertEqual(t.low, 52)
     }
 
+    func testThresholdsFallBackToTheRestingRateWhileCalibrating() {
+        let t = TodayHRAlert.thresholds(usualNow: nil, awakeFloor: nil, restingHR: 62)
+        XCTAssertEqual(t.high, 92)
+        XCTAssertEqual(t.low, 62)
+        XCTAssertTrue(t.provisional)
+        let known = TodayHRAlert.thresholds(usualNow: 71, awakeFloor: 52, restingHR: 62)
+        XCTAssertEqual(known.high, 91)
+        XCTAssertEqual(known.low, 52)
+        XCTAssertFalse(known.provisional)
+        let none = TodayHRAlert.thresholds(usualNow: nil, awakeFloor: nil, restingHR: nil)
+        XCTAssertNil(none.high)
+        XCTAssertNil(none.low)
+        XCTAssertFalse(none.provisional)
+    }
+
     func testHighCrossingCountsOnlyAfterThreeMinutes() {
         let t = TodayHRAlert.Thresholds(high: 91, low: nil)
         let short = samples(from: 1_000, seconds: 120, bpm: 98)
@@ -239,10 +254,19 @@ final class TodayVitalsTests: XCTestCase {
         XCTAssertEqual(chart.axis.map(\.x), [0, 2.0 / 6, 4.0 / 6])
     }
 
-    func testLiveBandRunsFromRestingToUsualInEitherOrder() {
-        XCTAssertEqual(TodayHRCardLogic.band(resting: 62, usual: 71), 62...71)
-        XCTAssertEqual(TodayHRCardLogic.band(resting: 62, usual: 58), 58...62)
-        XCTAssertNil(TodayHRCardLogic.band(resting: nil, usual: 71))
+    func testLiveBandRunsBetweenTheTwoThresholds() {
+        XCTAssertEqual(TodayHRCardLogic.band(TodayHRAlert.Thresholds(high: 91, low: 58)), 58...91)
+        XCTAssertNil(TodayHRCardLogic.band(TodayHRAlert.Thresholds(high: 91, low: nil)))
+    }
+
+    func testLiveChartAlwaysCarriesBothThresholdLines() {
+        let t = TodayHRAlert.thresholds(usualNow: 71, awakeFloor: 58, restingHR: 62)
+        let chart = TodayHRCardLogic.liveChart(samples: [(ts: 0, bpm: 70), (ts: 1, bpm: 72)], thresholds: t, alert: nil)
+        XCTAssertEqual(chart.highLine, 91)
+        XCTAssertEqual(chart.lowLine, 58)
+        XCTAssertNil(chart.threshold, "nothing is coloured until a threshold is crossed while still")
+        let caption = TodayHRCardLogic.liveCaption(t, crossed: .low).map(\.crossed)
+        XCTAssertEqual(caption, [.low, nil])
     }
 
     // MARK: Synthesis copy

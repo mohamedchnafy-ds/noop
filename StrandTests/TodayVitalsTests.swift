@@ -53,15 +53,59 @@ final class TodayVitalsTests: XCTestCase {
 
     // MARK: Energy
 
-    func testSplitAddsUpToTheStoredTotal() {
+    func testSplitWithoutSessionsAddsUpToTheStoredTotal() {
         let body = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
         let hr = (0..<3600).map { HRSample(ts: 1_000_000 + $0, bpm: $0 < 1800 ? 62 : 150) }
-        let split = TodayEnergy.split(hr: hr, profile: body, hrmax: 185, restingHR: 60)
+        let split = TodayEnergy.dayEnergySplit(hr: hr, sessions: [], profile: body, hrmax: 185, restingHR: 60)
         let total = Calories.estimateDayCalories(hr, profile: body, hrmax: 185, restingHR: 60)
         XCTAssertNotNil(split)
         XCTAssertEqual(split!.totalKcal, total, accuracy: 1e-6)
         XCTAssertGreaterThan(split!.activityKcal, 0)
-        XCTAssertNil(TodayEnergy.split(hr: [], profile: body, hrmax: 185, restingHR: 60))
+        XCTAssertNil(TodayEnergy.dayEnergySplit(hr: [], sessions: [], profile: body, hrmax: 185, restingHR: 60))
+    }
+
+    /// A strength session at 110 bpm sits under the whole-day gate (60 + 50 % of 125 = 122.5 bpm) but over
+    /// the session gate (60 + 30 % = 97.5 bpm): without the session it reads as rest, with it as activity.
+    func testASessionCountsAtItsOwnEstimate() {
+        let body = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
+        let start = 1_000_000
+        let hr = (0..<7200).map { HRSample(ts: start + $0, bpm: ($0 >= 1800 && $0 < 5400) ? 110 : 62) }
+        let session = (start + 1800)...(start + 5399)
+        let plain = TodayEnergy.dayEnergySplit(hr: hr, sessions: [], profile: body, hrmax: 185, restingHR: 60)!
+        let withSession = TodayEnergy.dayEnergySplit(hr: hr, sessions: [session], profile: body, hrmax: 185,
+                                                     restingHR: 60)!
+        XCTAssertEqual(plain.activityKcal, 0, accuracy: 1e-9)
+        XCTAssertEqual(withSession.restingKcal, plain.restingKcal, accuracy: 1e-9, "resting is unchanged")
+        let inside = hr.filter { session.contains($0.ts) }
+        let bout = Calories.estimateBoutCalories(inside, profile: body, hrmax: 185, restingHR: 60).0
+        let stretch = Calories.estimateDayEnergy(inside, profile: body, hrmax: 185, restingHR: 60)
+        XCTAssertEqual(withSession.activityKcal, bout - stretch.restingKcal, accuracy: 1e-6)
+        XCTAssertGreaterThan(withSession.activityKcal, 100, "an hour at 110 bpm is real activity")
+    }
+
+    func testActivityOutsideSessionsIsKeptAndASessionNeverSubtracts() {
+        let body = UserProfile(weightKg: 80, heightCm: 180, age: 35, sex: "male")
+        let start = 1_000_000
+        // A run at 160 bpm in the morning (whole-day activity), then a quiet "session" at 62 bpm.
+        let hr = (0..<7200).map { HRSample(ts: start + $0, bpm: $0 < 1800 ? 160 : 62) }
+        let plain = TodayEnergy.dayEnergySplit(hr: hr, sessions: [], profile: body, hrmax: 185, restingHR: 60)!
+        let quiet = TodayEnergy.dayEnergySplit(hr: hr, sessions: [(start + 3600)...(start + 7199)], profile: body,
+                                               hrmax: 185, restingHR: 60)!
+        XCTAssertEqual(quiet.activityKcal, plain.activityKcal, accuracy: 1e-6)
+        XCTAssertGreaterThan(quiet.activityKcal, 0)
+    }
+
+    func testSessionWindowsAreClippedMergedAndOutsideOnesDropped() {
+        func row(_ a: Int, _ b: Int) -> WorkoutRow {
+            WorkoutRow(startTs: a, endTs: b, sport: "strength", source: "manual", durationS: Double(b - a),
+                       energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil, distanceM: nil, zonesJSON: nil,
+                       notes: nil, steps: nil)
+        }
+        let windows = TodayEnergy.sessionWindows(
+            [row(500, 1_500), row(5_000, 6_000), row(1_200, 2_000), row(9_000, 9_500), row(9_900, 10_500)],
+            within: 1_000...10_000)
+        XCTAssertEqual(windows, [1_000...2_000, 5_000...6_000, 9_000...9_500, 9_900...10_000])
+        XCTAssertEqual(TodayEnergy.sessionWindows([row(20_000, 21_000)], within: 1_000...10_000), [])
     }
 
     func testDefaultGoalNeedsThreeDaysWithActivity() {

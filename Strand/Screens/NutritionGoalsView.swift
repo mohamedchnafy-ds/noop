@@ -15,16 +15,42 @@ struct NutritionGoalsView: View {
     @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenthsRaw = NutritionGoals.defaultProteinTenths
     @AppStorage(NutritionGoals.fatTenthsKey) private var fatTenthsRaw = NutritionGoals.defaultFatTenths
     @AppStorage(NutritionGoals.goalPercentKey) private var goalPercentRaw = NutritionGoals.defaultGoalPercent
+    /// Personal fork: a new barcode is looked up on Open Food Facts (`OpenFoodFacts`).
+    @AppStorage(OpenFoodFacts.enabledKey) private var openFoodFactsOn = true
 
     var body: some View {
         ScreenScaffold(title: "Goals",
                        subtitle: "Calculated from your profile and the energy the strap measured.") {
-            NutritionGoalsContent(
-                wearer: NutritionGoals.Body(sex: profile.sex, weightKg: profile.weightKg, heightCm: profile.heightCm,
-                                            age: Double(profile.age)),
-                age: profile.age, weightKg: profile.weightKg,
-                reference: NutritionDayReader.referenceBefore(repo),
-                proteinTenthsRaw: $proteinTenthsRaw, fatTenthsRaw: $fatTenthsRaw, goalPercentRaw: $goalPercentRaw)
+            VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+                NutritionGoalsContent(
+                    wearer: NutritionGoals.Body(sex: profile.sex, weightKg: profile.weightKg, heightCm: profile.heightCm,
+                                                age: Double(profile.age)),
+                    age: profile.age, weightKg: profile.weightKg,
+                    reference: NutritionDayReader.referenceBefore(repo),
+                    proteinTenthsRaw: $proteinTenthsRaw, fatTenthsRaw: $fatTenthsRaw, goalPercentRaw: $goalPercentRaw)
+                barcodeSection
+            }
+        }
+    }
+
+    private var barcodeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Barcodes").strandOverline()
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $openFoodFactsOn) {
+                    Text("Look new products up on Open Food Facts")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                Text("Only the barcode is sent, to the open food database (no account). The product you add stays in your journal, so the next scan needs no network. Off, or when the product is missing, the Coach reads the label from a photo.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+            .background(NoopPanelSurface(cornerRadius: 26))
         }
     }
 }

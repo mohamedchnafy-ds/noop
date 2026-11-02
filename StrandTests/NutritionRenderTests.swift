@@ -129,6 +129,17 @@ final class NutritionRenderTests: XCTestCase {
                                              onReread: {}, onAdd: {})),
                    name: "9-code-barres-connu")
 
+        // A new barcode looked up on Open Food Facts: found (values to check before adding), or missing.
+        var online = BarcodeProduct(barcode: "3017620422003", name: "Skyr nature 0 % · Siggi's", per100: skyr,
+                                    lastGrams: nil, lastEatenAt: 0)
+        online.source = .openFoodFacts
+        let openFoodFacts = VStack(spacing: 24) {
+            BarcodeKnownPanel(product: online, grams: .constant(100), saving: false, onReread: {}, onAdd: {})
+            BarcodeUnknownPanel(barcode: "3017620422003", canReadLabel: true, miss: .notFound,
+                                onPhoto: {}, onManual: {})
+        }
+        try render(AnyView(openFoodFacts), name: "12-code-barres-open-food-facts")
+
         XCTAssertEqual(day.eaten.kcal, 1_495)
         XCTAssertEqual(day.balanceKcal, -605)
         XCTAssertEqual(plan.intakeKcal, 2_560)

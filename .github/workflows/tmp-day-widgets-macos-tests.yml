@@ -1,0 +1,30 @@
+# Temporary (personal fork): the macOS build + StrandTests leg of app-build.yml on macos-26, while
+# GitHub's macos-15 runners are not acquired. Lives only on this ci/ branch; never merged.
+name: Temporary macOS tests (macos-26)
+
+on:
+  push:
+    branches: ['ci/day-widgets-macos']
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build and test Strand
+        run: |
+          set +e
+          xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO test > xcodebuild.log 2>&1
+          status=$?
+          grep -E "Executed|\*\* TEST|DayWidgets" xcodebuild.log | tail -40
+          if [ $status -ne 0 ]; then
+            grep -E "error:|failed|XCTAssert" xcodebuild.log | head -40 | sed 's/^/::error::/'
+            exit 1
+          fi
+          grep -E "Test Suite 'DayWidgetsTests'|Executed .* tests" xcodebuild.log | tail -3 | sed 's/^/::notice::/'

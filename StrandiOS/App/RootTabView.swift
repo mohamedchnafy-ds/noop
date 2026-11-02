@@ -57,13 +57,6 @@ struct RootTabView: View {
     /// a no-op). Threaded into each tab's root via `\.scrollToTopSignal`; ScreenScaffold / LiquidTodayView
     /// scroll to their top anchor when their tab's token changes.
     @State private var scrollTop: [Int] = Array(repeating: 0, count: 5)
-    /// Which More-tab groups are expanded (S2). Insights + Body stay open at rest; Data + App collapse to
-    /// just their header until tapped. Persisted (#860 item 2): the user's open/closed choice must SURVIVE
-    /// leaving and re-entering the More tab (and relaunch), not reset to the seed every visit. Backed by an
-    /// `@AppStorage` CSV string (keyed identically to the Android `MoreSectionPrefs`), bridged to a
-    /// `Set<String>` through `MoreSectionPrefs` so the section logic below is unchanged.
-    @AppStorage(MoreSectionPrefs.storageKey) private var expandedMoreSectionsCSV = MoreSectionPrefs.defaultCSV
-    private var expandedMoreSections: Set<String> { MoreSectionPrefs.decode(expandedMoreSectionsCSV) }
 
     /// V8 liquid redesign is the default Today; the Settings toggle lets a user fall back to the classic
     /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
@@ -453,70 +446,20 @@ struct RootTabView: View {
         .tabItem { Label(title, systemImage: icon) }
     }
 
-    // The "More" tab is the app's catch-all index. It was a plain SwiftUI `List` with system large-title
-    // + system title-case section headers, so it didn't match any other page (which all use ScreenScaffold
-    // + SectionHeader's UPPERCASE overline + the 28pt section rhythm). Rebuilt on the shared page chrome:
-    // ScreenScaffold for the title1 "More" + subtitle, a `SectionHeader` overline per group, and the group's
-    // rows in a single grouped NoopCard with hairline dividers — the same row idiom Settings/Health use.
+    // The "More" tab is the app's catch-all index. Fork: the ~30 rows (formerly four collapsible
+    // sections) are grouped into six rows on the shared page chrome (ScreenScaffold title1 + subtitle,
+    // one grouped NoopCard). Nutrition opens its screen directly; every other group opens a screen
+    // listing its entries (`MoreGroupScreen`). Every former destination stays reachable from one group.
     private func moreTab(path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
         NavigationStack(path: path) {
-            ScreenScaffold(title: "More", subtitle: "Everything else, one tap away",
+            ScreenScaffold(title: "More", subtitle: "Everything else, in six places",
                            onRefresh: { await repo.refresh() },
                            topBackground: liquidScaffoldSky()) {
-                moreSection("Insights") {
-                    MoreRow("What Moves You", "wand.and.sparkles", .insightsHub)
-                    MoreRow("Intelligence", "brain.head.profile", .intelligence)
-                    // K3: Coach promoted to a top-level tab — no longer listed under More.
-                    MoreRow("Insights", "lightbulb.fill", .insights)
-                    MoreRow("Explore", "square.grid.2x2.fill", .explore)
-                    MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
-                }
-                moreSection("Body") {
-                    MoreRow("Live", "waveform.path.ecg", .live)
-                    MoreRow("Workouts", "figure.run", .workouts)
-                    MoreRow("Lift Log", "dumbbell.fill", .liftLog)
-                    MoreRow("Nutrition", "fork.knife", .nutrition)
-                    MoreRow("Health", "heart.text.square.fill", .health)
-                    MoreRow("Lab Book", "books.vertical.fill", .labBook)
-                    MoreRow("Stress", "bolt.heart.fill", .stress)
-                    MoreRow("Breathe", "wind", .breathe)
-                    MoreRow("Intervals", "timer", .intervals)
-                    // Experimental beat-to-beat regularity visualization — self-gates on its own consent.
-                    MoreRow("Rhythm", "waveform.path", .rhythm)
-                }
-                moreSection("Data") {
-                    MoreRow("Your Data, Fused", "square.stack.3d.up.fill", .fusedRecord)
-                    MoreRow("Apple Health", "heart.fill", .appleHealth)
-                    MoreRow("Mi Band", "figure.walk.motion", .miBand)
-                    MoreRow("Data Sources", "externaldrive.fill", .dataSources)
-                    MoreRow("Backup & Sync", "externaldrive.fill.badge.icloud", .backupSync)
-                    // #155: HealthKit-free Apple Health path for sideloaded installs (Siri Shortcut
-                    // reads the opt-in Documents/noop_sync.txt drop file).
-                    MoreRow("Shortcuts Export", "square.and.arrow.up.fill", .shortcutsExport)
-                    // The plain 4.0 vs 5.0/MG capability grid — what NOOP reads live off each strap.
-                    MoreRow("NOOP Limitations", "list.bullet.rectangle", .noopLimitations)
-                }
-                moreSection("App") {
-                    // #805/#811: the v7.3.1 #766 alarm consolidation moved Smart Alarm under a single
-                    // "Alarms" sidebar entry (RootView .smartAlarm) but the regression dropped the row
-                    // from the iPhone More list, leaving Alarms unreachable on iPhone. Restore it here
-                    // (route to SmartAlarmView, the cross-platform iOS/macOS surface).
-                    //
-                    // Notifications (RootView .notifications) is deliberately NOT added: that screen is
-                    // macOS-only (it picks which Mac apps tap your wrist via NSWorkspace, imports AppKit,
-                    // and project.yml excludes Screens/NotificationSettingsView.swift from the iOS target),
-                    // so it can't compile or apply on iPhone. iPhone's wrist-alert controls live on the
-                    // Automations screen instead. Its absence from the iPhone More list is correct.
-                    MoreRow("Alarms", "alarm.fill", .alarms)
-                    MoreRow("Automations", "wand.and.stars", .automations)
-                    // The Test Centre (the diagnostics + bug-report hub) gets a first-class home here, not
-                    // just buried in Settings, so the feedback loop is one tap from the More tab.
-                    MoreRow("Test Centre", "stethoscope", .testCentre)
-                    MoreRow("Siri & Shortcuts", "mic.fill", .siriShortcuts)
-                    // #477 lives here rather than inside Settings: the strap-battery levers are the
-                    // ones people reach for when a strap is running down, so they get their own row.
-                    MoreRow("Power saving", "battery.25", .powerSaving)
-                    MoreRow("Settings", "gearshape.fill", .settings)
+                MoreHubCard { group, isLast in
+                    NavigationLink(value: MoreDestination.hub(group)) {
+                        MoreHubRowLabel(group: group, showsDivider: !isLast)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             // The rows push MoreDestination VALUES so a re-tap of the More tab can pop them off the
@@ -526,6 +469,7 @@ struct RootTabView: View {
             // sky; an opaque surfaceBase nav-bar band sat over it and clipped the top on scroll. A hidden
             // bar background keeps the sky edge-to-edge. On the flat (no-sky) screens this is visually
             // identical at rest — the destination's own surfaceBase background shows through the bar.
+            // The group screens push their entries onto the same path, so this one registration serves both.
             .navigationDestination(for: MoreDestination.self) { route in
                 route.destination
                     .background(StrandPalette.surfaceBase.ignoresSafeArea())
@@ -537,58 +481,78 @@ struct RootTabView: View {
         .environment(\.scrollToTopSignal, scrollSignal)
         .tabItem { Label("More", systemImage: "ellipsis") }
     }
+}
 
-    /// One titled, COLLAPSIBLE group in the More index (S2): the app's overline (UPPERCASE) becomes a
-    /// tappable header with a disclosure chevron; tapping it expands/collapses the grouped rows card.
-    /// Insights + Body default open, Data + App default collapsed (the `expandedMoreSections` seed) so the
-    /// list is shorter at rest without dropping a single row. The grouped card is unchanged: a single
-    /// `NoopCard` holding a `VStack(spacing: 0)` whose `MoreRow`s draw their own hairlines, clipped to the
-    /// card's rounded shape so the last divider is trimmed inside the corners. Same idiom Settings/Health use.
-    @ViewBuilder
-    private func moreSection<Rows: View>(_ title: String,
-                                         @ViewBuilder rows: @escaping () -> Rows) -> some View {
-        let isOpen = expandedMoreSections.contains(title)
-        VStack(alignment: .leading, spacing: 10) {
-            // Tappable overline header: the same ALL-CAPS tracked label as before, now with a trailing
-            // chevron that rotates open. A plain Button (not a SwiftUI DisclosureGroup) so the header keeps
-            // the exact strandOverline styling and the card layout below stays identical to before.
-            Button {
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) {
-                    // Persist the toggle via the CSV-backed @AppStorage so the choice survives leaving and
-                    // re-entering the More tab and relaunch (#860 item 2). MoreSectionPrefs owns encode/decode.
-                    var open = expandedMoreSections
-                    if isOpen { open.remove(title) } else { open.insert(title) }
-                    expandedMoreSectionsCSV = MoreSectionPrefs.encode(open)
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(title).strandOverline()
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .rotationEffect(.degrees(isOpen ? 0 : -90))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(title))
-            .accessibilityValue(Text(isOpen ? String(localized: "Expanded") : String(localized: "Collapsed")))
-            .accessibilityHint(Text(isOpen ? String(localized: "Double tap to collapse") : String(localized: "Double tap to expand")))
+/// The screen a More group opens: the group's name and summary on the shared page chrome, then its
+/// entries in one grouped card. The rows are the former More index rows, unchanged, so each one pushes
+/// the same `MoreDestination` it always did.
+private struct MoreGroupScreen: View {
+    let group: MoreHubGroup
 
-            if isOpen {
-                // Zero internal padding so each MoreRow owns its own comfortable insets + height; the rows
-                // supply their own hairline separators (drawn at the bottom of every row but the last via the
-                // divider overlay) so the group reads as one continuous grouped list, matching Settings/Health.
-                NoopCard(padding: 0) {
-                    VStack(spacing: 0) { rows() }
-                        // Clip the rows column to the card's rounded shape so the last row's bottom hairline is
-                        // trimmed inside the corners (the card draws its surface in the BACKGROUND and doesn't
-                        // clip content itself, so without this the final divider would run past the rounded edge).
-                        .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
-                }
+    var body: some View {
+        ScreenScaffold(title: group.title, subtitle: group.summary) {
+            NoopCard(padding: 0) {
+                VStack(spacing: 0) { rows }
+                    // Clip the rows to the card's rounded shape so the last row's hairline is trimmed
+                    // inside the corners (the card does not clip its content itself).
+                    .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
             }
+        }
+    }
+
+    @ViewBuilder private var rows: some View {
+        switch group {
+        case .training:
+            MoreRow("Lift Log", "dumbbell.fill", .liftLog)
+            MoreRow("Workouts", "figure.run", .workouts)
+            MoreRow("Intervals", "timer", .intervals)
+            MoreRow("Live", "waveform.path.ecg", .live)
+        case .nutrition:
+            MoreRow("Nutrition", "fork.knife", .nutrition)
+        case .healthRecovery:
+            MoreRow("Health", "heart.text.square.fill", .health)
+            MoreRow("Stress", "bolt.heart.fill", .stress)
+            MoreRow("Breathe", "wind", .breathe)
+            // Experimental beat-to-beat regularity visualization — self-gates on its own consent.
+            MoreRow("Rhythm", "waveform.path", .rhythm)
+            MoreRow("Lab Book", "books.vertical.fill", .labBook)
+        case .analysis:
+            MoreRow("What Moves You", "wand.and.sparkles", .insightsHub)
+            MoreRow("Intelligence", "brain.head.profile", .intelligence)
+            // K3: Coach promoted to a top-level tab — no longer listed under More.
+            MoreRow("Insights", "lightbulb.fill", .insights)
+            MoreRow("Explore", "square.grid.2x2.fill", .explore)
+            MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
+        case .data:
+            MoreRow("Your Data, Fused", "square.stack.3d.up.fill", .fusedRecord)
+            MoreRow("Apple Health", "heart.fill", .appleHealth)
+            MoreRow("Mi Band", "figure.walk.motion", .miBand)
+            MoreRow("Data Sources", "externaldrive.fill", .dataSources)
+            MoreRow("Backup & Sync", "externaldrive.fill.badge.icloud", .backupSync)
+            // #155: HealthKit-free Apple Health path for sideloaded installs (Siri Shortcut
+            // reads the opt-in Documents/noop_sync.txt drop file).
+            MoreRow("Shortcuts Export", "square.and.arrow.up.fill", .shortcutsExport)
+            // The plain 4.0 vs 5.0/MG capability grid — what NOOP reads live off each strap.
+            MoreRow("NOOP Limitations", "list.bullet.rectangle", .noopLimitations)
+        case .appSettings:
+            // #805/#811: Smart Alarm lives under a single "Alarms" entry; it must stay reachable on
+            // iPhone (route to SmartAlarmView, the cross-platform iOS/macOS surface).
+            //
+            // Notifications (RootView .notifications) is deliberately NOT added: that screen is
+            // macOS-only (it picks which Mac apps tap your wrist via NSWorkspace, imports AppKit,
+            // and project.yml excludes Screens/NotificationSettingsView.swift from the iOS target),
+            // so it can't compile or apply on iPhone. iPhone's wrist-alert controls live on the
+            // Automations screen instead. Its absence from the iPhone More list is correct.
+            MoreRow("Alarms", "alarm.fill", .alarms)
+            MoreRow("Automations", "wand.and.stars", .automations)
+            // The Test Centre (the diagnostics + bug-report hub) keeps a first-class row, not just a
+            // link buried in Settings, so the feedback loop stays close.
+            MoreRow("Test Centre", "stethoscope", .testCentre)
+            MoreRow("Siri & Shortcuts", "mic.fill", .siriShortcuts)
+            // #477: the strap-battery levers are the ones people reach for when a strap is running
+            // down, so they keep their own row rather than living inside Settings.
+            MoreRow("Power saving", "battery.25", .powerSaving)
+            MoreRow("Settings", "gearshape.fill", .settings)
         }
     }
 }
@@ -602,9 +566,13 @@ private enum MoreDestination: Hashable {
     case live, workouts, liftLog, nutrition, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
+    /// A More group's row: Nutrition opens its screen directly, the others their list of entries.
+    case hub(MoreHubGroup)
 
     @ViewBuilder var destination: some View {
         switch self {
+        case .hub(.nutrition): NutritionView()
+        case .hub(let group):  MoreGroupScreen(group: group)
         case .insightsHub:     InsightsHubView()
         case .intelligence:    IntelligenceView()
         case .coach:           CoachView()

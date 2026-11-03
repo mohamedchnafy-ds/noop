@@ -345,8 +345,6 @@ struct LiftSupersetScreen: View {
         VStack(spacing: 2) {
             Text(isPaused ? String(localized: "Paused") : String(localized: "Set in progress"))
                 .font(StrandFont.rounded(13, weight: .bold))
-                .tracking(2)
-                .textCase(.uppercase)
                 .foregroundStyle(isPaused ? StrandPalette.textSecondary : StrandPalette.effortColor)
             LiftRunningClock { max(0, guide.clockNow($0) - startedAt) }
                 .font(StrandFont.rounded(72, weight: .heavy))
@@ -420,8 +418,6 @@ struct LiftSupersetScreen: View {
         VStack(spacing: 8) {
             Text(isPaused ? String(localized: "Paused") : String(localized: "Resting"))
                 .font(StrandFont.rounded(13, weight: .bold))
-                .tracking(2)
-                .textCase(.uppercase)
                 .foregroundStyle(isPaused ? StrandPalette.textSecondary : StrandPalette.metricAmber)
             LiftRestRing(startedAt: startedAt, endsAt: endsAt, pausedAt: guide.pausedAt)
                 .frame(width: 230, height: 230)
@@ -496,8 +492,6 @@ struct LiftSupersetScreen: View {
         HStack(alignment: .center, spacing: 10) {
             Text(String(localized: "Superset \(guide.letter)"))
                 .font(StrandFont.rounded(13, weight: .bold))
-                .tracking(1)
-                .textCase(.uppercase)
                 .foregroundStyle(StrandPalette.textTertiary)
             Spacer(minLength: 8)
             HStack(spacing: 4) {
@@ -638,8 +632,6 @@ struct LiftSupersetScreen: View {
             if withWord {
                 Text("Chained")
                     .font(StrandFont.rounded(12, weight: .bold))
-                    .tracking(1)
-                    .textCase(.uppercase)
                     .fixedSize()
             }
             Rectangle()
@@ -655,8 +647,6 @@ struct LiftSupersetScreen: View {
     private func overline(_ text: String) -> some View {
         Text(text)
             .font(StrandFont.rounded(11, weight: .bold))
-            .tracking(1)
-            .textCase(.uppercase)
             .foregroundStyle(StrandPalette.textTertiary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
@@ -765,8 +755,6 @@ struct LiftGuideTile: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(StrandFont.rounded(11, weight: .bold))
-                .tracking(1)
-                .textCase(.uppercase)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

@@ -124,7 +124,7 @@ struct WorkoutSelectionScreen: View {
     private var recentSection: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.space3) {
             Text("Recent")
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .font(StrandFont.overline)
                 .foregroundStyle(StrandPalette.textSecondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: NoopMetrics.space2) {

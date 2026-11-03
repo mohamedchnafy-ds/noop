@@ -77,8 +77,8 @@ enum ChargeBreakdownFormat {
     // MARK: - Score-confidence tier chip (A3)
 
     /// The short tier TAG surfaced on a score tile / breakdown header. Pure presentation of the
-    /// EXISTING `ScoreConfidence` (never recomputed): calibrating -> CALIBRATING, building -> EST.,
-    /// solid -> REL. (reliable). Unit-tested.
+    /// EXISTING `ScoreConfidence` (never recomputed): calibrating -> Calibrating, building -> Est.,
+    /// solid -> Rel. (reliable). Unit-tested.
     static func tierTag(_ confidence: ScoreConfidence) -> String {
         switch confidence {
         case .calibrating: return String(localized: "CALIBRATING")
@@ -267,7 +267,6 @@ struct ConfidenceTierChip: View {
                 .accessibilityHidden(true)
             Text(tag)
                 .font(StrandFont.overline)
-                .tracking(0.4)
                 .foregroundStyle(hue)
         }
         .padding(.horizontal, 10)

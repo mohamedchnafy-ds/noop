@@ -213,19 +213,18 @@ struct CoupledView: View {
                 CountUpText(value: r,
                             format: { "\(Int($0.rounded()))%" },
                             font: StrandFont.number(48),
-                            color: .white)
+                            color: StrandPalette.onDarkPrimary)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             } else {
                 Text("—")
                     .font(StrandFont.number(48))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(StrandPalette.onDarkPrimary)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
             }
             Text("RECOVERY")
                 .font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
                 .foregroundStyle(sampled)
             if let word = TodayView.readinessWord(readinessLevel) {
                 readinessPill(word)
@@ -263,9 +262,8 @@ struct CoupledView: View {
     /// Today hero pill chrome. Reuses TodayView's word + level colour so the read stays consistent.
     private func readinessPill(_ word: String) -> some View {
         let tint = readinessTint(readinessLevel)
-        return Text(word.uppercased())
+        return Text(word)
             .font(StrandFont.overline)
-            .tracking(StrandFont.overlineTracking)
             .foregroundStyle(tint)
             .padding(.horizontal, 12).padding(.vertical, 5)
             .background(Capsule(style: .continuous).fill(tint.opacity(0.12)))
@@ -302,9 +300,9 @@ struct CoupledView: View {
                                 CountUpText(value: s,
                                             format: { String(format: "%.1f", $0) },
                                             font: StrandFont.number(34),
-                                            color: .white)
+                                            color: StrandPalette.onDarkPrimary)
                             } else {
-                                Text("—").font(StrandFont.number(34)).foregroundStyle(.white)
+                                Text("—").font(StrandFont.number(34)).foregroundStyle(StrandPalette.onDarkPrimary)
                             }
                         }
                         .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
@@ -316,9 +314,9 @@ struct CoupledView: View {
                     // Right: the coupled stat stack, OPTIMAL range (with a liquid tube band), calories, workouts.
                     VStack(alignment: .leading, spacing: 14) {
                         optimalStat
-                        // heroStat renders `Text(title.uppercased())`, so `title` is a plain String and
+                        // heroStat renders `Text(title)`, so `title` is a plain String and
                         // a bare literal would NOT localize — pass the resolved localized value (the
-                        // catalog already carries Calories/Workouts) so German shows KALORIEN, not CALORIES.
+                        // catalog already carries Calories/Workouts) so German shows Kalorien, not Calories.
                         heroStat(String(localized: "Calories"),
                                  caloriesText,
                                  tint: StrandPalette.metricAmber)
@@ -350,7 +348,7 @@ struct CoupledView: View {
     private var optimalStat: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("OPTIMAL")
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                .font(StrandFont.overline)
                 .foregroundStyle(StrandPalette.textSecondary)
             Text(Self.optimalStrainRangeText(recovery: recovery))
                 .font(StrandFont.number(20))
@@ -372,8 +370,8 @@ struct CoupledView: View {
     /// number. Reproduced here so the coupled stat stack reads identically to the Workouts hero stats.
     private func heroStat(_ title: String, _ value: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased())
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+            Text(title)
+                .font(StrandFont.overline)
                 .foregroundStyle(StrandPalette.textSecondary)
             Text(value).font(StrandFont.number(20))
                 .foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.6)
@@ -411,7 +409,7 @@ struct CoupledView: View {
                                 CountUpText(value: p,
                                             format: { "\(Int($0.rounded()))" },
                                             font: StrandFont.number(24),
-                                            color: .white)
+                                            color: StrandPalette.onDarkPrimary)
                                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                                     .allowsHitTesting(false)
                             }

@@ -128,7 +128,6 @@ struct HowNoopWorksView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("THE BASICS").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("How NOOP works").font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -167,7 +166,6 @@ struct HowNoopWorksView: View {
         NoopCard {
             VStack(alignment: .leading, spacing: 14) {
                 Text("THE ONE RULE").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Text("NOOP never shows you a number it had to make up. If a score isn't ready, it tells you why and what to do next. Everything here runs on your device, from your strap.")
                     .font(StrandFont.subhead)
@@ -193,8 +191,6 @@ struct HowNoopWorksView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(section.overline)
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
-                            .textCase(.uppercase)
                             .foregroundStyle(section.tint)
                         Text(section.title)
                             .font(StrandFont.headline)
@@ -280,7 +276,6 @@ struct HowNoopWorksView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("METHOD")
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
                             .foregroundStyle(DomainTheme.charge.color)
                         Text("How your scores are computed")
                             .font(StrandFont.headline)
@@ -312,7 +307,6 @@ struct HowNoopWorksView: View {
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(m.family)
                     .font(StrandFont.overline)
-                    .tracking(0.4)
                     .foregroundStyle(m.tint)
                 Spacer(minLength: 0)
             }

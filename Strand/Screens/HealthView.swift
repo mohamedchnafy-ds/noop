@@ -910,7 +910,7 @@ private struct FitnessAgeSection: View {
                                      animated: true, tapPassesThrough: true)
                             .frame(width: 96, height: 96)
                         CountUpNumber(value: Double(shown), font: StrandFont.rounded(30), prefix: bound)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(StrandPalette.onDarkPrimary)
                             .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                             .allowsHitTesting(false)
                     }
@@ -1257,7 +1257,7 @@ private struct VitalitySection: View {
                             .frame(width: 108, height: 108)
                         VStack(spacing: 0) {
                             CountUpNumber(value: v, font: StrandFont.rounded(38))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(StrandPalette.onDarkPrimary)
                                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                             Text("of 100").font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
                         }

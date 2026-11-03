@@ -598,7 +598,7 @@ private struct DevicesContent: View {
 
     private func sectionHead(_ title: LocalizedStringKey, trailing: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)
+            Text(title).font(StrandFont.overline).foregroundStyle(StrandPalette.textTertiary)
             Spacer()
             Text(trailing).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
         }
@@ -918,7 +918,7 @@ private struct DeviceCard: View {
                     if let hint = primaryActionHint {
                         Text("·").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                         Text(hint)
-                            .font(StrandFont.overlineScaled(10)).tracking(1.0)
+                            .font(StrandFont.overlineScaled(10))
                             .foregroundStyle(StrandPalette.accent)
                         Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(StrandPalette.accent)

@@ -117,7 +117,7 @@ struct LabBookView: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(countLine).font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
-                        Text("All stays on \(Platform.deviceNounPhrase). Nothing is sent anywhere.")
+                        Text("All stays on \(Platform.deviceNounPhrase), unless you share it with the Coach.")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     }
                     Spacer(minLength: 8)
@@ -197,6 +197,9 @@ struct LabBookView: View {
                         .foregroundStyle(csvFailed ? StrandPalette.statusWarning : StrandPalette.statusPositive)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // Personal fork (chantier 8): a PDF report read by the Coach, under its own consent.
+                Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+                LabReportImportRow(onSaved: { await load() })
             }
         }
     }

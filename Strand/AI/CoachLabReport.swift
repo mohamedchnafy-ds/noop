@@ -32,7 +32,7 @@ struct CoachLabReport: Equatable {
 
         /// "12,5 µg/L" or the qualitative text, as the sheet shows it.
         var valueLine: String {
-            let number = value.map { LiftFormat.trim($0) } ?? valueText ?? "—"
+            let number = value.map { LabBookFormat.plain($0) } ?? valueText ?? "—"
             return unit.isEmpty ? number : number + " " + unit
         }
     }
@@ -131,11 +131,11 @@ struct CoachLabReport: Equatable {
             let reference = (entry["reference"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let already = existing.filter { $0.markerKey == key && $0.day == day }
             let existingText = already.first.map { row in
-                (row.value.map { LiftFormat.trim($0) } ?? row.valueText ?? "—")
+                (row.value.map { LabBookFormat.plain($0) } ?? row.valueText ?? "—")
                     + (row.unit.isEmpty ? "" : " " + row.unit) + ", " + existingSource(row.source)
             }
             lines.append(Line(id: lines.count, printedName: name, markerKey: key,
-                              category: definition?.category ?? .bloodPanel,
+                              category: definition?.category ?? .other,
                               value: number.flatMap { $0.isFinite ? $0 : nil },
                               valueText: number == nil ? text : nil, unit: unit,
                               referenceText: (reference ?? "").isEmpty ? nil : reference,

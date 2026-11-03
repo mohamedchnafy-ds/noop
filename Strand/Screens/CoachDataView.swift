@@ -37,6 +37,7 @@ struct CoachDataView: View {
             if coach.provider == .anthropic {
                 CoachSectionTitle("If your question needs it")
                 onDemandCard
+                labReportCard
             }
             CoachSectionTitle("Never sent")
             Text("Raw beats, second-by-second readings, your location. Your key only goes to \(coach.provider.displayName).")
@@ -145,16 +146,22 @@ struct CoachDataView: View {
                 .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                 .accessibilityLabel("Also share my patterns and Lab Book with the coach")
         }
-        divider
-        // The lab-report opt-in (chantier 8): only "Read a PDF report with the Coach" in the Lab Book uses it.
-        HStack(spacing: 12) {
-            CoachDataRow(symbol: "doc.text.fill", tint: StrandPalette.textSecondary,
-                         title: "Lab reports (PDF)",
-                         detail: String(localized: "Only when you send one: the whole document goes, your name, your doctor and the lab included"))
-            Toggle("", isOn: $coach.labReportConsent)
-                .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
-                .accessibilityLabel("Let the coach read a lab report I send")
+    }
+
+    /// The lab-report opt-in (personal fork, chantier 8), separate from "Use my data": only "Read a PDF
+    /// report with the Coach" in the Lab Book uses it, and only for the document the user picks.
+    private var labReportCard: some View {
+        NoopCard(padding: 14) {
+            HStack(spacing: 12) {
+                CoachDataRow(symbol: "doc.text.fill", tint: StrandPalette.textSecondary,
+                             title: "Lab reports (PDF)",
+                             detail: String(localized: "Only when you send one: the whole document goes, your name, your doctor and the lab included"))
+                Toggle("", isOn: $coach.labReportConsent)
+                    .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                    .accessibilityLabel("Let the coach read a lab report I send")
+            }
         }
+    }
 
     /// What the read tools can fetch (`CoachTools`): nothing more leaves the device until a question
     /// needs it, and what was fetched is named under the reply.

@@ -18,13 +18,22 @@ struct LabReportImportRow: View {
     @State private var review: LabReportReview?
     @State private var message: String?
 
+    init(onSaved: @escaping () async -> Void) {
+        self.onSaved = onSaved
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button {
                     start()
                 } label: {
-                    Label(reading ? "Reading the report…" : "Read a PDF report with the Coach", systemImage: "doc.text.magnifyingglass")
+                    // An `if`, not a ternary: `Label(cond ? "a" : "b")` picks the untranslated String overload.
+                    if reading {
+                        Label("Reading the report…", systemImage: "doc.text.magnifyingglass")
+                    } else {
+                        Label("Read a PDF report with the Coach", systemImage: "doc.text.magnifyingglass")
+                    }
                 }
                 .buttonStyle(.noopSecondary)
                 .disabled(reading || !coach.canEstimateMeals)
@@ -123,6 +132,13 @@ struct LabReportReviewSheet: View {
 
     private var ticked: Int { report.lines.filter(\.include).count }
 
+    /// "Add 3 values to Lab Book"; only the Nutrition choice when nothing is ticked.
+    private var addTitle: LocalizedStringKey {
+        if ticked == 0 { return "Show in Nutrition" }
+        if ticked == 1 { return "Add 1 value to Lab Book" }
+        return "Add \(ticked) values to Lab Book"
+    }
+
     var body: some View {
         ScreenScaffold(title: "Check the values",
                        subtitle: "Copied by the Coach from your report. Nothing is saved until you add them.",
@@ -170,9 +186,7 @@ struct LabReportReviewSheet: View {
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
-            NoopButton(LocalizedStringKey(ticked == 1 ? String(localized: "Add 1 value to Lab Book")
-                                                      : String(localized: "Add \(ticked) values to Lab Book")),
-                       systemImage: "plus", kind: .primary, fullWidth: true) {
+            NoopButton(addTitle, systemImage: "plus", kind: .primary, fullWidth: true) {
                 saving = true
                 Task {
                     await onSave(report, Array(nutrition))

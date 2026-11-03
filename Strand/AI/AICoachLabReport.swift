@@ -1,4 +1,5 @@
 import Foundation
+import StrandImport
 import WhoopStore
 #if canImport(PDFKit)
 import PDFKit
@@ -24,9 +25,6 @@ extension AICoachEngine {
 
     /// Rounds before the last request forbids another call: one call is all it takes, one more to correct it.
     static let labReportRounds = 2
-
-    /// The report can be read: the Coach is on with Anthropic and a key, and the opt-in is on.
-    var canReadLabReports: Bool { canEstimateMeals && labReportConsent }
 
     /// Whether `pdf` fits what one request can carry; nil when it does, else the message to show.
     static func labReportSizeProblem(_ pdf: Data) -> String? {
@@ -106,8 +104,8 @@ extension AICoachEngine {
         switch source {
         case "manual": return String(localized: "entered by hand")
         case CoachLabReport.source: return String(localized: "lab report")
-        case "lab-csv": return "CSV"
-        case "whoop-biomarkers": return "WHOOP"
+        case LabMarkerCsvImport.sourceId: return "CSV"
+        case WhoopBiomarkerExportParser.sourceId: return "WHOOP"
         default: return source
         }
     }

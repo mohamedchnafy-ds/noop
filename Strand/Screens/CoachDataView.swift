@@ -119,7 +119,7 @@ struct CoachDataView: View {
                      detail: String(localized: "Resting HR, HRV and sleep over 30 nights, and today's gap"))
         divider
         CoachDataRow(symbol: "moon.fill", tint: StrandPalette.restBright, title: "Sleep",
-                     detail: String(localized: "Debt, sleep need, usual wake-up, suggested bedtime, naps"))
+                     detail: String(localized: "Debt night by night over 14 nights, sleep need, usual wake-up, suggested bedtime, naps"))
         divider
         CoachDataRow(symbol: "fork.knife", tint: StrandPalette.metricCyan, title: "Nutrition",
                      detail: String(localized: "Today's meals against your goals, and the 7 days before"))
@@ -157,7 +157,10 @@ struct CoachDataView: View {
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 onDemandRow("A measure over several weeks")
-                onDemandRow("The detail of a night")
+                onDemandRow("Weight from Apple Health, water logged, stress history")
+                onDemandRow("The detail of a night, with its heart rate and HRV")
+                onDemandRow("Your heart rate over a day, and the time in each zone")
+                onDemandRow("Caffeine logged in the last 48 hours")
                 onDemandRow("The history of an exercise")
                 onDemandRow("Your Journal and Lab Book")
                 onDemandRow("Your meals over several days")

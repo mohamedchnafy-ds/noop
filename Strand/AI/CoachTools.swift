@@ -22,6 +22,10 @@ enum CoachTools {
         case labBook = "get_lab_book"
         /// The meal journal (personal fork, Nutrition).
         case meals = "get_meals"
+        /// One day's heart rate, as the Today card's Day view draws it, with the time in each zone (chantier 8).
+        case dayHeartRate = "get_day_heart_rate"
+        /// The caffeine tracker: what was logged and the estimate still active (chantier 8).
+        case caffeine = "get_caffeine"
     }
 
     /// The metrics `get_metric_history` can return, by the names the fiche uses.
@@ -29,6 +33,17 @@ enum CoachTools {
         case charge, effort, sleep, hrv, rhr, spo2, respiration
         case skinTemp = "skin_temp"
         case steps, calories
+        /// Read from their own series rather than the daily row (chantier 8): the Apple Health weight, the
+        /// water tracker's day totals and the Stress screen's daily history.
+        case weight, water, stress
+
+        /// Whether the value comes from the daily row (`value(_:)`); false for the series-backed metrics.
+        var isDailyRow: Bool {
+            switch self {
+            case .weight, .water, .stress: return false
+            default: return true
+            }
+        }
 
         /// The value of this metric on one day, nil when it was not measured.
         func value(_ day: DailyMetric) -> Double? {
@@ -43,6 +58,7 @@ enum CoachTools {
             case .skinTemp: return day.skinTempDevC
             case .steps: return day.steps.map(Double.init)
             case .calories: return day.activeKcalEst
+            case .weight, .water, .stress: return nil
             }
         }
 
@@ -59,14 +75,18 @@ enum CoachTools {
             case .skinTemp: return "Skin-temperature deviation (°C from baseline)"
             case .steps: return "Steps"
             case .calories: return "Active calories (kcal, estimate)"
+            case .weight: return "Weight (kg, from Apple Health)"
+            case .water: return "Water logged (ml, the water tracker; logged water is not all the water drunk)"
+            case .stress: return "Stress (daily 0-3 proxy from resting HR and HRV, the Stress screen's history; "
+                + "under 1 low, 1-2 moderate, 2 and over high)"
             }
         }
 
         /// One value as the result writes it.
         func wireValue(_ value: Double) -> String {
             switch self {
-            case .charge, .hrv, .rhr, .steps, .calories: return "\(Int(value.rounded()))"
-            case .effort, .respiration: return String(format: "%.1f", value)
+            case .charge, .hrv, .rhr, .steps, .calories, .water: return "\(Int(value.rounded()))"
+            case .effort, .respiration, .weight, .stress: return String(format: "%.1f", value)
             case .sleep: return String(format: "%.1f", value / 60)
             case .spo2: return String(format: "%.1f", value)
             case .skinTemp: return String(format: "%+.1f", value)
@@ -86,6 +106,9 @@ enum CoachTools {
             case .skinTemp: return String(localized: "Skin temperature")
             case .steps: return String(localized: "Steps")
             case .calories: return String(localized: "Calories")
+            case .weight: return String(localized: "Weight")
+            case .water: return String(localized: "Hydration")
+            case .stress: return String(localized: "Stress")
             }
         }
     }
@@ -103,6 +126,12 @@ enum CoachTools {
     /// How far back `get_exercise_history` looks for sessions.
     static let exerciseLookbackDays = 365
     static let mealDayRange = 1...30
+    /// How far back `get_day_heart_rate` reads, in days before today.
+    static let dayHeartRateLookbackDays = 60
+    /// The slots `get_day_heart_rate` groups the 5-minute buckets into, so a whole day stays short.
+    static let dayHeartRateSlotSeconds = 1800
+    /// The slots the night curves of `get_night` are grouped into.
+    static let nightCurveSlotSeconds = 1800
 
     // MARK: Definitions
 
@@ -118,7 +147,8 @@ enum CoachTools {
             tool(.metricHistory,
                  "Daily values of one metric over the last N days (oldest first), with how many days were "
                  + "measured, the average, the lowest and the highest. Use it when the question needs more "
-                 + "than the 14 days the fiche carries.",
+                 + "than the 14 days the fiche carries. weight is the Apple Health weight, water the water "
+                 + "tracker's day totals, stress the Stress screen's daily history.",
                  properties: [
                     "metric": ["type": "string", "enum": Metric.allCases.map(\.rawValue)],
                     "days": ["type": "integer", "minimum": dayRange.lowerBound, "maximum": dayRange.upperBound],
@@ -126,7 +156,8 @@ enum CoachTools {
                  required: ["metric", "days"]),
             tool(.night,
                  "Detail of one night: duration, stages, efficiency, disturbances, HRV, resting HR, SpO2, "
-                 + "respiration, skin temperature and each sleep period with its times.",
+                 + "respiration, skin temperature, each sleep period with its times, and the night's heart-rate "
+                 + "and HRV curves (the Sleep screen's) every 30 minutes.",
                  properties: ["date": ["type": "string",
                                        "description": "YYYY-MM-DD, the day the night ended (the morning)."]],
                  required: ["date"]),
@@ -161,6 +192,17 @@ enum CoachTools {
                  properties: ["days": ["type": "integer", "minimum": mealDayRange.lowerBound,
                                        "maximum": mealDayRange.upperBound]],
                  required: ["days"]),
+            tool(.dayHeartRate,
+                 "One day's heart rate as the Today card draws it (5-minute averages from the strap), grouped "
+                 + "every 30 minutes with the lowest and highest beat, the day's sleep, and the time spent in "
+                 + "each heart-rate zone. Today when no date is given.",
+                 properties: ["date": ["type": "string",
+                                       "description": "YYYY-MM-DD, at most \(dayHeartRateLookbackDays) days ago."]],
+                 required: []),
+            tool(.caffeine,
+                 "The caffeine tracker: each intake logged in the last 48 hours (the app keeps no more) and the "
+                 + "estimate of what is still active now. Logged by the user, an estimate, not a measurement.",
+                 properties: [:], required: []),
         ]
         if labBook {
             tools.append(tool(.labBook,
@@ -214,11 +256,16 @@ enum CoachTools {
     /// `get_metric_history`: one line per calendar day in `dayKeys` (oldest first), a dash for a day
     /// with no value, then the count, average, lowest and highest of the measured days.
     static func metricHistory(_ metric: Metric, dayKeys: [String], byDay: [String: DailyMetric]) -> String {
+        metricHistory(metric, dayKeys: dayKeys, values: byDay.compactMapValues(metric.value))
+    }
+
+    /// `get_metric_history` from one value per day, the series-backed metrics' path (weight, water, stress).
+    static func metricHistory(_ metric: Metric, dayKeys: [String], values valueByDay: [String: Double]) -> String {
         guard let first = dayKeys.first, let last = dayKeys.last else { return "No days asked for." }
         var lines = ["\(metric.wireTitle), \(first) to \(last). A dash means NOT MEASURED, not zero:"]
         var values: [Double] = []
         for key in dayKeys {
-            if let value = byDay[key].flatMap(metric.value) {
+            if let value = valueByDay[key] {
                 values.append(value)
                 lines.append("\(key) \(metric.wireValue(value))")
             } else {
@@ -238,7 +285,8 @@ enum CoachTools {
 
     /// `get_night`: the night ending on `day`, from its daily row and its sleep periods.
     static func night(day: String, metric: DailyMetric?, periods: [(start: Int, end: Int)],
-                      timeZone: TimeZone) -> String {
+                      timeZone: TimeZone, heartRate: [HRBucket] = [],
+                      hrv: [(ts: Int, value: Double)] = []) -> String {
         guard metric != nil || !periods.isEmpty else {
             return "No night recorded ending on \(day)."
         }
@@ -264,6 +312,106 @@ enum CoachTools {
                 return "\(start)–\(end) (\(hours(Double(period.end - period.start) / 60)))"
             }
             lines.append("sleep periods: " + parts.joined(separator: ", "))
+        }
+        let clock = clockFormatter(timeZone)
+        func at(_ ts: Int) -> String { clock.string(from: Date(timeIntervalSince1970: TimeInterval(ts))) }
+        let hrSlots = slots(heartRate.map { (ts: $0.ts, value: $0.bpm) }, seconds: nightCurveSlotSeconds)
+        if !hrSlots.isEmpty {
+            var line = "sleeping heart rate every 30 min (bpm): "
+                + hrSlots.map { "\(at($0.ts)) \(Int($0.mean.rounded()))" }.joined(separator: ", ")
+            if let low = heartRate.min(by: { $0.bpm < $1.bpm }) {
+                line += "; lowest \(Int(low.bpm.rounded())) at \(at(low.ts))"
+            }
+            lines.append(line)
+        }
+        let hrvSlots = slots(hrv, seconds: nightCurveSlotSeconds)
+        if !hrvSlots.isEmpty {
+            lines.append("HRV (rMSSD) every 30 min (ms): "
+                         + hrvSlots.map { "\(at($0.ts)) \(Int($0.mean.rounded()))" }.joined(separator: ", "))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Values grouped into `seconds`-wide slots aligned on the clock (oldest first), each with its mean, lowest
+    /// and highest. A slot with no value is left out, so a gap stays a gap.
+    static func slots(_ values: [(ts: Int, value: Double)], seconds: Int)
+        -> [(ts: Int, mean: Double, low: Double, high: Double)] {
+        let width = max(seconds, 1)
+        var grouped: [Int: [Double]] = [:]
+        for v in values where v.value.isFinite { grouped[v.ts - ((v.ts % width) + width) % width, default: []].append(v.value) }
+        return grouped.keys.sorted().compactMap { start in
+            guard let group = grouped[start], let low = group.min(), let high = group.max() else { return nil }
+            return (ts: start, mean: group.reduce(0, +) / Double(group.count), low: low, high: high)
+        }
+    }
+
+    /// `get_day_heart_rate`: the day's 5-minute buckets (the Today card's own read) grouped every 30 minutes
+    /// with the lowest and highest beat of each slot, the card's three figures, the sleep inside the day and the
+    /// time in each zone of `zones` (nil when the day has no sample).
+    static func dayHeartRate(day: String, buckets: [HRBucket], sleep: [ClosedRange<Int>], restingHR: Double?,
+                             zones: TimeInZone?, hrMax: Int, timeZone: TimeZone) -> String {
+        guard !buckets.isEmpty else {
+            return "No heart rate recorded on \(day): the strap was not worn or not synced."
+        }
+        let clock = clockFormatter(timeZone)
+        func at(_ ts: Int) -> String { clock.string(from: Date(timeIntervalSince1970: TimeInterval(ts))) }
+        func bpm(_ v: Double) -> String { "\(Int(v.rounded()))" }
+        let means = buckets.map(\.bpm)
+        let average = means.reduce(0, +) / Double(means.count)
+        var lines = ["Heart rate on \(day) (strap, 5-minute averages as the Today card draws them; a missing slot "
+                     + "means NOT RECORDED):"]
+        var summary = "lowest 5-min average \(bpm(means.min() ?? average)), average \(bpm(average)), "
+            + "highest \(bpm(means.max() ?? average))"
+        if let low = buckets.map(\.minBpm).min(), let high = buckets.map(\.maxBpm).max() {
+            summary += "; lowest beat \(bpm(low)), highest beat \(bpm(high))"
+        }
+        if let rest = restingHR { summary += "; resting HR \(bpm(rest))" }
+        lines.append(summary)
+        if !sleep.isEmpty {
+            lines.append("asleep: " + sleep.sorted { $0.lowerBound < $1.lowerBound }
+                .map { "\(at($0.lowerBound))–\(at($0.upperBound))" }.joined(separator: ", "))
+        }
+        lines.append("every 30 min, average (lowest–highest beat):")
+        var grouped: [Int: [HRBucket]] = [:]
+        let width = dayHeartRateSlotSeconds
+        for b in buckets { grouped[b.ts - ((b.ts % width) + width) % width, default: []].append(b) }
+        for start in grouped.keys.sorted() {
+            guard let group = grouped[start], let low = group.map(\.minBpm).min(),
+                  let high = group.map(\.maxBpm).max() else { continue }
+            let mean = group.map(\.bpm).reduce(0, +) / Double(group.count)
+            lines.append("  \(at(start)) \(bpm(mean)) (\(bpm(low))–\(bpm(high)))")
+        }
+        if let zones, zones.total > 0 {
+            var parts = ["below zone 1 \(minutesText(zones.belowZone1))"]
+            for zone in 1...5 { parts.append("zone \(zone) \(minutesText(zones.seconds(inZone: zone)))") }
+            lines.append("time in heart-rate zones (the app's zones, HR max \(hrMax)): " + parts.joined(separator: ", "))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// `get_caffeine`: the intakes the tracker still keeps (newest first) and the active estimate at `now`.
+    static func caffeine(_ intakes: [CaffeineIntake], estimate: CaffeineActiveEstimate, now: Date,
+                         timeZone: TimeZone) -> String {
+        guard !intakes.isEmpty else {
+            return "No caffeine logged in the last 48 hours. That says nothing about what was drunk."
+        }
+        let clock = clockFormatter(timeZone)
+        var lines = ["Caffeine logged by the user in the last 48 hours (newest first; the app keeps no more):"]
+        for intake in intakes.sorted(by: { $0.at > $1.at }) {
+            let hoursAgo = max(0, now.timeIntervalSince(intake.at) / 3600)
+            var line = "  \(clock.string(from: intake.at)) (\(String(format: "%.1f", hoursAgo)) h ago): "
+                + (intake.mg.map { "\(Int($0.rounded())) mg" } ?? "amount not given")
+            if intake.isImported { line += " (from Apple Health)" }
+            lines.append(line)
+        }
+        if !estimate.hasActive {
+            lines.append("Still active now: none (estimate, half-life \(String(format: "%.1f", CaffeineDecay.defaultHalfLifeHours)) h).")
+        } else if let mg = estimate.totalRemainingMg {
+            lines.append("Still active now: about \(Int(mg.rounded())) mg from \(estimate.activeIntakeCount) intake(s) "
+                         + "(estimate, half-life \(String(format: "%.1f", CaffeineDecay.defaultHalfLifeHours)) h; "
+                         + "intakes without an amount are not counted in the mg).")
+        } else {
+            lines.append("Still active now: \(estimate.activeIntakeCount) intake(s) without an amount, so no mg estimate.")
         }
         return lines.joined(separator: "\n")
     }
@@ -504,6 +652,14 @@ enum CoachTools {
         case .meals:
             let days = integer(input, "days", fallback: 7, in: mealDayRange)
             return String(localized: "Meals since \(since(days: days))")
+        case .dayHeartRate:
+            if let day = text(input, "date"), let date = dayFormatter(calendar).date(from: day),
+               !calendar.isDate(date, inSameDayAs: now) {
+                return String(localized: "Heart rate of \(date.formatted(.dateTime.day().month(.abbreviated)))")
+            }
+            return String(localized: "Today's heart rate")
+        case .caffeine:
+            return String(localized: "Caffeine")
         }
     }
 
@@ -522,6 +678,20 @@ enum CoachTools {
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
+    }
+
+    private static func clockFormatter(_ timeZone: TimeZone) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }
+
+    /// Seconds as "1h 05m" or "12m".
+    private static func minutesText(_ seconds: Double) -> String {
+        let minutes = Int((seconds / 60).rounded())
+        return minutes >= 60 ? String(format: "%dh %02dm", minutes / 60, minutes % 60) : "\(minutes)m"
     }
 
     private static func hours(_ minutes: Double?) -> String {

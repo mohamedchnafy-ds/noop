@@ -1,5 +1,6 @@
 import XCTest
 @testable import Strand
+import StrandAnalytics
 import WhoopStore
 
 /// The coach's fiche (personal fork): the blocks the coach reads ahead of the day-by-day summary. Pure
@@ -123,6 +124,23 @@ final class CoachFicheTests: XCTestCase {
         XCTAssertTrue(block.contains("sleep debt none"), block)
         XCTAssertTrue(block.contains("usual wake-up not known yet"), block)
         XCTAssertFalse(block.contains("bedtime"), block)
+    }
+
+    /// The debt's nights (chantier 8): one per counted night, oldest first, slept and the gap to the need.
+    func testSleepBlockListsTheDebtNightByNight() {
+        let sleep = CoachFiche.Sleep(needMin: 480, debtMin: 50, isDebt: true, lastShortfallMin: 50,
+                                     usualWakeMin: nil, lastNightMin: 430, average30Min: nil,
+                                     nights: [SleepDebtNight(day: "2026-11-01", sleptMin: 495, deltaMin: 15),
+                                              SleepDebtNight(day: "2026-11-02", sleptMin: 430, deltaMin: -50)])
+        let block = CoachFiche.sleepBlock(sleep)
+        XCTAssertTrue(block.contains("the debt's last 2 nights (sleep with naps credited, against the need): "
+                                     + "11-01 8h 15m (+15m), 11-02 7h 10m (-50m)"), block)
+    }
+
+    func testSleepBlockWithoutNightsHasNoNightLine() {
+        let sleep = CoachFiche.Sleep(needMin: 480, debtMin: nil, isDebt: false, lastShortfallMin: nil,
+                                     usualWakeMin: nil, lastNightMin: nil, average30Min: nil)
+        XCTAssertFalse(CoachFiche.sleepBlock(sleep).contains("nights ("))
     }
 
     func testDurationAndClockFormats() {

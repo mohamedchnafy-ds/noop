@@ -60,6 +60,8 @@ enum CoachFiche {
         var usualWakeMin: Int?
         var lastNightMin: Double?
         var average30Min: Double?
+        /// The debt ledger's nights, oldest first (naps credited), against `needMin`.
+        var nights: [SleepDebtNight] = []
     }
 
     struct Inputs: Equatable {
@@ -208,6 +210,14 @@ enum CoachFiche {
         var lines = ["SLEEP (the Sleep tab's figures):"]
         if !parts.isEmpty { lines.append("  " + parts.joined(separator: ", ")) }
         lines.append("  " + second.joined(separator: ", "))
+        if !s.nights.isEmpty {
+            let nights = s.nights.map { night -> String in
+                let delta = Int(night.deltaMin.rounded())
+                return "\(night.day.suffix(5)) \(duration(night.sleptMin)) (\(delta >= 0 ? "+" : "-")\(duration(Double(abs(delta)))))"
+            }
+            lines.append("  the debt's last \(s.nights.count) nights (sleep with naps credited, against the need): "
+                         + nights.joined(separator: ", "))
+        }
         return lines.joined(separator: "\n")
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 import WhoopStore
 
 // What the live heart-rate banner shows beside the bpm (personal fork, chantier 6): the day's Effort, the
@@ -51,6 +52,8 @@ struct SleepSynthesisFigures: Equatable {
     /// How far the latest night fell short of the need, when it did.
     var lastShortfallMin: Double?
     var usualWakeMin: Int?
+    /// The ledger's nights, oldest first, with naps credited: what the Coach's fiche lists night by night.
+    var nights: [SleepDebtNight] = []
 
     /// The usual wake minus the need, as minutes after midnight (`HabitualWake.bedtime`).
     var bedtimeMin: Int? {
@@ -74,7 +77,8 @@ extension Repository {
         let habitual = await habitualMidsleepSec()
         let naps = SleepModel.napSleepMinutesByDay(navDays: SleepModel.navDays(navSessions: sessions),
                                                    habitualMidsleepSec: habitual)
-        let nights = SleepNightsData(ledger: SleepModel.debtLedger(days: through, napSleepMinByDay: naps), month: [])
+        let ledger = SleepModel.debtLedger(days: through, napSleepMinByDay: naps)
+        let nights = SleepNightsData(ledger: ledger, month: [])
         let nowTs = Int(now.timeIntervalSince1970)
         let wakes = sleeps.map(\.endTs).filter { $0 <= nowTs }.sorted()
         return SleepSynthesisFigures(
@@ -82,7 +86,8 @@ extension Repository {
             debtMin: nights.recent.isEmpty ? nil : nights.debtMinutes,
             isDebt: nights.isDebt,
             lastShortfallMin: nights.lastShortfallMinutes,
-            usualWakeMin: HabitualWake.minutes(wakeTimestamps: wakes, zone: .current))
+            usualWakeMin: HabitualWake.minutes(wakeTimestamps: wakes, zone: .current),
+            nights: ledger.nights)
     }
 }
 

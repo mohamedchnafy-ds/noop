@@ -401,11 +401,12 @@ final class AICoachEngine: ObservableObject {
         var lines = ["## Outils"]
         if readTools {
             lines += [
-                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours, le détail d'une nuit, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal, le Lab Book et le journal des repas.",
+                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours (dont le poids d'Apple Santé, l'eau enregistrée et l'historique du stress), le détail d'une nuit avec ses courbes de FC et de VFC, la FC d'une journée avec le temps par zone, la caféine notée, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal, le Lab Book et le journal des repas.",
                 "- Réponds avec la fiche quand elle suffit ; appelle un outil seulement si elle ne suffit pas pour répondre juste.",
                 "- N'annonce pas que tu vas chercher : appelle l'outil, puis réponds directement à la question.",
                 "- Demande la période la plus courte qui répond à la question.",
                 "- Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.",
+                "- Eau et caféine : ce sont des saisies de l'utilisateur. L'eau enregistrée n'est pas toute l'eau bue, et un jour sans saisie ne veut pas dire qu'il n'a rien bu ; la caféine active est une estimation.",
             ]
         }
         lines += [
@@ -1593,7 +1594,8 @@ final class AICoachEngine: ObservableObject {
                 lastShortfallMin: sleep.lastShortfallMin,
                 usualWakeMin: sleep.usualWakeMin,
                 lastNightMin: todayRow?.totalSleepMin,
-                average30Min: last30.isEmpty ? nil : last30.reduce(0, +) / Double(last30.count))
+                average30Min: last30.isEmpty ? nil : last30.reduce(0, +) / Double(last30.count),
+                nights: sleep.nights)
         }
 
         // The meal journal (personal fork, Nutrition): today against the goals, then the 7 days before.

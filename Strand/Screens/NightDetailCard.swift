@@ -132,24 +132,29 @@ struct SleepIndicatorsCard: View {
     let tiles: [SleepIndicatorTile]
     var regularity: Regularity? = nil
 
-    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
-        NoopCard(tint: StrandPalette.restColor) {
-            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-                Text("Indicators").strandOverline()
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
-                    ForEach(tiles) { SleepIndicatorTileView(tile: $0) }
-                }
-                switch regularity {
-                case .tile(let tile):
-                    SleepIndicatorTileView(tile: tile)
-                case .progress(let done, let needed):
-                    ProgressNote(text: String(localized: "Bedtime regularity from \(needed) nights"),
-                                 done: done, total: needed)
-                case nil:
-                    EmptyView()
-                }
+        // Fork chantier 7 (design F): a section title over tiles that are cards of their own, like the
+        // Today metrics, instead of tiles inset in one card.
+        VStack(alignment: .leading, spacing: NoopMetrics.space3) {
+            Text("Indicators")
+                .font(StrandFont.sectionTitle)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 2)
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                ForEach(tiles) { SleepIndicatorTileView(tile: $0) }
+            }
+            switch regularity {
+            case .tile(let tile):
+                SleepIndicatorTileView(tile: tile)
+            case .progress(let done, let needed):
+                ProgressNote(text: String(localized: "Bedtime regularity from \(needed) nights"),
+                             done: done, total: needed)
+                    .padding(.horizontal, 2)
+            case nil:
+                EmptyView()
             }
         }
     }
@@ -162,46 +167,44 @@ struct SleepIndicatorTileView: View {
     static let minHeight: CGFloat = 96
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: NoopMetrics.space2) {
+        VStack(alignment: .leading, spacing: 5) {
+            // The label in the tile's colour with its icon alone (no tinted disc), as the Today metrics.
+            HStack(spacing: 6) {
                 Image(systemName: tile.symbol)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(tile.tint)
-                    .frame(width: 26, height: 26)
-                    .background(tile.tint.opacity(0.16), in: Circle())
                     .accessibilityHidden(true)
                 Text(tile.label)
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textSecondary)
+                    .font(StrandFont.subhead.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
+            .foregroundStyle(tile.tint)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(tile.value)
-                    .font(StrandFont.number(24))
-                    .foregroundStyle(tile.value == "—" ? StrandPalette.textSecondary : tile.tint)
+                    .font(StrandFont.rounded(24, weight: .bold))
+                    .foregroundStyle(tile.value == "—" ? StrandPalette.textSecondary : StrandPalette.textPrimary)
                 if !tile.unit.isEmpty {
                     Text(tile.unit)
-                        .font(StrandFont.footnote)
+                        .font(StrandFont.caption.weight(.medium))
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
             }
             .monospacedDigit()
             Text(tile.caption)
-                .font(StrandFont.caption)
+                .font(StrandFont.caption2)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             if let usual = tile.usual {
                 Text(usual)
-                    .font(StrandFont.caption)
+                    .font(StrandFont.caption2)
                     .foregroundStyle(StrandPalette.textSecondary)
             }
         }
         .frame(maxWidth: .infinity, minHeight: Self.minHeight, alignment: .topLeading)
-        .padding(12)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius,
-                                                                      style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(tile.label): \(tile.value) \(tile.unit), \(tile.caption)"))
     }

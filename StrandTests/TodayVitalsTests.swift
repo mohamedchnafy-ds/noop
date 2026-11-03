@@ -329,6 +329,20 @@ final class TodayVitalsTests: XCTestCase {
         XCTAssertNotNil(rest.subtitle)
     }
 
+    func testSessionStillToDoOffersStartAndMovesTheNameIntoTheSubtitle() {
+        let next = TodaySynthesisLogic.sessionRow(
+            .init(name: "Full body A", state: .next, supersets: 0, singles: 0, typicalMinutes: 48), route: nil)
+        XCTAssertNotNil(next.action)
+        let shown = TodaySynthesisCard.shownSubtitle(next)
+        XCTAssertEqual(shown?.hasPrefix("Full body A · "), true)
+        // Done, running and rest rows keep the value on the right and no call to action.
+        let done = TodaySynthesisLogic.sessionRow(
+            .init(name: "Full body A", state: .done(minutes: 50), supersets: 0, singles: 0, typicalMinutes: nil),
+            route: nil)
+        XCTAssertNil(done.action)
+        XCTAssertEqual(TodaySynthesisCard.shownSubtitle(done), done.subtitle)
+    }
+
     func testBedtimeRowWithoutAUsualWakeSaysNoData() {
         let row = TodaySynthesisLogic.bedtimeRow(wakeMinutes: nil, needMinutes: 480) { "\($0)" }
         XCTAssertNil(row.subtitle)

@@ -15,6 +15,10 @@ struct TodaySynthesisRow: Identifiable {
     var subtitle: String?
     var value: String
     var route: TabRoute?
+    /// A call to action shown in blue in place of the value (the session row's « Start »); the value then
+    /// moves to the front of the subtitle. Nil for the other rows, and for the widget, which reads the
+    /// fields itself.
+    var action: String? = nil
 }
 
 struct TodaySynthesisCard: View {
@@ -60,7 +64,7 @@ struct TodaySynthesisCard: View {
                     .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
-                if let subtitle = row.subtitle {
+                if let subtitle = TodaySynthesisCard.shownSubtitle(row) {
                     Text(subtitle)
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
@@ -69,12 +73,19 @@ struct TodaySynthesisCard: View {
                 }
             }
             Spacer(minLength: NoopMetrics.space2)
-            Text(row.value)
-                .font(StrandFont.rounded(17, weight: .semibold))
-                .foregroundStyle(StrandPalette.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            if linked {
+            if let action = row.action {
+                Text(action)
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.accent)
+                    .lineLimit(1)
+            } else {
+                Text(row.value)
+                    .font(StrandFont.rounded(17, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            if linked && row.action == nil {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -84,6 +95,14 @@ struct TodaySynthesisCard: View {
         .frame(minHeight: 60)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+}
+
+extension TodaySynthesisCard {
+    /// The grey line under the title: with an action, the value leads it (« Full body A · ≈ 48 min »).
+    static func shownSubtitle(_ row: TodaySynthesisRow) -> String? {
+        guard row.action != nil else { return row.subtitle }
+        return [row.value, row.subtitle].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
@@ -152,9 +171,12 @@ enum TodaySynthesisLogic {
             }
             subtitle = line
         }
-        return TodaySynthesisRow(id: "session", symbol: "dumbbell.fill", tint: StrandPalette.effortColor,
-                                 title: String(localized: "Today's session"),
-                                 subtitle: subtitle.isEmpty ? nil : subtitle, value: session.name, route: route)
+        var row = TodaySynthesisRow(id: "session", symbol: "dumbbell.fill", tint: StrandPalette.effortColor,
+                                    title: String(localized: "Today's session"),
+                                    subtitle: subtitle.isEmpty ? nil : subtitle, value: session.name, route: route)
+        // A session still to do offers « Start » in blue, as in the retained design (fork chantier 7).
+        if session.state == .next { row.action = String(localized: "Start") }
+        return row
     }
 
     static func bedtimeRow(wakeMinutes: Int?, needMinutes: Double, format: (Int) -> String) -> TodaySynthesisRow {

@@ -4,11 +4,11 @@ import StrandAnalytics
 
 // MARK: - Top of the Sleep tab (personal fork)
 //
-// Everything the tab answers in two seconds, over the night scene: the title with the Alarms and
-// Customize buttons, the night picker, the night dial (score, time asleep, bed and wake times, stages,
-// the sleep need), the stage totals, the bed → wake row that opens the time editor, and tonight's target
-// when the night shown is last night. A pure view: the Sleep tab feeds it, and the render test feeds it
-// the same values without a repository.
+// Everything the tab answers in two seconds, on the plain black canvas (fork chantier 7, design F): the
+// title with the Alarms and Customize buttons, the night picker, then one card holding the night ring
+// (a circular hypnogram, see `SleepNightDial`), the four stage totals and the bed / wake / asleep cells
+// (bed and wake open the time editor), and tonight's target when the night shown is last night. A pure
+// view: the Sleep tab feeds it, and the render test feeds it the same values without a repository.
 
 struct SleepTopSection: View {
     struct Model {
@@ -55,22 +55,38 @@ struct SleepTopSection: View {
         VStack(spacing: 0) {
             titleRow
             nightPicker.padding(.top, NoopMetrics.space1)
-            SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
-                           palette: data.palette, needMinutes: data.needMinutes,
-                           score: data.score, scoreWord: data.scoreWord,
-                           asleepMinutes: data.asleepMinutes, onScene: showScene)
-                .padding(.top, NoopMetrics.space1)
-            stageLegend.padding(.top, NoopMetrics.space2)
-            if let need = data.needMinutes {
-                needLegend(need).padding(.top, NoopMetrics.space3)
-            }
-            timesRow.padding(.top, NoopMetrics.space3)
+            heroCard.padding(.top, NoopMetrics.space2)
             if let tonight = data.tonight {
                 SleepTonightCard(needMinutes: tonight.needMinutes, debtMinutes: tonight.debtMinutes)
                     .padding(.top, NoopMetrics.space3)
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Minutes awake inside the night, from the stage intervals (the legend's fourth entry).
+    private var awakeMinutes: Double {
+        data.intervals.filter { $0.stage == .awake }.reduce(0) { $0 + max(0, $1.end - $1.start) } / 60
+    }
+
+    /// The ring, the four stage totals, its one-line key, then bed / wake / asleep (fork chantier 7).
+    private var heroCard: some View {
+        VStack(spacing: NoopMetrics.space3) {
+            SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
+                           palette: data.palette, needMinutes: data.needMinutes,
+                           score: data.score, scoreWord: data.scoreWord,
+                           asleepMinutes: data.asleepMinutes, onScene: showScene)
+            stageLegend
+            Text("The further in the line sits, the deeper the sleep")
+                .font(StrandFont.caption)
+                .foregroundStyle(secondary)
+                .multilineTextAlignment(.center)
+            Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+            timesRow
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
     }
 
     // MARK: Parts
@@ -132,7 +148,7 @@ struct SleepTopSection: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(primary.opacity(enabled ? 1 : 0.35))
+                .foregroundStyle(secondary.opacity(enabled ? 1 : 0.35))
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
@@ -142,19 +158,25 @@ struct SleepTopSection: View {
     }
 
     private var stageLegend: some View {
-        HStack(spacing: NoopMetrics.space3) {
-            legendItem(.deep, data.deepMinutes)
-            legendItem(.rem, data.remMinutes)
-            legendItem(.light, data.lightMinutes)
+        // Two rows of two, deepest first, so four totals fit the card at any text size.
+        VStack(spacing: 6) {
+            HStack(spacing: NoopMetrics.space3) {
+                legendItem(.deep, data.deepMinutes)
+                legendItem(.rem, data.remMinutes)
+            }
+            HStack(spacing: NoopMetrics.space3) {
+                legendItem(.light, data.lightMinutes)
+                legendItem(.awake, awakeMinutes)
+            }
         }
         .accessibilityElement(children: .combine)
     }
 
     private func legendItem(_ stage: SleepStage, _ minutes: Double) -> some View {
         HStack(spacing: 5) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
+            Circle()
                 .fill(StrandPalette.sleepStageColor(stage, palette: data.palette))
-                .frame(width: 9, height: 9)
+                .frame(width: 8, height: 8)
             Text(stage.label)
                 .font(StrandFont.footnote)
                 .foregroundStyle(secondary)
@@ -165,60 +187,61 @@ struct SleepTopSection: View {
         }
     }
 
-    private func needLegend(_ need: Double) -> some View {
-        HStack(spacing: NoopMetrics.space2) {
-            DashedLegendSwatch(color: secondary)
-            Text("Your \(SleepDurationText.format(need)) of need before waking at \(AppClock.hourMinuteFormatter().string(from: data.wake))")
-                .font(StrandFont.footnote)
-                .foregroundStyle(secondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-        }
-    }
-
+    /// Bed, wake and asleep as three cells on one fixed grid (label / figure / caption). The bed and wake
+    /// cells open the time editor, as the old « Bed → Woke » row did.
     private var timesRow: some View {
         let f = AppClock.hourMinuteFormatter()
-        return Button(action: actions.editTimes) {
-            HStack(spacing: NoopMetrics.space2) {
-                Image(systemName: "moon.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(secondary)
-                Text("Bed \(f.string(from: data.onset))")
-                Image(systemName: "arrow.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(secondary)
-                Image(systemName: "sun.max.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(secondary)
-                Text("Woke \(f.string(from: data.wake))")
-                if data.canEditTimes {
-                    Image(systemName: data.timesEdited ? "pencil.circle.fill" : "pencil")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(secondary)
+        let inBed = max(0, data.wake.timeIntervalSince(data.onset)) / 60
+        return HStack(alignment: .top, spacing: 14) {
+            Button(action: actions.editTimes) {
+                HStack(alignment: .top, spacing: 14) {
+                    timeCell(symbol: "moon.fill", tint: StrandPalette.sleepStageColor(.deep, palette: data.palette),
+                             label: String(localized: "Bed"), value: f.string(from: data.onset),
+                             caption: data.canEditTimes ? String(localized: "Edit") : nil, captionIsAction: true)
+                    timeCell(symbol: "sun.max.fill", tint: StrandPalette.sleepStageColor(.awake, palette: data.palette),
+                             label: String(localized: "Wake"), value: f.string(from: data.wake),
+                             caption: data.timesEdited ? String(localized: "edited") : nil, captionIsAction: false)
                 }
+                .contentShape(Rectangle())
             }
-            .font(StrandFont.subhead.weight(.semibold))
-            .foregroundStyle(primary)
-            .monospacedDigit()
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .background(StrandPalette.heroFill, in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
-                .strokeBorder(StrandPalette.heroBorder, lineWidth: 1))
-            .contentShape(Rectangle())
+            .buttonStyle(LiquidPressStyle())
+            .disabled(!data.canEditTimes)
+            .accessibilityLabel(Text("Bed \(f.string(from: data.onset)), woke \(f.string(from: data.wake))"))
+            .accessibilityHint(data.canEditTimes ? Text("Edit sleep times") : Text(""))
+            timeCell(symbol: "bed.double.fill", tint: StrandPalette.restColor,
+                     label: String(localized: "Asleep"), value: SleepDurationText.format(data.asleepMinutes),
+                     caption: String(localized: "\(SleepDurationText.format(inBed)) in bed"), captionIsAction: false)
         }
-        .buttonStyle(LiquidPressStyle())
-        .disabled(!data.canEditTimes)
-        .accessibilityLabel(Text("Bed \(f.string(from: data.onset)), woke \(f.string(from: data.wake))"))
-        .accessibilityHint(data.canEditTimes ? Text("Edit sleep times") : Text(""))
     }
-}
 
-/// A short dashed line: the legend key for the dial's need arc.
-private struct DashedLegendSwatch: View {
-    let color: Color
-    var body: some View {
-        Canvas { ctx, size in
-            var p = Path()
-            p.move(to: CGPoint(x: 0, y: size.height / 2))
-            p.addLine(to: CGPoint(x: size.width, y: size.height / 2))
-            ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 4]))
+    private func timeCell(symbol: String, tint: Color, label: String, value: String, caption: String?,
+                          captionIsAction: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(label)
+                    .font(StrandFont.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(tint)
+            .frame(height: 16)
+            Text(value)
+                .font(StrandFont.rounded(22, weight: .bold))
+                .foregroundStyle(primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(height: 26)
+            Text(caption ?? " ")
+                .font(StrandFont.caption2)
+                .foregroundStyle(captionIsAction ? StrandPalette.accent : secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(height: 14)
         }
-        .frame(width: 20, height: 4)
-        .accessibilityHidden(true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -230,28 +253,34 @@ struct SleepTonightCard: View {
     private var hasDebt: Bool { debtMinutes >= SleepDebt.onTargetBandMin }
 
     var body: some View {
-        NoopCard(padding: NoopMetrics.space3, tint: StrandPalette.restColor) {
-            HStack(spacing: NoopMetrics.space3) {
-                Image(systemName: "moon.stars.fill")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(StrandPalette.restBright)
-                    .frame(width: 38, height: 38)
-                    .background(StrandPalette.restBright.opacity(0.14), in: Circle())
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tonight, aim for ≈ \(SleepDurationText.format(needMinutes + (hasDebt ? debtMinutes : 0)))")
-                        .font(StrandFont.headline)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Text(hasDebt
-                         ? String(localized: "\(SleepDurationText.format(needMinutes)) of need + \(SleepDurationText.format(debtMinutes)) of sleep debt")
-                         : String(localized: "Your \(SleepDurationText.format(needMinutes)) of need, no sleep debt to make up"))
-                        .font(StrandFont.footnote)
+        HStack(spacing: 12) {
+            Image(systemName: "moon.stars.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(StrandPalette.sleepStageColor(.deep))
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Tonight, aim for ≈ \(SleepDurationText.format(needMinutes + (hasDebt ? debtMinutes : 0)))")
+                    .font(StrandFont.body.weight(.medium))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                if hasDebt {
+                    Text("\(SleepDurationText.format(needMinutes)) of need + \(SleepDurationText.format(debtMinutes)) of sleep debt")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Your \(SleepDurationText.format(needMinutes)) of need, no sleep debt to make up")
+                        .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 0)
             }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .combine)
     }
 }

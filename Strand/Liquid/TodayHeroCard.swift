@@ -519,9 +519,18 @@ struct TodayHeroCard: View {
         return (band.lowerBound / model.effort.maxValue)...(band.upperBound / model.effort.maxValue)
     }
 
+    /// The Charge ring and its line share one tint: the score's band (red / yellow / green), or the plain
+    /// Charge green while there is no score yet (calibration, no data).
+    private var chargeTint: Color {
+        guard model.charge.calibration == nil, let score = model.charge.score else {
+            return StrandPalette.chargeColor
+        }
+        return StrandPalette.chargeTint(score)
+    }
+
     private var rings: [TodayRing] {
         [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity),
-         TodayRing(fraction: fraction(model.charge), tint: StrandPalette.chargeColor),
+         TodayRing(fraction: fraction(model.charge), tint: chargeTint),
          TodayRing(fraction: fraction(model.effort), tint: StrandPalette.effortColor, band: effortBand),
          TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restColor)]
     }
@@ -583,7 +592,7 @@ struct TodayHeroCard: View {
                                       caption: caloriesCaption),
                          route: model.caloriesRoute, guide: nil)
                     hairline
-                    ringLine(model.charge, symbol: "checkmark", tint: StrandPalette.chargeColor)
+                    ringLine(model.charge, symbol: "checkmark", tint: chargeTint)
                     hairline
                     ringLine(model.effort, symbol: "bolt.fill", tint: StrandPalette.effortColor)
                     hairline

@@ -91,7 +91,7 @@ final class SleepScreenRenderTests: XCTestCase {
             data: SleepTopSection.Model(
                 nightLabel: String(localized: "Last night"), dateLabel: "sam. 31 oct.",
                 canGoBack: false, canGoForward: false, onset: onset, wake: wake, intervals: intervals,
-                palette: .oura, score: 66, scoreWord: String(localized: "Fair"), asleepMinutes: 221,
+                palette: .noop, score: 66, scoreWord: String(localized: "Fair"), asleepMinutes: 221,
                 deepMinutes: 47, remMinutes: 67, lightMinutes: 108, needMinutes: 480,
                 timesEdited: false, canEditTimes: true, tonight: (needMinutes: 480, debtMinutes: 143)),
             actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {}))
@@ -105,7 +105,7 @@ final class SleepScreenRenderTests: XCTestCase {
         SleepPhasesCard(
             subtitle: "\(String(localized: "\(SleepDurationText.format(252)) in bed · \(SleepDurationText.format(221)) asleep"))\n\(String(localized: "Stages estimated on the device"))",
             source: String(localized: "On-device"),
-            intervals: intervals, nightStart: onset, palette: .oura,
+            intervals: intervals, nightStart: onset, palette: .noop,
             stages: [
                 .init(stage: .awake, minutes: 31, percent: 12, typicalMinutes: nil),
                 .init(stage: .rem, minutes: 67, percent: 27, typicalMinutes: nil),

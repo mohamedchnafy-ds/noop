@@ -261,7 +261,9 @@ public enum StrandPalette {
     public static var metricCyan:   Color { isClassic ? Color(light: "#2E92B4", dark: "#3FA9C9") : Color(light: "#0C817B", dark: "#66D4CF") }
     public static var metricPurple: Color { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#0C817B", dark: "#66D4CF") }
     public static var metricAmber:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C93400", dark: "#FF9F0A") }
-    public static var metricRose:   Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#D30F45", dark: "#FF375F") }
+    /// Heart rate everywhere (fork chantier 7): the same pink as `liquidHeart` in both chart styles, so a
+    /// heart-rate curve has one colour on every screen. Orange / green stay for a crossed threshold.
+    public static var metricRose:   Color { liquidHeart }
     /// Today's calories (personal fork): bright gold for the activity part, dark copper for the resting
     /// part. Told apart by lightness as well as hue, so the two halves of one gauge never read as one.
     public static let caloriesActivity = Color(light: "#C93400", dark: "#FF9F0A")

@@ -25,7 +25,7 @@ struct CoachDataView: View {
                                .foregroundStyle(StrandPalette.accent)
                        }) {
             consentCard
-            CoachSectionTitle("ALWAYS SENT")
+            CoachSectionTitle("Always sent")
             alwaysSentCard
             if !coach.dataConsent {
                 Text("Only what you told the coach is sent while “Use my data” is off.")
@@ -35,10 +35,10 @@ struct CoachDataView: View {
             }
             // Personal fork (step 6): the read tools, Anthropic only.
             if coach.provider == .anthropic {
-                CoachSectionTitle("IF YOUR QUESTION NEEDS IT")
+                CoachSectionTitle("If your question needs it")
                 onDemandCard
             }
-            CoachSectionTitle("NEVER SENT")
+            CoachSectionTitle("Never sent")
             Text("Raw beats, second-by-second readings, your location. Your key only goes to \(coach.provider.displayName).")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textSecondary)

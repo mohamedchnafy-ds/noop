@@ -327,7 +327,7 @@ struct TestCentreView: View {
 
                 // Strap log, the same exportableLogText the Settings + Live strap-log cards share.
                 HStack(spacing: 12) {
-                    Text("STRAP LOG").font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                    Text("Strap log").font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                         .foregroundStyle(StrandPalette.textSecondary)
                     Spacer()
                     Button("Copy") { PlatformPasteboard.copy(live.exportableLogText()) }

@@ -176,6 +176,21 @@ final class NutritionRenderTests: XCTestCase {
         XCTAssertEqual(plan.intakeKcal, 2_560)
     }
 
+    /// Chantier 8, lot 3: a planned meal under the eaten ones, greyed, with "Eaten".
+    func testRendersPlannedMeals() throws {
+        let menu = MealEntry(meal: MealRow(id: "menu", day: "2026-11-01", eatenAt: at(19, 30), name: "Saumon, patate douce",
+                                           origin: .manual, createdAt: 0, updatedAt: 0, planned: true),
+                             items: [MealItemRow(id: "menu-0", mealId: "menu", ord: 0, name: "Saumon, patate douce",
+                                                 grams: nil, nutrients: MealNutrients(kcal: 640, proteinG: 42, carbsG: 55, fatG: 24))])
+        let view = VStack(alignment: .leading, spacing: 0) {
+            NutritionMealRow(entry: meals[3], isFirst: true, isLast: true)
+            NutritionPlannedHeader()
+                .padding(.bottom, 12)
+            NutritionMealRow(entry: menu, isFirst: true, isLast: true, onEaten: {})
+        }
+        try render(AnyView(view), name: "17-repas-prevu")
+    }
+
     /// Chantier 8, lot 3: the history card over 7 and 30 days, with unwritten days left empty.
     func testRendersTheNutritionHistory() throws {
         let cal = Calendar.current

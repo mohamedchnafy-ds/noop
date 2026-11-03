@@ -109,4 +109,22 @@ final class WorkoutCatalogTests: XCTestCase {
         }
         XCTAssertEqual(identities.count, WorkoutCatalog.all.count)
     }
+
+    /// Personal fork: every name shown translated has its `sport: <name>` key, whose English is the name
+    /// itself (a missing key would show "sport: Running"); free text and the stored token stay as typed.
+    func testEverySportShownTranslatedHasItsKey() {
+        XCTAssertTrue(Set(WorkoutCatalog.all.map(\.name)).isSubset(of: WorkoutCatalog.translatedSportNames))
+        let english = Bundle.main.preferredLocalizations.first?.hasPrefix("en") ?? false
+        if english {
+            for name in WorkoutCatalog.translatedSportNames.sorted() {
+                XCTAssertEqual(WorkoutCatalog.shownSportName(name), name, name)
+            }
+        }
+        for name in WorkoutCatalog.translatedSportNames {
+            XCTAssertFalse(WorkoutCatalog.shownSportName(name).hasPrefix("sport: "), name)
+        }
+        XCTAssertEqual(WorkoutCatalog.shownSportName("Course du dimanche"), "Course du dimanche")
+        XCTAssertEqual(WorkoutSource.editableSport("TraditionalStrengthTraining"), "Traditional Strength Training")
+        XCTAssertEqual(WorkoutCatalog.matching("Treadmill").map(\.name), ["Treadmill run", "Treadmill walk"])
+    }
 }

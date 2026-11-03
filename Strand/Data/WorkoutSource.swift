@@ -47,9 +47,12 @@ enum WorkoutSource: Equatable {
     /// concatenated camelCase (e.g. "TraditionalStrengthTraining"), which reads as one long
     /// unbreakable word and truncates badly — split it into words on the lower→Upper boundary so it
     /// renders "Traditional Strength Training". Already-spaced labels (manual/edited) pass through. (#175)
+    /// Personal fork: a known name is then translated (`WorkoutCatalog.shownSportName`), so this is never
+    /// a value to store: an edit seeds `editableSport`.
     static func displaySport(_ sport: String) -> String {
         if sport == "detected" { return String(localized: "Activity") }
-        return splitCamelCase(sport)
+        // Personal fork: catalogue and strap names shown in the app's language (display only).
+        return WorkoutCatalog.shownSportName(splitCamelCase(sport))
     }
 
     /// The camelCase splitter shared by the display and KEY paths. Deliberately NOT localized: the

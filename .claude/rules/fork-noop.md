@@ -35,7 +35,7 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Il ne voit pas l'app depuis la session : lui demander des captures d'écran pour valider le rendu.
 
 ## Chantier en cours (mis à jour le 3 nov. 2026, après-midi)
-- **Chantier 8** en cours, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, #46, #47, #48. Reste : fin du lot 3 (historique 7 j / 30 j, repas prévus, rappels), lot 4 (+ écran de séance : maquette à 3 propositions d'abord), lot 5.
+- **Chantier 8** en cours, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, #46, #47, #48, #49. Reste : fin du lot 3 (historique 7 j / 30 j, repas prévus), lot 4 (+ écran de séance : maquette à 3 propositions d'abord), lot 5.
 - Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 
 ## Feuille de route (chargée à chaque session)

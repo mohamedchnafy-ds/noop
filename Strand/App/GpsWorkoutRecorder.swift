@@ -482,6 +482,12 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     @Published private(set) var paceSecPerKm: Double?
     /// Number of accepted route points so far (lets the UI distinguish "recording, no fix yet" from "off").
     @Published private(set) var pointCount = 0
+    /// The route so far as cumulative distance (personal fork, chantier 8): the live workout screen reads
+    /// its splits and its pace of the moment from it (`LiveWorkoutMath`).
+    @Published private(set) var liveRoute: [LiveWorkoutMath.RoutePoint] = []
+    /// The workout's paused spans (unix ms) since `start`, so splits and pace leave them out. A span
+    /// paused before an app relaunch is not known again.
+    private(set) var pauseSpans: [(start: Int64, end: Int64)] = []
 
     private let manager = CLLocationManager()
     private var filter = TrackFilter()
@@ -538,6 +544,8 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         distanceM = 0
         paceSecPerKm = nil
         pointCount = 0
+        liveRoute = []
+        pauseSpans = []
         rawFixCount = 0
         isRecording = true
 
@@ -570,6 +578,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
             restoredSeam = banked.last
             pointCount = track.count
             distanceM = RouteMath.totalMeters(track)
+            liveRoute = LiveWorkoutMath.cumulative(banked)
             ActiveRouteStore.store(banked)
         }
         self.pausedDurationMs = max(0, pausedDurationMs)
@@ -604,7 +613,9 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     func resume() {
         guard startMs > 0 else { return }
         if let pausedAtMs {
-            pausedDurationMs += Int64(Date().timeIntervalSince1970 * 1000) - pausedAtMs
+            let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+            pausedDurationMs += nowMs - pausedAtMs
+            pauseSpans.append((start: pausedAtMs, end: nowMs))
             self.pausedAtMs = nil
         }
         isRecording = true
@@ -681,6 +692,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
             pausedDurationMs: pausedDurationMs
         )
         paceSecPerKm = RouteMath.paceSecPerKm(meters: distanceM, seconds: elapsed)
+        liveRoute = LiveWorkoutMath.cumulative(routePoints)
         // Workouts & GPS test mode: one GPS-fix-progress line tagged `.workouts` per batch that added a point,
         // showing raw fixes seen, how many the accuracy/speed filter accepted, and the running distance, so a
         // route that under-records (weak signal / denied permission) is visible. Zero-cost when off (the gate

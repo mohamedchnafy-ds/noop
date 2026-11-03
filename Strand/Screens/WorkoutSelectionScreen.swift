@@ -186,7 +186,7 @@ struct RecentWorkoutChip: View {
         Button(action: onTap) {
             HStack(spacing: NoopMetrics.space2) {
                 WorkoutTypeIcon(workoutType: sport.name, size: 18, weight: .semibold, color: accent)
-                Text(sport.name)
+                Text(WorkoutCatalog.shownSportName(sport.name))
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
@@ -197,7 +197,7 @@ struct RecentWorkoutChip: View {
             .contentShape(Capsule())
         }
         .nativeLiquidGlassWorkoutSelectionControl(capsule: true)
-        .accessibilityLabel(Text("\(sport.name) workout"))
+        .accessibilityLabel(Text("\(WorkoutCatalog.shownSportName(sport.name)) workout"))
         .accessibilityHint(Text("Double tap to start"))
     }
 }
@@ -222,7 +222,7 @@ struct WorkoutSelectionCard: View {
                     .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(alignment: .leading, spacing: NoopMetrics.space1) {
-                    Text(sport.name)
+                    Text(WorkoutCatalog.shownSportName(sport.name))
                         .font(StrandFont.title2)
                         .foregroundStyle(StrandPalette.textPrimary)
                         .multilineTextAlignment(.leading)

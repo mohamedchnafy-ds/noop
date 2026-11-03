@@ -158,12 +158,36 @@ enum WorkoutCatalog {
         return all.first { $0.name.caseInsensitiveCompare(q) == .orderedSame }
     }
 
-    /// Catalogue filtered by a search query (empty → the whole list). Names only, case-insensitive.
+    /// Catalogue filtered by a search query (empty → the whole list). Case-insensitive, on the stored
+    /// English name or the name the sport is shown under (personal fork: "course" finds Running).
     static func matching(_ query: String) -> [Sport] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return all }
-        return all.filter { $0.name.range(of: q, options: .caseInsensitive) != nil }
+        return all.filter {
+            $0.name.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+                || shownSportName($0.name).range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
     }
+
+    /// The name a sport is SHOWN under (personal fork): the catalogue's names, and the usual names the
+    /// strap and the imports give, translated through their `sport: <name>` catalogue keys; any other
+    /// label (free text) as it is. Display only: what is stored stays the English name, so nothing here
+    /// may be written back (`WorkoutSource.editableSport` is the form an edit seeds). The `sport: ` prefix
+    /// keeps these apart from UI keys spelled the same ("Running" is also the state of a session).
+    static func shownSportName(_ name: String) -> String {
+        guard translatedSportNames.contains(name) else { return name }
+        return String(localized: String.LocalizationValue(sportKeyPrefix + name))
+    }
+
+    /// The prefix of the sports' catalogue keys ("sport: Running").
+    private static let sportKeyPrefix = "sport: "
+
+    /// The names `shownSportName` translates: the whole catalogue, plus the strap's and the imports'
+    /// usual labels that are not in it.
+    static let translatedSportNames: Set<String> = Set(all.map(\.name)).union([
+        "Strength Training", "Traditional Strength Training", "Functional Fitness", "Swimming", "Spin",
+        "Stairmaster", "Assault Bike", "Sauna", "Hiking/Rucking",
+    ])
 
     /// Sports where a step count is meaningful , feet on the ground , so the workout summary can show
     /// steps (#398). Deliberately narrow: outdoor + treadmill run/walk and hiking, NOT cycling/rowing/

@@ -134,7 +134,7 @@ final class UnitFormatterTests: XCTestCase {
         XCTAssertEqual(UnitFormatter.celsiusDeltaToFahrenheit(0), 0, accuracy: 1e-9)
         for c in stride(from: -5.0, through: 5.0, by: 0.25) {
             XCTAssertEqual(
-                String(format: "%.1f", UnitFormatter.celsiusDeltaToFahrenheit(c)) + " °F",
+                UnitFormatter.decimal(UnitFormatter.celsiusDeltaToFahrenheit(c), places: 1) + " °F",
                 UnitFormatter.temperatureDeltaFromCelsius(c, unit: .fahrenheit),
                 "diverged at \(c) °C")
         }
@@ -222,5 +222,17 @@ final class UnitFormatterTests: XCTestCase {
         XCTAssertEqual(UnitFormatter.massUnit(.imperial), "lb")
         XCTAssertEqual(UnitFormatter.temperatureUnit(.celsius), "°C")
         XCTAssertEqual(UnitFormatter.temperatureUnit(.fahrenheit), "°F")
+    }
+
+    // MARK: - Decimal separator
+
+    /// The decimals follow the app's locale: a French reader gets a comma, an English one a point.
+    func testDecimalFollowsTheLocale() {
+        let fr = Locale(identifier: "fr_FR")
+        let en = Locale(identifier: "en_US")
+        XCTAssertEqual(UnitFormatter.decimal(4.6, places: 1, locale: fr), "4,6")
+        XCTAssertEqual(UnitFormatter.decimal(4.6, places: 1, locale: en), "4.6")
+        XCTAssertEqual(UnitFormatter.decimal(36.55, places: 2, locale: fr), "36,55")
+        XCTAssertEqual(UnitFormatter.decimal(-0.7, places: 1, locale: fr), "-0,7")
     }
 }

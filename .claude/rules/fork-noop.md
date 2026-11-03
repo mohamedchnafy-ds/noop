@@ -34,9 +34,9 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Toute question à Mohamed passe par l'outil de questions à choix multiples (AskUserQuestion), jamais en texte libre. Un seul lot de questions par étape ; les choix par défaut sont notés dans la fiche.
 - Il ne voit pas l'app depuis la session : lui demander des captures d'écran pour valider le rendu.
 
-## Chantier suivant (mis à jour le 3 nov. 2026, soir)
-- La refonte (chantier 7) est terminée côté code. **Prochain : chantier 8**, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed tranchés, lots, prompt de démarrage). Contexte : `docs/fork/dossier-claude-code.md` (localisateurs datés de 55a249b1, à revérifier) et `docs/fork/audit-delais-builds.md`.
-- Méthode demandée : toutes les questions d'un coup, puis tout le code par lots ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
+## Chantier en cours (mis à jour le 3 nov. 2026, après-midi)
+- **Chantier 8** en cours, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, #46, #47, #48, #49. Reste : fin du lot 3 (historique 7 j / 30 j, repas prévus), lot 4 (+ écran de séance : maquette à 3 propositions d'abord), lot 5.
+- Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 
 ## Feuille de route (chargée à chaque session)
 @../../docs/fork/feuille-de-route.md

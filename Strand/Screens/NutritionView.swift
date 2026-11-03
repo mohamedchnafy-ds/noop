@@ -39,6 +39,15 @@ struct NutritionView: View {
     @State private var capturedDraft: MealEntry?
     // Personal fork, chantier 8: the day's planned meals (a menu), greyed under the eaten ones.
     @State private var planned: (dayKey: String, meals: [MealEntry]) = ("", [])
+    // Personal fork, chantier 8: the history under the journal, 7 or 30 complete days before today.
+    @State private var historyRange: NutritionHistoryRange = .week
+    @State private var history: LoadedNutritionHistory?
+
+    /// The history as last read, with the range it was read for.
+    private struct LoadedNutritionHistory {
+        let range: NutritionHistoryRange
+        let days: [NutritionHistoryDay]
+    }
     // Personal fork, chantier 8: the followed Lab Book markers, and the Lab Book they open.
     @State private var labLines: [NutritionLabLine] = []
     @State private var showLabBook = false
@@ -157,6 +166,11 @@ struct NutritionView: View {
                 }
             }
 
+            NutritionHistoryCard(model: NutritionHistoryModel(days: history?.days ?? [], plan: plan),
+                                 range: historyRange, onRange: { historyRange = $0 },
+                                 loading: history?.range != historyRange)
+                .padding(.top, NoopMetrics.space2)
+                .nutritionListRow()
             if !labLines.isEmpty {
                 NutritionLabCard(lines: labLines, onOpen: { showLabBook = true })
                     .padding(.top, NoopMetrics.space2)
@@ -168,6 +182,11 @@ struct NutritionView: View {
         .environment(\.defaultMinListRowHeight, 1)
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
+        .task(id: "\(historyRange.rawValue)-\(mealRevision)-\(Repository.localDayKey(Date()))") {
+            let range = historyRange
+            let days = await NutritionHistory.loadNutritionHistory(repo, profile: profile, range: range)
+            if !Task.isCancelled { history = LoadedNutritionHistory(range: range, days: days) }
+        }
         .navigationDestination(isPresented: $showLabBook) { LabBookView() }
         .task(id: repo.refreshSeq) { labLines = await NutritionLabLines.loadLabLines(repo) }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {

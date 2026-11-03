@@ -28,10 +28,6 @@ import Foundation
 struct CoupledView: View {
     @EnvironmentObject var repo: Repository
 
-    /// "Card transparency" (0–100, default 100): fades the coupled glance cards in lockstep with the
-    /// frosted cards; content stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     // Effort is stored 0–100; the coupled read is always the 0–21 Day-Strain axis regardless of the user's
     // #268 display toggle, so the gauge reads like the classic coupled home. Display-only conversion.
@@ -128,10 +124,7 @@ struct CoupledView: View {
     }
 
     private var scaffold: some View {
-        ScreenScaffold(title: "Day", subtitle: subtitleText,
-                       // The day-of-sky liquid backdrop, matching Today / Health / Sleep / Trends: a fixed,
-                       // full-bleed time-of-day sky behind the scroll content (does not scroll).
-                       topBackground: liquidScaffoldSky()) {
+        ScreenScaffold(title: "Day", subtitle: subtitleText) {
             ViewThatFits(in: .horizontal) {
                 // Regular width (macOS / iPad): hero left, strain + sleep stacked right in a 2-column grid.
                 HStack(alignment: .top, spacing: NoopMetrics.gap) {
@@ -673,7 +666,7 @@ struct CoupledView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface())
     }
 
     private func clockString(_ ts: Int) -> String {

@@ -83,13 +83,16 @@ final class TodayScreenRenderTests: XCTestCase {
     }
 
     private func hrCard<Card: View>(mode: TodayHRMode, @ViewBuilder card: () -> Card) -> some View {
-        VStack(spacing: 8) {
+        // The same card shape as `TodayHeartRateSection`: the head inside the card, above the body.
+        VStack(alignment: .leading, spacing: 8) {
             TodayHRSectionHead(mode: .constant(mode), liveEnabled: true)
             card()
-                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(NoopPanelSurface(cornerRadius: 22))
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
     }
 
     private func liveCard() -> some View {
@@ -238,18 +241,17 @@ final class TodayScreenRenderTests: XCTestCase {
     private func keyMetrics() -> some View {
         VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("KEY METRICS").font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)
+                Text("Metrics").font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
                 Spacer()
-                Text(String(localized: "Edit").uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
-                    .foregroundStyle(StrandPalette.accent)
+                Text("Edit").font(StrandFont.body.weight(.medium)).foregroundStyle(StrandPalette.accent)
             }
             .padding(.horizontal, 2)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NoopMetrics.gap), count: 2),
                       spacing: NoopMetrics.gap) {
                 LiquidKeyMetricTile(label: String(localized: "Respiratory"), icon: "lungs.fill", value: "17,8",
-                                    unit: "rpm", tint: StrandPalette.accent, frac: 17.8 / 24)
+                                    unit: "rpm", tint: StrandPalette.metricCyan, frac: 17.8 / 24)
                 LiquidKeyMetricTile(label: String(localized: "Blood Oxygen"), icon: "drop.fill",
-                                    value: LiquidTodayView.noValueDash, unit: "%", tint: StrandPalette.metricCyan, frac: nil)
+                                    value: LiquidTodayView.noValueDash, unit: "%", tint: StrandPalette.accent, frac: nil)
                 LiquidKeyMetricTile(label: String(localized: "Steps"), icon: "figure.walk",
                                     value: LiquidTodayView.noValueDash, unit: "", tint: StrandPalette.chargeColor, frac: nil)
             }
@@ -260,10 +262,9 @@ final class TodayScreenRenderTests: XCTestCase {
     private func yourCards() -> some View {
         VStack(spacing: 8) {
             HStack {
-                Text("YOUR CARDS").font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)
+                Text("Your cards").font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
                 Spacer()
-                Text(String(localized: "Edit").uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
-                    .foregroundStyle(StrandPalette.accent)
+                Text("Edit").font(StrandFont.body.weight(.medium)).foregroundStyle(StrandPalette.accent)
             }
             .padding(.horizontal, 2)
             LiquidCardRow(title: DashboardCard.stress.title, sub: DashboardCard.stress.subtitle,
@@ -281,15 +282,14 @@ final class TodayScreenRenderTests: XCTestCase {
             TodayCaloriesTile(split: .init(restingKcal: 980, activityKcal: 310), goal: 480)
             TodayCaloriesTile(split: .init(restingKcal: 1440, activityKcal: 560), goal: 480)
         }
-        .padding(.vertical, NoopMetrics.space4)
-        .padding(.horizontal, NoopMetrics.space3)
-        .background(NoopPanelSurface(cornerRadius: 26, elevated: true))
+        .padding(18)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
     }
 
     // MARK: Renders
 
     func testRendersTheTodayScreen() throws {
-        // The first screen: header, rings and half-gauges, heart rate (live), the start of the synthesis.
+        // The first screen: header, the rings and their cells, heart rate (live), the start of the synthesis.
         try render(VStack(alignment: .leading, spacing: 12) {
             header()
             hero()
@@ -323,7 +323,7 @@ final class TodayScreenRenderTests: XCTestCase {
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "4b-fc-seuil-bas-et-provisoire")
 
-        // The calories half-gauge in the morning, after a session and past its goal.
+        // The spent-energy cell in the morning, after a session and past its goal.
         try render(calorieStates()
             .padding(.horizontal, NoopMetrics.screenHPadding)
             .padding(.vertical, 24), height: nil, clipped: false, name: "5-calories")

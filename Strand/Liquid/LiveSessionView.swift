@@ -26,10 +26,6 @@ struct LiveSessionView: View {
     /// The Android twin gated `LiveSessionScreen`'s breath under battery saver in #911.
     @ObservedObject private var motion = NoopMotionState.shared
 
-    /// "Card transparency" (0–100, default 100): fades the live-session cards in lockstep with the frosted
-    /// cards; content stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     /// One runner per presentation — created here, started on appear, never restarted.
     @StateObject private var runner = LiveSessionRunner()
@@ -299,8 +295,6 @@ struct LiveSessionSummarySheet: View {
     let row: LiveSessionRow
     let guardedCount: Int?
     let onDone: () -> Void
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
@@ -375,7 +369,7 @@ struct LiveSessionSummarySheet: View {
         VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) { content() }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface())
     }
 
     private var cueLine: String {

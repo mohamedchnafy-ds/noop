@@ -43,7 +43,6 @@ struct CoachSettingsView: View {
         // with no way out. (#2206 is the same mistake in the other direction.)
         ScreenScaffold(title: "Coach settings",
                        subtitle: "What the coach may read, how it is told to answer, and when it writes to you.",
-                       topBackground: liquidScaffoldSky(),
                        trailing: {
                            Button("Done") { dismiss() }
                                .buttonStyle(.plain)

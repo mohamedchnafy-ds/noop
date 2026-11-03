@@ -180,10 +180,7 @@ private struct BreathingContent: View {
 
     var body: some View {
         ScreenScaffold(title: "Breathe",
-                       subtitle: "Haptic-paced breathing · find your pace · calm down",
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Breathe sits in one atmosphere.
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "Haptic-paced breathing · find your pace · calm down") {
 
             modeSwitch
             StressCheckInCard(center: nudgeCenter) { startOneMinuteCue() }

@@ -49,7 +49,7 @@ struct UpdatesInboxView: View {
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("Updates")
-                    .font(StrandFont.rounded(26, weight: .bold))
+                    .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(subtitle).font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)

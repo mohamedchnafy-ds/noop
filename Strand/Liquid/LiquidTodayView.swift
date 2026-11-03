@@ -28,12 +28,6 @@ struct LiquidTodayView: View {
     // would re-render all of Today every second (the exact churn the LiveState leaves isolate). BLEManager
     // only publishes connect/discovery state, never HR. Injected at the app roots beside .environmentObject(model).
     @EnvironmentObject var ble: BLEManager
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Low Power Mode — and the in-app "Reduce motion in NOOP" toggle — pose the sky still too, the
-    /// behaviour the comment on the sky branch below has always described. Neither has a SwiftUI
-    /// environment key, hence the shared monitor.
-    @ObservedObject private var motion = NoopMotionState.shared
-    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     /// Shared with the real Today's card-customise editor so the two stay in sync.
     @AppStorage(DashboardCardPrefs.selectionKey) private var dashboardCardsRaw = ""
@@ -203,20 +197,8 @@ struct LiquidTodayView: View {
     /// flip with Light/Dark). Upstream #1160/#1161 moved the classic RoundedRectangle hero onto
     /// `StrandPalette.heroFill` / `heroBorder` for the same theme-aware goal; #1068 keeps the panel
     /// surface treatment while preserving that Light/Dark readability.
-    /// "Card transparency" (0–100, default 100): fades every liquid card surface here — the hero, the
-    /// session-start row, the metric tiles and the `card` helper — in lockstep with the frosted cards.
-    /// Content sits above the surface so it stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
-    /// "Sky behind cards" (default ON): extend the day-cycle sky behind the WHOLE scroll so the
-    /// Card-transparency slider reveals it under every card. User-toggleable. Mirrors Kotlin `NoopPrefs.skyBehindCards`.
-    @AppStorage(SkyBehindCardsPrefs.enabledKey) private var skyBehindCards = true
-    /// Day-cycle scene backdrop (#698). Default ON. When off, the liquid Today drops the sky for the plain
-    /// dark canvas — parity with Android and the classic TodayView, which already honour this pref. Mirrors
-    /// Kotlin `NoopPrefs.showDayCycleBackground`.
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
-    /// Custom background image (#custom-background): when active it overrides the sky in the backdrop below.
-    @ObservedObject private var backgroundStore = BackgroundImageStore.shared
+    /// Card surfaces are solid (fork chantier 7 retired the card-transparency setting).
+    private var cardOpacity: Double { 1 }
 
     // MARK: - Day navigation (ported from classic Today: swipe + calendar, day-keyed reads)
 
@@ -448,36 +430,9 @@ struct LiquidTodayView: View {
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         #endif
         .onPreferenceChange(PullOffsetKey.self) { handlePull($0) }
-        // The sky is a FIXED full-bleed backdrop drawn behind the scroll content, edge-to-edge under the
-        // status bar. A ScrollView background does not scroll with the content, so pulling down never
-        // moves the sky (the exact behaviour the scaffold uses on the classic Today).
-        .background(alignment: .top) {
-            ZStack(alignment: .top) {
-                StrandPalette.surfaceBase
-                // Custom background image (#custom-background): a picked photo OVERRIDES the sky, filling
-                // the whole backdrop (same cached image as every other tab, so it's seamless).
-                if backgroundStore.isActive {
-                    BackgroundImageBackdrop()
-                }
-                // Day-cycle scene (#698): the sky only paints when the toggle is ON AND no custom image is
-                // active; off = the plain surfaceBase canvas above (parity with Android + classic TodayView).
-                else if showDayCycleBackground {
-                    // Reduce-motion (and low-power) users get the same sky posed still — no twinkle/breath.
-                    // Also static until the first data load settles, so launch isn't fighting a live sky too.
-                    // "Sky behind cards" (opt-in): fill the whole backdrop with a softer settle so the sky
-                    // reads under every card, instead of the default 340 top band that dissolves to canvas.
-                    Group {
-                        if poseStill || !dataLoaded { LiquidSkyStatic(hour: liveHour, settleStrength: skyBehindCards ? 0.78 : 1) }
-                        else { LiquidSky(hour: liveHour, settleStrength: skyBehindCards ? 0.78 : 1) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: skyBehindCards ? nil : 340, alignment: .top)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                }
-            }
-            .ignoresSafeArea()
-        }
+        // Plain black canvas behind the scroll content, edge-to-edge under the status bar (fork chantier 7
+        // retired the day-cycle sky and the custom background image).
+        .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .coordinateSpace(name: Self.daySwipeSpace)
         .onPreferenceChange(LiquidHeartRateCardFrameKey.self) { heartRateCardFrame = $0 }
         // Swipe left/right to change DAYS (WHOOP-style). Tab-swipe is disabled on Today in RootTabView so
@@ -726,7 +681,8 @@ struct LiquidTodayView: View {
             restingHR: restingHRGauge,
             hrv: hrvGauge,
             sourceLabel: heroSourceLabel,
-            nutrition: nutritionLine)
+            nutrition: nutritionLine,
+            caloriesRoute: .metricSourced(key: caloriesDetailKey, source: caloriesDetailSource))
     }
 
     /// The Nutrition line under the half-gauges: the selected day's meals against the calories the gauge
@@ -777,14 +733,13 @@ struct LiquidTodayView: View {
     private var yourCardsSection: some View {
         VStack(spacing: 8) {
             HStack {
-                Text("YOUR CARDS").font(StrandFont.overline).tracking(1.6)
-                    .foregroundStyle(StrandPalette.textTertiary)
+                Text("Your cards").font(StrandFont.sectionTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
                 Spacer()
                 Button { customizationDestination = .yourCards } label: {
-                    // #492 item 4 parity: unify the Your Cards / Key Metrics edit affordance to "EDIT" across
-                    // platforms (Android #563). Reuse the localized "Edit" key, uppercased at display, so this
-                    // stays translated (BEARBEITEN / MODIFIER / …) without a new literal.
-                    Text(String(localized: "Edit").uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
+                    // #492 item 4 parity: one "Edit" affordance for Your Cards and Key Metrics (fork chantier 7:
+                    // sentence case, system blue).
+                    Text("Edit").font(StrandFont.body.weight(.medium))
                         .foregroundStyle(StrandPalette.accent)
                 }
                 .buttonStyle(.plain)
@@ -1218,12 +1173,11 @@ struct LiquidTodayView: View {
                 // The label names the window the DETAILED tiles graph, so it is only honest while they
                 // are drawn: with the trend graphs off (the default) nothing in this section renders a
                 // trend, and the header was still announcing one (#2376).
-                sectionHead("KEY METRICS", trailing: keyMetricsDetailed ? trendWindowLabel : nil)
+                sectionHead("Metrics", trailing: keyMetricsDetailed ? trendWindowLabel : nil)
                 // #430 parity: the SAME editor the classic grid uses — selection + order + Detailed tiles.
                 Button { customizationDestination = .keyMetrics } label: {
-                    Text(String(localized: "Edit").uppercased())
-                        .font(StrandFont.overlineScaled(11))
-                        .tracking(1.0)
+                    Text("Edit")
+                        .font(StrandFont.body.weight(.medium))
                         .foregroundStyle(StrandPalette.accent)
                 }
                 .buttonStyle(.plain)
@@ -1289,11 +1243,11 @@ struct LiquidTodayView: View {
                 ? spo2CandidateByDay[cachedDisplayDay?.day ?? selectedDayKey]
                 : nil
             let spo2 = spo2Real ?? spo2CandidateValue
-            ktile(String(localized: "Blood Oxygen"), icon: keyMetricIcon(metric), intText(spo2), "%", StrandPalette.metricCyan, fracOver(spo2, 100), key: spo2CandidateValue != nil ? "spo2_candidate" : "spo2",
+            ktile(String(localized: "Blood Oxygen"), icon: keyMetricIcon(metric), intText(spo2), "%", StrandPalette.accent, fracOver(spo2, 100), key: spo2CandidateValue != nil ? "spo2_candidate" : "spo2",
                   caption: spo2CandidateValue != nil ? String(localized: "strap estimate (unverified)") : nil)
         case .respiratory:
             let resp = displayDay?.respRateBpm ?? vitalsDay?.respRateBpm ?? respDay?.respRateBpm
-            ktile(String(localized: "Respiratory"), icon: keyMetricIcon(metric), resp.map { String(format: "%.1f", locale: AppLanguage.activeLocale, $0) } ?? "—", "rpm", StrandPalette.accent, fracOver(resp, 24), key: "resp_rate")
+            ktile(String(localized: "Respiratory"), icon: keyMetricIcon(metric), resp.map { String(format: "%.1f", locale: AppLanguage.activeLocale, $0) } ?? "—", "rpm", StrandPalette.metricCyan, fracOver(resp, 24), key: "resp_rate")
         case .steps:
             ktile(String(localized: "Steps"), icon: keyMetricIcon(metric), stepsText, "", StrandPalette.chargeColor,
                   fracOver(stepCount, 10000), key: stepsDetailKey, detailMetric: stepsDetailMetric)
@@ -1360,7 +1314,7 @@ struct LiquidTodayView: View {
 
     private var lastWorkoutsSection: some View {
         VStack(spacing: 8) {
-            sectionHead("LAST WORKOUTS", trailing: "\(workouts.count) total")
+            sectionHead("Last workouts", trailing: "\(workouts.count) total")
             if let w = workouts.first {
                 NavigationLink(value: TabRoute.workouts) { workoutCard(w) }
                     .buttonStyle(LiquidPressStyle())
@@ -1398,7 +1352,7 @@ struct LiquidTodayView: View {
 
     private var dataSourcesSection: some View {
         VStack(spacing: 8) {
-            sectionHead("DATA SOURCES", trailing: "Provenance")
+            sectionHead("Data sources", trailing: "Provenance")
             NavigationLink(value: TabRoute.dataSources) {
                 card {
                     VStack(spacing: 12) {
@@ -1427,10 +1381,11 @@ struct LiquidTodayView: View {
     /// Matches the Android twin, whose `SectionHeader` already takes `trailing: String? = null`.
     private func sectionHead(_ title: String, trailing: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(LocalizedStringKey(title)).font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)
+            // Fork chantier 7: section titles in sentence case, 20 pt bold.
+            Text(LocalizedStringKey(title)).font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
             Spacer()
             if let trailing {
-                Text(LocalizedStringKey(trailing)).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                Text(LocalizedStringKey(trailing)).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
             }
         }
         .padding(.horizontal, 2)
@@ -1441,7 +1396,7 @@ struct LiquidTodayView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Data
@@ -1917,11 +1872,6 @@ struct LiquidTodayView: View {
     private var caloriesDetailKey: String { caloriesDetailMetric?.key ?? "energy_kcal" }
     private var caloriesDetailSource: String { caloriesDetailMetric?.source ?? "my-whoop" }
 
-    private var liveHour: Double {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
-        return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60
-    }
-
     // MARK: - Formatting
 
     private func frac(_ v: Double?) -> Double? { v.map { max(0, min(1, $0 / 100)) } }
@@ -2048,66 +1998,6 @@ private struct LiquidHeartRateCardFrameKey: PreferenceKey {
 private struct PullOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-// MARK: - NOOP wordmark (centred, with a tap easter egg)
-
-/// The subtle NOOP wordmark. Built as a row of letters (not `Text(...).tracking()`, which adds a
-/// trailing gap after the last glyph and pushes the word off-centre), so it sits DEAD centre. Tap it
-/// for a little easter egg: it plays one of several random one-shot animations — wiggle, shake, flip,
-/// spin, bounce, or a jelly squash — with a light haptic.
-struct LiquidWordmark: View {
-    @State private var rot = 0.0      // z-rotation (wiggle / spin)
-    @State private var scaleX = 1.0   // horizontal scale (jelly squash)
-    @State private var scaleY = 1.0   // vertical scale (bounce / jelly)
-    @State private var dx = 0.0       // horizontal offset (shake)
-    @State private var flip = 0.0     // y-axis 3D flip
-    @State private var token = 0      // drives the tap haptic
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ForEach(Array("NOOP".enumerated()), id: \.offset) { _, ch in
-                Text(String(ch))
-                    .font(StrandFont.rounded(16, weight: .bold))
-                    .foregroundStyle(StrandPalette.textTertiary)
-            }
-        }
-        .shadow(color: .black.opacity(0.25), radius: 6, y: 1)
-        .rotationEffect(.degrees(rot))
-        .scaleEffect(x: scaleX, y: scaleY)
-        .offset(x: dx)
-        .rotation3DEffect(.degrees(flip), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
-        .contentShape(Rectangle())
-        .onTapGesture { playRandomEgg() }
-        .liquidTapHaptic(trigger: token)
-        .frame(maxWidth: .infinity)
-        .accessibilityHidden(true)
-    }
-
-    /// The easter egg: one of several one-shot animations at random. The oscillating ones (wiggle/shake/
-    /// squash) kick the value to an extreme then let an under-damped spring settle it back through zero,
-    /// which reads as a natural wobble without hand-authored keyframes.
-    private func playRandomEgg() {
-        token &+= 1
-        switch Int.random(in: 0..<6) {
-        case 0: // wiggle
-            rot = -14
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.28)) { rot = 0 }
-        case 1: // shake
-            dx = -12
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.26)) { dx = 0 }
-        case 2: // flip
-            withAnimation(.easeInOut(duration: 0.6)) { flip += 360 }
-        case 3: // spin
-            withAnimation(.easeInOut(duration: 0.55)) { rot += 360 }
-        case 4: // bounce
-            scaleX = 1.28; scaleY = 1.28
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.42)) { scaleX = 1; scaleY = 1 }
-        default: // jelly (squash + stretch)
-            scaleX = 1.35; scaleY = 0.7
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.3)) { scaleX = 1; scaleY = 1 }
-        }
-    }
 }
 
 // MARK: - Scene controls (LiveState-isolated leaves)

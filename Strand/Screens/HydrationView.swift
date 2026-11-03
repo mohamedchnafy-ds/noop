@@ -37,10 +37,6 @@ struct HydrationView: View {
     @AppStorage(HydrationStore.customSizeKey) private var customSizeML = HydrationGoal.cupML
     @State private var showCustomSizeSheet = false
 
-    /// "Card transparency" (0–100, default 100): fades the hydration cards in lockstep with the frosted
-    /// cards; content stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     private var goalML: Int { repo.hydrationGoalML(profileSex: profile.sex) }
     private var fraction: Double { HydrationGoal.fraction(totalML: totalML, goalML: goalML) }
@@ -49,10 +45,7 @@ struct HydrationView: View {
     var body: some View {
         ScreenScaffold(title: "Hydration",
                        subtitle: "Your fluid intake today, on \(Platform.deviceNounPhrase) only.",
-                       onRefresh: { await reload() },
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Hydration sits in one atmosphere.
-                       topBackground: liquidScaffoldSky()) {
+                       onRefresh: { await reload() }) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 ringSection
                 logSection
@@ -132,7 +125,7 @@ struct HydrationView: View {
         content()
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface())
     }
 
     // MARK: - Quick log (Sip / Cup / Bottle, secondary style)

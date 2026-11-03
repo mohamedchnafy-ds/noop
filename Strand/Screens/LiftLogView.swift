@@ -114,7 +114,7 @@ struct LiftLogView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Training")
-                    .font(StrandFont.rounded(28))
+                    .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(verbatim: mode == .week
                      ? TrainingText.weekTitle(monday: TrainingCalendar.mondayOf(selectedDate, calendar: calendar),

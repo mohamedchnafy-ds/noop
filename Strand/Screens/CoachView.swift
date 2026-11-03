@@ -88,11 +88,7 @@ struct CoachView: View {
                 chatScreen
             } else {
                 ScreenScaffold(title: "Coach",
-                               subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.",
-                               // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                               // tabs carry, so Coach sits in one atmosphere. Static + non-interactive; the frosted
-                               // setup card below sits on the opaque canvas and stays legible.
-                               topBackground: liquidScaffoldSky()) {
+                               subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.") {
                     setupCard
                 }
             }
@@ -389,13 +385,7 @@ struct CoachView: View {
         }
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
-        .background(alignment: .top) {
-            ZStack(alignment: .top) {
-                StrandPalette.surfaceBase
-                liquidScaffoldSky()
-            }
-            .ignoresSafeArea()
-        }
+        .background(StrandPalette.surfaceBase.ignoresSafeArea())
     }
 
     private var chatHPadding: CGFloat {

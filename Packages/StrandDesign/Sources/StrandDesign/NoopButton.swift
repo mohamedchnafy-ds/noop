@@ -17,9 +17,9 @@ import SwiftUI
 
 /// The four button roles. Colour + emphasis differ; geometry is identical across all four.
 public enum NoopButtonKind: Sendable {
-    /// Filled accent (blue), white label — the one primary action on a screen.
+    /// White fill, black label — the one primary action on a screen.
     case primary
-    /// Raised-surface fill, primary-text label, hairline edge — secondary actions.
+    /// #2C2C2E fill, primary-text label, no edge — secondary actions.
     case secondary
     /// No fill, accent label — low-emphasis / inline actions.
     case tertiary
@@ -41,7 +41,7 @@ public enum NoopButtonMetrics {
     /// Spacing between a leading icon and the label.
     public static let iconSpacing: CGFloat = 8
     /// Label tracking — a hair of openness on the semibold face.
-    public static let tracking: CGFloat = 0.2
+    public static let tracking: CGFloat = 0
     /// Apple's minimum touch target. The button never reports a hit area below this.
     public static let minHitTarget: CGFloat = 44
     /// Pressed scale (spec: subtle 0.97). Reduce-Motion collapses this to 1 (dim only).
@@ -63,15 +63,16 @@ struct NoopButtonAppearance {
     init(_ kind: NoopButtonKind) {
         switch kind {
         case .primary:
-            fill = StrandPalette.accent
-            label = StrandPalette.goldDeepText   // designated crisp white for text on accent fills
+            // Fork chantier 7: the primary action is white on black (black on white in light mode).
+            fill = StrandPalette.textPrimary
+            label = StrandPalette.surfaceBase
             border = nil
             usesPanelSurface = false
         case .secondary:
-            fill = nil
+            fill = StrandPalette.surfaceInset
             label = StrandPalette.textPrimary
             border = nil
-            usesPanelSurface = true
+            usesPanelSurface = false
         case .tertiary:
             fill = nil
             label = StrandPalette.accent

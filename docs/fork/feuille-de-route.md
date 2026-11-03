@@ -1,4 +1,4 @@
-# Feuille de route du fork NOOP (mise à jour : 2 nov. 2026, ~14:45)
+# Feuille de route du fork NOOP (mise à jour : 3 nov. 2026)
 
 À lire au début de chaque conversation qui code, et à mettre à jour à la fin.
 **Depuis le 2 nov. 2026 (soir)** : les fiches vivent dans le dépôt (`docs/fork/`, règles dans `.claude/rules/fork-noop.md`) et c'est là qu'on les met à jour. Les copies du Projet claude.ai « Fork Noop » (`claude/*.md`) ne sont plus suivies.
@@ -6,10 +6,10 @@ Règle : **un seul chantier de code à la fois**. Pendant la validation (5), plu
 **IPA** : ne pas en construire à chaque commit. On la construit à une étape choisie d'un chantier, en regroupant plusieurs changements (choix de Mohamed, 1er nov.). Prochaine IPA : **quand Mohamed le dit**, `build/<nom>` depuis `main`.
 **Dernière IPA construite (2 nov., ~14:50)** : `build/widget-app-group` = `main` **6b7bec3**, release `ipa-build-widget-app-group`, envoyée à Mohamed, installation à confirmer. Précédente : `build/day-widgets` = b43e596 (installée ; widgets vides → PR #31). Avant : `build/nutrition` = cb154b8.
 `main` = **6b7bec3** : en plus de cb154b8, PR #20 calories des séances, #21 minuit, #22 seuils FC (Aujourd'hui), #23 dictée/photo dans Nutrition, #24 Open Food Facts, #25 Plus en 6 groupes, #26 Entraînement (planning + calendrier), #27 Synthèse et Coach suivent le planning, **#28 pause + boutons de la bannière de séance, #29 bannière FC (Effort / Charge / Sommeil), #30 widgets Séance du jour / Nutrition / Sommeil, #31 App Group des widgets sous SideStore (Use Main Profile)**.
-**PR ouvertes** : aucune.
+**PR ouvertes** : #34 refonte PR 1 — jetons + iOS 26 + Aujourd'hui de la maquette F (`feat/design-tokens`, chantier 7).
 Branches CI temporaires (jamais fusionnées, à supprimer seulement sur accord) : `ci/room-schema-meal` (+ release `room-schema-ca2687c`), `ci/ciqual-2025` (+ release `ciqual-a651d39`) et `ci/day-widgets-macos` (StrandTests sur macos-26). Branches de rendu : `render/nutrition`, `render/nutrition-coach`, `render/nutrition-barcode`, `render/today-hr-thresholds`, `render/nutrition-capture`, `render/nutrition-open-food-facts`, `render/more-grouped`, `render/training-calendar`, `render/lift-banner-controls`, `render/live-hr-banner-side`, `render/day-widgets`.
 **Ensuite (après la refonte, chantier 7)** : `docs/fork/dossier-claude-code.md` (pistes et ordre de chantiers proposé, choix à trancher par Mohamed) et `docs/fork/audit-delais-builds.md` (accélérer la boucle modification → IPA). Ajoutés le 3 nov. ; à lire pour le contexte, pas à coder avant la fin de la refonte.
-**Chantier en cours** : aucun. **Bannières et widgets (6) terminé côté code** (PR #28, #29, #30, correctif #31). Prochaine étape : la validation sur le téléphone avec l'IPA `build/widget-app-group` (liste ci-dessous), corrections en petites PR.
+**Chantier en cours** : **7 — refonte visuelle** (`docs/fork/refonte-design.md`). PR 1 (#34 : jetons + iOS 26 + Aujourd'hui F) ouverte, IPA `build/design-tokens` à valider. Ensuite une PR par écran, Sommeil d'abord ; ouvrir la maquette avant de coder. **Bannières et widgets (6) terminé côté code** (PR #28, #29, #30, correctif #31). Prochaine étape : la validation sur le téléphone avec l'IPA `build/widget-app-group` (liste ci-dessous), corrections en petites PR.
 
 ## Ordre
 | # | Chantier | Fiches | État |
@@ -22,6 +22,7 @@ Branches CI temporaires (jamais fusionnées, à supprimer seulement sur accord) 
 | 5 | Validation écran par écran | fiches des écrans | **Corrections codées et fusionnées** (#20–#24). Reste la validation sur le téléphone avec la prochaine IPA |
 | 5b | Entraînement : calendrier du Carnet + Plus en 6 groupes | `docs/fork/entrainement-design.md` | **Fusionné** : PR #25 (b1e1825), #26 (46e1e14), #27 (6b8b423). À valider sur le téléphone |
 | 6 | Bannières et widgets | `docs/fork/bannieres-widgets-design.md` | **Fusionné** : PR A (#28, a6ad3aa : pause dans la séance, boutons `LiveActivityIntent` de la bannière et de la Dynamic Island) ; PR B (#29, 86c7e62 : Effort / Charge / Sommeil à côté des bpm) ; PR C (#30, b43e596 : widgets Séance du jour, Nutrition, Sommeil, petits et moyens) ; correctif App Group #31 (6b7bec3). À valider sur le téléphone |
+| 7 | Refonte visuelle (Fitness + Santé, iOS 26) | `docs/fork/refonte-design.md` | **PR 1 ouverte (#34)** : jetons (typo SF Pro / chiffres SF Rounded, fond noir, cartes #1C1C1E, accent bleu, boutons blanc / #2C2C2E, onglet actif blanc), iOS 26 minimum, réglages d'apparence retirés, **écran Aujourd'hui de la maquette F**. À valider sur le téléphone ; puis une PR par écran |
 
 ## À tester sur le téléphone avec la prochaine IPA (pas faisable en CI)
 - Aujourd'hui : calories d'activité après une séance de muscu ; bascule à minuit ; les 2 seuils FC (provisoires pendant la calibration), orange au-dessus, vert en dessous ; Synthèse « Séance du jour » un jour prévu et un jour de repos du planning.
@@ -32,6 +33,8 @@ Branches CI temporaires (jamais fusionnées, à supprimer seulement sur accord) 
 - **Séance (PR A)** : boutons de la bannière en sideload — Passer le repos, +30 s, Pause, Reprendre, Série/Tour terminé — sur l'écran verrouillé et dans la Dynamic Island ; pause dans la feuille, les écrans superset et la barre réduite ; double-tap du bracelet sans effet en pause ; durée de la séance sans la pause (Entraînements, calendrier, Synthèse).
 - **Bannière FC (PR B)** : FC en direct → « À côté des bpm » : Effort, Charge, Sommeil ; zone dans le sous-titre.
 - **Widgets (PR C)** : présents dans la galerie ; les 3 en petit et moyen ; mêmes valeurs qu'Aujourd'hui (séance, coucher conseillé, nuit) et que Nutrition (mangé, bilan, macros) ; mise à jour après un repas, un changement de planning, une séance terminée ; « pas de donnée » après minuit jusqu'à l'ouverture de l'app ; tap → Entraînement, Nutrition, onglet Sommeil. Si un widget vide affiche `group.… ✗` en bas, l'extension n'a pas l'App Group : réinstaller avec « Keep App Extensions (register App ID for each extension) ».
+
+- **Refonte PR 1 (`build/design-tokens`)** : Aujourd'hui comme la maquette F (4 anneaux concentriques plats + 4 lignes, 3 cellules Dépensé / FC repos / VFC avec barres plates, carte FC avec titre rose et sélecteur dedans, Synthèse en liste, Métriques en tuiles, plus de logo NOOP) ; appui long sur une ligne d'anneau → guide des scores ; fond noir partout (plus de ciel ni de photo de nuit), cartes #1C1C1E sans bordure, textes en SF Pro et chiffres arrondis, titres d'écran 34 bold, plus de capitales espacées, liens bleus, boutons blancs ; barre d'onglets en verre avec l'onglet actif **blanc** (et les boutons / interrupteurs dans les onglets toujours bleus) ; boutons ronds du Sommeil en verre ; Réglages → Apparence sans préréglage, accent, fond, ciel, transparence ni image ; rien de tronqué dans les petits libellés (passés de 11 à 13 pt).
 
 ## Pourquoi cet ordre
 - Aujourd'hui d'abord : Nutrition ajoute une ligne sous le demi-anneau Calories.
@@ -90,6 +93,7 @@ Branches CI temporaires (jamais fusionnées, à supprimer seulement sur accord) 
 
 ## Liens entre chantiers
 - Nutrition se branche sur le demi-anneau Calories (`TodayHeroCard.swift`) et utilise `TodayEnergy` ; toute lecture/écriture de repas passe par `MealJournal`.
+- Refonte (7) : tout écran passe par les jetons `NoopVisualStyle` / `StrandPalette` / `StrandFont` (`screenTitle`, `sectionTitle`, chiffres en `rounded`/`number`) ; plus de ciel, d'image de fond ni d'accent réglable (iOS 26 minimum).
 - Les cartes Repas et Produit reprennent le modèle de la carte Séance (`CoachSessionCard`).
 - La fiche du Coach reprend les valeurs d'Aujourd'hui, Sommeil, Progression, Nutrition et le planning d'Entraînement (WEEK PLAN) ; le bloc SLEEP passe par `Repository.sleepSynthesisFigures` (PR #29).
 - Entraînement (5b) : le widget Séance du jour (6, PR #30) lit la Synthèse d'Aujourd'hui (`TodaySessionResolver`, donc `planDecision`) et la semaine du calendrier (`buildTrainingDays`).

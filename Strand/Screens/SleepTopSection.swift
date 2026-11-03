@@ -44,9 +44,9 @@ struct SleepTopSection: View {
     let data: Model
     let actions: Actions
 
-    /// #1319: the night scene honours the Settings "Day-cycle background" toggle; off, the top sits on
-    /// the plain canvas and the text switches to the regular tokens.
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showScene = true
+    /// The night photo was retired (fork chantier 7): the top always sits on the plain black canvas
+    /// and uses the regular text tokens.
+    private var showScene: Bool { false }
 
     private var primary: Color { showScene ? StrandPalette.onDarkPrimary : StrandPalette.textPrimary }
     private var secondary: Color { showScene ? StrandPalette.onDarkSecondary : StrandPalette.textSecondary }
@@ -71,32 +71,14 @@ struct SleepTopSection: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .background(alignment: .top) {
-            // The night scene sits behind this section only and scrolls away with it: it bleeds past the
-            // screen gutters and up under the status bar, and its own bottom fade meets the canvas.
-            if showScene {
-                GeometryReader { geo in
-                    SleepPerformanceNightScene()
-                        .frame(width: geo.size.width + 2 * Self.sceneBleed,
-                               height: geo.size.height + Self.sceneRise)
-                        .offset(x: -Self.sceneBleed, y: -Self.sceneRise)
-                }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            }
-        }
     }
-
-    /// How far the scene reaches past the screen gutters, and up above the section.
-    static let sceneBleed: CGFloat = NoopMetrics.screenHPadding
-    static let sceneRise: CGFloat = 220
 
     // MARK: Parts
 
     private var titleRow: some View {
         HStack(spacing: NoopMetrics.space2) {
             Text("Sleep")
-                .font(StrandFont.rounded(30, weight: .bold))
+                .font(StrandFont.screenTitle)
                 .foregroundStyle(primary)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: NoopMetrics.space2)
@@ -106,17 +88,22 @@ struct SleepTopSection: View {
     }
 
     private func roundButton(_ symbol: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        // Liquid Glass circle on iOS 26 (fork chantier 7), the same chrome as the Today header buttons;
+        // macOS keeps a flat surface circle.
+        let button = Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(primary)
-                .frame(width: 44, height: 44)
-                .background(StrandPalette.heroFill, in: Circle())
-                .overlay(Circle().strokeBorder(StrandPalette.heroBorder, lineWidth: 1))
+                .frame(width: NoopMetrics.compactControlSize, height: NoopMetrics.compactControlSize)
                 .contentShape(Circle())
         }
-        .buttonStyle(LiquidPressStyle())
-        .accessibilityLabel(Text(label))
+        return button
+            .nativeLiquidGlassButtonChrome(controlSize: .small) {
+                button
+                    .buttonStyle(LiquidPressStyle())
+                    .background(StrandPalette.surfaceRaised, in: Circle())
+            }
+            .accessibilityLabel(Text(label))
     }
 
     private var nightPicker: some View {

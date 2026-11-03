@@ -1,97 +1,235 @@
 import SwiftUI
 import StrandDesign
 
-// MARK: - Today hero card (personal fork)
+// MARK: - Today hero card (personal fork, chantier 7 "Fitness + Santé")
 //
-// The Charge / Effort / Rest rings with one short line inside each, and under them the three half-gauges:
-// today's calories (activity and resting), last night's resting heart rate and HRV against the last 30
-// nights and the wearer's normal band. Pure views: every number arrives in a model, so the render test
+// One card, as in the retained mockup: four flat concentric rings (activity calories, Charge, Effort,
+// Rest) beside one line per ring, a hairline, then three cells on a fixed row grid (spent energy, resting
+// heart rate, HRV) with a flat bar each. Pure views: every number arrives in a model, so the render test
 // draws the real card with the real tokens.
 
-/// One of the three hero scores (Charge / Effort / Rest). The vessel fills from empty and the number counts
-/// up when data lands; a short line under the number carries the calibration, the Effort target or the
-/// night's sleep. The label under the ring taps through to the scoring guide.
-struct HeroScoreCell: View {
-    static let vesselDiameter: CGFloat = 96
+/// One ring of the hero: the share of the full circle it fills, and for Effort the optimal band behind it.
+struct TodayRing: Equatable {
+    var fraction: Double
+    var tint: Color
+    var band: ClosedRange<Double>? = nil
+}
 
-    let label: String
-    let score: Double?            // on whatever scale the caller passes (nil = no data yet)
-    let tint: Color
-    let animated: Bool
-    let onGuide: () -> Void
-    // The scale `score` is already expressed on — 100 for Charge/Rest, or the user's chosen Effort scale
-    // max (100 or 21, #45) — so the vessel fill matches the displayed number.
-    var maxValue: Double = 100
-    // Decimal places for the displayed number (one on the WHOOP 0–21 Effort scale, #45).
-    var decimals: Int = 0
-    /// Where the GAUGE taps through to, or nil to keep the ring inert (#1995).
-    var detailRoute: TabRoute? = nil
-    /// The short line inside the ring, under the number. Nil draws nothing.
-    var innerCaption: String? = nil
-    /// The Effort optimal band, drawn as an arc around the vessel.
-    var targetRange: ClosedRange<Double>? = nil
-    /// Calibration progress (nights done, nights needed): a segmented ring, and "n/N" in place of the number.
-    var calibration: (done: Int, of: Int)? = nil
+/// The four concentric flat rings, outside to inside: a track at 18 %, a translucent target band, the fill
+/// with round caps. Static (no animation loop): it redraws when its fractions change.
+struct TodayConcentricRings: View {
+    var rings: [TodayRing]
+    var diameter: CGFloat = 184
+    var lineWidth: CGFloat = 13
+    var spacing: CGFloat = 4
 
-    @ViewBuilder
-    private var gaugeView: some View {
-        let gauge = LiquidScoreGauge(
-            score: score,
-            tint: tint,
-            diameter: Self.vesselDiameter,
-            animated: animated,
-            maxValue: maxValue,
-            decimals: decimals,
-            captionText: innerCaption,
-            captionColor: StrandPalette.textSecondary,
-            tapPassesThrough: detailRoute != nil,
-            targetRange: targetRange,
-            segments: calibration.map { (filled: $0.done, total: $0.of) },
-            centerText: calibration.map { "\($0.done)/\($0.of)" },
-            noDataText: String(localized: "no data"),
-            captionSize: 10
-        )
-        if let detailRoute {
-            NavigationLink(value: detailRoute) { gauge }
-                .buttonStyle(LiquidPressStyle())
-                .accessibilityLabel(Text("\(label), \(spokenScore)"))
-                .accessibilityHint(Text("Opens the trend and readings"))
-        } else {
-            gauge
-        }
-    }
-
-    /// The score as VoiceOver should say it, matching the label row's own phrasing.
-    private var spokenScore: String {
-        if let calibration { return "\(calibration.done)/\(calibration.of), \(innerCaption ?? "")" }
-        guard let score else { return String(localized: "no data yet") }
-        let number = decimals > 0
-            ? String(format: "%.\(decimals)f", locale: AppLanguage.activeLocale, score)
-            : String(Int(score.rounded()))
-        return innerCaption.map { "\(number), \($0)" } ?? number
-    }
+    private func clamped(_ v: Double) -> CGFloat { CGFloat(min(1, max(0, v))) }
 
     var body: some View {
-        VStack(spacing: 8) {
-            gaugeView
-            Button(action: onGuide) {
-                HStack(spacing: 3) {
-                    // #74: one line, shrink-to-fit rather than wrap under large Dynamic Type.
-                    Text(label.uppercased()).font(StrandFont.overline).tracking(1.6)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).opacity(0.6)
-                }
-                .foregroundStyle(StrandPalette.textSecondary)
+        ZStack {
+            ForEach(rings.indices, id: \.self) { index in
+                ringView(rings[index], size: diameter - lineWidth - 2 * CGFloat(index) * (lineWidth + spacing))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("\(label), \(spokenScore). See how it is scored."))
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
+    }
+
+    private func ringView(_ ring: TodayRing, size: CGFloat) -> some View {
+        ZStack {
+            Circle().stroke(ring.tint.opacity(0.18), lineWidth: lineWidth)
+            if let band = ring.band, band.upperBound > band.lowerBound {
+                Circle()
+                    .trim(from: clamped(band.lowerBound), to: clamped(band.upperBound))
+                    .stroke(ring.tint.opacity(0.35), style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+            }
+            if ring.fraction > 0.001 {
+                Circle()
+                    .trim(from: 0, to: clamped(ring.fraction))
+                    .stroke(ring.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+            }
+        }
+        .rotationEffect(.degrees(-90))
+        .frame(width: max(lineWidth, size), height: max(lineWidth, size))
+    }
+}
+
+/// One line beside the rings: the coloured label with its icon, then the number and a grey caption.
+struct TodayRingRow: View {
+    var symbol: String
+    var tint: Color
+    var label: String
+    /// Nil draws "no data".
+    var value: String?
+    var caption: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(label)
+                    .font(StrandFont.overlineScaled(12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(tint)
+            if let value {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(verbatim: value)
+                        .font(StrandFont.rounded(21))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    if let caption {
+                        Text(verbatim: caption)
+                            .font(StrandFont.caption.weight(.medium))
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            } else {
+                Text("no data")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .frame(minHeight: 24, alignment: .leading)
+            }
+        }
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The fixed row grid shared by the three cells under the rings (label 16 / number 26 / bar 12 /
+/// legend 14), so the three bars sit on one line whatever each cell holds.
+struct TodayHeroCell<Bar: View>: View {
+    var symbol: String
+    var tint: Color
+    var title: String
+    /// Nil draws "no data".
+    var value: String?
+    var unit: String
+    var legend: Text?
+    @ViewBuilder var bar: Bar
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(StrandFont.overlineScaled(12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(tint)
+            .frame(height: 16, alignment: .leading)
+            Group {
+                if let value {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(verbatim: value)
+                            .font(StrandFont.rounded(22))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text(verbatim: unit)
+                            .font(StrandFont.caption.weight(.medium))
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                } else {
+                    Text("no data")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .frame(height: 26, alignment: .leading)
+            bar
+                .frame(height: 12)
+            (legend ?? Text(verbatim: " "))
+                .font(StrandFont.caption2)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(height: 14, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The spent-energy bar: activity (orange), a 2-point gap, then resting (brown), on a white 10 % track.
+struct TodayEnergyBar: View {
+    var arc: TodayEnergy.Arc?
+
+    var body: some View {
+        GeometryReader { geo in
+            barBody(width: geo.size.width)
+                .frame(height: geo.size.height)
+        }
+    }
+
+    private func barBody(width: CGFloat) -> some View {
+        let activity = CGFloat(arc?.activity ?? 0) * width
+        let resting = CGFloat(arc?.resting ?? 0) * width
+        let gap: CGFloat = activity > 0 && resting > 0 ? 2 : 0
+        return ZStack(alignment: .leading) {
+            Capsule().fill(StrandPalette.textPrimary.opacity(0.10))
+            HStack(spacing: 0) {
+                Rectangle().fill(StrandPalette.caloriesActivity).frame(width: activity)
+                Rectangle().fill(StrandPalette.surfaceRaised).frame(width: gap)
+                Rectangle().fill(StrandPalette.caloriesResting).frame(width: max(0, resting - gap))
+            }
+        }
+        .frame(width: width, height: 6)
+        .clipShape(Capsule())
+    }
+}
+
+/// A nightly vital's bar: the personal normal band (translucent) and a dot where last night sits, between
+/// the lowest and highest of the last 30 nights.
+struct TodayRangeBar: View {
+    var gauge: TodayVitalRange.Gauge?
+    var tint: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            barBody(width: geo.size.width)
+                .frame(height: geo.size.height)
+        }
+    }
+
+    private func barBody(width: CGFloat) -> some View {
+        let bandFrom = gauge.flatMap { g in g.normal.map { CGFloat(g.fraction($0.lowerBound)) * width } }
+        let bandTo = gauge.flatMap { g in g.normal.map { CGFloat(g.fraction($0.upperBound)) * width } }
+        let dotX = gauge.map { CGFloat($0.fraction($0.value)) * width }
+        return ZStack(alignment: .leading) {
+            Capsule().fill(StrandPalette.textPrimary.opacity(0.10)).frame(height: 6)
+            if let bandFrom, let bandTo {
+                Capsule()
+                    .fill(tint.opacity(0.28))
+                    .frame(width: max(6, bandTo - bandFrom), height: 6)
+                    .offset(x: bandFrom)
+            }
+            if let dotX {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 10, height: 10)
+                    .offset(x: min(max(0, dotX - 5), max(0, width - 10)))
+            }
+        }
+        .frame(width: width, height: 10, alignment: .leading)
     }
 }
 
 /// A 180° gauge: a track from left to right, coloured parts along it, an optional dot and goal mark, and the
-/// value inside the arc. Drawn from fractions 0…1 so callers never deal with angles.
+/// value inside the arc. Drawn from fractions 0…1 so callers never deal with angles. Used by the Nutrition
+/// macros (Today moved to flat bars in fork chantier 7).
 struct TodayHalfGauge: View {
     struct Part: Equatable {
         var from: Double
@@ -184,8 +322,7 @@ struct TodayHalfGauge: View {
     }
 }
 
-/// Today's calories under the rings: the total inside the arc, resting (copper) then activity (gold)
-/// along it, full when the activity goal is met, and one named line per colour underneath.
+/// The spent-energy cell under the rings: the day's total, the activity / resting bar and both named.
 struct TodayCaloriesTile: View {
     var split: TodayEnergy.Split?
     var goal: Double?
@@ -194,57 +331,26 @@ struct TodayCaloriesTile: View {
         Int(v.rounded()).formatted(.number.locale(AppLanguage.activeLocale))
     }
 
+    /// "activity 185 · resting 760", the two words from the catalogue and the numbers as they are.
+    private var legend: Text? {
+        guard let split else { return nil }
+        let activityPart = " " + number(split.activityKcal)
+        guard split.restingKcal > 0 else { return Text("activity") + Text(verbatim: activityPart) }
+        let separator = activityPart + " \u{00B7} "
+        let restingPart = " " + number(split.restingKcal)
+        return Text("activity") + Text(verbatim: separator) + Text("resting") + Text(verbatim: restingPart)
+    }
+
     var body: some View {
-        let arc = split.map { TodayEnergy.arc($0, goal: goal) }
-        VStack(spacing: 5) {
-            TodayTileLabel(symbol: "flame.fill", tint: StrandPalette.caloriesActivity,
-                           title: String(localized: "Calories"))
-            TodayHalfGauge(
-                parts: Self.parts(arc),
-                goalMark: arc?.goalMark,
-                value: split.map { number($0.totalKcal) },
-                unit: "kcal")
-            if let split {
-                VStack(alignment: .leading, spacing: 2) {
-                    legendLine(StrandPalette.caloriesActivity, String(localized: "activity"),
-                               goal.map { "\(number(split.activityKcal))/\(number($0))" }
-                                ?? number(split.activityKcal))
-                    // Imported activity alone (no strap heart rate that day) has no resting part to name.
-                    if split.restingKcal > 0 {
-                        legendLine(StrandPalette.caloriesResting, String(localized: "resting"),
-                                   number(split.restingKcal))
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// Resting from the left, then activity after it.
-    private static func parts(_ arc: TodayEnergy.Arc?) -> [TodayHalfGauge.Part] {
-        guard let arc else { return [] }
-        return [
-            TodayHalfGauge.Part(from: 0, to: arc.resting, color: StrandPalette.caloriesResting),
-            TodayHalfGauge.Part(from: arc.resting, to: arc.resting + arc.activity,
-                                color: StrandPalette.caloriesActivity),
-        ]
-    }
-
-    private func legendLine(_ color: Color, _ label: String, _ value: String) -> some View {
-        HStack(spacing: 5) {
-            Capsule().fill(color).frame(width: 10, height: 4)
-            (Text(label).foregroundColor(StrandPalette.textSecondary)
-                + Text(verbatim: " " + value).foregroundColor(StrandPalette.textPrimary).fontWeight(.semibold))
-                .font(StrandFont.overlineScaled(10))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+        TodayHeroCell(symbol: "flame.fill", tint: StrandPalette.caloriesResting,
+                      title: String(localized: "Spent"),
+                      value: split.map { number($0.totalKcal) }, unit: "kcal", legend: legend) {
+            TodayEnergyBar(arc: split.map { TodayEnergy.arc($0, goal: goal) })
         }
     }
 }
 
-/// A nightly vital under the rings: last night's value inside the arc, its place between the lowest and
-/// highest of the last 30 nights (labelled at the two ends) and the personal normal band.
+/// A nightly vital cell under the rings: last night's value, its bar, and the personal normal band.
 struct TodayVitalTile: View {
     var symbol: String
     var tint: Color
@@ -252,61 +358,27 @@ struct TodayVitalTile: View {
     var unit: String
     var gauge: TodayVitalRange.Gauge?
 
-    /// The normal band, when the baseline has one.
-    private var bandParts: [TodayHalfGauge.Part] {
-        guard let g = gauge, let band = g.normal else { return [] }
-        return [TodayHalfGauge.Part(from: g.fraction(band.lowerBound), to: g.fraction(band.upperBound),
-                                    color: tint, isBand: true)]
-    }
+    private func whole(_ v: Double) -> String { String(Int(v.rounded())) }
 
-    var body: some View {
-        VStack(spacing: 5) {
-            TodayTileLabel(symbol: symbol, tint: tint, title: title)
-            TodayHalfGauge(
-                parts: bandParts,
-                dot: gauge.map { (at: $0.fraction($0.value), color: tint) },
-                value: gauge.map { String(Int($0.value.rounded())) },
-                unit: unit)
-            if let gauge {
-                HStack {
-                    Text(verbatim: String(Int(gauge.low.rounded())))
-                    Spacer(minLength: 0)
-                    Text(verbatim: String(Int(gauge.high.rounded())))
-                }
-                .font(StrandFont.overlineScaled(10))
-                .foregroundStyle(StrandPalette.textSecondary)
-                .monospacedDigit()
-                .frame(width: TodayHalfGauge.width - 4)
-            }
+    /// "your normal 58–64" once the baseline has a band, else the 30-night range alone.
+    private var legend: Text? {
+        guard let gauge else { return nil }
+        if let band = gauge.normal {
+            let range = whole(band.lowerBound) + "\u{2013}" + whole(band.upperBound)
+            return Text("your normal \(range)")
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        return Text(verbatim: whole(gauge.low) + "\u{2013}" + whole(gauge.high))
     }
-}
-
-/// The small icon + caps title above a half-gauge.
-struct TodayTileLabel: View {
-    var symbol: String
-    var tint: Color
-    var title: String
 
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(tint)
-                .accessibilityHidden(true)
-            Text(title.uppercased())
-                .font(StrandFont.overlineScaled(10.5))
-                .tracking(1.2)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+        TodayHeroCell(symbol: symbol, tint: tint, title: title,
+                      value: gauge.map { whole($0.value) }, unit: unit, legend: legend) {
+            TodayRangeBar(gauge: gauge, tint: tint)
         }
     }
 }
 
-/// The day's meals under the half-gauges (personal fork, Nutrition mockup 4): eaten, the balance against
+/// The day's meals under the three cells (personal fork, Nutrition mockup 4): eaten, the balance against
 /// the calories spent, protein against its goal. A tap opens Nutrition.
 struct TodayNutritionLine: View {
     struct Model: Equatable {
@@ -360,7 +432,7 @@ struct TodayNutritionLine: View {
             HStack(spacing: 8) {
                 Image(systemName: "fork.knife")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(StrandPalette.onDarkSecondary)
+                    .foregroundStyle(StrandPalette.textSecondary)
                     .accessibilityHidden(true)
                 line
                     .font(StrandFont.overlineScaled(12.5))
@@ -409,61 +481,130 @@ struct TodayHeroModel {
     var calories: (split: TodayEnergy.Split?, goal: Double?)
     var restingHR: TodayVitalRange.Gauge?
     var hrv: TodayVitalRange.Gauge?
+    /// Kept for the callers; the retained design shows no source badge on the hero.
     var sourceLabel: String?
-    /// The day's meals, nil when none was logged (the line under the half-gauges is then left out).
+    /// The day's meals, nil when none was logged (the line under the cells is then left out).
     var nutrition: TodayNutritionLine.Model? = nil
+    /// Where the Calories line taps through to, or nil to keep it inert.
+    var caloriesRoute: TabRoute? = nil
 }
 
-/// The hero card: the three rings, a hairline, then the three half-gauges.
+/// The hero card: the four rings beside their four lines, a hairline, then the three cells.
 struct TodayHeroCard: View {
     var model: TodayHeroModel
     var animated: Bool
     var surfaceOpacity: Double = 1
     var onGuide: (ScoreSection) -> Void
 
-    private func cell(_ ring: TodayHeroModel.Ring) -> HeroScoreCell {
-        HeroScoreCell(label: ring.label, score: ring.score, tint: ring.tint, animated: animated,
-                      onGuide: { onGuide(ring.guide) }, maxValue: ring.maxValue, decimals: ring.decimals,
-                      detailRoute: ring.route, innerCaption: ring.caption, targetRange: ring.targetRange,
-                      calibration: ring.calibration)
+    private func number(_ v: Double) -> String {
+        Int(v.rounded()).formatted(.number.locale(AppLanguage.activeLocale))
+    }
+
+    // MARK: Rings
+
+    private var caloriesFraction: Double {
+        guard let split = model.calories.split else { return 0 }
+        if let goal = model.calories.goal, goal > 0 { return split.activityKcal / goal }
+        return TodayEnergy.arc(split, goal: nil).activity
+    }
+
+    private func fraction(_ ring: TodayHeroModel.Ring) -> Double {
+        if let c = ring.calibration { return c.of > 0 ? Double(c.done) / Double(c.of) : 0 }
+        guard let score = ring.score, ring.maxValue > 0 else { return 0 }
+        return score / ring.maxValue
+    }
+
+    private var effortBand: ClosedRange<Double>? {
+        guard let band = model.effort.targetRange, model.effort.maxValue > 0 else { return nil }
+        return (band.lowerBound / model.effort.maxValue)...(band.upperBound / model.effort.maxValue)
+    }
+
+    private var rings: [TodayRing] {
+        [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity),
+         TodayRing(fraction: fraction(model.charge), tint: StrandPalette.chargeColor),
+         TodayRing(fraction: fraction(model.effort), tint: StrandPalette.effortColor, band: effortBand),
+         TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restColor)]
+    }
+
+    // MARK: Lines
+
+    private func ringValue(_ ring: TodayHeroModel.Ring) -> String? {
+        if let c = ring.calibration { return "\(c.done)/\(c.of)" }
+        guard let score = ring.score else { return nil }
+        return ring.decimals > 0
+            ? String(format: "%.\(ring.decimals)f", locale: AppLanguage.activeLocale, score)
+            : String(Int(score.rounded()))
+    }
+
+    private var caloriesValue: String? {
+        model.calories.split.map { number($0.activityKcal) }
+    }
+
+    /// "/480 kcal" against the activity goal, or the unit alone without one.
+    private var caloriesCaption: String {
+        guard let goal = model.calories.goal, goal > 0 else { return "kcal" }
+        return ["/" + number(goal), "kcal"].joined(separator: " ")
+    }
+
+    @ViewBuilder
+    private func line(_ row: TodayRingRow, route: TabRoute?, guide: ScoreSection?) -> some View {
+        Group {
+            if let route {
+                NavigationLink(value: route) { row }
+                    .buttonStyle(LiquidPressStyle())
+            } else {
+                row
+            }
+        }
+        .contextMenu {
+            if let guide {
+                Button("How your scores work") { onGuide(guide) }
+            }
+        }
+    }
+
+    private func ringLine(_ ring: TodayHeroModel.Ring, symbol: String, tint: Color) -> some View {
+        line(TodayRingRow(symbol: symbol, tint: tint, label: ring.label, value: ringValue(ring),
+                          caption: ring.caption),
+             route: ring.route, guide: ring.guide)
+    }
+
+    private var hairline: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
     }
 
     var body: some View {
-        VStack(spacing: NoopMetrics.space4) {
-            HStack(alignment: .top, spacing: NoopMetrics.space1) {
-                cell(model.charge)
-                cell(model.effort)
-                cell(model.rest)
-                    .overlay(alignment: .top) {
-                        if let sourceLabel = model.sourceLabel {
-                            SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
-                                .fixedSize()
-                                .frame(width: HeroScoreCell.vesselDiameter, alignment: .trailing)
-                                .offset(y: -(NoopMetrics.space4 + NoopMetrics.sourceBadgeHeight / 2))
-                                .allowsHitTesting(false)
-                                .accessibilityLabel(Text("Source: \(sourceLabel)"))
-                        }
-                    }
+        VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+            HStack(alignment: .center, spacing: 14) {
+                TodayConcentricRings(rings: rings)
+                VStack(alignment: .leading, spacing: 0) {
+                    line(TodayRingRow(symbol: "flame.fill", tint: StrandPalette.caloriesActivity,
+                                      label: String(localized: "Calories"), value: caloriesValue,
+                                      caption: caloriesCaption),
+                         route: model.caloriesRoute, guide: nil)
+                    hairline
+                    ringLine(model.charge, symbol: "checkmark", tint: StrandPalette.chargeColor)
+                    hairline
+                    ringLine(model.effort, symbol: "bolt.fill", tint: StrandPalette.effortColor)
+                    hairline
+                    ringLine(model.rest, symbol: "moon.fill", tint: StrandPalette.restColor)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Rectangle()
-                .fill(StrandPalette.hairline)
-                .frame(height: NoopMetrics.hairlineWidth)
-                .padding(.horizontal, NoopMetrics.space2)
-            HStack(alignment: .top, spacing: NoopMetrics.space1) {
+            hairline
+            HStack(alignment: .top, spacing: 12) {
                 TodayCaloriesTile(split: model.calories.split, goal: model.calories.goal)
                 TodayVitalTile(symbol: "heart.fill", tint: StrandPalette.liquidHeart,
                                title: String(localized: "Rest HR"), unit: "bpm", gauge: model.restingHR)
-                TodayVitalTile(symbol: "waveform.path.ecg", tint: StrandPalette.accent,
+                TodayVitalTile(symbol: "waveform.path.ecg", tint: StrandPalette.metricCyan,
                                title: String(localized: "HRV"), unit: "ms", gauge: model.hrv)
             }
             if let nutrition = model.nutrition {
                 TodayNutritionLine(model: nutrition)
-                    .padding(.horizontal, NoopMetrics.space2)
                     .padding(.top, -NoopMetrics.space1)
             }
         }
-        .padding(.vertical, NoopMetrics.space4)
-        .padding(.horizontal, NoopMetrics.space3)
-        .background(NoopPanelSurface(cornerRadius: 26, elevated: true, surfaceOpacity: surfaceOpacity))
+        .padding(18)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
     }
 }

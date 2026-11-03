@@ -7,7 +7,8 @@ import AppKit
 
 // MARK: - Strand Typography (§9.2)
 //
-// SF Rounded follows the supplied reference's friendly Apple-native geometry. Tabular digits keep live
+// Fork chantier 7 (Apple Fitness + Health direction): SF Pro (`.default`) for all text, SF Rounded only
+// for numbers (`display`, `rounded`, `number`, `bodyNumber`, `captionNumber`). Tabular digits keep live
 // metrics stable, while named text styles retain Dynamic Type scaling. SF Mono remains reserved for logs.
 //
 // All numeric styles use `.monospacedDigit()` so live values don't reflow.
@@ -18,6 +19,10 @@ public enum StrandFont {
 
     private static func roundedSystem(_ size: CGFloat, weight: Font.Weight) -> Font {
         .system(size: size, weight: weight, design: .rounded)
+    }
+
+    private static func textSystem(_ size: CGFloat, weight: Font.Weight) -> Font {
+        .system(size: size, weight: weight, design: .default)
     }
 
     // MARK: Scale (§9.2)
@@ -41,52 +46,52 @@ public enum StrandFont {
     }
 
     /// Title1 28 / Bold. Scales with Dynamic Type.
-    public static let title1 = Font.system(.title, design: .rounded, weight: .bold)
+    public static let title1 = Font.system(.title, design: .default, weight: .bold)
 
     /// Title2 22 / Semibold. Scales with Dynamic Type.
-    public static let title2 = Font.system(.title2, design: .rounded, weight: .semibold)
+    public static let title2 = Font.system(.title2, design: .default, weight: .semibold)
+
+    /// Screen title 34 / Bold (large title). Scales with Dynamic Type.
+    public static let screenTitle = Font.system(.largeTitle, design: .default, weight: .bold)
+
+    /// Section title 20 / Bold, sentence case ("Métriques", "Synthèse"). Scales with Dynamic Type.
+    public static let sectionTitle = Font.system(.title3, design: .default, weight: .bold)
 
     /// Headline 17 / Semibold. Scales with Dynamic Type.
-    public static let headline = Font.system(.headline, design: .rounded, weight: .semibold)
+    public static let headline = Font.system(.headline, design: .default, weight: .semibold)
 
     /// Body 15 / Regular. Scales with Dynamic Type.
-    public static let body = Font.system(.body, design: .rounded, weight: .regular)
+    public static let body = Font.system(.body, design: .default, weight: .regular)
 
     /// Subhead 13. Scales with Dynamic Type.
-    public static let subhead = Font.system(.subheadline, design: .rounded, weight: .regular)
+    public static let subhead = Font.system(.subheadline, design: .default, weight: .regular)
 
     /// Caption 12. Scales with Dynamic Type.
-    public static let caption = Font.system(.caption, design: .rounded, weight: .regular)
+    public static let caption = Font.system(.caption, design: .default, weight: .regular)
+
+    /// Caption 2, 11 / Regular: the small legends under a figure. Scales with Dynamic Type.
+    public static let caption2 = Font.system(.caption2, design: .default, weight: .regular)
 
     /// Footnote 11. Scales with Dynamic Type.
-    public static let footnote = Font.system(.footnote, design: .rounded, weight: .regular)
+    public static let footnote = Font.system(.footnote, design: .default, weight: .regular)
 
-    /// Overline 11 / Bold, +1.4 tracking (apply `.tracking(1.4)` at use site;
-    /// `overlineText(_:)` does it for you). Sparing ALL-CAPS labels. Scales with Dynamic Type.
+    /// Small label 13 / Semibold, sentence case (fork chantier 7: the spaced ALL-CAPS overline was
+    /// retired). Scales with Dynamic Type relative to `.footnote` (13 pt on iOS).
     ///
-    /// Also the face for compact status copy in constrained chrome (the Today header's sync capsule),
-    /// used there WITHOUT the tracking — that is sentence case, not an overline, and the letter-spacing
-    /// is what makes an overline read as one.
-    public static let overline = Font.system(.caption2, design: .rounded, weight: .semibold)
+    /// Also the face for compact status copy in constrained chrome (the Today header's sync capsule).
+    public static let overline = Font.system(.footnote, design: .default, weight: .semibold)
 
-    /// `overline` at a custom point size — same Helvetica face, weight and Dynamic-Type scaling
-    /// (relativeTo `.caption2`), just smaller. Passing 11 returns exactly `.overline`. Lets a caller
-    /// shrink an ALL-CAPS label to fit a small container without losing accessibility text-scaling.
+    /// `overline` at a custom point size — same SF Pro face, weight and Dynamic-Type scaling
+    /// (relativeTo `.footnote`). Lets a caller shrink a label to fit a small container without losing
+    /// accessibility text-scaling.
     public static func overlineScaled(_ size: CGFloat) -> Font {
         #if canImport(UIKit)
         let base = UIFont.systemFont(ofSize: size, weight: .semibold)
-        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
-        let rounded = UIFont(descriptor: descriptor, size: size)
-        return Font(UIFontMetrics(forTextStyle: .caption2).scaledFont(for: rounded))
+        return Font(UIFontMetrics(forTextStyle: .footnote).scaledFont(for: base))
         #elseif canImport(AppKit)
-        let base = NSFont.systemFont(ofSize: size, weight: .semibold)
-        guard let descriptor = base.fontDescriptor.withDesign(.rounded),
-              let rounded = NSFont(descriptor: descriptor, size: size) else {
-            return Font(base)
-        }
-        return Font(rounded)
+        return Font(NSFont.systemFont(ofSize: size, weight: .semibold))
         #else
-        return roundedSystem(size, weight: .semibold)
+        return textSystem(size, weight: .semibold)
         #endif
     }
 
@@ -113,18 +118,17 @@ public enum StrandFont {
         .system(size: size, weight: weight, design: .monospaced)
     }
 
-    /// The recommended tracking for overline text (wide ALL-CAPS labels, ≈ 0.13em).
-    public static let overlineTracking: CGFloat = 0.45
+    /// Tracking for overline text. Zero since the spaced ALL-CAPS overline was retired (fork chantier 7);
+    /// kept so existing call sites compile and pick up the new look.
+    public static let overlineTracking: CGFloat = 0
 }
 
 // MARK: - Text helpers
 
 public extension Text {
-    /// Style as an overline label: ALL-CAPS, bold, +1.4 tracking, tertiary text.
+    /// Style as a small label: 13 pt semibold, sentence case, secondary grey (fork chantier 7).
     func strandOverline() -> some View {
         self.font(StrandFont.overline)
-            .tracking(StrandFont.overlineTracking)
-            .textCase(.uppercase)
             .foregroundStyle(StrandPalette.textSecondary)
     }
 }

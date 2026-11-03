@@ -24,12 +24,6 @@ struct SettingsView: View {
     /// Profile-photo picker selection (PhotosUI). Cleared back to nil once the bytes are loaded.
     @State private var avatarPickerItem: PhotosPickerItem?
 
-    /// Custom background image (#custom-background). The store owns the decoded image + toggles; the
-    /// picker selection + the file-importer flag are local UI state.
-    @ObservedObject private var backgroundStore = BackgroundImageStore.shared
-    @State private var backgroundPickerItem: PhotosPickerItem?
-    @State private var showBackgroundFileImporter = false
-
     /// Backup & restore UI state.
     @State private var backupBusy = false
     @State private var backupAlertTitle = ""
@@ -135,17 +129,6 @@ struct SettingsView: View {
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
     // Sleep tab stage-CHART shape: Classic per-stage rows, or the WHOOP-style stepped hypnogram Filled/Ribbon.
     @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
-    // Chrome accent colour (mint / WHOOP blue / custom). Chrome only — never the data colour worlds.
-    @AppStorage(AccentColor.storageKey) private var accentRaw = AccentColor.mint.rawValue
-    @AppStorage(AccentColor.customHexKey) private var accentCustomHex = AccentColor.defaultCustomHex
-    // Day-cycle scene backdrop behind Today (#698). Default ON. Off swaps the scene for a plain dark
-    // canvas. TodayView reads the same key to gate its SceneScreenBackground.
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
-    // "Sky behind cards" (default ON): extend the day-cycle sky behind the whole Today scroll so
-    // Card transparency reveals it under every card. User-toggleable below. Mirrors Kotlin NoopPrefs.skyBehindCards.
-    @AppStorage(SkyBehindCardsPrefs.enabledKey) private var skyBehindCards = true
-    // Card-surface opacity percent (100 = solid). Reactive — moving the slider live-updates every card.
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
     // "Reduce motion in NOOP" (default OFF): pose every looping animation still and stop the decorative
     // tilt sensor, without needing system Low Power Mode or system Reduce Motion. Apple-only so far —
     // Android has no such toggle yet and its gate reads two signals, not three (#941).
@@ -254,11 +237,7 @@ struct SettingsView: View {
 
     var body: some View {
         ScreenScaffold(title: "Settings",
-                       subtitle: "Your numbers, your strap, and how NOOP works. All on \(Platform.deviceNounPhrase).",
-                       // The day-of-sky liquid backdrop, matching Today / Health / Sleep / Trends / Devices:
-                       // a fixed, full-bleed time-of-day sky behind the scroll content (it does not scroll).
-                       // Settings' own frosted cards sit on the dark canvas below the sky band, unchanged.
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "Your numbers, your strap, and how NOOP works. All on \(Platform.deviceNounPhrase).") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                 // Everyday sections stay expanded (S3): the ones a first-run user actually needs.
                 profileCard.staggeredAppear(index: 0)
@@ -601,132 +580,6 @@ struct SettingsView: View {
         }
     }
 
-    /// One recent-background preset: a small cropped thumbnail (accent-ringed when active) over its
-    /// fill-mode label. Tapping re-applies that image + scaling.
-    @ViewBuilder
-    private func backgroundRecentThumb(thumb: Image?, mode: BackgroundFillMode, active: Bool,
-                                       action: @escaping () -> Void) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        Button(action: action) {
-            VStack(spacing: 3) {
-                Group {
-                    if let thumb { thumb.resizable().scaledToFill() } else { StrandPalette.surfaceInset }
-                }
-                .frame(width: 64, height: 64)
-                .clipShape(shape)
-                .overlay(shape.strokeBorder(active ? StrandPalette.accent : StrandPalette.hairline,
-                                            lineWidth: active ? 2 : 1))
-                Text(mode.label)
-                    .font(StrandFont.caption)
-                    .foregroundStyle(active ? StrandPalette.accent : StrandPalette.textTertiary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Custom background image controls (#custom-background): pick from Photos or Browse the files,
-    /// choose the fill mode, and (once set) enable / remove. The store downscales + persists a
-    /// device-local file — nothing here is uploaded (NOOP is offline), and it is left out of `.noopbak`.
-    /// Wrapped in a layout-transparent `Group` so the picker `onChange` + the file importer can hang off
-    /// the whole cluster while it still flows inside the appearance VStack.
-    @ViewBuilder
-    private var backgroundImageControls: some View {
-        let hasImage = backgroundStore.hasImage
-        Group {
-            HStack(spacing: NoopMetrics.space2) {
-                PhotosPicker(selection: $backgroundPickerItem, matching: .images) {
-                    Text(hasImage ? "Replace from Photos" : "Choose from Photos")
-                }
-                .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
-
-                Button {
-                    showBackgroundFileImporter = true
-                } label: {
-                    Text("Browse files")
-                }
-                .buttonStyle(NoopButtonStyle(.secondary, fullWidth: true))
-            }
-
-            if hasImage {
-                // Recent presets: tap a thumbnail to re-apply that image + the scaling it was last shown
-                // with. The first (accent-ringed) one is the active background.
-                if !backgroundStore.recents.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Recent")
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                        HStack(spacing: 10) {
-                            ForEach(backgroundStore.recents.indices, id: \.self) { index in
-                                backgroundRecentThumb(
-                                    thumb: backgroundStore.thumbnails.indices.contains(index)
-                                        ? backgroundStore.thumbnails[index] : nil,
-                                    mode: backgroundStore.recents[index].fillMode,
-                                    active: index == 0,
-                                    action: { backgroundStore.applyRecent(index) })
-                            }
-                        }
-                    }
-                }
-
-                Toggle(isOn: $backgroundStore.enabled) {
-                    Text("Show custom background")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-
-                FormRow(label: "Scaling") {
-                    Picker("Scaling", selection: Binding(
-                        get: { backgroundStore.fillMode },
-                        set: { backgroundStore.setFillMode($0) })) {
-                        ForEach(BackgroundFillMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
-                    .accessibilityLabel("Background scaling")
-                }
-
-                Button {
-                    backgroundStore.clearImage()
-                } label: {
-                    Text("Remove image")
-                }
-                .buttonStyle(NoopButtonStyle(.tertiary))
-                .accessibilityHint("Removes the custom background and restores the day-cycle sky")
-            }
-
-            Text("Optional. Use your own photo behind every tab, in place of the day-cycle sky. It stays on \(Platform.deviceNounPhrase) and is never uploaded. Pair it with Transparent cards above to let it show through.")
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        // Load the picked photo's bytes, hand them to the store (which downscales + persists), then clear
-        // the selection so the same photo can be re-picked. Mirrors the avatar row.
-        .onChange(of: backgroundPickerItem) { newItem in
-            guard let newItem else { return }
-            Task {
-                let data = try? await newItem.loadTransferable(type: Data.self)
-                await MainActor.run {
-                    if let data { backgroundStore.setImage(from: data) }
-                    backgroundPickerItem = nil
-                }
-            }
-        }
-        // "Browse files" — the system file browser. The picked URL is security-scoped (outside the
-        // sandbox), so bracket the one-time read; we copy the bytes into our own file immediately.
-        .fileImporter(isPresented: $showBackgroundFileImporter, allowedContentTypes: [.image]) { result in
-            guard case .success(let url) = result else { return }
-            let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            if let data = try? Data(contentsOf: url) { backgroundStore.setImage(from: data) }
-        }
-    }
-
     /// One-line state for the "Steps estimate" tap-through row: manual, the auto-fit confidence, or a
     /// not-yet-calibrated prompt — so the row reflects the current calibration without opening the sheet.
     private var stepsCalibrationSummary: String {
@@ -1058,35 +911,6 @@ struct SettingsView: View {
         }
     }
 
-    /// Bridges the SwiftUI `ColorPicker` (a `Color`) to the persisted custom-accent hex string.
-    private var customAccentBinding: Binding<Color> {
-        Binding(
-            get: { Color(hex: accentCustomHex) },
-            set: { accentCustomHex = $0.noopAccentHex ?? AccentColor.defaultCustomHex }
-        )
-    }
-
-    /// The Theme PRESET is derived from the four coordinated prefs (no stored value): reads which preset
-    /// the live combination matches (or `.custom`), and on pick writes accent + chart + backdrop + opacity.
-    private var themePresetBinding: Binding<ThemePreset> {
-        Binding(
-            get: {
-                ThemePreset.matching(
-                    accent: AccentColor.resolve(accentRaw),
-                    chart: ChartStyle.resolve(chartStyleRaw),
-                    backdrop: showDayCycleBackground,
-                    cardOpacity: cardOpacityPercent)
-            },
-            set: { preset in
-                guard let r = preset.recipe else { return }   // .custom → no-op
-                accentRaw = r.accent.rawValue
-                chartStyleRaw = r.chart.rawValue
-                showDayCycleBackground = r.backdrop
-                cardOpacityPercent = r.cardOpacity
-            }
-        )
-    }
-
     private var appearanceCard: some View {
         SettingsSection(
             icon: "circle.lefthalf.filled",
@@ -1170,20 +994,6 @@ struct SettingsView: View {
                 }
                 #endif
                 rowDivider
-                // Theme presets — one-tap bundles coordinating accent + chart world + backdrop + card
-                // opacity. Derived (no stored value): tweaking any control below flips this to Custom.
-                FormRow(label: "Preset") {
-                    Picker("Preset", selection: themePresetBinding) {
-                        ForEach(ThemePreset.allCases) { p in
-                            Text(p.label).tag(p)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
-                    .accessibilityLabel("Theme preset")
-                }
-                rowDivider
                 FormRow(label: "Theme") {
                     Picker("Theme", selection: $appearanceRaw) {
                         ForEach(AppearanceMode.allCases) { mode in
@@ -1223,28 +1033,6 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .tint(StrandPalette.accent)
                     .accessibilityLabel("Sleep chart")
-                }
-                rowDivider
-                // Chrome accent colour — the links/buttons/selection tint only. The recovery/strain/sleep
-                // DATA colours follow "Chart colours" above, never this. Custom reveals a colour well.
-                FormRow(label: "Accent") {
-                    Picker("Accent", selection: $accentRaw) {
-                        ForEach(AccentColor.allCases) { c in
-                            Text(c.label).tag(c.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
-                    .accessibilityLabel("Accent colour")
-                }
-                if AccentColor.resolve(accentRaw) == .custom {
-                    rowDivider
-                    FormRow(label: "Custom colour") {
-                        ColorPicker("Custom colour", selection: customAccentBinding, supportsOpacity: false)
-                            .labelsHidden()
-                            .accessibilityLabel("Custom accent colour")
-                    }
                 }
                 rowDivider
                 // Trend chart style (line vs bar). Display-only: flips the Trends tab's charts between the
@@ -1292,88 +1080,6 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                rowDivider
-                // MARK: Day-cycle background — the time-of-day scene behind Today (#698). On by default.
-                // Off swaps it for the plain dark canvas for people who find the moving scene distracting.
-                Toggle(isOn: $showDayCycleBackground) {
-                    Text("Day-cycle background")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                Text("Shows a soft sunrise, day, dusk and night scene behind the Today screen. Turn it off for a plain dark canvas. Your cards stay exactly as readable.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                // MARK: Sky behind cards — extend the day-cycle sky behind the WHOLE Today scroll so the
-                // Card-transparency slider reveals it under every card (not just the hero). Opt-in, off by
-                // default; pairs with Card transparency below.
-                Toggle(isOn: $skyBehindCards) {
-                    Text("Sky behind cards")
-                        .font(StrandFont.subhead)
-                        // Greyed when day-cycle is off — the sky it extends isn't drawn then (Android parity).
-                        .foregroundStyle(showDayCycleBackground ? StrandPalette.textPrimary : StrandPalette.textTertiary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                .disabled(!showDayCycleBackground)
-                Text("Extends the sky behind the whole Today screen, so lowering Card transparency lets it show through every card. Needs the day-cycle background on.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                // MARK: Transparent cards — a quick on/off over the SAME cardOpacityPercent (no separate
-                // pref), so it stays in lock-step with the slider below. Off = solid (100%); on = a sensible
-                // see-through default the slider then fine-tunes. Lets the custom background (or the sky)
-                // show through the cards. `isOn` is derived from the opacity, so dragging to solid flips off.
-                Toggle(isOn: Binding(
-                    get: { cardOpacityPercent < 100 },
-                    set: { on in cardOpacityPercent = on ? (cardOpacityPercent >= 100 ? 70 : cardOpacityPercent) : 100 }
-                )) {
-                    Text("Transparent cards")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                Text("Let the background show through every card. Tune how much just below.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                // MARK: Card transparency — fade every frosted card's glass toward the background. Reactive
-                // @AppStorage, so all cards (incl. the ones on this screen) update live as you drag. The
-                // slider shows TRANSPARENCY (0 = solid, 100 = clear); we store the OPACITY percent.
-                HStack {
-                    Text("Card transparency")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Spacer()
-                    Text("\(100 - cardOpacityPercent)%")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.accent)
-                }
-                Slider(
-                    value: Binding(
-                        get: { Double(100 - cardOpacityPercent) },
-                        set: { cardOpacityPercent = 100 - Int($0.rounded()) }
-                    ),
-                    in: 0...100, step: 1
-                )
-                .tint(StrandPalette.accent)
-                Text("How see-through the cards (Heart Rate, Key Metrics, Recovery Vitals, …) are. Left = solid, right = clear.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                rowDivider
-                backgroundImageControls
             }
         }
     }
@@ -3075,7 +2781,7 @@ struct StepsCalibrationSheet: View {
                 Text("STEPS ESTIMATE").font(StrandFont.overline)
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
-                Text("Calibrate your steps").font(StrandFont.rounded(26, weight: .bold))
+                Text("Calibrate your steps").font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(is5MG ? "WHOOP 5.0 / MG · motion → steps" : "WHOOP 4.0 · motion → steps").font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -3472,21 +3178,3 @@ private struct FormRow<Control: View>: View {
         .preferredColorScheme(.dark)
 }
 #endif
-
-// MARK: - Custom accent colour bridge
-
-private extension Color {
-    /// sRGB hex (`#RRGGBB`) for persisting a `ColorPicker` selection into `AccentColor.customHexKey`.
-    /// Falls back to nil if the colour can't resolve to sRGB (the caller then keeps the default).
-    var noopAccentHex: String? {
-        #if os(iOS)
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
-        #elseif os(macOS)
-        guard let ns = NSColor(self).usingColorSpace(.sRGB) else { return nil }
-        let r = ns.redComponent, g = ns.greenComponent, b = ns.blueComponent
-        #endif
-        return String(format: "#%02X%02X%02X",
-                      Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
-    }
-}

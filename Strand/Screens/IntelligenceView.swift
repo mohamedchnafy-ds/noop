@@ -29,11 +29,7 @@ struct IntelligenceView: View {
         // the app when ALL was tapped (#345); LazyVStack only materialises what's on screen.
         ScreenScaffold(title: "Intelligence",
                        subtitle: "NOOP scores your charge, effort and rest itself: on-device, no cloud.",
-                       lazy: true,
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Intelligence sits in one atmosphere. Static + non-interactive; the
-                       // frosted cards below sit on the opaque canvas and stay legible.
-                       topBackground: liquidScaffoldSky()) {
+                       lazy: true) {
             if let f = forecast { forecastCard(f) }
             explainerCard
             if intelligence.computing {

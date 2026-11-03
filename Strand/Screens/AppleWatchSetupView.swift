@@ -72,7 +72,7 @@ struct AppleWatchSetupView: View {
                 Text("APPLE WATCH").font(StrandFont.overline)
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
-                Text("Use NOOP with your watch").font(StrandFont.rounded(26, weight: .bold))
+                Text("Use NOOP with your watch").font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(step == .intro ? "What to expect" : "Connect Apple Health")
                     .font(StrandFont.caption)

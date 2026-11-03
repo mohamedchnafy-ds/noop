@@ -161,6 +161,38 @@ final class NutritionRenderTests: XCTestCase {
         XCTAssertEqual(plan.intakeKcal, 2_560)
     }
 
+    /// Chantier 8, lot 3: the history card over 7 and 30 days, with unwritten days left empty.
+    func testRendersTheNutritionHistory() throws {
+        let cal = Calendar.current
+        let today = cal.date(from: DateComponents(year: 2026, month: 11, day: 3))!
+        func historySample(_ count: Int) -> [NutritionHistoryDay] {
+            NutritionHistory.historyDayKeys(before: today, count: count).enumerated().map { index, key in
+                let hole = index % 5 == 2 || index % 7 == 5
+                let kcal = 2_150 + ((index * 37) % 9 - 4) * 90
+                let eaten = MealNutrients(kcal: kcal, proteinG: Double(130 + (index * 13) % 40),
+                                          carbsG: Double(220 + (index * 29) % 80), fatG: Double(60 + (index * 7) % 25))
+                let spent = index % 4 == 3 ? nil : TodayEnergy.Split(restingKcal: 1_620, activityKcal: Double(380 + (index * 53) % 400))
+                let summary = NutritionDaySummary(
+                    dayKey: key,
+                    meals: hole ? [] : [MealEntry(meal: MealRow(id: key, day: key, eatenAt: 0, name: "j", origin: .manual,
+                                                                favorite: false, createdAt: 0, updatedAt: 0),
+                                                  items: [MealItemRow(id: key + "-0", mealId: key, ord: 0, name: "j",
+                                                                      grams: nil, nutrients: eaten)])],
+                    spent: spent)
+                return NutritionHistory.historyDay(summary)
+            }
+        }
+        try render(AnyView(NutritionHistoryCard(model: NutritionHistoryModel(days: historySample(7), plan: plan), range: .week)),
+                   name: "14-historique-7j")
+        try render(AnyView(NutritionHistoryCard(model: NutritionHistoryModel(days: historySample(30), plan: plan), range: .month)),
+                   name: "15-historique-30j")
+        let empty = NutritionHistory.historyDayKeys(before: today, count: 7).map {
+            NutritionHistory.historyDay(NutritionDaySummary(dayKey: $0, meals: [], spent: nil))
+        }
+        try render(AnyView(NutritionHistoryCard(model: NutritionHistoryModel(days: empty, plan: plan), range: .week)),
+                   name: "16-historique-vide")
+    }
+
     private func heroModel(nutrition: TodayNutritionLine.Model) -> TodayHeroModel {
         TodayHeroModel(
             charge: .init(label: String(localized: "Charge"), score: 72, tint: StrandPalette.recoveryColor(72),

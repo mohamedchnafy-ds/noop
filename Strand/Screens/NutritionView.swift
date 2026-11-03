@@ -37,6 +37,15 @@ struct NutritionView: View {
     @State private var captureRequested: NutritionCaptureMode?
     @State private var capture: NutritionCaptureMode?
     @State private var capturedDraft: MealEntry?
+    // Personal fork, chantier 8: the history under the journal, 7 or 30 complete days before today.
+    @State private var historyRange: NutritionHistoryRange = .week
+    @State private var history: LoadedNutritionHistory?
+
+    /// The history as last read, with the range it was read for.
+    private struct LoadedNutritionHistory {
+        let range: NutritionHistoryRange
+        let days: [NutritionHistoryDay]
+    }
 
     private enum ScannerExit {
         case manual, coach
@@ -128,12 +137,23 @@ struct NutritionView: View {
                     .padding(.horizontal, 4)
                     .nutritionListRow()
             }
+
+            NutritionHistoryCard(model: NutritionHistoryModel(days: history?.days ?? [], plan: plan),
+                                 range: historyRange, onRange: { historyRange = $0 },
+                                 loading: history?.range != historyRange)
+                .padding(.top, NoopMetrics.space2)
+                .nutritionListRow()
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
+        .task(id: "\(historyRange.rawValue)-\(mealRevision)-\(Repository.localDayKey(Date()))") {
+            let range = historyRange
+            let days = await NutritionHistory.loadNutritionHistory(repo, profile: profile, range: range)
+            if !Task.isCancelled { history = LoadedNutritionHistory(range: range, days: days) }
+        }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }

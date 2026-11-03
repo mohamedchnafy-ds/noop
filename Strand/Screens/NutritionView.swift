@@ -37,6 +37,9 @@ struct NutritionView: View {
     @State private var captureRequested: NutritionCaptureMode?
     @State private var capture: NutritionCaptureMode?
     @State private var capturedDraft: MealEntry?
+    // Personal fork, chantier 8: the followed Lab Book markers, and the Lab Book they open.
+    @State private var labLines: [NutritionLabLine] = []
+    @State private var showLabBook = false
 
     private enum ScannerExit {
         case manual, coach
@@ -128,12 +131,20 @@ struct NutritionView: View {
                     .padding(.horizontal, 4)
                     .nutritionListRow()
             }
+
+            if !labLines.isEmpty {
+                NutritionLabCard(lines: labLines, onOpen: { showLabBook = true })
+                    .padding(.top, NoopMetrics.space2)
+                    .nutritionListRow()
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
+        .navigationDestination(isPresented: $showLabBook) { LabBookView() }
+        .task(id: repo.refreshSeq) { labLines = await NutritionLabLines.loadLabLines(repo) }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }

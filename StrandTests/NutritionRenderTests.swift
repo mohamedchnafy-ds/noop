@@ -156,6 +156,21 @@ final class NutritionRenderTests: XCTestCase {
         }
         try render(AnyView(capture), name: "10-dicter")
 
+        // Chantier 8: the followed Lab Book markers under the journal, then the card before any reading.
+        func reading(_ key: String, _ day: String, _ value: Double, _ unit: String) -> LabMarkerRow {
+            LabMarkerRow(id: key + day, deviceId: "d", markerKey: key, category: "blood_panel", day: day,
+                         takenAt: LabBookFormat.noonEpoch(day), value: value, valueText: nil, unit: unit,
+                         source: "manual", note: nil, referenceText: nil)
+        }
+        let readings = [reading("vitamin_d", "2026-03-12", 48, "nmol/L"), reading("vitamin_d", "2026-10-28", 61.5, "nmol/L"),
+                        reading("ferritin", "2026-10-28", 42, "µg/L"), reading("hba1c", "2026-06-02", 34, "mmol/mol")]
+        let keys = ["vitamin_d", "ferritin", "vitamin_b12", "hba1c", "ldl"]
+        let labCards = VStack(spacing: 24) {
+            NutritionLabCard(lines: NutritionLabLines.buildLabLines(keys: keys, rows: readings), onOpen: {})
+            NutritionLabCard(lines: NutritionLabLines.buildLabLines(keys: Array(keys.prefix(4)), rows: []), onOpen: {})
+        }
+        try render(AnyView(labCards), name: "13-labo")
+
         XCTAssertEqual(day.eaten.kcal, 1_495)
         XCTAssertEqual(day.balanceKcal, -605)
         XCTAssertEqual(plan.intakeKcal, 2_560)

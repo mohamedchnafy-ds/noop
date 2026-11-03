@@ -49,15 +49,20 @@ enum MealJournal {
     }
 
     /// Save a meal eaten at `eatenAt` with its lines, in that order. Pass the `id` of an existing meal
-    /// to edit it: it keeps its first save time, everything else is replaced.
+    /// to edit it: it keeps its first save time, everything else is replaced. `planned` (chantier 8): true
+    /// for a menu not eaten yet; nil keeps what an edited meal already was, and makes a new one eaten.
     @discardableResult
     static func saveMealEntry(_ store: WhoopStore, id: String? = nil, name: String, origin: MealOrigin,
-                              eatenAt: Date, favorite: Bool = false, lines: [MealItemRow],
+                              eatenAt: Date, favorite: Bool = false, planned: Bool? = nil, lines: [MealItemRow],
                               now: Date = Date()) async throws -> MealEntry {
         let stamp = Int(now.timeIntervalSince1970)
+        var isPlanned = planned ?? false
+        if planned == nil, let id {
+            isPlanned = (try await store.mealEntry(id: id))?.meal.planned ?? false
+        }
         let meal = MealRow(id: id ?? UUID().uuidString, day: mealDayKey(eatenAt),
                            eatenAt: Int(eatenAt.timeIntervalSince1970), name: name, origin: origin,
-                           favorite: favorite, createdAt: stamp, updatedAt: stamp)
+                           favorite: favorite, createdAt: stamp, updatedAt: stamp, planned: isPlanned)
         try await store.saveMeal(meal, items: lines)
         await NutritionSeries.rebuildNutritionSeries(store)
         await bumpMealRevision()
@@ -79,17 +84,32 @@ enum MealJournal {
             return copy
         }
         return try await saveMealEntry(store, name: entry.meal.name, origin: entry.meal.origin,
-                                       eatenAt: eatenAt, lines: lines)
+                                       eatenAt: eatenAt, planned: false, lines: lines)
     }
 
-    /// The meals of one local day, in the order eaten.
+    /// The meals EATEN on one local day, in the order eaten. A planned meal is left out: every figure
+    /// (rings, balance, widget, series, Coach) reads the day through here, so a menu counts nowhere until
+    /// it is marked eaten.
     static func mealJournalDay(_ store: WhoopStore, day: String) async throws -> [MealEntry] {
-        try await store.mealEntries(fromDay: day, toDay: day)
+        try await store.mealEntries(fromDay: day, toDay: day).filter { !$0.meal.planned }
     }
 
-    /// The meals from `fromDay` to `toDay`, both included, in the order eaten.
+    /// The meals eaten from `fromDay` to `toDay`, both included, in the order eaten (planned ones left out).
     static func mealJournalRange(_ store: WhoopStore, fromDay: String, toDay: String) async throws -> [MealEntry] {
-        try await store.mealEntries(fromDay: fromDay, toDay: toDay)
+        try await store.mealEntries(fromDay: fromDay, toDay: toDay).filter { !$0.meal.planned }
+    }
+
+    /// The meals PLANNED for one local day (a menu, not eaten yet), in the order planned. Shown greyed in
+    /// the journal, counted nowhere.
+    static func plannedMealsOfDay(_ store: WhoopStore, day: String) async throws -> [MealEntry] {
+        try await store.mealEntries(fromDay: day, toDay: day).filter(\.meal.planned)
+    }
+
+    /// A planned meal eaten: it keeps its time and lines, and from now on counts like any meal.
+    static func markMealEaten(_ store: WhoopStore, id: String, now: Date = Date()) async throws {
+        try await store.setMealPlanned(id: id, planned: false, updatedAt: Int(now.timeIntervalSince1970))
+        await NutritionSeries.rebuildNutritionSeries(store)
+        await bumpMealRevision()
     }
 
     /// One meal with its lines, or nil.

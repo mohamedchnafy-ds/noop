@@ -66,6 +66,9 @@ enum NutritionFormat {
         return whole(0)
     }
 
+    /// "−605 kcal", "+120 kcal".
+    static func signedKcalUnit(_ value: Int) -> String { signedKcal(value) + " kcal" }
+
     /// A share in percent with the language's spacing: "25 %".
     static func percentText(_ value: Int) -> String {
         (Double(value) / 100).formatted(.percent.precision(.fractionLength(0)).locale(locale))

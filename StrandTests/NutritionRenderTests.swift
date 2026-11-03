@@ -176,6 +176,77 @@ final class NutritionRenderTests: XCTestCase {
         XCTAssertEqual(plan.intakeKcal, 2_560)
     }
 
+    /// Chantier 8, lot 3: a planned meal under the eaten ones, greyed, with "Eaten".
+    func testRendersPlannedMeals() throws {
+        let menu = MealEntry(meal: MealRow(id: "menu", day: "2026-11-01", eatenAt: at(19, 30), name: "Saumon, patate douce",
+                                           origin: .manual, createdAt: 0, updatedAt: 0, planned: true),
+                             items: [MealItemRow(id: "menu-0", mealId: "menu", ord: 0, name: "Saumon, patate douce",
+                                                 grams: nil, nutrients: MealNutrients(kcal: 640, proteinG: 42, carbsG: 55, fatG: 24))])
+        let view = VStack(alignment: .leading, spacing: 0) {
+            NutritionMealRow(entry: meals[3], isFirst: true, isLast: true)
+            NutritionPlannedHeader()
+                .padding(.bottom, 12)
+            NutritionMealRow(entry: menu, isFirst: true, isLast: true, onEaten: {})
+        }
+        try render(AnyView(view), name: "17-repas-prevu")
+    }
+
+    /// Chantier 8, lot 3: the Coach's menu card, before and after "Add as planned".
+    func testRendersTheMenuCard() throws {
+        let rice = MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7)
+        let chicken = MealPer100(kcal: 189, proteinG: 29.8, carbsG: 0, fatG: 7.8)
+        let skyr = MealPer100(kcal: 63, proteinG: 11, carbsG: 4, fatG: 0.2)
+        let meals = [
+            CoachMealProposal(name: "Skyr, flocons d'avoine", eatenAt: at(7, 30), origin: .manual,
+                              lines: [.init(name: "Skyr", ciqualCode: 19598, grams: 250, estimated: false, per100: skyr)],
+                              mealId: nil),
+            CoachMealProposal(name: "Poulet, riz", eatenAt: at(12, 30), origin: .manual,
+                              lines: [.init(name: "Poulet rôti", ciqualCode: 36032, grams: 180, estimated: false, per100: chicken),
+                                      .init(name: "Riz blanc cuit", ciqualCode: 9104, grams: 220, estimated: false, per100: rice)],
+                              mealId: nil),
+        ]
+        let menu = CoachMenuProposal(day: "2026-11-01", meals: meals)
+        var added = menu
+        added.mealIds = ["a", "b"]
+        let cards = VStack(spacing: 16) {
+            CoachMenuCard(proposal: menu, busy: false, onAdd: {}, onUndo: {})
+            CoachMenuCard(proposal: added, busy: false, onAdd: {}, onUndo: {})
+        }
+        try render(AnyView(cards), name: "18-coach-menu")
+    }
+
+    /// Chantier 8, lot 3: the history card over 7 and 30 days, with unwritten days left empty.
+    func testRendersTheNutritionHistory() throws {
+        let cal = Calendar.current
+        let today = cal.date(from: DateComponents(year: 2026, month: 11, day: 3))!
+        func historySample(_ count: Int) -> [NutritionHistoryDay] {
+            NutritionHistory.historyDayKeys(before: today, count: count).enumerated().map { index, key in
+                let hole = index % 5 == 2 || index % 7 == 5
+                let kcal = 2_150 + ((index * 37) % 9 - 4) * 90
+                let eaten = MealNutrients(kcal: kcal, proteinG: Double(130 + (index * 13) % 40),
+                                          carbsG: Double(220 + (index * 29) % 80), fatG: Double(60 + (index * 7) % 25))
+                let spent = index % 4 == 3 ? nil : TodayEnergy.Split(restingKcal: 1_620, activityKcal: Double(380 + (index * 53) % 400))
+                let summary = NutritionDaySummary(
+                    dayKey: key,
+                    meals: hole ? [] : [MealEntry(meal: MealRow(id: key, day: key, eatenAt: 0, name: "j", origin: .manual,
+                                                                favorite: false, createdAt: 0, updatedAt: 0),
+                                                  items: [MealItemRow(id: key + "-0", mealId: key, ord: 0, name: "j",
+                                                                      grams: nil, nutrients: eaten)])],
+                    spent: spent)
+                return NutritionHistory.historyDay(summary)
+            }
+        }
+        try render(AnyView(NutritionHistoryCard(model: NutritionHistoryModel(days: historySample(7), plan: plan), range: .week)),
+                   name: "14-historique-7j")
+        try render(AnyView(NutritionHistoryCard(model: NutritionHistoryModel(days: historySample(30), plan: plan), range: .month)),
+                   name: "15-historique-30j")
+        let empty = NutritionHistory.historyDayKeys(before: today, count: 7).map {
+            NutritionHistory.historyDay(NutritionDaySummary(dayKey: $0, meals: [], spent: nil))
+        }
+        try render(AnyView(NutritionHistoryCard(model: NutritionHistoryModel(days: empty, plan: plan), range: .week)),
+                   name: "16-historique-vide")
+    }
+
     private func heroModel(nutrition: TodayNutritionLine.Model) -> TodayHeroModel {
         TodayHeroModel(
             charge: .init(label: String(localized: "Charge"), score: 72, tint: StrandPalette.recoveryColor(72),

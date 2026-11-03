@@ -73,6 +73,7 @@ struct CoachView: View {
     @State private var draftDictated = false
     /// The reply whose meal card is running an action, and the meal open in the editor.
     @State private var mealBusy: UUID?
+    @State private var menuBusy: UUID?
     /// The reply whose action card is confirming or undoing (chantier 8).
     @State private var actionBusy: UUID?
     @State private var mealEditor: CoachMealEditTarget?
@@ -683,7 +684,8 @@ struct CoachView: View {
             let session = reply.meta?.session
             let meal = reply.meta?.meal
             let action = reply.meta?.action
-            if !reply.body.isEmpty || session != nil || meal != nil || action != nil {
+            let menu = reply.meta?.menu
+            if !reply.body.isEmpty || session != nil || meal != nil || action != nil || menu != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     Label {
                         Text("Coach").font(StrandFont.overline)
@@ -709,6 +711,13 @@ struct CoachView: View {
                         CoachMealCard(proposal: meal, busy: mealBusy == message.id,
                                       onAdd: { addMeal(messageId: message.id) },
                                       onEdit: { editMeal(messageId: message.id, proposal: meal) })
+                            .frame(maxWidth: 520, alignment: .leading)
+                            .padding(.top, 2)
+                    }
+                    if let menu {
+                        CoachMenuCard(proposal: menu, busy: menuBusy == message.id,
+                                      onAdd: { runMenu(messageId: message.id, undo: false) },
+                                      onUndo: { runMenu(messageId: message.id, undo: true) })
                             .frame(maxWidth: 520, alignment: .leading)
                             .padding(.top, 2)
                     }
@@ -1185,6 +1194,16 @@ struct CoachView: View {
         Task {
             if undo { await coach.undoAction(messageId: messageId) } else { await coach.confirmAction(messageId: messageId) }
             actionBusy = nil
+        }
+    }
+
+    /// The menu card's two actions: add its meals as planned, or remove them again.
+    private func runMenu(messageId: UUID, undo: Bool) {
+        guard menuBusy == nil else { return }
+        menuBusy = messageId
+        Task {
+            if undo { await coach.undoMenu(messageId: messageId) } else { await coach.addMenuAsPlanned(messageId: messageId) }
+            menuBusy = nil
         }
     }
 

@@ -1,0 +1,95 @@
+import SwiftUI
+import StrandDesign
+
+/// An action the Coach proposes, as a card under its reply (personal fork, chantier 8), on the meal card's
+/// template: a blue header with its icon, what would change line by line, a note that it is the user's own
+/// correction and not a measurement, then "Confirm". Once confirmed the card offers "Undo"; once undone it
+/// says so. Nothing is written until the tap (`AICoachEngine.confirmAction`).
+struct CoachActionCard: View {
+    let proposal: CoachActionProposal
+    /// Running Confirm or Undo: the button waits.
+    let busy: Bool
+    let onConfirm: () -> Void
+    let onUndo: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label {
+                headerTitle.font(StrandFont.overline)
+            } icon: {
+                Image(systemName: symbol).font(StrandFont.subhead.weight(.semibold))
+            }
+            .foregroundStyle(StrandPalette.accent)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(proposal.lines.enumerated()), id: \.offset) { index, line in
+                    Text(verbatim: line)
+                        .font(index == 0 && proposal.kind != .remember ? StrandFont.headline : StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.top, 10)
+            note
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+            actions
+                .padding(.top, 14)
+        }
+        .padding(16)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        .accessibilityElement(children: .contain)
+    }
+
+    private var symbol: String {
+        switch proposal.kind {
+        case .nap: return "moon.zzz.fill"
+        case .workout: return "figure.run"
+        case .liftSets: return "dumbbell.fill"
+        case .remember: return "brain.head.profile"
+        }
+    }
+
+    private var headerTitle: Text {
+        switch proposal.kind {
+        case .nap: return Text("Proposed nap")
+        case .workout: return Text("Workout correction")
+        case .liftSets: return Text("Set correction")
+        case .remember: return Text("To remember")
+        }
+    }
+
+    private var note: Text {
+        switch proposal.kind {
+        case .nap: return Text("Added as a nap you entered, staged from your strap's data when there is some.")
+        case .workout, .liftSets: return Text("Your correction, kept as entered by hand, not as a measurement.")
+        case .remember: return Text("Added to “What the coach should know about you”, where you can change it.")
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        switch proposal.state {
+        case .proposed:
+            NoopButton("Confirm", systemImage: "checkmark", kind: .primary, fullWidth: true, action: onConfirm)
+                .disabled(busy)
+        case .applied:
+            HStack(spacing: 8) {
+                Label("Done", systemImage: "checkmark")
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(StrandPalette.accent)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                NoopButton("Undo", systemImage: "arrow.uturn.backward", kind: .secondary, fullWidth: true,
+                           action: onUndo)
+                    .disabled(busy)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        case .undone:
+            Label("Undone", systemImage: "arrow.uturn.backward")
+                .font(StrandFont.subhead.weight(.semibold))
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+    }
+}

@@ -73,6 +73,8 @@ struct CoachView: View {
     @State private var draftDictated = false
     /// The reply whose meal card is running an action, and the meal open in the editor.
     @State private var mealBusy: UUID?
+    /// The reply whose action card is confirming or undoing (chantier 8).
+    @State private var actionBusy: UUID?
     @State private var mealEditor: CoachMealEditTarget?
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
@@ -680,7 +682,8 @@ struct CoachView: View {
             let streaming = coach.sending && message.id == coach.messages.last?.id
             let session = reply.meta?.session
             let meal = reply.meta?.meal
-            if !reply.body.isEmpty || session != nil || meal != nil {
+            let action = reply.meta?.action
+            if !reply.body.isEmpty || session != nil || meal != nil || action != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     Label {
                         Text("Coach").font(StrandFont.overline)
@@ -706,6 +709,13 @@ struct CoachView: View {
                         CoachMealCard(proposal: meal, busy: mealBusy == message.id,
                                       onAdd: { addMeal(messageId: message.id) },
                                       onEdit: { editMeal(messageId: message.id, proposal: meal) })
+                            .frame(maxWidth: 520, alignment: .leading)
+                            .padding(.top, 2)
+                    }
+                    if let action {
+                        CoachActionCard(proposal: action, busy: actionBusy == message.id,
+                                        onConfirm: { runAction(messageId: message.id, undo: false) },
+                                        onUndo: { runAction(messageId: message.id, undo: true) })
                             .frame(maxWidth: 520, alignment: .leading)
                             .padding(.top, 2)
                     }
@@ -1167,6 +1177,16 @@ struct CoachView: View {
     }
 
     // MARK: - The meal card (personal fork, Nutrition 4c)
+
+    /// Confirm or Undo on an action card: one at a time.
+    private func runAction(messageId: UUID, undo: Bool) {
+        guard actionBusy == nil else { return }
+        actionBusy = messageId
+        Task {
+            if undo { await coach.undoAction(messageId: messageId) } else { await coach.confirmAction(messageId: messageId) }
+            actionBusy = nil
+        }
+    }
 
     private func addMeal(messageId: UUID) {
         guard mealBusy == nil else { return }

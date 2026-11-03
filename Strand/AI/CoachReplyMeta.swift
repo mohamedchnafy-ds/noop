@@ -23,19 +23,22 @@ struct CoachReplyMeta: Codable, Equatable {
     var dictated: Bool = false
     /// On a question: the barcode of the product whose label it sends (Nutrition 4d, `read_label`).
     var barcode: String?
+    /// The action card (chantier 8: a nap, a correction, a fact to remember), with its Confirm / Undo state.
+    var action: CoachActionProposal?
 
     init(consulted: [String] = [], session: CoachSessionProposal? = nil, meal: CoachMealProposal? = nil,
-         photos: [String] = [], dictated: Bool = false, barcode: String? = nil) {
+         photos: [String] = [], dictated: Bool = false, barcode: String? = nil, action: CoachActionProposal? = nil) {
         self.consulted = consulted
         self.session = session
         self.meal = meal
         self.photos = photos
         self.dictated = dictated
         self.barcode = barcode
+        self.action = action
     }
 
     private enum CodingKeys: String, CodingKey {
-        case consulted, session, meal, photos, dictated, barcode
+        case consulted, session, meal, photos, dictated, barcode, action
     }
 
     /// Every field optional on the way in, so a block written before a field existed still reads.
@@ -47,6 +50,7 @@ struct CoachReplyMeta: Codable, Equatable {
         photos = try container.decodeIfPresent([String].self, forKey: .photos) ?? []
         dictated = try container.decodeIfPresent(Bool.self, forKey: .dictated) ?? false
         barcode = try container.decodeIfPresent(String.self, forKey: .barcode)
+        action = try container.decodeIfPresent(CoachActionProposal.self, forKey: .action)
     }
 
     /// Only what is set is written, so a reply's block stays as short as it was before photos.
@@ -58,10 +62,12 @@ struct CoachReplyMeta: Codable, Equatable {
         if !photos.isEmpty { try container.encode(photos, forKey: .photos) }
         if dictated { try container.encode(dictated, forKey: .dictated) }
         try container.encodeIfPresent(barcode, forKey: .barcode)
+        try container.encodeIfPresent(action, forKey: .action)
     }
 
     var isEmpty: Bool {
         consulted.isEmpty && session == nil && meal == nil && photos.isEmpty && !dictated && barcode == nil
+            && action == nil
     }
 
     static let fenceOpen = "\n\n```noop-coach\n"
@@ -87,12 +93,13 @@ struct CoachReplyMeta: Codable, Equatable {
     /// refers to.
     static func forModel(_ text: String, system: UnitSystem) -> String {
         let (body, meta) = split(text)
-        guard meta?.session != nil || meta?.meal != nil else { return body }
+        guard meta?.session != nil || meta?.meal != nil || meta?.action != nil else { return body }
         var parts: [String] = []
         let words = body.trimmingCharacters(in: .whitespacesAndNewlines)
         if !words.isEmpty { parts.append(words) }
         if let session = meta?.session { parts.append(session.wireText(system: system)) }
         if let meal = meta?.meal { parts.append(meal.wireText()) }
+        if let action = meta?.action { parts.append(action.wireText()) }
         return parts.joined(separator: "\n\n")
     }
 

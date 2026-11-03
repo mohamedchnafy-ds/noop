@@ -39,7 +39,7 @@ enum MoreHubGroup: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    /// SF Symbol drawn in the row's tinted tile.
+    /// SF Symbol drawn, alone and tinted, at the head of the row.
     var icon: String {
         switch self {
         case .training: return "dumbbell.fill"
@@ -51,22 +51,23 @@ enum MoreHubGroup: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    /// The tile's colour: each group takes the colour of the world it opens (Effort blue for training,
-    /// the activity gold of Calories for nutrition, the heart rose for health, the accent for analysis);
-    /// the two utility groups stay neutral.
+    /// The icon's colour: each group takes the colour of the world it opens (Effort blue for training,
+    /// the activity gold of Calories for nutrition, the heart rose for health, the HRV teal for
+    /// analysis); the two utility groups stay neutral grey (fork chantier 7 mockup « Plus »).
     var tint: Color {
         switch self {
         case .training: return StrandPalette.effortColor
         case .nutrition: return StrandPalette.caloriesActivity
         case .healthRecovery: return StrandPalette.liquidHeart
-        case .analysis: return StrandPalette.accent
+        case .analysis: return StrandPalette.metricCyan
         case .data, .appSettings: return StrandPalette.textSecondary
         }
     }
 }
 
-/// The label of one group row in the More hub: a tinted icon tile, the group name, its one-line summary
-/// and a trailing chevron. A hairline closes every row but the last of the card.
+/// The label of one group row in the More hub: the tinted icon alone (no tile behind it, fork chantier 7),
+/// the group name, its one-line summary and a trailing chevron. A hairline closes every row but the last
+/// of the card.
 struct MoreHubRowLabel: View {
     let group: MoreHubGroup
     var showsDivider = true
@@ -74,11 +75,10 @@ struct MoreHubRowLabel: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: group.icon)
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 22, weight: .regular))
                 .foregroundStyle(group.tint)
-                .frame(width: 40, height: 40)
-                .background(group.tint.opacity(0.16),
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: 28)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.title)
                     .font(StrandFont.headline)
@@ -92,20 +92,20 @@ struct MoreHubRowLabel: View {
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(StrandPalette.textTertiary)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if showsDivider {
                 Rectangle()
                     .fill(StrandPalette.hairline)
                     .frame(height: 1)
-                    .padding(.leading, 70)
             }
         }
+        .padding(.horizontal, 18)
+        .contentShape(Rectangle())
     }
 }
 
@@ -122,6 +122,7 @@ struct MoreHubCard<Row: View>: View {
                     row(group, group == MoreHubGroup.allCases.last)
                 }
             }
+            .padding(.vertical, 2)
             .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
         }
     }

@@ -130,6 +130,10 @@ public enum StrandPalette {
     public static let accentMuted = Color(light: "#007AFF2E", dark: "#0A84FF2E")
     /// Focus ring color — the same accent, on both schemes.
     public static let focusRing = accent
+    /// The "on" colour of a settings switch: the system green of iOS Settings, fixed whatever the chart
+    /// style (fork chantier 7, mockup « Paramètres »). Set explicitly because the tabs tint their content
+    /// with `accent`, which a switch would otherwise inherit.
+    public static let switchOn = Color(light: "#34C759", dark: "#30D158")
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
     public static let disabledOpacity: Double = 0.45
     /// Liquid-scene activity tint shared by heart-rate feedback and transient sync chrome.

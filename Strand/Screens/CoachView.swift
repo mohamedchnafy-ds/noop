@@ -396,30 +396,35 @@ struct CoachView: View {
         #endif
     }
 
-    /// The header (personal fork, Coach mockups 1 and 8): the history on the left, the conversation's
-    /// title and when it was last written, a new conversation, and the ⋯ menu that holds everything else.
+    /// The header (fork chantier 7, mockup « Coach »): the 34-point title with three round Liquid Glass
+    /// buttons on its right (the history, a new conversation, the ⋯ menu that holds everything else),
+    /// then one grey line saying when anything leaves the phone. The conversation's own name and when it
+    /// was last written stay in the history, and are read out with the title by VoiceOver.
     private var chatHeader: some View {
-        HStack(spacing: 8) {
-            headerButton("clock.arrow.circlepath", label: "Conversations") { showHistory = true }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(headerTitle)
-                    .font(StrandFont.headline)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text("Coach")
+                    .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
-                if coach.sending {
-                    StatePill("Thinking", tone: .accent, pulsing: true)
-                } else {
-                    Text(headerSubtitle)
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .lineLimit(1)
-                }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityValue(Text(verbatim: headerTitle + ", " + headerSubtitle))
+                headerButton("clock.arrow.circlepath", label: "Conversations") { showHistory = true }
+                headerButton("square.and.pencil", label: "New conversation") { coach.startNewConversation() }
+                    .disabled(coach.sending || coach.messages.isEmpty)
+                optionsMenu
             }
-            .padding(.leading, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            headerButton("square.and.pencil", label: "New conversation") { coach.startNewConversation() }
-                .disabled(coach.sending || coach.messages.isEmpty)
-            optionsMenu
+            HStack(spacing: 6) {
+                Image(systemName: "lock")
+                    .accessibilityHidden(true)
+                Text("Sent to \(coach.provider.displayName) only when you ask")
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(StrandFont.caption)
+            .foregroundStyle(StrandPalette.textSecondary)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -441,13 +446,20 @@ struct CoachView: View {
         }
     }
 
+    /// A round header button: Liquid Glass on iOS 26 (the Today and Sleep header chrome), a flat
+    /// surface circle on macOS.
     private func headerButton(_ symbol: String, label: LocalizedStringKey,
                               action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        let button = Button(action: action) {
             CoachHeaderIcon(symbol: symbol)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(label))
+        return button
+            .nativeLiquidGlassButtonChrome(controlSize: .small) {
+                button
+                    .buttonStyle(LiquidPressStyle())
+                    .background(StrandPalette.surfaceRaised, in: Circle())
+            }
+            .accessibilityLabel(Text(label))
     }
 
     /// Everything that is not the conversation, behind ONE button (Coach mockup 8): the conversation
@@ -464,7 +476,7 @@ struct CoachView: View {
     /// since `hasKey` reads the Keychain on each evaluation. The setup card reappears because
     /// `disconnect()` ALSO assigns the published `messages`, which is what re-evaluates the body.
     private var optionsMenu: some View {
-        Menu {
+        let menu = Menu {
             if let row = coach.currentConversationRow {
                 Section {
                     Button {
@@ -520,8 +532,14 @@ struct CoachView: View {
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "More options"))
+        // The menu's button wears the same round glass as the two buttons beside it.
+        return menu
+            .nativeLiquidGlassButtonChrome(controlSize: .small) {
+                menu
+                    .buttonStyle(.plain)
+                    .background(StrandPalette.surfaceRaised, in: Circle())
+            }
+            .accessibilityLabel(String(localized: "More options"))
     }
 
     /// What sits under the transcript: a problem that needs the user (an error, a rejected key), the
@@ -618,14 +636,18 @@ struct CoachView: View {
                             }
                         }
                     }
+                    // Fork chantier 7: a grey bubble (#2C2C2E), no accent colour.
                     Text(question.body)
                         .font(StrandFont.body)
-                        .foregroundStyle(StrandPalette.surfaceBase)
+                        .foregroundStyle(StrandPalette.textPrimary)
                         .textSelection(.enabled)
                         .multilineTextAlignment(.leading)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        // A plain rounded rectangle: `UnevenRoundedRectangle` needs macOS 14 and this file
+                        // also builds for the macOS 13 target.
+                        .background(NoopVisualStyle.surfaceTop,
+                                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
                 .frame(maxWidth: 520, alignment: .trailing)
             }
@@ -646,9 +668,9 @@ struct CoachView: View {
             if !reply.body.isEmpty || session != nil || meal != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     Label {
-                        Text("Coach").font(StrandFont.overline).tracking(1)
+                        Text("Coach").font(StrandFont.overline)
                     } icon: {
-                        Image(systemName: "sparkles").font(StrandFont.caption)
+                        Image(systemName: "sparkles").font(StrandFont.caption.weight(.semibold))
                     }
                     .foregroundStyle(StrandPalette.textSecondary)
                     .accessibilityHidden(true)
@@ -768,7 +790,7 @@ struct CoachView: View {
             Image(systemName: "magnifyingglass")
         }
         .font(StrandFont.caption)
-        .foregroundStyle(StrandPalette.textTertiary)
+        .foregroundStyle(StrandPalette.textSecondary)
         .padding(.top, 2)
         .accessibilityElement(children: .combine)
     }
@@ -940,10 +962,9 @@ struct CoachView: View {
                     Text(prompt)
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textPrimary)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 14)
                         .frame(minHeight: 40)
-                        .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
-                        .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                        .background(StrandPalette.surfaceRaised, in: Capsule(style: .continuous))
                 }
                 .buttonStyle(LiquidPressStyle())
                 .accessibilityLabel("Follow-up prompt: \(prompt)")
@@ -971,41 +992,44 @@ struct CoachView: View {
         .padding(.top, 2)
     }
 
-    /// The input capsule (Coach mockup 1): the field, the microphone, and a round Send that appears once
-    /// there is something to send. While a reply streams it becomes Stop, which keeps the text received
-    /// so far. The photo button of the mockups comes with photos.
+    /// The input row (fork chantier 7, mockup « Coach »): a round glass "+" for photos, the field in a
+    /// #1C1C1E capsule with the grey microphone inside it, and a round white Send that appears once there
+    /// is something to send. While a reply streams it becomes Stop, which keeps the text received so far.
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 6) {
             // Personal fork (Nutrition 4c): the photos attached to the question, each removable.
             if !attachedPhotos.isEmpty {
                 CoachAttachmentStrip(names: attachedPhotos) { removeAttachment($0) }
             }
             composerRow
         }
-        .padding(2)
-        .background(NoopPanelSurface(cornerRadius: 26))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous)
-            .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
     }
 
     private var composerRow: some View {
-        HStack(alignment: .bottom, spacing: 4) {
+        HStack(alignment: .bottom, spacing: 8) {
             if photosAvailable { attachButton }
-            TextField("Ask Coach…", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(StrandFont.body)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .lineLimit(1...5)
-                .focused($composerFocused)
-                .padding(.leading, photosAvailable ? 2 : 14)
-                .padding(.vertical, 12)
-                .onSubmit { send(draft) }
-                .accessibilityLabel("Question")
+            HStack(alignment: .bottom, spacing: 0) {
+                TextField("Ask Coach…", text: $draft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1...5)
+                    .focused($composerFocused)
+                    .padding(.leading, 16)
+                    .padding(.trailing, micAvailable ? 0 : 16)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onSubmit { send(draft) }
+                    .accessibilityLabel("Question")
 
-            // K4: on-device voice input (iOS only). macOS compiles this section out entirely.
-            #if os(iOS)
-            micButton
-            #endif
+                // K4: on-device voice input (iOS only). macOS compiles this section out entirely.
+                #if os(iOS)
+                micButton
+                #endif
+            }
+            .frame(minHeight: 44)
+            .background(StrandPalette.surfaceRaised,
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             if coach.sending || canSend || !micAvailable {
                 Button {
@@ -1013,13 +1037,12 @@ struct CoachView: View {
                 } label: {
                     Image(systemName: coach.sending ? "stop.fill" : "arrow.up")
                         .font(StrandFont.headline)
-                        .frame(width: 40, height: 40)
-                        .foregroundStyle(StrandPalette.goldDeepText)
-                        .background(StrandPalette.accent, in: Circle())
+                        .frame(width: 44, height: 44)
+                        .foregroundStyle(StrandPalette.surfaceBase)
+                        .background(StrandPalette.textPrimary, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(!coach.sending && !canSend)
-                .padding(2)
                 .accessibilityLabel(coach.sending ? Text("Stop") : Text("Send"))
             }
         }
@@ -1035,9 +1058,9 @@ struct CoachView: View {
     /// Photos go to Anthropic only: the other providers keep the text chat.
     private var photosAvailable: Bool { coach.provider == .anthropic }
 
-    /// The capsule's "+": the photo library, and the camera on iPhone.
+    /// The round glass "+" left of the field: the photo library, and the camera on iPhone.
     private var attachButton: some View {
-        Menu {
+        let menu = Menu {
             Button { showPhotoPicker = true } label: {
                 Label("Photo library", systemImage: "photo.on.rectangle")
             }
@@ -1051,13 +1074,21 @@ struct CoachView: View {
         } label: {
             Image(systemName: "plus")
                 .font(StrandFont.headline)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .frame(width: 44, height: 44)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .frame(width: NoopMetrics.compactControlSize, height: NoopMetrics.compactControlSize)
                 .contentShape(Circle())
         }
+        .menuStyle(.button)
         .menuIndicator(.hidden)
-        .disabled(coach.sending || attachedPhotos.count >= CoachPhotoStore.maxPerQuestion)
-        .accessibilityLabel(Text("Add a photo"))
+        return menu
+            .nativeLiquidGlassButtonChrome(controlSize: .small) {
+                menu
+                    .buttonStyle(.plain)
+                    .frame(width: 44, height: 44)
+                    .background(StrandPalette.surfaceRaised, in: Circle())
+            }
+            .disabled(coach.sending || attachedPhotos.count >= CoachPhotoStore.maxPerQuestion)
+            .accessibilityLabel(Text("Add a photo"))
     }
 
     /// Reduce and stage picked photos, in the order picked.

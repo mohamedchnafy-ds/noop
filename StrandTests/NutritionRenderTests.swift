@@ -59,6 +59,7 @@ final class NutritionRenderTests: XCTestCase {
         let day = summary
         let journal = VStack(alignment: .leading, spacing: 12) {
             NutritionBalanceCard(model: NutritionBalanceModel(summary: day, plan: plan))
+            NutritionAddTiles(onType: {}, onScan: {}, onPhoto: {}, onDictate: {})
             Text("Meals")
                 .font(StrandFont.sectionTitle)
                 .foregroundStyle(StrandPalette.textPrimary)
@@ -75,6 +76,7 @@ final class NutritionRenderTests: XCTestCase {
         let empty = NutritionDaySummary(dayKey: "2026-11-01", meals: [], spent: TodayEnergy.Split(restingKcal: 900, activityKcal: 120))
         let emptyJournal = VStack(alignment: .leading, spacing: 12) {
             NutritionBalanceCard(model: NutritionBalanceModel(summary: empty, plan: plan))
+            NutritionAddTiles(onType: {}, onScan: {}, onPhoto: nil, onDictate: nil)
             NutritionEmptyMeals()
         }
         try render(AnyView(emptyJournal), name: "2-journal-vide")

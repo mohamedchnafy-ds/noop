@@ -398,8 +398,8 @@ struct CoachView: View {
 
     /// The header (fork chantier 7, mockup « Coach »): the 34-point title with three round Liquid Glass
     /// buttons on its right (the history, a new conversation, the ⋯ menu that holds everything else),
-    /// then one grey line saying when anything leaves the phone. The conversation's own name and when it
-    /// was last written stay in the history, and are read out with the title by VoiceOver.
+    /// then one grey line: the conversation's name once it has one, otherwise when anything leaves the
+    /// phone. The name and when it was last written are also read out with the title by VoiceOver.
     private var chatHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -416,16 +416,31 @@ struct CoachView: View {
                 optionsMenu
             }
             HStack(spacing: 6) {
-                Image(systemName: "lock")
-                    .accessibilityHidden(true)
-                Text("Sent to \(coach.provider.displayName) only when you ask")
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Once the conversation has a name, the grey line shows it (Mohamed, 3 Nov.); before
+                // that it says when anything leaves the phone.
+                if let savedTitle {
+                    Image(systemName: "bubble.left")
+                        .accessibilityHidden(true)
+                    Text(verbatim: savedTitle)
+                        .lineLimit(1)
+                } else {
+                    Image(systemName: "lock")
+                        .accessibilityHidden(true)
+                    Text("Sent to \(coach.provider.displayName) only when you ask")
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .font(StrandFont.caption)
             .foregroundStyle(StrandPalette.textSecondary)
             .accessibilityElement(children: .combine)
         }
+    }
+
+    /// The saved conversation's name, nil before its first save or while it has none.
+    private var savedTitle: String? {
+        guard let title = coach.currentConversationRow?.title, !title.isEmpty else { return nil }
+        return title
     }
 
     /// The conversation's title, or "New conversation" before its first save.

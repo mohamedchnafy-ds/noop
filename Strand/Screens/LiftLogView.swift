@@ -169,11 +169,11 @@ struct LiftLogView: View {
 
     private var daySection: some View {
         let day = days([selectedDate]).first
-        let planned = day?.plannedProgramId.flatMap { id in summaries.first { $0.id == id } }
+        let openIds = Set(day?.openProgramIds ?? [])
         return Group {
             if let day {
-                TrainingDaySection(day: day, planned: planned,
-                                   others: summaries.filter { $0.id != planned?.id },
+                TrainingDaySection(day: day, programs: summaries,
+                                   others: summaries.filter { !openIds.contains($0.id) },
                                    isRunning: session.isActive,
                                    onStart: { id in
                                        guard let program = programs.first(where: { $0.id == id }) else { return }
@@ -328,7 +328,7 @@ struct LiftLogView: View {
                                     activeSeconds: length(entry.row, end: end))
         }
         activities = split.others.map { row in
-            TrainingActivityDone(sport: WorkoutSource.displaySport(row.sport),
+            TrainingActivityDone(sport: row.sport,
                                  source: Self.trainingSourceLabel(row.source),
                                  startTs: row.startTs, endTs: row.endTs,
                                  kcal: row.energyKcal.map { Int($0.rounded()) })

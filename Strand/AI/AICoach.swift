@@ -1651,8 +1651,8 @@ final class AICoachEngine: ObservableObject {
     }
 
     /// The Training week plan for the context (`CoachFiche.weekPlanText`): this week's days built by the
-    /// calendar's own resolver, from the Lift Log sessions done (finished, with a working set). "" without
-    /// a plan or a store.
+    /// calendar's own resolver, from the Lift Log sessions done (finished, with a working set) and the
+    /// week's other activities. "" without a plan or a store.
     func trainingWeekPlanBlock() async -> String {
         guard let store = await repo.storeHandle() else { return "" }
         let programs = (try? await store.liftPrograms(deviceId: repo.deviceId)) ?? []
@@ -1673,8 +1673,18 @@ final class AICoachEngine: ObservableObject {
                                           name: row.programName ?? "Session", startTs: row.startTs, endTs: end,
                                           workingSets: working, effort: nil))
         }
+        // The week's other activities, split from the sessions' own rows as the calendar splits them, so
+        // planned cardio is matched by the same rule (fork chantier 8, lot 4).
+        let days = max(1, Int(now.timeIntervalSince(monday) / 86_400) + 1)
+        let workouts = await repo.workoutRows(days: days)
+        let others = TrainingDays.splitLiftWorkouts(workouts, liftStarts: rows.map(\.startTs)).others
+            .filter { $0.startTs >= Int(monday.timeIntervalSince1970) }
+        let activities = others.map { row in
+            TrainingActivityDone(sport: row.sport, source: row.source, startTs: row.startTs, endTs: row.endTs,
+                                 kcal: nil)
+        }
         let week = TrainingDays.buildTrainingDays(TrainingCalendar.weekDates(from: monday, calendar: calendar),
-                                                  plan: plan, lifts: lifts, activities: [], now: now,
+                                                  plan: plan, lifts: lifts, activities: activities, now: now,
                                                   calendar: calendar)
         let names = Dictionary(programs.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         return CoachFiche.weekPlanText(plan, programNames: names, week: week)

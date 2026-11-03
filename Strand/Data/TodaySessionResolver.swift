@@ -27,8 +27,9 @@ struct TodaySessionResolution {
 }
 
 enum TodaySessionResolver {
-    /// Today's session from the Lift Log: the one running or done that day, else (today only) the program
-    /// the week plan sets for today (personal fork, Training) — or rest —, and without a plan the next
+    /// Today's session from the Lift Log: the one running that day; else (today only) the first item the
+    /// week plan sets for today that is still to do (personal fork, Training; a program or cardio, the
+    /// others listed with it); else the session done that day; else rest, and without a plan the next
     /// program of the rotation; with its blocks and its usual length. Nil when the store is not open.
     @MainActor
     static func resolveTodaySession(repo: Repository, calendarFrom: Int, calendarTo: Int, isToday: Bool,
@@ -70,6 +71,15 @@ enum TodaySessionResolver {
             resolution.programItems = programId.flatMap { itemsByProgram[$0] } ?? []
             return resolution
         }
+        /// A program still to do: its shape and its usual length.
+        func nextSession(_ next: LiftProgramRow) -> TodaySessionResolution {
+            let s = shape(next.id)
+            let finished = performed.map { $0.row }.filter { $0.programId == next.id }
+                .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: row.startTs + length(row, end: $0)) } }
+            return named(.init(name: next.name, state: .next, supersets: s.supersets, singles: s.singles,
+                               typicalMinutes: LiftRotation.typicalMinutes(finished)),
+                         programId: next.id)
+        }
 
         let ofDay = rows.filter { $0.startTs >= calendarFrom && $0.startTs < calendarTo }
         if let running = ofDay.first(where: { $0.endTs == nil }), isToday {
@@ -78,7 +88,8 @@ enum TodaySessionResolver {
                                supersets: s.supersets, singles: s.singles, typicalMinutes: nil),
                          programId: running.programId)
         }
-        if let done = ofDay.first(where: { row in performed.contains { $0.row.id == row.id } }) {
+        let doneToday = ofDay.filter { row in performed.contains { $0.row.id == row.id } }
+        func doneSession(_ done: LiftSessionRow) -> TodaySessionResolution {
             let s = shape(done.programId)
             let minutes = done.endTs.map { length(done, end: $0) / 60 }
             return named(.init(name: done.programName ?? String(localized: "Session"),
@@ -86,30 +97,77 @@ enum TodaySessionResolver {
                                typicalMinutes: nil),
                          programId: done.programId)
         }
-        guard isToday else { return resolution }
         // The week plan decides when it has a say about today (`TrainingWeekPlan.planDecision`, the
-        // resolver the Training calendar reads); a deleted or empty program frees its day.
-        let planned = plan.planDecision(for: Date(timeIntervalSince1970: TimeInterval(calendarFrom)),
-                                        calendar: .current)
+        // resolver the Training calendar reads); a deleted or empty program frees its place. Its items are
+        // matched against what was done today by the calendar's own rule (`TrainingDays.matchPlanned`):
+        // the first one still to do is named, the others follow it (fork chantier 8, lot 4).
+        let planned = isToday
+            ? plan.planDecision(for: Date(timeIntervalSince1970: TimeInterval(calendarFrom)), calendar: .current)
+            : nil
+        if case .planned(let items) = planned {
+            let lifts = doneToday.compactMap { row -> TrainingLiftDone? in
+                guard let end = row.endTs else { return nil }
+                return TrainingLiftDone(sessionId: row.id, programId: row.programId, name: row.programName ?? "",
+                                        startTs: row.startTs, endTs: end, workingSets: 0, effort: nil)
+            }
+            let cardioToday = split.others.filter { $0.startTs >= calendarFrom && $0.startTs < calendarTo }
+            let activities = cardioToday.map { row in
+                TrainingActivityDone(sport: row.sport, source: row.source, startTs: row.startTs, endTs: row.endTs,
+                                     kcal: nil)
+            }
+            let open = TrainingDays.matchPlanned(items, lifts: lifts, activities: activities)
+                .filter { !$0.isDone }.map(\.item)
+            if let first = open.first {
+                let others = open.dropFirst().compactMap { item -> String? in
+                    switch item {
+                    case .program(let id): return withItems.first(where: { $0.id == id })?.name
+                    case .cardio(let sport, let minutes): return cardioName(sport, minutes: minutes)
+                    }
+                }
+                switch first {
+                case .cardio(let sport, let minutes):
+                    var result = named(.init(name: WorkoutCatalog.shownSportName(sport), state: .next, supersets: 0,
+                                             singles: 0, typicalMinutes: nil, cardioMinutes: minutes),
+                                       programId: nil)
+                    result.session?.alsoPlanned = others
+                    return result
+                case .program(let id):
+                    guard let next = withItems.first(where: { $0.id == id }) else { return resolution }
+                    var result = nextSession(next)
+                    result.session?.alsoPlanned = others
+                    return result
+                }
+            }
+            if let done = doneToday.first { return doneSession(done) }
+            // Only cardio was planned, and it is done: the activity that did it.
+            for case .cardio(let sport, let minutes) in items {
+                guard let run = cardioToday.first(where: { TrainingDays.isSameSport($0.sport, sport) }) else { continue }
+                return named(.init(name: WorkoutSource.displaySport(run.sport),
+                                   state: .done(minutes: max(0, run.endTs - run.startTs) / 60), supersets: 0,
+                                   singles: 0, typicalMinutes: nil, cardioMinutes: minutes),
+                             programId: nil)
+            }
+            return resolution
+        }
+        if let done = doneToday.first { return doneSession(done) }
+        guard isToday else { return resolution }
         let nextId: String?
         switch planned {
         case .rest:
             return named(.init(name: String(localized: "Rest"), state: .rest, supersets: 0, singles: 0,
                                typicalMinutes: nil),
                          programId: nil)
-        case .program(let id):
-            nextId = id
-        case nil:
+        case .planned, nil:
             nextId = LiftRotation.next(
                 programIds: withItems.map(\.id),
                 lastDone: LiftRotation.lastDone(performed.map { (programId: $0.row.programId, startTs: $0.row.startTs) }))
         }
         guard let nextId, let next = withItems.first(where: { $0.id == nextId }) else { return resolution }
-        let s = shape(next.id)
-        let finished = performed.map { $0.row }.filter { $0.programId == next.id }
-            .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: row.startTs + length(row, end: $0)) } }
-        return named(.init(name: next.name, state: .next, supersets: s.supersets, singles: s.singles,
-                           typicalMinutes: LiftRotation.typicalMinutes(finished)),
-                     programId: next.id)
+        return nextSession(next)
+    }
+
+    /// Planned cardio as one line: « Running · 30 min », the sport shown in the app's language.
+    static func cardioName(_ sport: String, minutes: Int) -> String {
+        WorkoutCatalog.shownSportName(sport) + " · " + String(localized: "\(minutes) min")
     }
 }

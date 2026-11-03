@@ -287,43 +287,54 @@ enum CoachFiche {
         return lines.joined(separator: "\n")
     }
 
-    /// The week plan of the Training screen (personal fork): each weekday's program, then this week —
-    /// sessions done against planned, missed days, and what today holds. `week` is Monday to Sunday,
-    /// built by `TrainingDays.buildTrainingDays` (the calendar's own resolver). "" without a plan.
+    /// The week plan of the Training screen (personal fork): each weekday's items (programs, cardio with
+    /// its target length — fork chantier 8, lot 4), then this week — sessions done against planned, what
+    /// was missed, and what today holds. `week` is Monday to Sunday, built by `TrainingDays.buildTrainingDays`
+    /// (the calendar's own resolver, which also matches each item against what was done). "" without a plan.
     static func weekPlanText(_ plan: TrainingWeekPlan, programNames: [String: String],
                              week: [TrainingDay]) -> String {
         let weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        func itemName(_ item: TrainingPlanItem) -> String {
+            switch item {
+            case .program(let id): return programNames[id] ?? "a program"
+            case .cardio(let sport, let minutes): return "\(WorkoutSource.editableSport(sport)) \(minutes) min (cardio)"
+            }
+        }
         let planned = (1...7).compactMap { weekday -> String? in
-            guard let id = plan.plannedProgramId(weekday: weekday), let name = programNames[id] else { return nil }
-            return "\(weekdays[weekday - 1]): \(name)"
+            let items = plan.plannedItems(weekday: weekday)
+                .filter { item in item.programId.map { programNames[$0] != nil } ?? true }
+            guard !items.isEmpty else { return nil }
+            return "\(weekdays[weekday - 1]): " + items.map(itemName).joined(separator: " + ")
         }
         guard !planned.isEmpty else { return "" }
         func dayName(_ day: TrainingDay) -> String {
             weekdays[max(0, min(6, (week.firstIndex(of: day) ?? 0)))]
         }
-        func programName(_ id: String?) -> String { id.flatMap { programNames[$0] } ?? "a program" }
 
         var lines = [
-            "WEEK PLAN (fixed days the user set in the Training screen; every other day is a rest day; when "
-                + "the user asks what to do today, follow this plan rather than the rotation line of the LIFT LOG):",
+            "WEEK PLAN (fixed days the user set in the Training screen, up to 3 items a day: Lift Log programs "
+                + "or cardio with a target length; every other day is a rest day; when the user asks what to do "
+                + "today, follow this plan rather than the rotation line of the LIFT LOG; planned cardio counts as "
+                + "done when an activity of the same sport is logged that day):",
             "  " + planned.joined(separator: "; "),
         ]
         guard week.count == 7 else { return lines.joined(separator: "\n") }
         let tally = TrainingDays.sessionTally(week)
-        lines.append("  This week (Monday to Sunday): \(tally.done) Lift Log session\(tally.done == 1 ? "" : "s") "
-                     + "done for \(tally.planned) planned (a session done on another day still counts).")
-        let missed = week.filter(\.isMissed).map { "\(dayName($0)) (\(programName($0.plannedProgramId)))" }
+        lines.append("  This week (Monday to Sunday): \(tally.done) session\(tally.done == 1 ? "" : "s") "
+                     + "done for \(tally.planned) planned (a Lift Log session done on another day still counts).")
+        let missed = week.filter(\.isMissed).map { day in
+            "\(dayName(day)) (" + day.openItems.map(itemName).joined(separator: ", ") + ")"
+        }
         if !missed.isEmpty { lines.append("  Missed so far: " + missed.joined(separator: ", ")) }
         if let today = week.first(where: \.isToday) {
-            let line: String
-            if today.hasLift {
-                line = "done (" + today.lifts.map(\.name).joined(separator: ", ") + ")"
-            } else if let id = today.plannedProgramId {
-                line = "\(programName(id)) planned, not done yet"
-            } else {
-                line = "rest day"
+            var parts: [String] = []
+            let done = today.lifts.map(\.name) + today.activities.map { WorkoutSource.editableSport($0.sport) }
+            if !done.isEmpty { parts.append("done (" + done.joined(separator: ", ") + ")") }
+            if !today.openItems.isEmpty {
+                parts.append(today.openItems.map(itemName).joined(separator: ", ") + " planned, not done yet")
             }
-            lines.append("  Today (\(dayName(today))): " + line)
+            if parts.isEmpty { parts.append(today.planned.isEmpty ? "rest day" : "everything planned is done") }
+            lines.append("  Today (\(dayName(today))): " + parts.joined(separator: "; "))
         }
         return lines.joined(separator: "\n")
     }

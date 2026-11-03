@@ -26,7 +26,7 @@ struct LabReportImportRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button {
-                    start()
+                    beginLabReport()
                 } label: {
                     // An `if`, not a ternary: `Label(cond ? "a" : "b")` picks the untranslated String overload.
                     if reading {
@@ -54,42 +54,45 @@ struct LabReportImportRow: View {
         .confirmationDialog("Send the whole report to Anthropic?", isPresented: $askConsent, titleVisibility: .visible) {
             Button("Send the whole document") {
                 coach.labReportConsent = true
-                pick()
+                pickLabReport()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The PDF goes whole to Anthropic with your key, your identity, your doctor and the lab included, so the Coach can copy its results. You check each value before anything is saved. You can turn this off in What the coach reads.")
         }
         .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
-            if case .success(let urls) = result, let url = urls.first { read(url) }
+            if case .success(let urls) = result, let url = urls.first { readLabReportFile(url) }
         }
         .sheet(item: $review) { item in
             LabReportReviewSheet(report: item.report) { report, nutrition in
                 let written = await coach.saveLabReport(report, nutritionKeys: nutrition)
-                message = written == 1 ? String(localized: "1 reading added to the Lab Book.")
-                                       : String(localized: "\(written) readings added to the Lab Book.")
+                switch written {
+                case 0: message = nil
+                case 1: message = String(localized: "1 reading added to the Lab Book.")
+                default: message = String(localized: "\(written) readings added to the Lab Book.")
+                }
                 await onSaved()
             }
         }
     }
 
-    private func start() {
+    private func beginLabReport() {
         message = nil
-        if coach.labReportConsent { pick() } else { askConsent = true }
+        if coach.labReportConsent { pickLabReport() } else { askConsent = true }
     }
 
-    private func pick() {
+    private func pickLabReport() {
         #if os(iOS)
         Task {
             guard let url = await DocumentPicker.importFile([.pdf]) else { return }
-            read(url)
+            readLabReportFile(url)
         }
         #else
         showingPicker = true
         #endif
     }
 
-    private func read(_ url: URL) {
+    private func readLabReportFile(_ url: URL) {
         reading = true
         Task {
             let scoped = url.startAccessingSecurityScopedResource()
@@ -148,6 +151,33 @@ struct LabReportReviewSheet: View {
                                .font(StrandFont.subhead)
                                .foregroundStyle(StrandPalette.accent)
                        }) {
+            LabReportReviewContent(report: $report, nutrition: $nutrition)
+            NoopButton(addTitle, systemImage: "plus", kind: .primary, fullWidth: true) {
+                saving = true
+                Task {
+                    await onSave(report, Array(nutrition))
+                    saving = false
+                    dismiss()
+                }
+            }
+            .disabled(saving || (ticked == 0 && nutrition.isEmpty))
+        }
+    }
+}
+
+/// The review list itself, without the scroll view or the save button, so it renders to PNG
+/// (`LabReportRenderTests`). Ticks are drawn rather than native switches, which a render leaves out.
+struct LabReportReviewContent: View {
+    @Binding var report: CoachLabReport
+    @Binding var nutrition: Set<String>
+
+    init(report: Binding<CoachLabReport>, nutrition: Binding<Set<String>>) {
+        _report = report
+        _nutrition = nutrition
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
             Text(verbatim: reportDay)
                 .font(StrandFont.headline)
                 .foregroundStyle(StrandPalette.textPrimary)
@@ -162,22 +192,17 @@ struct LabReportReviewSheet: View {
                 }
             }
             if !report.nutritionSuggestions.isEmpty {
-                CoachSectionTitle("Show in Nutrition")
-                NoopCard(padding: 14) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("The Coach suggests following these in Nutrition too, beside vitamin D, ferritin, B12 and HbA1c.")
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        ForEach(report.nutritionSuggestions, id: \.self) { key in
-                            Toggle(isOn: Binding(get: { nutrition.contains(key) },
-                                                 set: { on in if on { nutrition.insert(key) } else { nutrition.remove(key) } })) {
-                                Text(verbatim: MarkerCatalog.definition(for: key)?.displayName ?? key)
-                                    .font(StrandFont.body)
-                                    .foregroundStyle(StrandPalette.textPrimary)
+                VStack(alignment: .leading, spacing: 8) {
+                    CoachSectionTitle("Show in Nutrition")
+                    NoopCard(padding: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("The Coach suggests following these in Nutrition too, beside vitamin D, ferritin, B12 and HbA1c.")
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            ForEach(report.nutritionSuggestions, id: \.self) { key in
+                                nutritionRow(key)
                             }
-                            .toggleStyle(.switch)
-                            .tint(StrandPalette.accent)
                         }
                     }
                 }
@@ -186,20 +211,11 @@ struct LabReportReviewSheet: View {
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
-            NoopButton(addTitle, systemImage: "plus", kind: .primary, fullWidth: true) {
-                saving = true
-                Task {
-                    await onSave(report, Array(nutrition))
-                    saving = false
-                    dismiss()
-                }
-            }
-            .disabled(saving || (ticked == 0 && nutrition.isEmpty))
         }
     }
 
     private var reportDay: String {
-        guard let date = LabReportReviewSheet.dayParser.date(from: report.day) else { return report.day }
+        guard let date = Self.dayParser.date(from: report.day) else { return report.day }
         return date.formatted(date: .long, time: .omitted)
     }
 
@@ -210,31 +226,72 @@ struct LabReportReviewSheet: View {
         return formatter
     }()
 
+    private func labTick(_ on: Bool) -> some View {
+        Image(systemName: on ? "checkmark.circle.fill" : "circle")
+            .font(StrandFont.headline)
+            .foregroundStyle(on ? StrandPalette.accent : StrandPalette.textTertiary)
+            .accessibilityHidden(true)
+    }
+
     private func lineRow(_ line: Binding<CoachLabReport.Line>) -> some View {
-        Toggle(isOn: line.include) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: MarkerCatalog.definition(for: line.wrappedValue.markerKey)?.displayName
-                     ?? line.wrappedValue.printedName)
-                    .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text(verbatim: line.wrappedValue.valueLine)
-                    .font(StrandFont.subhead.monospacedDigit())
-                    .foregroundStyle(StrandPalette.textPrimary)
-                if let reference = line.wrappedValue.referenceText {
-                    Text("Report's range: \(reference)")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
-                if let existing = line.wrappedValue.existing {
-                    Text("Already in the Lab Book that day: \(existing)")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.statusWarning)
-                        .fixedSize(horizontal: false, vertical: true)
+        let value = line.wrappedValue
+        let filedAs = MarkerCatalog.definition(for: value.markerKey)?.displayName
+        return Button {
+            line.wrappedValue.include.toggle()
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                labTick(value.include)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(verbatim: value.printedName)
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Spacer(minLength: 8)
+                        Text(verbatim: value.valueLine)
+                            .font(StrandFont.body.monospacedDigit())
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
+                    if let filedAs, filedAs != value.printedName {
+                        Text("In the Lab Book as \(filedAs)")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    if let reference = value.referenceText {
+                        Text("Report's range: \(reference)")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    if let existing = value.existing {
+                        Text("Already in the Lab Book that day: \(existing)")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.statusWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
-        .toggleStyle(.switch)
-        .tint(StrandPalette.accent)
-        .padding(.vertical, 10)
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(value.include ? .isSelected : [])
+    }
+
+    private func nutritionRow(_ key: String) -> some View {
+        let on = nutrition.contains(key)
+        return Button {
+            if on { nutrition.remove(key) } else { nutrition.insert(key) }
+        } label: {
+            HStack(spacing: 12) {
+                labTick(on)
+                Text(verbatim: MarkerCatalog.definition(for: key)?.displayName ?? key)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }

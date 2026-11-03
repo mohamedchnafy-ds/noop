@@ -69,6 +69,9 @@ public enum StrandFont {
     /// Caption 12. Scales with Dynamic Type.
     public static let caption = Font.system(.caption, design: .default, weight: .regular)
 
+    /// Caption 2, 11 / Regular: the small legends under a figure. Scales with Dynamic Type.
+    public static let caption2 = Font.system(.caption2, design: .default, weight: .regular)
+
     /// Footnote 11. Scales with Dynamic Type.
     public static let footnote = Font.system(.footnote, design: .default, weight: .regular)
 

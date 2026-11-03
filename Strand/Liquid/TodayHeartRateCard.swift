@@ -155,17 +155,13 @@ struct TodayHRChart: View {
                 area.closeSubpath()
                 ctx.fill(area, with: .color(StrandPalette.textPrimary.opacity(0.07)))
             }
-            if let band = model.band {
-                let top = g.y(band.upperBound), bottom = g.y(band.lowerBound)
-                let r = CGRect(x: g.rect.minX, y: top, width: g.rect.width, height: max(2, bottom - top))
-                ctx.fill(Path(roundedRect: r, cornerRadius: 4), with: .color(StrandPalette.textPrimary.opacity(0.07)))
-            }
+            // Fork chantier 7: the live range reads from its two threshold lines alone (no filled band).
             for (value, side) in [(model.highLine, TodayHRAlert.Side.high), (model.lowLine, .low)] {
                 guard let value else { continue }
                 var line = Path()
                 line.move(to: CGPoint(x: g.rect.minX, y: g.y(value)))
                 line.addLine(to: CGPoint(x: g.rect.maxX, y: g.y(value)))
-                ctx.stroke(line, with: .color(TodayHRChartModel.sideColor(side).opacity(0.45)), lineWidth: 1)
+                ctx.stroke(line, with: .color(TodayHRChartModel.sideColor(side).opacity(0.5)), lineWidth: 1)
             }
 
             var curve = Path()
@@ -173,9 +169,7 @@ struct TodayHRChart: View {
                 curve.addPath(smoothPath(run.map { CGPoint(x: g.x($0.x), y: g.y($0.bpm)) }))
             }
             let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
-            ctx.stroke(curve, with: .linearGradient(Gradient(colors: [tint.opacity(0.55), tint]),
-                                                    startPoint: CGPoint(x: g.rect.minX, y: 0),
-                                                    endPoint: CGPoint(x: g.rect.maxX, y: 0)), style: style)
+            ctx.stroke(curve, with: .color(tint), style: style)
             if let threshold = model.threshold, let side = model.alertSide {
                 var clipped = ctx
                 let ty = g.y(threshold)
@@ -186,22 +180,11 @@ struct TodayHRChart: View {
                 clipped.stroke(curve, with: .color(beyondColor), style: style)
             }
 
-            func dot(_ p: TodayHRChartModel.Point, radius: CGFloat) {
-                let c = CGPoint(x: g.x(p.x), y: g.y(p.bpm))
-                let disc = Path(ellipseIn: CGRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2))
-                ctx.fill(disc, with: .color(model.isBeyond(p.bpm) ? beyondColor : tint))
-                ctx.stroke(disc, with: .color(StrandPalette.surfaceRaised), lineWidth: 1.5)
-            }
-            if let ext = model.extremes {
-                dot(model.points[ext.min], radius: 3.5)
-                dot(model.points[ext.max], radius: 3.5)
-            }
+            // The retained design marks "now" with one solid dot at the end of the curve.
             if model.endDot, let last = model.points.last {
                 let c = CGPoint(x: g.x(last.x), y: g.y(last.bpm))
                 let color = model.isBeyond(last.bpm) ? beyondColor : tint
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 9, y: c.y - 9, width: 18, height: 18)),
-                         with: .color(color.opacity(0.25)))
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4.5, y: c.y - 4.5, width: 9, height: 9)), with: .color(color))
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)), with: .color(color))
             }
 
             for (i, label) in model.axis.enumerated() {
@@ -248,42 +231,25 @@ struct TodayHRCardBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: NoopMetrics.space2) {
-                HStack(spacing: NoopMetrics.space1) {
-                    Text("BEATS PER MINUTE")
-                        .font(StrandFont.overline)
-                        .tracking(1.6)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(tint)
-                        .fixedSize()
-                        .accessibilityHidden(true)
-                }
-                .layoutPriority(1)
-                Spacer(minLength: NoopMetrics.space2)
+            // Fork chantier 7: the live number large in SF Rounded, then "bpm · subtitle" in grey (the
+            // crossed side's colour when the curve is past a threshold).
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let bpm {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .scaleEffect(showsBeat ? (beat ? 1.15 : 0.9) : 1)
-                            .animation(.easeOut(duration: 0.28), value: beat)
-                            .accessibilityHidden(true)
-                        Text("\(bpm)").font(StrandFont.rounded(28)).monospacedDigit()
-                            .contentTransition(.numericText())
-                            .animation(.easeOut(duration: 0.25), value: bpm)
-                        Text("bpm").font(StrandFont.subhead)
-                    }
-                    .foregroundStyle(tint)
+                    Text("\(bpm)")
+                        .font(StrandFont.rounded(36))
+                        .foregroundStyle(subtitleSide == nil ? StrandPalette.textPrimary : tint)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.easeOut(duration: 0.25), value: bpm)
+                        .scaleEffect(showsBeat ? (beat ? 1.03 : 1) : 1, anchor: .bottomLeading)
+                        .animation(.easeOut(duration: 0.28), value: beat)
                 }
+                Text(verbatim: bpmLine)
+                    .font(StrandFont.subhead.weight(.medium))
+                    .foregroundStyle(subtitleSide.map(TodayHRChartModel.sideColor) ?? StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            Text(subtitle)
-                .font(StrandFont.subhead)
-                .foregroundStyle(subtitleSide.map(TodayHRChartModel.sideColor) ?? StrandPalette.textTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
             if let chart, chart.points.count >= 2 {
                 TodayHRChart(model: chart, tint: tint, lineWidth: lineWidth)
                     .frame(height: chart.axis.isEmpty ? 104 : 124)
@@ -318,6 +284,11 @@ struct TodayHRCardBody: View {
                     .padding(.vertical, 24)
             }
         }
+    }
+
+    /// "bpm · Live · resting zone" under a live number, the subtitle alone without one.
+    private var bpmLine: String {
+        bpm == nil ? subtitle : [String(localized: "bpm"), subtitle].joined(separator: " \u{00B7} ")
     }
 
     private var captionLine: some View {
@@ -356,9 +327,9 @@ struct TodayHRCardBody: View {
 
     private func stat(_ label: String, _ v: Double?) -> some View {
         HStack(spacing: 5) {
-            Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+            Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
             Text(v.map { String(Int($0.rounded())) } ?? "–")
-                .font(StrandFont.number(15)).foregroundStyle(StrandPalette.textPrimary)
+                .font(StrandFont.subhead.weight(.semibold)).foregroundStyle(StrandPalette.textPrimary)
         }
     }
 
@@ -608,17 +579,23 @@ struct TodayHeartRateSection: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            TodayHRSectionHead(mode: modeBinding, liveEnabled: liveAvailable)
+        // Fork chantier 7: one card holding the rose title (a link) and the Live | Day selector, then the
+        // number and curve (a link too); the selector stays outside both links.
+        VStack(alignment: .leading, spacing: 8) {
+            TodayHRSectionHead(mode: modeBinding, liveEnabled: liveAvailable, tint: tint,
+                               titleRoute: .fullDayChart)
             NavigationLink(value: TabRoute.fullDayChart) {
                 card
-                    .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(LiquidPressStyle())
             .accessibilityHint("Opens the full-day heart rate timeline")
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .task(id: day.isToday) { await seedBuffer() }
         .onChangeCompat(of: live.heartRate) { hr in
             guard let hr, hr > 0 else { buffer.removeAll(); return }

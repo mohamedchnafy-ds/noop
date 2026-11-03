@@ -469,13 +469,13 @@ public struct SegmentedPillControl<T: Hashable>: View {
                     withAnimation(StrandMotion.interactive) { selection = item }
                 } label: {
                     Text(label(item))
-                        .font(StrandFont.captionNumber)
+                        .font(StrandFont.caption.weight(sel ? .semibold : .medium))
                         .lineLimit(equalWidth ? 1 : nil)
                         // Range selection stays deliberately neutral so the control works above charts
                         // from every metric colour world without borrowing their green/blue/amber tint.
                         // Disabled segments drop to a fainter tertiary so the lock reads at a glance.
                         .foregroundStyle(sel ? StrandPalette.textPrimary
-                                             : StrandPalette.textTertiary.opacity(enabled ? 1 : 0.35))
+                                             : StrandPalette.textSecondary.opacity(enabled ? 1 : 0.35))
                         // Fill the segment height so the selected pill has EQUAL margins to the track
                         // on every side. (The old compact pill inside a taller 44pt touch frame left
                         // more vertical margin than horizontal — it read as off-centre.)
@@ -485,57 +485,28 @@ public struct SegmentedPillControl<T: Hashable>: View {
                         .padding(.horizontal, equalWidth ? NoopMetrics.space1 : 9)
                         .background {
                             if sel {
-                                let selectedShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                selectedShape
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [NoopVisualStyle.surfaceTop, NoopVisualStyle.surface],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                    .overlay(
-                                        selectedShape.strokeBorder(
-                                            NoopVisualStyle.borderHighlight.opacity(0.62),
-                                            lineWidth: 0.75
-                                        )
-                                    )
-                                    .shadow(color: .black.opacity(0.20), radius: 4, x: 0, y: 2)
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(NoopVisualStyle.control)
                             }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: equalWidth ? .infinity : nil)
-                .frame(height: 32)   // segment height; the pill fills it for an even inset
+                .frame(height: 28)   // segment height; the pill fills it for an even inset
                 .disabled(!enabled)
                 // Announce the active range to VoiceOver and give a non-colour cue.
                 .accessibilityAddTraits(sel ? .isSelected : [])
             }
         }
-        .padding(3)
+        .padding(2)
         .frame(maxWidth: equalWidth ? .infinity : nil)
-        .background {
-            let trackShape = RoundedRectangle(cornerRadius: 13, style: .continuous)
-            trackShape
-                .fill(
-                    LinearGradient(
-                        colors: [NoopVisualStyle.inset, NoopVisualStyle.canvas.opacity(0.78)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    trackShape.strokeBorder(
-                        LinearGradient(
-                            colors: [NoopVisualStyle.borderHighlight.opacity(0.48), NoopVisualStyle.border],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.8
-                    )
-                )
-        }
+        // Fork chantier 7: a flat grey pill track (white 8 %) with the selected segment in #3A3A3C,
+        // no border and no shadow.
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(StrandPalette.textPrimary.opacity(0.08))
+        )
     }
 }
 

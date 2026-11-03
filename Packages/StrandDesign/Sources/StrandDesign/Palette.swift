@@ -262,6 +262,8 @@ public enum StrandPalette {
     /// part. Told apart by lightness as well as hue, so the two halves of one gauge never read as one.
     public static let caloriesActivity = Color(light: "#C93400", dark: "#FF9F0A")
     public static let caloriesResting = Color(light: "#7F6545", dark: "#A2845E")
+    /// Sleep debt (fork chantier 7, Apple indigo).
+    public static let sleepDebt = Color(light: "#5856D6", dark: "#5E5CE6")
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
     //

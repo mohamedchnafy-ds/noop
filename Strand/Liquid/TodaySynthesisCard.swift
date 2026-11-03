@@ -22,27 +22,19 @@ struct TodaySynthesisCard: View {
     var surfaceOpacity: Double = 1
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("SYNTHESIS").font(StrandFont.overline).tracking(1.6)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                Spacer()
-            }
-            .padding(.horizontal, 2)
-            .padding(.top, 4)
-            VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    if index > 0 {
-                        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
-                    }
-                    link(row)
+        // Fork chantier 7: one list card, no section head (as in the retained design).
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                if index > 0 {
+                    Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
                 }
+                link(row)
             }
-            .padding(.horizontal, NoopMetrics.space4)
-            .padding(.vertical, NoopMetrics.space1)
-            .frame(maxWidth: .infinity)
-            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, NoopMetrics.space1)
+        .frame(maxWidth: .infinity)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
     }
 
     @ViewBuilder
@@ -56,21 +48,21 @@ struct TodaySynthesisCard: View {
     }
 
     private func rowBody(_ row: TodaySynthesisRow, linked: Bool) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
+            // The icon alone, in its colour (no tinted disc behind it).
             Image(systemName: row.symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(row.tint)
-                .frame(width: 34, height: 34)
-                .background(row.tint.opacity(0.16), in: Circle())
+                .frame(width: 24)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title)
-                    .font(StrandFont.body)
+                    .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                 if let subtitle = row.subtitle {
                     Text(subtitle)
-                        .font(StrandFont.footnote)
+                        .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -78,7 +70,7 @@ struct TodaySynthesisCard: View {
             }
             Spacer(minLength: NoopMetrics.space2)
             Text(row.value)
-                .font(StrandFont.number(16))
+                .font(StrandFont.rounded(17, weight: .semibold))
                 .foregroundStyle(StrandPalette.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -89,7 +81,7 @@ struct TodaySynthesisCard: View {
                     .accessibilityHidden(true)
             }
         }
-        .frame(minHeight: 64)
+        .frame(minHeight: 60)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -124,7 +116,7 @@ enum TodaySynthesisLogic {
                 subtitle = String(localized: "your \(SleepDurationText.format(data.needMinutes)) need was met last night")
             }
         }
-        return TodaySynthesisRow(id: "debt", symbol: "moon.fill", tint: StrandPalette.restBright,
+        return TodaySynthesisRow(id: "debt", symbol: "moon.fill", tint: StrandPalette.sleepDebt,
                                  title: String(localized: "Sleep debt"), subtitle: subtitle, value: value,
                                  route: .sleep)
     }

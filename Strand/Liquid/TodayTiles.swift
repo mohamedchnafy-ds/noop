@@ -7,8 +7,9 @@ import StrandDesign
 // pure views: the screen wraps them in its links and buttons, and the render test draws the same views
 // with the same tokens.
 
-/// The header: the date on the left and the round controls on one line, then the day title, then the NOOP
-/// wordmark. The controls are passed in (the screen's real ones, or stand-ins in the render test).
+/// The header: the date on the left and the round controls on one line, then the day title (fork chantier 7:
+/// no wordmark, no shadows). The controls are passed in (the screen's real ones, or stand-ins in the render
+/// test).
 struct TodayHeaderLayout<Controls: View>: View {
     var date: String
     var title: String
@@ -18,10 +19,11 @@ struct TodayHeaderLayout<Controls: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: NoopMetrics.space2) {
+                // The date is the one capitalised line the retained design keeps.
                 Text(date)
-                    .font(StrandFont.subhead)
+                    .font(StrandFont.overline)
+                    .textCase(.uppercase)
                     .foregroundStyle(StrandPalette.textSecondary)
-                    .shadow(color: .black.opacity(0.35), radius: 8, y: 1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                     .layoutPriority(-1)
@@ -34,7 +36,6 @@ struct TodayHeaderLayout<Controls: View>: View {
                 Text(title)
                     .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
-                    .shadow(color: .black.opacity(0.4), radius: 10, y: 1)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .contentShape(Rectangle())
@@ -42,33 +43,54 @@ struct TodayHeaderLayout<Controls: View>: View {
             }
             .buttonStyle(.plain)
             .padding(.top, NoopMetrics.space1)
+            .padding(.bottom, NoopMetrics.space1)
             .accessibilityLabel("\(title). Tap to pick a day, swipe to change day.")
-            // Subtle NOOP wordmark between header and hero, with a tap easter egg.
-            LiquidWordmark()
-                .padding(.top, 18)
-                .padding(.bottom, 14)
         }
     }
 }
 
-/// The heart-rate section head: the overline and the Live | Day selector (the Sleep tab's control).
+/// The heart-rate card head (fork chantier 7): the rose title with its heart and chevron, then the Live |
+/// Day selector, both inside the card. With `titleRoute` the title taps through (the selector stays a
+/// separate control, never inside a link).
 struct TodayHRSectionHead: View {
     @Binding var mode: TodayHRMode
     var liveEnabled: Bool
+    var tint: Color = StrandPalette.liquidHeart
+    var titleRoute: TabRoute? = nil
+
+    private var title: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .accessibilityHidden(true)
+            Text("Heart rate")
+                .font(StrandFont.headline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(StrandPalette.textSecondary)
+                .accessibilityHidden(true)
+        }
+        .foregroundStyle(tint)
+    }
 
     var body: some View {
-        HStack(alignment: .center) {
-            Text("HEART RATE").font(StrandFont.overline).tracking(1.6)
-                .foregroundStyle(StrandPalette.textTertiary)
-            Spacer()
+        HStack(alignment: .center, spacing: NoopMetrics.space2) {
+            if let titleRoute {
+                NavigationLink(value: titleRoute) { title }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the full-day heart rate timeline")
+            } else {
+                title
+            }
+            Spacer(minLength: NoopMetrics.space2)
             SegmentedPillControl([TodayHRMode.live, TodayHRMode.day], selection: $mode,
                                  isEnabled: { $0 == .day || liveEnabled }) {
                 $0 == .live ? String(localized: "Live") : String(localized: "Whole day")
             }
             .fixedSize()
         }
-        .padding(.horizontal, 2)
-        .padding(.top, 4)
     }
 }
 
@@ -85,22 +107,18 @@ struct LiquidSessionStartRow: View {
             Text("Start session")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textPrimary)
-            Text("BETA")
-                .font(StrandFont.overlineScaled(8.5)).tracking(1.2)
+            Text("Beta")
+                .font(StrandFont.overlineScaled(11))
                 .foregroundStyle(StrandPalette.textSecondary)
                 .padding(.horizontal, 8).padding(.vertical, 2.5)
-                .background(Capsule().fill(StrandPalette.surfaceInset.opacity(0.72))
-                    .overlay(Capsule().strokeBorder(
-                        StrandPalette.hairline,
-                        lineWidth: NoopMetrics.hairlineWidth
-                    )))
+                .background(Capsule().fill(StrandPalette.surfaceInset))
             Spacer(minLength: 8)
             Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(StrandPalette.textTertiary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(NoopPanelSurface(cornerRadius: 18, surfaceOpacity: surfaceOpacity))
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
     }
 }
 
@@ -120,9 +138,9 @@ struct LiquidCardRow: View {
             LiquidVessel(value: frac, tint: tint, animated: false, tapPassesThrough: true)
                 .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title.uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
+                Text(title).font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text(sub).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                Text(sub).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
             }
             Spacer(minLength: 8)
             // Today v2: an absent value says so in words rather than as a dash.
@@ -134,20 +152,21 @@ struct LiquidCardRow: View {
             Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(StrandPalette.textTertiary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(NoopPanelSurface(tint: tint, cornerRadius: 20, surfaceOpacity: surfaceOpacity))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
     }
 }
 
-/// One Key-Metrics tile: icon and caps label, the value with its unit (or "no data"), an optional caveat,
-/// the fill bar and, in the detailed mode, the windowed trend.
+/// One Key-Metrics tile (fork chantier 7): the coloured label with its icon, the value in SF Rounded with
+/// its unit (or "no data"), an optional caveat and, in the detailed mode, the windowed trend.
 struct LiquidKeyMetricTile: View {
     var label: String
     var icon: String
     var value: String
     var unit: String
     var tint: Color
+    /// Kept for the callers; the retained design draws no fill bar.
     var frac: Double?
     var caption: String? = nil
     var detailed: Bool = false
@@ -155,45 +174,42 @@ struct LiquidKeyMetricTile: View {
     var surfaceOpacity: Double = 1
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(tint.opacity(0.72))
-                    .frame(width: 14)
-                Text(label.uppercased())
-                    .font(StrandFont.overlineScaled(10))
-                    .tracking(1.0)
-                    .foregroundStyle(StrandPalette.textTertiary)
+                    .font(.system(size: 12, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(label)
+                    .font(StrandFont.overline)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.8)
             }
+            .foregroundStyle(tint)
             // Today v2: an absent value says so in words rather than as a dash.
             if LiquidTodayView.isNoValue(value) {
                 Text("no data")
-                    .font(StrandFont.subhead)
+                    .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textSecondary)
                     .lineLimit(1)
-                    .frame(minHeight: 29, alignment: .leading)
+                    .frame(minHeight: 30, alignment: .leading)
             } else {
                 Text(verbatim: LiquidTodayView.tileDisplayValue(value, unit: unit))
-                    .font(StrandFont.number(24))
+                    .font(StrandFont.rounded(24))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    .frame(minHeight: 30, alignment: .leading)
             }
             // Optional sub-value caveat (queue 11a): only ever set for an unvalidated candidate fallback.
             if let caption {
                 Text(caption)
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
+                    .font(StrandFont.caption2)
+                    .foregroundStyle(StrandPalette.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            LiquidTube(frac: frac ?? 0, tint: tint, height: 9, animated: false,
-                       showsHighlight: false, usesCleanFill: true)
-            // #430 parity: DETAILED tiles grow the trend graph under the bar; a metric with no windowed
-            // series keeps a clear placeholder of the same height so every tile in a row stays level.
+            // #430 parity: DETAILED tiles grow the trend graph; a metric with no windowed series keeps a
+            // clear placeholder of the same height so every tile in a row stays level.
             if detailed {
                 if spark.count >= 2 {
                     Sparkline(values: spark,
@@ -206,10 +222,10 @@ struct LiquidKeyMetricTile: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: detailed ? 154 : 116, alignment: .topLeading)
-        .background(NoopPanelSurface(tint: tint, cornerRadius: 18, surfaceOpacity: surfaceOpacity))
+        .frame(minHeight: detailed ? 128 : 92, alignment: .topLeading)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
     }
 }

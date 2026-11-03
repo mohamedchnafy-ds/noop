@@ -14,6 +14,8 @@ public enum NoopVisualStyle {
     public static let surfaceTop = Color(light: "#FFFFFF", dark: "#2C2C2E")
     public static let surfaceBottom = Color(light: "#FFFFFF", dark: "#1C1C1E")
     public static let inset = Color(light: "#E5E5EA", dark: "#2C2C2E")
+    /// The selected segment of a pill control (#3A3A3C on dark).
+    public static let control = Color(light: "#FFFFFF", dark: "#3A3A3C")
 
     public static let border = Color(light: "#0000001A", dark: "#FFFFFF17")
     public static let borderHighlight = Color(light: "#00000024", dark: "#FFFFFF24")

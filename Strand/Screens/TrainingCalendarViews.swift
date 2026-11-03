@@ -224,21 +224,24 @@ struct TrainingPeriodArrow: View {
     }
 }
 
-/// The marks of a day: outlined blue = lift planned, filled blue = lift done, orange = cardio. A missed
-/// day keeps its outline, greyed.
+/// The marks of a day: outlined blue = lift planned, filled blue = lift done, outlined pink = cardio
+/// planned, filled pink = cardio done. A missed item keeps its outline, greyed.
 struct TrainingDayMarks: View {
     let day: TrainingDay
     var size: CGFloat = 8
 
     var body: some View {
         HStack(spacing: 3) {
-            if day.isPlannedOpen {
-                Circle().strokeBorder(StrandPalette.effortColor, lineWidth: 2).frame(width: size, height: size)
-            } else if day.isMissed {
-                Circle().strokeBorder(StrandPalette.textTertiary, lineWidth: 2).frame(width: size, height: size)
+            if day.hasOpenLift {
+                Circle().strokeBorder(day.isPast ? StrandPalette.textTertiary : StrandPalette.effortColor, lineWidth: 2)
+                    .frame(width: size, height: size)
             }
             if day.hasLift {
                 Circle().fill(StrandPalette.effortColor).frame(width: size, height: size)
+            }
+            if day.hasOpenCardio {
+                Circle().strokeBorder(day.isPast ? StrandPalette.textTertiary : StrandPalette.metricRose, lineWidth: 2)
+                    .frame(width: size, height: size)
             }
             if day.hasActivity {
                 Circle().fill(StrandPalette.metricRose).frame(width: size, height: size)
@@ -251,10 +254,16 @@ struct TrainingDayMarks: View {
 /// The legend under the week strip and the month grid.
 struct TrainingLegend: View {
     var body: some View {
-        HStack(spacing: 16) {
-            item(Circle().strokeBorder(StrandPalette.effortColor, lineWidth: 2), "lift planned")
-            item(Circle().fill(StrandPalette.effortColor), "lift done")
-            item(Circle().fill(StrandPalette.metricRose), "cardio")
+        // Two rows (fork chantier 8, lot 4: cardio can be planned too), lift then cardio.
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+            GridRow {
+                item(Circle().strokeBorder(StrandPalette.effortColor, lineWidth: 2), "lift planned")
+                item(Circle().fill(StrandPalette.effortColor), "lift done")
+            }
+            GridRow {
+                item(Circle().strokeBorder(StrandPalette.metricRose, lineWidth: 2), "cardio planned")
+                item(Circle().fill(StrandPalette.metricRose), "cardio done")
+            }
         }
         .font(StrandFont.caption)
         .foregroundStyle(StrandPalette.textSecondary)
@@ -374,7 +383,8 @@ struct TrainingMonthGrid: View {
     }
 }
 
-/// The month's three totals: lift sessions done / planned, cardio activities, time spent.
+/// The month's three totals: sessions done / planned (lifts and planned cardio, `TrainingDays.sessionTally`),
+/// cardio activities, time spent.
 struct TrainingMonthTotals: View {
     let done: Int
     let planned: Int
@@ -383,7 +393,7 @@ struct TrainingMonthTotals: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            tile(planned > 0 ? "\(done) / \(planned)" : "\(done)", "lift sessions")
+            tile(planned > 0 ? "\(done) / \(planned)" : "\(done)", "sessions")
             tile("\(activities)", "cardio")
             tile(SleepDurationText.format(Double(minutes)), "in total")
         }
@@ -406,20 +416,37 @@ struct TrainingMonthTotals: View {
     }
 }
 
-/// The chosen day: the planned program (with Start and Swap today), then what was done. A day with
-/// nothing planned and nothing done says so in one line. Fork chantier 7: the day's title in 20 bold, the
-/// planned card with its icon alone and "Planned today" in blue, the empty-day line inside that card under a
+/// The chosen day: what the plan holds and is still to do — each program with Start and Swap today, each
+/// cardio with its target length (fork chantier 8, lot 4) — then what was done. A day with nothing planned
+/// and nothing done says so in one line. Fork chantier 7: the day's title in 20 bold, the planned card with
+/// its icon alone and "Planned today" in blue, the empty-day line inside the last planned card under a
 /// hairline, and the sessions done as cards with their icon alone.
 struct TrainingDaySection: View {
     let day: TrainingDay
-    /// The planned program, when the plan has one on this day and it still exists.
-    let planned: TrainingProgramSummary?
+    /// The saved programs (the planned cards read theirs by id).
+    let programs: [TrainingProgramSummary]
     /// The other programs Swap offers (today only).
     let others: [TrainingProgramSummary]
     /// A Lift Log session is running: Start becomes "Running" and opens it.
     let isRunning: Bool
     var onStart: (String) -> Void = { _ in }
     var onOpenLift: (TrainingLiftDone) -> Void = { _ in }
+
+    /// One planned card: a program that still exists, or cardio.
+    private enum OpenCard {
+        case program(TrainingProgramSummary)
+        case cardio(sport: String, minutes: Int)
+    }
+
+    /// The day's planned items still to do, in the plan's order.
+    private var openCards: [OpenCard] {
+        day.openItems.compactMap { item in
+            switch item {
+            case .program(let id): return programs.first(where: { $0.id == id }).map(OpenCard.program)
+            case .cardio(let sport, let minutes): return .cardio(sport: sport, minutes: minutes)
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -428,10 +455,17 @@ struct TrainingDaySection: View {
                 .foregroundStyle(StrandPalette.textPrimary)
                 .padding(.top, 6)
                 .accessibilityAddTraits(.isHeader)
-            if let planned, !day.hasLift {
-                plannedCard(planned)
-            } else if let emptyNote {
-                NoopCard { note(emptyNote) }
+            let cards = openCards
+            if cards.isEmpty {
+                if let emptyNote { NoopCard { note(emptyNote) } }
+            }
+            ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
+                switch card {
+                case .program(let program):
+                    plannedCard(program, showsNote: index == cards.count - 1)
+                case .cardio(let sport, let minutes):
+                    cardioCard(sport: sport, minutes: minutes, showsNote: index == cards.count - 1)
+                }
             }
             ForEach(Array(day.lifts.enumerated()), id: \.offset) { _, lift in
                 Button { onOpenLift(lift) } label: {
@@ -441,7 +475,8 @@ struct TrainingDaySection: View {
                 .buttonStyle(.plain)
             }
             ForEach(Array(day.activities.enumerated()), id: \.offset) { _, activity in
-                doneRow(symbol: "figure.run", tint: StrandPalette.metricRose, title: activity.sport,
+                doneRow(symbol: "figure.run", tint: StrandPalette.metricRose,
+                        title: WorkoutSource.displaySport(activity.sport),
                         line: TrainingText.activityLine(activity), chevron: false)
             }
         }
@@ -453,7 +488,7 @@ struct TrainingDaySection: View {
         guard !day.hasLift && !day.hasActivity else { return nil }
         if day.isToday { return "Nothing done today yet." }
         if day.isPast { return "Nothing logged that day." }
-        if planned == nil { return "Rest day." }
+        if day.planned.isEmpty { return "Rest day." }
         return nil
     }
 
@@ -480,7 +515,7 @@ struct TrainingDaySection: View {
         }
     }
 
-    private func plannedCard(_ program: TrainingProgramSummary) -> some View {
+    private func plannedCard(_ program: TrainingProgramSummary, showsNote: Bool) -> some View {
         NoopCard(padding: 18) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 12) {
@@ -565,7 +600,41 @@ struct TrainingDaySection: View {
                         }
                     }
                 }
-                if let emptyNote {
+                if showsNote, let emptyNote {
+                    Rectangle()
+                        .fill(StrandPalette.hairline)
+                        .frame(height: NoopMetrics.hairlineWidth)
+                    note(emptyNote)
+                }
+            }
+        }
+    }
+
+    /// Planned cardio: the sport in the app's language and its target length (a guide: an activity of the
+    /// same sport that day ticks it, whatever its length).
+    private func cardioCard(sport: String, minutes: Int, showsNote: Bool) -> some View {
+        NoopCard(padding: 18) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "figure.run")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(day.isMissed ? StrandPalette.textTertiary : StrandPalette.metricRose)
+                        .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        plannedLabel
+                            .font(StrandFont.overline)
+                            .foregroundStyle(day.isMissed ? StrandPalette.statusWarning : StrandPalette.metricRose)
+                        Text(verbatim: WorkoutCatalog.shownSportName(sport))
+                            .font(StrandFont.title2.weight(.bold))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text("Target: \(minutes) min")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if showsNote, let emptyNote {
                     Rectangle()
                         .fill(StrandPalette.hairline)
                         .frame(height: NoopMetrics.hairlineWidth)

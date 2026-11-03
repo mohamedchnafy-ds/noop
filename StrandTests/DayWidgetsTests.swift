@@ -74,7 +74,7 @@ final class DayWidgetsTests: XCTestCase {
         let start = Int(date(dayOfMonth, 18).timeIntervalSince1970)
         return TrainingDay(
             date: date(dayOfMonth), key: "2026-11-0\(dayOfMonth)", isToday: isToday, isPast: isPast,
-            plannedProgramId: planned,
+            planned: planned.map { [TrainingPlannedItem(item: .program($0), isDone: lifted)] } ?? [],
             lifts: lifted ? [TrainingLiftDone(sessionId: "s", programId: planned, name: "A", startTs: start,
                                               endTs: start + 3_000, workingSets: 12, effort: nil)] : [],
             activities: cardio ? [TrainingActivityDone(sport: "Run", source: "", startTs: start,

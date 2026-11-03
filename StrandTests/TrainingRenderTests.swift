@@ -49,7 +49,9 @@ final class TrainingRenderTests: XCTestCase {
     }
 
     private var plan: TrainingWeekPlan {
-        TrainingWeekPlan(programs: ["1": "A", "3": "B", "5": "C"], since: "2026-11-02")
+        TrainingWeekPlan(days: ["1": [.program("A"), .cardio(sport: "Running", minutes: 30)], "3": [.program("B")],
+                                "5": [.program("C"), .cardio(sport: "Cycling", minutes: 45)]],
+                         since: "2026-11-02")
     }
 
     private var lifts: [TrainingLiftDone] {
@@ -58,7 +60,7 @@ final class TrainingRenderTests: XCTestCase {
     }
 
     private var activities: [TrainingActivityDone] {
-        [TrainingActivityDone(sport: "Marche rapide", source: "détectée", startTs: ts(1, 18, 30),
+        [TrainingActivityDone(sport: "Walking", source: "détectée", startTs: ts(1, 18, 30),
                               endTs: ts(1, 18, 55), kcal: 140)]
     }
 
@@ -84,7 +86,7 @@ final class TrainingRenderTests: XCTestCase {
                                   weekdays: TrainingText.shortWeekdays(calendar)) { _ in }
                 TrainingLegend()
             }
-            TrainingDaySection(day: week[0], planned: all[0], others: Array(all.dropFirst()), isRunning: false)
+            TrainingDaySection(day: week[0], programs: all, others: Array(all.dropFirst()), isRunning: false)
             TrainingProgramsCard(programs: all, plan: plan, weekdays: TrainingText.shortWeekdays(calendar),
                                  loaded: true)
             TrainingProgressSummaryCard(data: LiftProgressData()) { EmptyView() }
@@ -136,7 +138,7 @@ final class TrainingRenderTests: XCTestCase {
                 TrainingMonthTotals(done: tally.done, planned: tally.planned,
                                     activities: totals.activities, minutes: totals.minutes)
             }
-            TrainingDaySection(day: sunday, planned: nil, others: [], isRunning: false)
+            TrainingDaySection(day: sunday, programs: summaries, others: [], isRunning: false)
         }
         try render(AnyView(screen), name: "3-mois")
     }
@@ -150,6 +152,18 @@ final class TrainingRenderTests: XCTestCase {
             TrainingPlanForm(programs: summaries, draft: .constant(plan))
         }
         try render(AnyView(form), name: "4-planifier")
+    }
+
+    /// Fork chantier 8, lot 4: « Add cardio… », the sport and the target length.
+    func testRenderCardioForm() throws {
+        let form = VStack(alignment: .leading, spacing: 16) {
+            Text("Add cardio")
+                .font(StrandFont.headline)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .frame(maxWidth: .infinity)
+            TrainingCardioForm(sport: .constant("Running"), minutes: .constant(30))
+        }
+        try render(AnyView(form), name: "5-cardio")
     }
 
     private func render(_ content: AnyView, name: String) throws {

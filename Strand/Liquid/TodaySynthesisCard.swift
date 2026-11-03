@@ -122,6 +122,12 @@ enum TodaySynthesisLogic {
         var supersets: Int
         var singles: Int
         var typicalMinutes: Int?
+        /// Planned cardio (fork chantier 8, lot 4): its target length in minutes; nil for a Lift Log session.
+        var cardioMinutes: Int? = nil
+        /// The day's other planned items still to do, already worded ("Running · 30 min").
+        var alsoPlanned: [String] = []
+
+        var isCardio: Bool { cardioMinutes != nil }
     }
 
     static func debtRow(_ data: SleepNightsData?) -> TodaySynthesisRow {
@@ -154,6 +160,8 @@ enum TodaySynthesisLogic {
             subtitle = minutes.map { String(localized: "done · \($0) min") } ?? String(localized: "done")
         case .rest:
             subtitle = String(localized: "rest day in your plan")
+        case .next where session.isCardio:
+            subtitle = String(localized: "\(session.cardioMinutes ?? 0) min")
         case .next:
             var parts: [String] = []
             if session.supersets > 0 {
@@ -171,9 +179,13 @@ enum TodaySynthesisLogic {
             }
             subtitle = line
         }
-        var row = TodaySynthesisRow(id: "session", symbol: "dumbbell.fill", tint: StrandPalette.effortColor,
+        // The day's other items still to do follow, as « + Running · 30 min » (fork chantier 8, lot 4).
+        let line = ([subtitle] + session.alsoPlanned.map { "+ " + $0 }).filter { !$0.isEmpty }
+            .joined(separator: " · ")
+        var row = TodaySynthesisRow(id: "session", symbol: session.isCardio ? "figure.run" : "dumbbell.fill",
+                                    tint: session.isCardio ? StrandPalette.metricRose : StrandPalette.effortColor,
                                     title: String(localized: "Today's session"),
-                                    subtitle: subtitle.isEmpty ? nil : subtitle, value: session.name, route: route)
+                                    subtitle: line.isEmpty ? nil : line, value: session.name, route: route)
         // A session still to do offers « Start » in blue, as in the retained design (fork chantier 7).
         if session.state == .next { row.action = String(localized: "Start") }
         return row

@@ -29,6 +29,9 @@ extension DayWidgetsSnapshot {
                 }
             }
         } while DayWidgetsPublishGate.finishRun()
+        // Personal fork, chantier 8: the meal reminders follow the same moments (a meal, a plan, a session,
+        // the foreground); a no-op beyond clearing when they are off.
+        await MealReminder.refreshMealReminders(repo: model.repo, now: Date())
     }
 
     /// Today's three sections. The session and the week over the logical day, as the Synthèse resolves them;

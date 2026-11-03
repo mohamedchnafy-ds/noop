@@ -59,7 +59,11 @@ final class NutritionRenderTests: XCTestCase {
         let day = summary
         let journal = VStack(alignment: .leading, spacing: 12) {
             NutritionBalanceCard(model: NutritionBalanceModel(summary: day, plan: plan))
-            Text("Meals").strandOverline().padding(.top, 14).padding(.horizontal, 4)
+            Text("Meals")
+                .font(StrandFont.sectionTitle)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .padding(.top, 14)
+                .padding(.horizontal, 2)
             VStack(spacing: 0) {
                 ForEach(Array(day.meals.enumerated()), id: \.element.meal.id) { index, entry in
                     NutritionMealRow(entry: entry, isFirst: index == 0, isLast: index == day.meals.count - 1)

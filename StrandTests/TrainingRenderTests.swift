@@ -68,18 +68,7 @@ final class TrainingRenderTests: XCTestCase {
     }
 
     private func header(_ subtitle: String, mode: TrainingViewMode) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Training")
-                    .font(StrandFont.rounded(28))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text(verbatim: subtitle)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-            Spacer(minLength: 0)
-            TrainingModeSwitch(mode: .constant(mode))
-        }
+        TrainingHeader(mode: .constant(mode), subtitle: subtitle)
     }
 
     func testRenderWeek() throws {
@@ -87,12 +76,10 @@ final class TrainingRenderTests: XCTestCase {
         let week = days(TrainingCalendar.weekDates(from: date(2), calendar: calendar))
         let tally = TrainingDays.sessionTally(week)
         let all = summaries
-        let screen = VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
-            header(TrainingText.weekTitle(monday: date(2), calendar: calendar), mode: .week)
+        let screen = VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+            header(TrainingText.weekTitle(monday: date(2), calendar: calendar) + " · "
+                   + TrainingText.tallyLine(done: tally.done, planned: tally.planned, current: nil), mode: .week)
             VStack(alignment: .leading, spacing: 10) {
-                TrainingPeriodBar(label: TrainingText.tallyLine(done: tally.done, planned: tally.planned,
-                                                                current: String(localized: "This week")),
-                                  onPrevious: {}, onNext: {})
                 TrainingWeekStrip(days: week, selectedKey: "2026-11-02",
                                   weekdays: TrainingText.shortWeekdays(calendar)) { _ in }
                 TrainingLegend()
@@ -102,19 +89,24 @@ final class TrainingRenderTests: XCTestCase {
                                  loaded: true)
             TrainingProgressSummaryCard(data: LiftProgressData()) { EmptyView() }
             VStack(alignment: .leading, spacing: 10) {
-                Text("Other activities").strandOverline()
-                NoopCard(padding: 0) {
-                    VStack(spacing: 0) {
-                        TrainingActivityRowLabel(title: "Start an activity",
-                                                 detail: "Run, ride, walk… with the strap's heart rate",
-                                                 symbol: "figure.run", tint: StrandPalette.metricRose)
-                        TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
-                                                 symbol: "timer", tint: StrandPalette.metricRose)
-                        TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
-                                                 symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart,
-                                                 showsDivider: false)
-                    }
+                Text("Other activities")
+                    .font(StrandFont.sectionTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .padding(.top, 6)
+                VStack(spacing: 0) {
+                    TrainingActivityRowLabel(title: "Start an activity",
+                                             detail: "Run, ride, walk… with the strap's heart rate",
+                                             symbol: "figure.run", tint: StrandPalette.chargeColor)
+                    TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
+                                             symbol: "timer", tint: StrandPalette.caloriesActivity)
+                    TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
+                                             symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart)
+                    TrainingActivityRowLabel(title: "All history", detail: "lifting and cardio",
+                                             symbol: "list.bullet", tint: StrandPalette.textSecondary,
+                                             showsDivider: false)
                 }
+                .padding(.vertical, 4)
+                .background(NoopPanelSurface())
             }
         }
         try render(AnyView(screen), name: "2-semaine")
@@ -128,12 +120,9 @@ final class TrainingRenderTests: XCTestCase {
         let tally = TrainingDays.sessionTally(monthDays)
         let totals = TrainingDays.periodTotals(monthDays)
         let sunday = monthDays[0]
-        let screen = VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+        let screen = VStack(alignment: .leading, spacing: NoopMetrics.space4) {
             header(TrainingText.monthTitle(date(1)), mode: .month)
             VStack(alignment: .leading, spacing: 10) {
-                TrainingPeriodBar(label: TrainingText.tallyLine(done: tally.done, planned: tally.planned,
-                                                                current: String(localized: "This month")),
-                                  onPrevious: {}, onNext: {})
                 NoopCard(padding: 10) {
                     VStack(alignment: .leading, spacing: 8) {
                         TrainingMonthGrid(cells: cells.map { cell in

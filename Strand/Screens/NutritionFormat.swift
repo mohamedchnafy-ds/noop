@@ -166,15 +166,16 @@ enum NutritionOrigin {
     }
 }
 
-/// The macro colours, the same ones the Coach's meal card uses.
+/// The macro colours, the same ones the Coach's meal card uses (fork chantier 7: protein purple, carbs
+/// orange, fat yellow — protein and fat had come to share one teal).
 enum NutritionMacro: CaseIterable {
     case protein, carbs, fat
 
     var tint: Color {
         switch self {
-        case .protein: return StrandPalette.metricCyan
-        case .carbs: return StrandPalette.metricAmber
-        case .fat: return StrandPalette.metricPurple
+        case .protein: return StrandPalette.macroProtein
+        case .carbs: return StrandPalette.macroCarbs
+        case .fat: return StrandPalette.macroFat
         }
     }
 
@@ -205,16 +206,15 @@ struct NutritionMacroDot: View {
     }
 }
 
-/// A meal's origin in a tinted disc (pencil, barcode, camera, microphone).
+/// A meal's origin as a grey icon alone (pencil, barcode, camera, microphone), fork chantier 7.
 struct NutritionOriginIcon: View {
     let origin: MealOrigin
 
     var body: some View {
         Image(systemName: NutritionOrigin.symbol(origin))
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(StrandPalette.onDarkSecondary)
-            .frame(width: 34, height: 34)
-            .background(StrandPalette.onDarkSecondary.opacity(0.14), in: Circle())
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(StrandPalette.textSecondary)
+            .frame(width: 24)
             .accessibilityLabel(Text(NutritionOrigin.spoken(origin)))
     }
 }

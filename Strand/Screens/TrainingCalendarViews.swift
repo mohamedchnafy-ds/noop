@@ -122,7 +122,8 @@ enum TrainingText {
 enum TrainingViewMode: Hashable { case week, month }
 
 /// Set by the render tests: the PNG renderer cannot draw a `Menu`, so `TrainingMenu` then draws its
-/// label alone.
+/// label alone (and a navigation link outside a navigation stack draws dimmed, so the Progression card
+/// draws its label alone too).
 private struct TrainingMenusAsLabelsKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -154,62 +155,68 @@ struct TrainingMenu<Content: View, Label: View>: View {
     }
 }
 
-/// "Week | Month" in the header.
+/// "Week | Month" in the header: the shared grey pill control (fork chantier 7).
 struct TrainingModeSwitch: View {
     @Binding var mode: TrainingViewMode
 
     var body: some View {
-        HStack(spacing: 0) {
-            segment("Week", .week)
-            segment("Month", .month)
+        SegmentedPillControl([TrainingViewMode.week, TrainingViewMode.month], selection: $mode) { value in
+            switch value {
+            case .week: return String(localized: "Week")
+            case .month: return String(localized: "Month")
+            }
         }
-        .padding(3)
-        .background(StrandPalette.surfaceInset, in: Capsule())
-        .overlay(Capsule().stroke(StrandPalette.hairline, lineWidth: 1))
-    }
-
-    private func segment(_ title: LocalizedStringKey, _ value: TrainingViewMode) -> some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.2)) { mode = value }
-        } label: {
-            Text(title)
-                .font(StrandFont.subhead)
-                .foregroundStyle(mode == value ? StrandPalette.textPrimary : StrandPalette.textSecondary)
-                .padding(.horizontal, 14)
-                .frame(height: 32)
-                .background(mode == value ? StrandPalette.surfaceOverlay : Color.clear, in: Capsule())
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(mode == value ? .isSelected : [])
+        .fixedSize()
     }
 }
 
-/// "‹  THIS WEEK · 1 / 3 SESSIONS  ›": the period's count between the two arrows.
-struct TrainingPeriodBar: View {
-    let label: String
-    let onPrevious: () -> Void
-    let onNext: () -> Void
+/// The screen's header (fork chantier 7): the title in 34 bold beside the Week | Month switch, then one
+/// grey line naming the period shown and its count, with ‹ › to move to the previous or next period.
+struct TrainingHeader: View {
+    @Binding var mode: TrainingViewMode
+    /// "Week of 2 to 8 November · 0 / 3 sessions".
+    let subtitle: String
+    var onPrevious: () -> Void = {}
+    var onNext: () -> Void = {}
 
     var body: some View {
-        HStack {
-            arrow("chevron.left", label: "Previous", action: onPrevious)
-            Spacer(minLength: 8)
-            Text(verbatim: label)
-                .strandOverline()
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Spacer(minLength: 8)
-            arrow("chevron.right", label: "Next", action: onNext)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("Training")
+                    .font(StrandFont.screenTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                TrainingModeSwitch(mode: $mode)
+            }
+            HStack(spacing: 0) {
+                Text(verbatim: subtitle)
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                TrainingPeriodArrow(symbol: "chevron.left", label: "Previous", action: onPrevious)
+                TrainingPeriodArrow(symbol: "chevron.right", label: "Next", action: onNext)
+            }
         }
     }
+}
 
-    private func arrow(_ symbol: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+/// One of the header's ‹ › buttons: a grey chevron in its own hit area.
+struct TrainingPeriodArrow: View {
+    let symbol: String
+    let label: LocalizedStringKey
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(StrandPalette.textSecondary)
-                .frame(width: 44, height: 32)
+                .frame(width: 36, height: 32)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -261,38 +268,43 @@ struct TrainingLegend: View {
     }
 }
 
-/// Seven days, Monday first: the weekday, the day number and its marks. The chosen day is filled white.
+/// Seven days, Monday first: the weekday (sentence case, 11 semibold grey), the day number (SF Rounded 20)
+/// and its marks, on #1C1C1E tiles of radius 14. The chosen day is filled white with black text.
 struct TrainingWeekStrip: View {
     let days: [TrainingDay]
     let selectedKey: String
     let weekdays: [String]
     let onSelect: (TrainingDay) -> Void
 
+    private static let radius = NoopVisualStyle.compactRadius
+
     var body: some View {
         HStack(spacing: 6) {
             ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                 let selected = day.key == selectedKey
                 Button { onSelect(day) } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 3) {
                         Text(verbatim: weekdayLabel(index))
-                            .font(StrandFont.caption.weight(selected ? .semibold : .regular))
-                            .foregroundStyle(selected ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
+                            .font(StrandFont.caption2.weight(.semibold))
+                            .foregroundStyle(selected ? StrandPalette.surfaceBase.opacity(0.75) : StrandPalette.textSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                         Text(verbatim: day.date.formatted(.dateTime.day()))
                             .font(StrandFont.number(20, weight: .bold))
                             .foregroundStyle(selected ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
-                        TrainingDayMarks(day: day)
+                        TrainingDayMarks(day: day, size: 7)
                     }
-                    .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
+                    .frame(height: 70)
                     .background(selected ? StrandPalette.textPrimary : StrandPalette.surfaceRaised,
-                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
                     .overlay {
                         if day.isToday && !selected {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
                                 .strokeBorder(StrandPalette.accent, lineWidth: 1.5)
                         }
                     }
-                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -301,7 +313,7 @@ struct TrainingWeekStrip: View {
 
     private func weekdayLabel(_ index: Int) -> String {
         guard weekdays.indices.contains(index) else { return "" }
-        return weekdays[index].replacingOccurrences(of: ".", with: "").uppercased()
+        return weekdays[index]
     }
 }
 
@@ -390,13 +402,14 @@ struct TrainingMonthTotals: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
+        .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.compactRadius))
     }
 }
 
 /// The chosen day: the planned program (with Start and Swap today), then what was done. A day with
-/// nothing planned and nothing done says so in one line.
+/// nothing planned and nothing done says so in one line. Fork chantier 7: the day's title in 20 bold, the
+/// planned card with its icon alone and "Planned today" in blue, the empty-day line inside that card under a
+/// hairline, and the sessions done as cards with their icon alone.
 struct TrainingDaySection: View {
     let day: TrainingDay
     /// The planned program, when the plan has one on this day and it still exists.
@@ -410,9 +423,15 @@ struct TrainingDaySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(verbatim: TrainingText.dayTitle(day)).strandOverline()
+            Text(verbatim: TrainingText.dayTitle(day))
+                .font(StrandFont.sectionTitle)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .padding(.top, 6)
+                .accessibilityAddTraits(.isHeader)
             if let planned, !day.hasLift {
                 plannedCard(planned)
+            } else if let emptyNote {
+                NoopCard { note(emptyNote) }
             }
             ForEach(Array(day.lifts.enumerated()), id: \.offset) { _, lift in
                 Button { onOpenLift(lift) } label: {
@@ -425,63 +444,62 @@ struct TrainingDaySection: View {
                 doneRow(symbol: "figure.run", tint: StrandPalette.metricRose, title: activity.sport,
                         line: TrainingText.activityLine(activity), chevron: false)
             }
-            if !day.hasLift && !day.hasActivity {
-                emptyLine
-            }
         }
     }
 
-    @ViewBuilder private var emptyLine: some View {
-        if day.isToday {
-            note("Nothing done today yet.")
-        } else if day.isPast {
-            note("Nothing logged that day.")
-        } else if planned == nil {
-            note("Rest day.")
-        }
+    /// The line of a day with nothing done, or nil when the day needs none (something was done, or a
+    /// future day already shows its planned card).
+    private var emptyNote: LocalizedStringKey? {
+        guard !day.hasLift && !day.hasActivity else { return nil }
+        if day.isToday { return "Nothing done today yet." }
+        if day.isPast { return "Nothing logged that day." }
+        if planned == nil { return "Rest day." }
+        return nil
     }
 
     private func note(_ text: LocalizedStringKey) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: "clock")
-                .font(.system(size: 15))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(StrandPalette.textSecondary)
+                .accessibilityHidden(true)
             Text(text)
-                .font(StrandFont.subhead)
+                .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textSecondary)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
+    }
+
+    @ViewBuilder private var plannedLabel: some View {
+        if day.isMissed {
+            Text("Missed")
+        } else if day.isToday {
+            Text("Planned today")
+        } else {
+            Text("Planned")
+        }
     }
 
     private func plannedCard(_ program: TrainingProgramSummary) -> some View {
-        NoopCard {
+        NoopCard(padding: 18) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(day.isMissed ? StrandPalette.textTertiary : StrandPalette.effortColor)
-                        .frame(width: 44, height: 44)
-                        .background((day.isMissed ? StrandPalette.textTertiary : StrandPalette.effortColor).opacity(0.18),
-                                    in: Circle())
-                    VStack(alignment: .leading, spacing: 3) {
-                        Group {
-                            if day.isMissed { Text("Missed") } else { Text("Planned") }
-                        }
-                        .font(StrandFont.overline)
-                        .tracking(StrandFont.overlineTracking)
-                        .textCase(.uppercase)
-                        .foregroundStyle(day.isMissed ? StrandPalette.statusWarning : StrandPalette.effortColor)
+                        .frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        plannedLabel
+                            .font(StrandFont.overline)
+                            .foregroundStyle(day.isMissed ? StrandPalette.statusWarning : StrandPalette.effortColor)
                         Text(verbatim: program.name)
-                            .font(StrandFont.title2)
+                            .font(StrandFont.title2.weight(.bold))
                             .foregroundStyle(StrandPalette.textPrimary)
                         let line = TrainingText.plannedLine(program)
                         if !line.isEmpty {
                             Text(verbatim: line)
-                                .font(StrandFont.subhead)
+                                .font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -507,12 +525,14 @@ struct TrainingDaySection: View {
                         }
                     }
                     .font(StrandFont.subhead)
-                    .padding(12)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(StrandPalette.surfaceInset,
+                                in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
                 }
                 if day.isToday {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 10) {
                         Button { onStart(program.id) } label: {
                             Group {
                                 if isRunning {
@@ -530,18 +550,26 @@ struct TrainingDaySection: View {
                                     Button { onStart(other.id) } label: { Text(verbatim: other.name) }
                                 }
                             } label: {
-                                Text("Swap")
+                                Label("Swap", systemImage: "arrow.left.arrow.right")
                                     .font(StrandFont.headline)
                                     .foregroundStyle(StrandPalette.textPrimary)
-                                    .padding(.horizontal, 18)
-                                    .frame(minHeight: 50)
-                                    .background(StrandPalette.surfaceOverlay, in: Capsule())
-                                    .overlay(Capsule().stroke(StrandPalette.hairlineStrong, lineWidth: 1))
-                                    .contentShape(Capsule())
+                                    .padding(.horizontal, 20)
+                                    .frame(minHeight: NoopButtonMetrics.height)
+                                    .background(StrandPalette.surfaceOverlay,
+                                                in: RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
+                                                                     style: .continuous))
+                                    .contentShape(RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
+                                                                   style: .continuous))
                             }
                             .fixedSize()
                         }
                     }
+                }
+                if let emptyNote {
+                    Rectangle()
+                        .fill(StrandPalette.hairline)
+                        .frame(height: NoopMetrics.hairlineWidth)
+                    note(emptyNote)
                 }
             }
         }
@@ -550,13 +578,13 @@ struct TrainingDaySection: View {
     private func doneRow(symbol: String, tint: Color, title: String, line: String, chevron: Bool) -> some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(StrandPalette.surfaceBase)
-                .frame(width: 40, height: 40)
-                .background(tint, in: Circle())
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 26)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: title)
-                    .font(StrandFont.headline)
+                    .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(verbatim: line)
                     .font(StrandFont.footnote)
@@ -567,19 +595,21 @@ struct TrainingDaySection: View {
             Spacer(minLength: 0)
             if chevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(StrandPalette.textTertiary)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 18)
         .padding(.vertical, 14)
-        .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoopPanelSurface())
         .contentShape(Rectangle())
     }
 }
 
-/// "LIFT LOG · PROGRAMS   Plan": each program with its planned days, then New and Import (Excel).
+/// "Programs   Plan": each program with its planned days, then New and Import (Excel). Fork chantier 7:
+/// the title in 20 bold, rows of 16 medium / 13 grey, the planned days as plain grey text, a flat card.
 struct TrainingProgramsCard: View {
     let programs: [TrainingProgramSummary]
     let plan: TrainingWeekPlan
@@ -593,44 +623,53 @@ struct TrainingProgramsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Lift Log · programs").strandOverline()
+                Text("Programs")
+                    .font(StrandFont.sectionTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 if !programs.isEmpty {
                     Button("Plan", action: onPlan)
-                        .font(StrandFont.subhead)
+                        .font(StrandFont.subhead.weight(.medium))
                         .foregroundStyle(StrandPalette.accent)
                         .buttonStyle(.plain)
                         .frame(minHeight: 32)
                 }
             }
-            NoopCard(padding: 0) {
-                VStack(spacing: 0) {
-                    if !loaded {
-                        message("Reading your programs…", detail: nil)
-                    } else if programs.isEmpty {
-                        message("No programs yet",
-                                detail: "A program is a name and an ordered list of exercises with your targets — working sets, reps, weight, rest and your own technique note.")
-                    } else {
-                        ForEach(programs) { program in
-                            Button { onEdit(program.id) } label: { programRow(program) }
-                                .buttonStyle(.plain)
-                        }
-                    }
-                    HStack(spacing: 0) {
-                        footerButton("New program", symbol: "plus", action: onNew)
-                        Rectangle().fill(StrandPalette.hairline).frame(width: 1, height: 48)
-                        footerButton("Import (Excel)", symbol: "square.and.arrow.down", action: onImport)
+            .padding(.top, 6)
+            VStack(spacing: 0) {
+                if !loaded {
+                    message("Reading your programs…", detail: nil)
+                } else if programs.isEmpty {
+                    message("No programs yet",
+                            detail: "A program is a name and an ordered list of exercises with your targets — working sets, reps, weight, rest and your own technique note.")
+                } else {
+                    ForEach(programs) { program in
+                        Button { onEdit(program.id) } label: { programRow(program) }
+                            .buttonStyle(.plain)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+                HStack(spacing: 16) {
+                    footerButton("New program", symbol: "plus", action: onNew)
+                    Spacer(minLength: 0)
+                    footerButton("Import (Excel)", symbol: "square.and.arrow.down", action: onImport)
+                }
+                .padding(.horizontal, 18)
             }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NoopPanelSurface())
         }
+    }
+
+    private var divider: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
     }
 
     private func message(_ title: LocalizedStringKey, detail: LocalizedStringKey?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(StrandFont.headline)
+                .font(StrandFont.body.weight(.medium))
                 .foregroundStyle(StrandPalette.textPrimary)
             if let detail {
                 Text(detail)
@@ -639,16 +678,17 @@ struct TrainingProgramsCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(16)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) { Rectangle().fill(StrandPalette.hairline).frame(height: 1) }
+        .overlay(alignment: .bottom) { divider }
+        .padding(.horizontal, 18)
     }
 
     private func programRow(_ program: TrainingProgramSummary) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: program.name)
-                    .font(StrandFont.headline)
+                    .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
                 let line = TrainingText.programLine(program)
                 if !line.isEmpty {
@@ -660,70 +700,80 @@ struct TrainingProgramsCard: View {
             Spacer(minLength: 8)
             ForEach(plan.plannedWeekdays(of: program.id), id: \.self) { weekday in
                 Text(verbatim: weekdays.indices.contains(weekday - 1) ? weekdays[weekday - 1] : "")
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.effortColor)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(StrandPalette.effortColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(StrandPalette.textTertiary)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .overlay(alignment: .bottom) { Rectangle().fill(StrandPalette.hairline).frame(height: 1) }
+        .overlay(alignment: .bottom) { divider }
+        .padding(.horizontal, 18)
     }
 
     private func footerButton(_ title: LocalizedStringKey, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(StrandFont.subhead)
+                .font(StrandFont.subhead.weight(.medium))
                 .foregroundStyle(StrandPalette.accent)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 }
 
-/// The Progression card of the Training screen: the four counts, and "See" into the Progression screen.
+/// The Progression block of the Training screen: "Progression   See" in 20 bold, then the four counts in a
+/// flat card; the whole block opens the Progression screen. The render tests draw it without its link
+/// (`trainingMenusAsLabels`), since a link outside a navigation stack draws dimmed.
 struct TrainingProgressSummaryCard<Destination: View>: View {
     let data: LiftProgressData
     @ViewBuilder let destination: () -> Destination
+    // Not private: a private stored property would make the memberwise init private.
+    @Environment(\.trainingMenusAsLabels) var drawsLabelOnly
 
     var body: some View {
-        NavigationLink {
-            destination()
-        } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Progression").strandOverline()
-                    Spacer(minLength: 8)
-                    Text("See")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.accent)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(StrandPalette.accent)
-                }
-                LiftStatusCounters(data: data)
+        if drawsLabelOnly {
+            summary
+        } else {
+            NavigationLink {
+                destination()
+            } label: {
+                summary
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
-                .stroke(StrandPalette.hairline, lineWidth: 1))
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Progression")
+                    .font(StrandFont.sectionTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                Text("See")
+                    .font(StrandFont.subhead.weight(.medium))
+                    .foregroundStyle(StrandPalette.accent)
+            }
+            .padding(.top, 6)
+            LiftStatusCounters(data: data)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(NoopPanelSurface())
+        }
+        .contentShape(Rectangle())
     }
 }
 
-/// One row of "Other activities": a tinted icon tile, a title, one line, a chevron.
+/// One row of "Other activities": the icon alone in its colour, a title, one line, a chevron, and a
+/// hairline under it unless it is the last row.
 struct TrainingActivityRowLabel: View {
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
@@ -732,15 +782,15 @@ struct TrainingActivityRowLabel: View {
     var showsDivider = true
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 36, height: 36)
-                .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .frame(width: 24)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(StrandFont.headline)
+                    .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(detail)
                     .font(StrandFont.footnote)
@@ -748,17 +798,18 @@ struct TrainingActivityRowLabel: View {
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(StrandPalette.textTertiary)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if showsDivider {
-                Rectangle().fill(StrandPalette.hairline).frame(height: 1).padding(.leading, 66)
+                Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             }
         }
+        .padding(.horizontal, 18)
     }
 }

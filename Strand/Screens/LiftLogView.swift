@@ -63,7 +63,8 @@ struct LiftLogView: View {
 
     var body: some View {
         ScreenScaffold(title: nil, onRefresh: { await load() }) {
-            VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+            // Fork chantier 7: 16 between the blocks; each section title adds its own 6 above it.
+            VStack(alignment: .leading, spacing: NoopMetrics.space4) {
                 header
                 if mode == .week { weekSection } else { monthSection }
                 daySection
@@ -109,23 +110,22 @@ struct LiftLogView: View {
 
     // MARK: - Header
 
-    /// The title, the week or month shown, and the Week | Month switch.
+    /// The title and the Week | Month switch, then the week or month shown with its count and ‹ ›
+    /// (fork chantier 7: the count moved up from the bar above the week strip).
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Training")
-                    .font(StrandFont.screenTitle)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text(verbatim: mode == .week
-                     ? TrainingText.weekTitle(monday: TrainingCalendar.mondayOf(selectedDate, calendar: calendar),
-                                              calendar: calendar)
-                     : TrainingText.monthTitle(selectedDate))
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-            Spacer(minLength: 0)
-            TrainingModeSwitch(mode: $mode)
-        }
+        TrainingHeader(mode: $mode, subtitle: headerSubtitle,
+                       onPrevious: { if mode == .week { shift(days: -7) } else { shift(months: -1) } },
+                       onNext: { if mode == .week { shift(days: 7) } else { shift(months: 1) } })
+    }
+
+    /// "Week of 2 to 8 November · 0 / 3 sessions"; the month alone ("November 2026"), since the month's
+    /// count is already in its totals under the grid.
+    private var headerSubtitle: String {
+        guard mode == .week else { return TrainingText.monthTitle(selectedDate) }
+        let monday = TrainingCalendar.mondayOf(selectedDate, calendar: calendar)
+        let tally = TrainingDays.sessionTally(days(TrainingCalendar.weekDates(from: monday, calendar: calendar)))
+        return TrainingText.weekTitle(monday: monday, calendar: calendar) + " · "
+            + TrainingText.tallyLine(done: tally.done, planned: tally.planned, current: nil)
     }
 
     // MARK: - Week and month
@@ -138,12 +138,7 @@ struct LiftLogView: View {
     private var weekSection: some View {
         let monday = TrainingCalendar.mondayOf(selectedDate, calendar: calendar)
         let week = days(TrainingCalendar.weekDates(from: monday, calendar: calendar))
-        let tally = TrainingDays.sessionTally(week)
-        let isCurrent = monday == TrainingCalendar.mondayOf(Date(), calendar: calendar)
         return VStack(alignment: .leading, spacing: 10) {
-            TrainingPeriodBar(label: TrainingText.tallyLine(done: tally.done, planned: tally.planned,
-                                                            current: isCurrent ? String(localized: "This week") : nil),
-                              onPrevious: { shift(days: -7) }, onNext: { shift(days: 7) })
             TrainingWeekStrip(days: week, selectedKey: key(selectedDate),
                               weekdays: TrainingText.shortWeekdays(calendar)) { selectedDate = $0.date }
             TrainingLegend()
@@ -156,12 +151,7 @@ struct LiftLogView: View {
         let byKey = Dictionary(uniqueKeysWithValues: monthDays.map { ($0.key, $0) })
         let tally = TrainingDays.sessionTally(monthDays)
         let totals = TrainingDays.periodTotals(monthDays)
-        let isCurrent = TrainingCalendar.monthStart(selectedDate, calendar: calendar)
-            == TrainingCalendar.monthStart(Date(), calendar: calendar)
         return VStack(alignment: .leading, spacing: 10) {
-            TrainingPeriodBar(label: TrainingText.tallyLine(done: tally.done, planned: tally.planned,
-                                                            current: isCurrent ? String(localized: "This month") : nil),
-                              onPrevious: { shift(months: -1) }, onNext: { shift(months: 1) })
             NoopCard(padding: 10) {
                 VStack(alignment: .leading, spacing: 8) {
                     TrainingMonthGrid(cells: cells.map { $0.flatMap { byKey[key($0)] } },
@@ -200,52 +190,43 @@ struct LiftLogView: View {
 
     // MARK: - Other activities
 
+    /// Fork chantier 7: the title in 20 bold, one flat card of rows with their icon alone (start an
+    /// activity green, intervals orange, live heart rate pink, all history grey).
     private var otherActivities: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Other activities").strandOverline()
-            NoopCard(padding: 0) {
-                VStack(spacing: 0) {
-                    TrainingStartActivityRow()
-                    NavigationLink {
-                        IntervalTimerView()
-                    } label: {
-                        TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
-                                                 symbol: "timer", tint: StrandPalette.metricRose)
-                    }
-                    .buttonStyle(.plain)
-                    NavigationLink {
-                        LiveView()
-                    } label: {
-                        TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
-                                                 symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart,
-                                                 showsDivider: false)
-                    }
-                    .buttonStyle(.plain)
+            Text("Other activities")
+                .font(StrandFont.sectionTitle)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .padding(.top, 6)
+                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: 0) {
+                TrainingStartActivityRow()
+                NavigationLink {
+                    IntervalTimerView()
+                } label: {
+                    TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
+                                             symbol: "timer", tint: StrandPalette.caloriesActivity)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
-            }
-            NavigationLink {
-                WorkoutsView()
-            } label: {
-                HStack {
-                    Text("All history")
-                        .font(StrandFont.body)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Spacer(minLength: 8)
-                    Text("lifting and cardio")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(StrandPalette.textSecondary)
+                .buttonStyle(.plain)
+                NavigationLink {
+                    LiveView()
+                } label: {
+                    TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
+                                             symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(StrandPalette.hairline, lineWidth: 1))
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                NavigationLink {
+                    WorkoutsView()
+                } label: {
+                    TrainingActivityRowLabel(title: "All history", detail: "lifting and cardio",
+                                             symbol: "list.bullet", tint: StrandPalette.textSecondary,
+                                             showsDivider: false)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NoopPanelSurface())
         }
     }
 
@@ -397,7 +378,7 @@ private struct TrainingStartActivityRow: View {
         } label: {
             TrainingActivityRowLabel(title: "Start an activity",
                                      detail: "Run, ride, walk… with the strap's heart rate",
-                                     symbol: "figure.run", tint: StrandPalette.metricRose)
+                                     symbol: "figure.run", tint: StrandPalette.chargeColor)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showLiveWorkout) {

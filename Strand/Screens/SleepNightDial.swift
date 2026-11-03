@@ -1,62 +1,56 @@
 import SwiftUI
 import StrandDesign
 
-// MARK: - Night dial (personal fork)
+// MARK: - Night ring (personal fork, chantier 7 design A)
 //
-// The Sleep tab's hero: a 12-hour clock face with the night drawn on it. The thick arc runs from the
-// moment sleep began to the wake time, coloured by stage, with every awake stretch left as a gap. A thin
-// dashed arc outside it covers the sleep need counted back from the wake time, so a short night reads as
-// the part of the need it did not cover. The score (or, without one, the time asleep) sits in the
-// middle. Over the night scene the face sits on a dark disc with a light edge along the night, so the
-// darkest stage colour still reads against the photograph. Display only: every number arrives from the
-// caller.
+// The Sleep tab's hero: a circular hypnogram. The whole night runs once round the ring, clockwise from
+// the bedtime (moon, right of the opening at the top) to the wake time (sun, left of it). Each stage
+// stretch is a rounded arc drawn on its own track, and the track's distance from the centre is the
+// stage's depth: awake on the outside, then REM, light, and deep nearest the score. Thin light lines join
+// one stretch to the next, so the night reads as one path diving in and out. The score (or, without one,
+// the time asleep) sits in the middle. Display only: every number arrives from the caller.
 
 /// Pure geometry for `SleepNightDial`, kept apart so it can be tested without drawing.
-enum SleepNightDialMath {
-    /// One drawn stretch of the stage arc, in degrees clockwise from 12 o'clock. `end` may exceed 360
-    /// when the night crosses the top of the dial.
+enum SleepNightRingMath {
+    /// The opening at the top of the ring, in degrees, between the wake time and the bedtime.
+    static let gapDegrees: Double = 34
+
+    /// One drawn stretch, in degrees clockwise from 12 o'clock.
     struct Arc: Equatable {
         let stage: SleepStage
         let start: Double
         let end: Double
     }
 
-    /// Degrees per hour on a 12-hour face.
-    static let degreesPerHour: Double = 30
-
-    /// A local clock time as fractional hours (0 ..< 24).
-    static func clockHours(_ date: Date, calendar: Calendar = .current) -> Double {
-        let c = calendar.dateComponents([.hour, .minute, .second], from: date)
-        return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60 + Double(c.second ?? 0) / 3600
+    /// The night's length in seconds: the bed-to-wake span, or the last interval's end if that is later.
+    static func nightSeconds(intervals: [SleepInterval], span: TimeInterval) -> TimeInterval {
+        max(span, intervals.map(\.end).max() ?? 0)
     }
 
-    /// The dial angle of a clock time, 0 ..< 360, 12 o'clock at 0.
-    static func angle(hours: Double) -> Double {
-        let h = hours.truncatingRemainder(dividingBy: 12)
-        return (h < 0 ? h + 12 : h) * degreesPerHour
+    /// The ring angle of a moment `seconds` after the bedtime: the night fills the circle minus the gap.
+    static func angle(seconds: TimeInterval, night: TimeInterval) -> Double {
+        guard night > 0 else { return gapDegrees / 2 }
+        let t = min(max(seconds / night, 0), 1)
+        return gapDegrees / 2 + t * (360 - gapDegrees)
     }
 
-    /// The asleep stretches of the night as arcs. Awake stretches are left out (gaps). Intervals are in
-    /// seconds from the onset; anything past twelve hours after it would lap the face and is dropped.
-    static func arcs(intervals: [SleepInterval], onsetHours: Double) -> [Arc] {
-        let start = angle(hours: onsetHours)
-        let limit: TimeInterval = 12 * 3600
-        return intervals
-            .filter { $0.stage != .awake && $0.end > $0.start && $0.start < limit }
+    /// Every stretch of the night (awake included) as an arc, in time order.
+    static func arcs(intervals: [SleepInterval], night: TimeInterval) -> [Arc] {
+        intervals
+            .filter { $0.end > $0.start }
             .sorted { $0.start < $1.start }
-            .map { iv in
-                Arc(stage: iv.stage,
-                    start: start + iv.start / 3600 * degreesPerHour,
-                    end: start + min(iv.end, limit) / 3600 * degreesPerHour)
-            }
+            .map { Arc(stage: $0.stage, start: angle(seconds: $0.start, night: night),
+                       end: angle(seconds: $0.end, night: night)) }
     }
 
-    /// The need arc: `needMinutes` counted back from the wake time. A need of twelve hours or more
-    /// fills the face.
-    static func needArc(wakeHours: Double, needMinutes: Double) -> (start: Double, end: Double) {
-        let end = angle(hours: wakeHours) + 360
-        let sweep = min(360, max(0, needMinutes) / 60 * degreesPerHour)
-        return (end - sweep, end)
+    /// The track of a stage, 0 for the outermost (awake) to 3 for the innermost (deep).
+    static func depth(_ stage: SleepStage) -> Int {
+        switch stage {
+        case .awake: return 0
+        case .rem: return 1
+        case .light: return 2
+        case .deep: return 3
+        }
     }
 }
 
@@ -66,110 +60,77 @@ struct SleepNightDial: View {
     /// The night's stage intervals, seconds from `onset` (display-smoothed by the caller).
     let intervals: [SleepInterval]
     let palette: SleepStagePalette
-    /// The sleep need to draw counted back from the wake time; nil hides the dashed arc.
+    /// The sleep need, shown in the centre as « out of 8h »; nil leaves it out.
     let needMinutes: Double?
     let score: Double?
     let scoreWord: String?
     let asleepMinutes: Double
-    /// True over the night scene (light-on-dark text), false over the plain canvas.
-    var onScene: Bool = true
-    var diameter: CGFloat = 256
+    /// Kept for the call sites; the night photo is gone (fork chantier 7), the ring always sits on a card.
+    var onScene: Bool = false
+    var diameter: CGFloat = 260
 
-    private let ringRadius: CGFloat = 88
-    private let ringWidth: CGFloat = 18
-    /// How far the dark disc behind the face reaches past the ring's centre line.
-    private let plateReach: CGFloat = 21
-
-    private var primary: Color { onScene ? StrandPalette.onDarkPrimary : StrandPalette.textPrimary }
-    private var secondary: Color { onScene ? StrandPalette.onDarkSecondary : StrandPalette.textSecondary }
+    /// Track radii on the 260-point design, outermost (awake) first.
+    private let trackRadii: [CGFloat] = [114, 100, 86, 72]
+    private let lineWidth: CGFloat = 10
+    private var scale: CGFloat { diameter / 260 }
 
     var body: some View {
-        let onsetH = SleepNightDialMath.clockHours(onset)
-        let wakeH = SleepNightDialMath.clockHours(wake)
-        let arcs = SleepNightDialMath.arcs(intervals: intervals, onsetHours: onsetH)
-        let need = needMinutes.map { SleepNightDialMath.needArc(wakeHours: wakeH, needMinutes: $0) }
-        let nightStart = SleepNightDialMath.angle(hours: onsetH)
-        let nightEnd = nightStart + min(360, max(0, wake.timeIntervalSince(onset)) / 3600 * SleepNightDialMath.degreesPerHour)
-        let needStartLabel = needMinutes.map {
-            AppClock.hourMinuteFormatter().string(from: wake.addingTimeInterval(-$0 * 60))
-        }
+        let night = SleepNightRingMath.nightSeconds(intervals: intervals, span: wake.timeIntervalSince(onset))
+        let arcs = SleepNightRingMath.arcs(intervals: intervals, night: night)
         ZStack {
             Canvas { ctx, size in
                 let c = CGPoint(x: size.width / 2, y: size.height / 2)
-                drawFace(ctx, center: c)
-                if let need { drawNeed(ctx, center: c, arc: need, label: needStartLabel) }
-                for arc in arcs {
-                    ctx.stroke(arcPath(center: c, radius: ringRadius, from: arc.start, to: arc.end),
-                               with: .color(StrandPalette.sleepStageColor(arc.stage, palette: palette)),
-                               style: StrokeStyle(lineWidth: ringWidth, lineCap: .butt))
+                drawTracks(ctx, center: c)
+                ctx.drawLayer { glow in
+                    glow.addFilter(.blur(radius: 4 * scale))
+                    glow.opacity = 0.6
+                    for arc in arcs { stroke(glow, arc, center: c) }
                 }
-                drawNightEdges(ctx, center: c, arcs: arcs, from: nightStart, to: nightEnd)
+                drawLinks(ctx, center: c, arcs: arcs)
+                for arc in arcs { stroke(ctx, arc, center: c) }
             }
-            marker("moon.fill", at: SleepNightDialMath.angle(hours: onsetH))
-            marker("sun.max.fill", at: SleepNightDialMath.angle(hours: wakeH))
+            marker("moon.fill", tint: StrandPalette.sleepStageColor(.deep, palette: palette),
+                   at: SleepNightRingMath.angle(seconds: 0, night: night))
+            marker("sun.max.fill", tint: StrandPalette.sleepStageColor(.awake, palette: palette),
+                   at: SleepNightRingMath.angle(seconds: night, night: night))
             center
         }
         .frame(width: diameter, height: diameter)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(accessibilitySummary(needStart: needStartLabel)))
+        .accessibilityLabel(Text(accessibilitySummary))
     }
 
     // MARK: Drawing
 
-    private func drawFace(_ ctx: GraphicsContext, center c: CGPoint) {
-        if onScene {
-            let r = ringRadius + plateReach
-            let plate = Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
-            ctx.fill(plate, with: .color(StrandPalette.heroFill))
-            ctx.stroke(plate, with: .color(StrandPalette.heroBorder), lineWidth: 1)
-        }
-        ctx.stroke(Path(ellipseIn: CGRect(x: c.x - ringRadius, y: c.y - ringRadius,
-                                          width: ringRadius * 2, height: ringRadius * 2)),
-                   with: .color(primary.opacity(0.13)), lineWidth: ringWidth)
-        for h in 0..<12 {
-            let a = Double(h) * SleepNightDialMath.degreesPerHour
-            let major = h % 3 == 0
-            let outer = ringRadius - ringWidth / 2 - 4
-            let inner = outer - (major ? 5 : 3)
-            var tick = Path()
-            tick.move(to: point(c, outer, a))
-            tick.addLine(to: point(c, inner, a))
-            ctx.stroke(tick, with: .color(secondary.opacity(0.7)), lineWidth: major ? 1.6 : 1)
-        }
-        for h in [0, 3, 6, 9] {
-            let text = ctx.resolve(Text(String(localized: "\(h)h"))
-                .font(StrandFont.caption).foregroundColor(secondary))
-            ctx.draw(text, at: point(c, ringRadius + 30, Double(h) * SleepNightDialMath.degreesPerHour), anchor: .center)
+    private func radius(_ stage: SleepStage) -> CGFloat {
+        trackRadii[SleepNightRingMath.depth(stage)] * scale
+    }
+
+    private func drawTracks(_ ctx: GraphicsContext, center c: CGPoint) {
+        for stage in [SleepStage.awake, .rem, .light, .deep] {
+            let r = radius(stage)
+            ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                       with: .color(StrandPalette.sleepStageColor(stage, palette: palette).opacity(0.10)),
+                       lineWidth: lineWidth * scale)
         }
     }
 
-    private func drawNeed(_ ctx: GraphicsContext, center c: CGPoint, arc: (start: Double, end: Double), label: String?) {
-        let r = ringRadius + 15
-        ctx.stroke(arcPath(center: c, radius: r, from: arc.start, to: arc.end),
-                   with: .color(secondary.opacity(0.85)),
-                   style: StrokeStyle(lineWidth: 2.5, lineCap: .round, dash: [4, 4]))
-        let p = point(c, r, arc.start)
-        ctx.fill(Path(ellipseIn: CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7)), with: .color(secondary))
-        if let label {
-            let text = ctx.resolve(Text(label).font(StrandFont.captionNumber.weight(.semibold)).foregroundColor(primary))
-            ctx.draw(text, at: point(c, ringRadius + 31, arc.start), anchor: .center)
-        }
+    /// One stretch as a rounded arc on its track, trimmed a little at both ends so neighbours stay apart.
+    private func stroke(_ ctx: GraphicsContext, _ arc: SleepNightRingMath.Arc, center c: CGPoint) {
+        let trim = min(0.6, (arc.end - arc.start) / 4)
+        ctx.stroke(arcPath(center: c, radius: radius(arc.stage), from: arc.start + trim, to: arc.end - trim),
+                   with: .color(StrandPalette.sleepStageColor(arc.stage, palette: palette)),
+                   style: StrokeStyle(lineWidth: lineWidth * scale, lineCap: .round))
     }
 
-    /// A thin light line along both edges of the night, and a dark hairline where one stage hands over to
-    /// the next, so neighbouring stages and the darkest colour stay apart from the track.
-    private func drawNightEdges(_ ctx: GraphicsContext, center c: CGPoint, arcs: [SleepNightDialMath.Arc],
-                                from a0: Double, to a1: Double) {
-        guard a1 > a0 else { return }
-        for r in [ringRadius - ringWidth / 2 - 0.5, ringRadius + ringWidth / 2 + 0.5] {
-            ctx.stroke(arcPath(center: c, radius: r, from: a0, to: a1),
-                       with: .color(primary.opacity(0.32)), lineWidth: 1)
-        }
-        for arc in arcs.dropFirst() {
-            var seam = Path()
-            seam.move(to: point(c, ringRadius - ringWidth / 2, arc.start))
-            seam.addLine(to: point(c, ringRadius + ringWidth / 2, arc.start))
-            ctx.stroke(seam, with: .color(StrandPalette.heroFill), lineWidth: 1)
+    /// A thin light line from one stretch's track to the next one's, where the stage changes.
+    private func drawLinks(_ ctx: GraphicsContext, center c: CGPoint, arcs: [SleepNightRingMath.Arc]) {
+        for (previous, next) in zip(arcs, arcs.dropFirst()) where previous.stage != next.stage {
+            var link = Path()
+            link.move(to: point(c, radius(previous.stage), next.start))
+            link.addLine(to: point(c, radius(next.stage), next.start))
+            ctx.stroke(link, with: .color(StrandPalette.textPrimary.opacity(0.35)),
+                       style: StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round))
         }
     }
 
@@ -192,40 +153,45 @@ struct SleepNightDial: View {
         return CGPoint(x: c.x + r * CGFloat(sin(rad)), y: c.y - r * CGFloat(cos(rad)))
     }
 
-    private func marker(_ symbol: String, at degrees: Double) -> some View {
+    /// The bedtime / wake-time badge, on the outer track at either side of the opening.
+    private func marker(_ symbol: String, tint: Color, at degrees: Double) -> some View {
         let rad = degrees * .pi / 180
+        let r = trackRadii[0] * scale
         return ZStack {
             Circle().fill(StrandPalette.surfaceRaised)
-            Circle().strokeBorder(primary, lineWidth: 1.5)
+            Circle().strokeBorder(tint, lineWidth: 2)
             Image(systemName: symbol)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(primary)
+                .foregroundStyle(tint)
         }
         .frame(width: 22, height: 22)
-        .offset(x: ringRadius * CGFloat(sin(rad)), y: -ringRadius * CGFloat(cos(rad)))
+        .offset(x: r * CGFloat(sin(rad)), y: -r * CGFloat(cos(rad)))
         .accessibilityHidden(true)
     }
 
     @ViewBuilder
     private var center: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             if let score {
+                Text("Rest")
+                    .font(StrandFont.caption.weight(.semibold))
+                    .foregroundStyle(StrandPalette.restColor)
                 Text("\(Int(score.rounded()))")
-                    .font(StrandFont.number(40, weight: .bold))
-                    .foregroundStyle(primary)
+                    .font(StrandFont.number(54, weight: .bold))
+                    .foregroundStyle(StrandPalette.textPrimary)
                 if let scoreWord {
                     Text(scoreWord)
                         .font(StrandFont.footnote)
-                        .foregroundStyle(secondary)
+                        .foregroundStyle(StrandPalette.textSecondary)
                 }
                 asleepLine.padding(.top, 4)
             } else {
                 Text(SleepDurationText.format(asleepMinutes))
-                    .font(StrandFont.number(30, weight: .bold))
-                    .foregroundStyle(primary)
+                    .font(StrandFont.number(32, weight: .bold))
+                    .foregroundStyle(StrandPalette.textPrimary)
                 Text("asleep")
                     .font(StrandFont.footnote)
-                    .foregroundStyle(secondary)
+                    .foregroundStyle(StrandPalette.textSecondary)
             }
         }
         .monospacedDigit()
@@ -234,26 +200,23 @@ struct SleepNightDial: View {
     private var asleepLine: some View {
         HStack(spacing: 4) {
             Text(SleepDurationText.format(asleepMinutes))
-                .font(StrandFont.subhead.weight(.semibold))
-                .foregroundStyle(primary)
+                .font(StrandFont.rounded(13, weight: .semibold))
+                .foregroundStyle(StrandPalette.textPrimary)
             if let needMinutes {
                 Text("out of \(SleepDurationText.format(needMinutes))")
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(secondary)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
             }
         }
     }
 
-    private func accessibilitySummary(needStart: String?) -> String {
+    private var accessibilitySummary: String {
         let f = AppClock.hourMinuteFormatter()
         var parts: [String] = []
         if let score {
             parts.append(String(localized: "Sleep score \(Int(score.rounded())) of 100"))
         }
         parts.append(String(localized: "Asleep \(SleepDurationText.format(asleepMinutes)) from \(f.string(from: onset)) to \(f.string(from: wake))"))
-        if let needMinutes, let needStart {
-            parts.append(String(localized: "Sleep need \(SleepDurationText.format(needMinutes)) before waking, from \(needStart)"))
-        }
         return parts.joined(separator: ". ")
     }
 }

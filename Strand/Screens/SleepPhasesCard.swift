@@ -155,31 +155,34 @@ struct SleepPhasesCard: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: NoopMetrics.space2) {
+            // Fork chantier 7 (design F): a plain title, the source as grey text (no capsule) and the
+            // full-screen switch as a bare blue icon.
             VStack(alignment: .leading, spacing: 3) {
-                Text("Night stages").strandOverline()
+                Text("Night stages")
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
                 Text(subtitle)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Text(source)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
             }
             Spacer(minLength: NoopMetrics.space2)
-            VStack(alignment: .trailing, spacing: 6) {
-                SourceBadge("\(source)", tint: StrandPalette.restColor)
-                if intervals.count >= 2 {
-                    Button { showsFullScreen = true } label: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(StrandPalette.restBright)
-                            .frame(width: 34, height: 34)
-                            .background(StrandPalette.surfaceInset, in: Circle())
-                            .overlay(Circle().strokeBorder(StrandPalette.hairlineStrong, lineWidth: 1))
-                            .padding(5)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Show the chart full screen"))
-                    .padding(-5)
+            if intervals.count >= 2 {
+                Button { showsFullScreen = true } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(StrandPalette.accent)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Show the chart full screen"))
+                .padding(.top, -10)
+                .padding(.trailing, -10)
             }
         }
     }
@@ -215,17 +218,17 @@ struct SleepPhasesCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    Circle()
                         .fill(StrandPalette.sleepStageColor(line.stage, palette: palette))
-                        .frame(width: 9, height: 9)
+                        .frame(width: 8, height: 8)
                     Text(line.stage.label)
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textSecondary)
+                        .font(StrandFont.caption.weight(.semibold))
+                        .foregroundStyle(StrandPalette.sleepStageColor(line.stage, palette: palette))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
                 Text(SleepDurationText.format(line.minutes))
-                    .font(StrandFont.number(17))
+                    .font(StrandFont.rounded(17, weight: .bold))
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(line.typicalMinutes.map { String(localized: "\(line.percent)% · usual \(SleepDurationText.format($0))") }
                      ?? String(localized: "\(line.percent)%"))
@@ -253,8 +256,8 @@ struct SleepPhasesCard: View {
             if let addNap {
                 Button(action: addNap) {
                     Label("Add a nap", systemImage: "plus.circle")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.restBright)
+                        .font(StrandFont.footnote.weight(.medium))
+                        .foregroundStyle(StrandPalette.accent)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -288,17 +291,18 @@ struct SleepCurveChip: View {
         Button {
             withAnimation(StrandMotion.fade) { isOn.toggle() }
         } label: {
+            // Fork chantier 7 (design F): a filled pill without an outline, tinted when the curve is on.
             HStack(spacing: 5) {
-                Circle().fill(isOn && enabled ? tint : StrandPalette.hairlineStrong).frame(width: 7, height: 7)
+                Circle().fill(isOn && enabled ? tint : StrandPalette.textTertiary).frame(width: 7, height: 7)
                 Text(title)
                     .font(StrandFont.caption.weight(.semibold))
                     .lineLimit(1)
                     .fixedSize()
             }
             .foregroundStyle(isOn && enabled ? tint : StrandPalette.textSecondary)
-            .padding(.horizontal, 9)
+            .padding(.horizontal, 10)
             .frame(height: 30)
-            .overlay(Capsule().strokeBorder(isOn && enabled ? tint : StrandPalette.hairlineStrong, lineWidth: 1))
+            .background(isOn && enabled ? tint.opacity(0.18) : NoopVisualStyle.control.opacity(0.6), in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

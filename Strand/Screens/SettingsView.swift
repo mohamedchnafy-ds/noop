@@ -377,7 +377,7 @@ struct SettingsView: View {
                     // the labels are long (German "Nicht-binär") or Text Size is enlarged — the oversized
                     // Settings screen users reported. A menu is a compact button that fits any label length.
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Sex")
                 }
                 rowDivider
@@ -442,6 +442,7 @@ struct SettingsView: View {
                         set: { profile.setCustomHRZonesEnabled($0) }
                     ))
                     .labelsHidden()
+                    .tint(StrandPalette.switchOn)
                     .accessibilityLabel("Custom HR zones")
                 }
                 if profile.hasCustomHRZones {
@@ -470,6 +471,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    .tint(StrandPalette.textSecondary)
                 }
                 Text(dayCycleModeRaw == DayCycleMode.midnight.rawValue
                      ? "Uses a conventional local calendar day from 00:00 to 00:00."
@@ -792,7 +794,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Body measurement units")
                 }
                 rowDivider
@@ -803,7 +805,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Exercise distance and pace units")
                 }
                 rowDivider
@@ -816,7 +818,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Temperature unit")
                 }
                 rowDivider
@@ -830,7 +832,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Skin temperature display")
                 }
                 rowDivider
@@ -843,7 +845,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Effort scale")
                 }
 
@@ -861,7 +863,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .onChangeCompat(of: banisterEffortEnabled) { _ in
                     // Re-score immediately on the flip. The recipe changes stored Effort for EVERY day in
                     // the window, so without this the user waits up to 30 min for the next analyze loop
@@ -930,7 +932,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Language")
                     .onChangeCompat(of: appLanguageRaw) { AppLanguage.apply($0) }
                 }
@@ -952,7 +954,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Clock")
                     // #1829: the resolved clock is memoised, so the write has to drop the memo or the
                     // picker would appear to do nothing until the app restarted.
@@ -968,7 +970,7 @@ struct SettingsView: View {
                 FormRow(label: "AI Coach") {
                     Toggle("", isOn: $coachEnabled)
                         .labelsHidden()
-                        .tint(StrandPalette.accent)
+                        .tint(StrandPalette.switchOn)
                         .accessibilityLabel("AI Coach")
                 }
                 .onChangeCompat(of: coachEnabled) { on in
@@ -988,7 +990,7 @@ struct SettingsView: View {
                     FormRow(label: "Hide bar when scrolling") {
                         Toggle("", isOn: $bottomBarAutoHide)
                             .labelsHidden()
-                            .tint(StrandPalette.accent)
+                            .tint(StrandPalette.switchOn)
                             .accessibilityLabel("Hide bar when scrolling")
                     }
                 }
@@ -1002,7 +1004,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Theme")
                 }
                 rowDivider   // #79: the segmented rows sat flush against each other (missing separator)
@@ -1016,7 +1018,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Chart colours")
                 }
                 rowDivider
@@ -1031,7 +1033,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Sleep chart")
                 }
                 rowDivider
@@ -1045,7 +1047,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("Trend chart style")
                 }
                 #if os(iOS)
@@ -1057,7 +1059,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("App icon")
                     .onChangeCompat(of: useNavyIcon) { applyAppIcon($0) }
                 }
@@ -1073,7 +1075,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 Text("Holds the liquid gauges, the sky and the tilt response still, and turns off the motion sensor that drives them. Saves battery. Low Power Mode and the system Reduce Motion setting already do this.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -1143,11 +1145,11 @@ struct SettingsView: View {
                 // MARK: Strap log — a Settings shortcut so people don't have to hunt for it on the Live
                 // screen (#507: couldn't find it on Mac; #509: same on iPhone). Same text as the Live card.
                 HStack(spacing: 12) {
-                    Text("STRAP LOG").font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                        .foregroundStyle(StrandPalette.textSecondary)
+                    Text("Strap log").font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.textPrimary)
                     Spacer()
                     Button("Copy") { PlatformPasteboard.copy(live.exportableLogText()) }
-                        .buttonStyle(.plain).font(StrandFont.mono).foregroundStyle(StrandPalette.accent)
+                        .buttonStyle(.plain).font(StrandFont.body).foregroundStyle(StrandPalette.accent)
                     Button("Save…") {
                         Task {
                             let extra = await DebugDataDiagnostics.dynamicLines(repo: model.repo)
@@ -1155,7 +1157,7 @@ struct SettingsView: View {
                                                   suggestedName: FileExport.timestampedName("noop-strap-log", ext: "txt"))
                         }
                     }
-                    .buttonStyle(.plain).font(StrandFont.mono).foregroundStyle(StrandPalette.accent)
+                    .buttonStyle(.plain).font(StrandFont.body).foregroundStyle(StrandPalette.accent)
                 }
                 Text("Grab this when you report a bug. It tells me what the app saw. (The full live log is also on the Live screen.)")
                     .font(StrandFont.caption)
@@ -1297,7 +1299,7 @@ struct SettingsView: View {
                     .foregroundStyle(StrandPalette.textPrimary)
             }
             .toggleStyle(.switch)
-            .tint(StrandPalette.accent)
+            .tint(StrandPalette.switchOn)
             Text(detail)
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textTertiary)
@@ -1387,7 +1389,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .accessibilityHint("Adds a water-log card to your dashboard")
 
                 Text("Adds a fluid log and an effort-adjusted daily goal. Log a sip, cup or bottle to fill your progress ring. Data stays on this device.")
@@ -1410,7 +1412,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .accessibilityHint("Offers to save a workout when it spots sustained elevated heart rate")
 
                 Text("After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. Deliberately conservative, so the odd workout may be missed. On \(Platform.deviceNounPhrase) only.")
@@ -1431,7 +1433,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .accessibilityHint("Show a Today card reminding you to log your journal")
 
                 Text("Show a Today card reminding you to log your journal")
@@ -1447,7 +1449,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .accessibilityHint("Stops the screen dimming while a workout is recording")
 
                 Text("Holds the screen awake while you're recording a workout, so your live heart rate stays visible without the device dimming. Only applies during a recording. The screen sleeps normally the rest of the time. Leaving it on does use a bit more battery, and means your unlocked screen stays visible for the whole workout, so flip it off if that's a concern.")
@@ -1476,7 +1478,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .accessibilityHint("Stops the screen locking while your strap's history syncs")
 
                 Text("Holds the screen awake while NOOP pulls stored history from your strap, so you can watch a long sync finish without the phone locking. Only applies while a sync is running and NOOP is open. The screen sleeps normally the rest of the time. It uses a bit more battery while the screen stays on.")
@@ -1508,7 +1510,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .onChangeCompat(of: continuousHrvEnabled) { on in model.ble.setKeepRealtimeForData(on) }
                 Text("Keeps the detailed beat-to-beat heart-rate stream running all day and night, not just while a live screen is open, so NOOP captures much more for overnight HRV, recovery and sleep. Uses more battery: your strap streams heart rate continuously while connected.")
                     .font(StrandFont.caption)
@@ -1523,7 +1525,7 @@ struct SettingsView: View {
                             .foregroundStyle(StrandPalette.textPrimary)
                     }
                     .toggleStyle(.switch)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.switchOn)
                     .onChangeCompat(of: continuousHrvOvernightOnly) { _ in
                         model.ble.setKeepRealtimeForData(PuffinExperiment.keepRealtimeForDataEnabled)
                     }
@@ -1545,7 +1547,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.textSecondary)
                     .accessibilityLabel("HRV window")
                     .onChangeCompat(of: hrvWindowRaw) { _ in
                         // #201/#195: analyzeRecent re-scores the recent ~21 nights' avgHrv under the new
@@ -1595,7 +1597,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 Text("Replaces the Today tab with the prototype redesign. Turn it off any time to return to the classic dashboard. Reads the same live data from your strap.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -1637,7 +1639,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 Text("Silence-first strap coaching during workouts.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -1663,7 +1665,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 Text("A transparent cardiorespiratory recipe that recovers deep and REM better than the older V1 staging, and is now the default. It only changes how already-detected nights are split into stages (detection and scores are unchanged); turn it off to fall back to V1. Takes effect on the next nights staged.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -1678,7 +1680,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 Text("Reviews each scored wake block for real evidence of getting up (walking cadence, a change in body position) instead of just a heart-rate rise. A wake block with no locomotion and a stable posture — a hot night, a brief turn-over — is folded back into light sleep; a real get-up is left alone. Self-checks how much motion detail your strap actually recorded and stays off on a night that's too sparse to trust (older WHOOP 4.0 firmware, mainly). Off by default; takes effect on the next nights staged.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -1709,7 +1711,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 .onChangeCompat(of: spo2CandidateDisplayEnabled) { _ in
                     // Re-score immediately so the candidate is computed and persisted on this
                     // toggle flip — without this the user waits up to 15 min for the next analyze
@@ -1742,7 +1744,7 @@ struct SettingsView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
+                .tint(StrandPalette.switchOn)
                 Text("Your Oura ring only measures daytime heart rate while NOOP keeps it in that mode, and NOOP stops asking whenever the screen has been off for five minutes — which protects the ring's own sleep tracking at night, but also leaves a pocketed phone's day blank on the Heart Rate and HRV charts. On, NOOP keeps asking through the day and stops only for your usual night, learned from your sleep history (an hour before your typical bedtime to an hour after your usual wake), so the night is unchanged. Costs ring battery: the ring runs its own optical sensor all day. Until enough nights are learned it behaves as if off. Off by default.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -2256,7 +2258,7 @@ struct SettingsView: View {
                                 .foregroundStyle(StrandPalette.textSecondary)
                         }
                     }
-                    .tint(StrandPalette.accent)
+                    .tint(StrandPalette.switchOn)
 
                     // Update available: show what's new, with a download straight to the release.
                     if case .available(let v, let url, let notes) = updateChecker.state {
@@ -2488,11 +2490,12 @@ struct SettingsView: View {
 
     // MARK: - Shared bits
 
+    /// The hairline between two rows of a settings card (iOS Settings list look, fork chantier 7).
     private var rowDivider: some View {
         Rectangle()
             .fill(StrandPalette.hairline)
             .frame(height: 1)
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
     }
 }
 
@@ -2558,8 +2561,10 @@ private struct SettingsDisclosureGroup<Content: View>: View {
 
 // MARK: - Section card
 
-/// A grouped settings card: a "Settings" overline + icon + title header, an explanatory blurb,
-/// then content. The surface stays neutral; accent blue is reserved for the icon and controls.
+/// A grouped settings card, laid out like an iOS Settings list (fork chantier 7, mockup « Paramètres »):
+/// the group's name in 13-point grey above the card, the rows in a #1C1C1E card (radius 20, no border),
+/// and the explanatory blurb in 12-point grey under it. `icon` is kept for the call sites; the list look
+/// carries no icon in the group header.
 private struct SettingsSection<Content: View>: View {
     let icon: String
     let title: LocalizedStringKey
@@ -2567,25 +2572,24 @@ private struct SettingsSection<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        StrandCard(padding: NoopMetrics.space5) {
-            VStack(alignment: .leading, spacing: NoopMetrics.space4) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Settings").strandOverline()
-                    HStack(spacing: NoopMetrics.space2 + 2) {
-                        Image(systemName: icon)
-                            .foregroundStyle(StrandPalette.accent)
-                            .accessibilityHidden(true)
-                        Text(title)
-                            .font(StrandFont.title2)
-                            .foregroundStyle(StrandPalette.textPrimary)
-                    }
-                }
-                Text(blurb)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(StrandFont.overline)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .padding(.horizontal, 4)
+                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 0) {
                 content()
             }
+            .padding(.horizontal, NoopMetrics.cardPadding)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+            Text(blurb)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
         }
     }
 }
@@ -3141,7 +3145,8 @@ struct StepsCalibrationSheet: View {
 
 // MARK: - Two-column form row
 
-/// Label on the left, control on the right — the two-column form feel.
+/// Label on the left, control on the right — the two-column form feel. At least 44 points tall, the
+/// iOS Settings row height (fork chantier 7).
 private struct FormRow<Control: View>: View {
     let label: LocalizedStringKey
     @ViewBuilder var control: () -> Control
@@ -3155,7 +3160,7 @@ private struct FormRow<Control: View>: View {
             control()
                 .layoutPriority(1)
         }
-        .frame(minHeight: 32)
+        .frame(minHeight: 44)
     }
 }
 

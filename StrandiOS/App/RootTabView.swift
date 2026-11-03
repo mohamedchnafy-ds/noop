@@ -631,10 +631,10 @@ private enum MoreDestination: Hashable {
 }
 
 
-/// One tappable destination row in the More index. A `NavigationLink` whose label is the standard app row:
-/// the SF Symbol icon tinted `StrandPalette.accent`, the title in the body text colour, a `Spacer`, and a
-/// trailing `chevron.right` in `textTertiary`. ~44pt min height + the card's row insets keep the whole row a
-/// comfortable tap target.
+/// One tappable destination row in the More index. A `NavigationLink` whose label is the standard app row
+/// (fork chantier 7): the SF Symbol icon alone, tinted `StrandPalette.accent` (no tile behind it), the
+/// title in the body text colour, a `Spacer`, and a trailing grey `chevron.right`. ~44pt min height + the
+/// card's row insets keep the whole row a comfortable tap target.
 private struct MoreRow: View {
     let title: LocalizedStringKey
     let icon: String
@@ -651,29 +651,31 @@ private struct MoreRow: View {
                 // its default blue a beat after first render — so the icons flashed green→blue (#184). The
                 // explicit foregroundStyle on the image overrides that; the title keeps the primary colour.
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .regular))
+                    .font(.system(size: 20, weight: .regular))
                     .foregroundStyle(StrandPalette.accent)
-                    .frame(width: 26, alignment: .center)
+                    .frame(width: 28, alignment: .center)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textTertiary)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
+            .padding(.vertical, 6)
+            .frame(minHeight: 48)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            // Hairline under every row; the grouped container clips the last one's overflow so the bottom
-            // edge stays clean (the divider sits inside the card's rounded corners).
+            // Hairline under every row, across the row's width inside the card's side insets; the grouped
+            // container clips the last one's overflow so the bottom edge stays clean.
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(StrandPalette.hairline)
                     .frame(height: 1)
-                    .padding(.leading, 16)
             }
+            .padding(.horizontal, 18)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

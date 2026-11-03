@@ -5,7 +5,8 @@ import WhoopStore
 /// The meal the Coach proposes, as a card under its reply (personal fork, Nutrition mockups 5 and 6),
 /// built on the session card's template: the foods with their quantity and energy, the meal's total in a
 /// boxed row, then "Add to journal" and "Edit". Every figure comes from the card's lines through
-/// `MealJournal` (Ciqual values for 100 g × the quantity); nothing is stored until a tap.
+/// `MealJournal` (Ciqual values for 100 g × the quantity); nothing is stored until a tap. Fork chantier 7:
+/// a blue sentence-case header with its icon alone, a 20-point title, no spaced capitals.
 struct CoachMealCard: View {
     let proposal: CoachMealProposal
     /// Running an action (the journal write): the buttons wait.
@@ -18,9 +19,9 @@ struct CoachMealCard: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Text(proposal.name)
-                .font(StrandFont.headline)
+                .font(StrandFont.sectionTitle)
                 .foregroundStyle(StrandPalette.textPrimary)
-                .padding(.top, 6)
+                .padding(.top, 8)
                 .fixedSize(horizontal: false, vertical: true)
             Text(verbatim: summary)
                 .font(StrandFont.footnote)
@@ -43,7 +44,7 @@ struct CoachMealCard: View {
                 .padding(.top, 14)
         }
         .padding(16)
-        .background(NoopPanelSurface(cornerRadius: 24))
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(proposal.isLabelProduct ? Text("Product read from the label: \(proposal.name)")
                                                     : Text("Proposed meal: \(proposal.name)"))
@@ -56,17 +57,14 @@ struct CoachMealCard: View {
             Label {
                 headerTitle
                     .font(StrandFont.overline)
-                    .tracking(2)
-                    .textCase(.uppercase)
-                    .foregroundStyle(StrandPalette.textSecondary)
             } icon: {
                 Image(systemName: proposal.isLabelProduct ? "barcode" : "fork.knife")
-                    .font(StrandFont.caption.weight(.semibold))
-                    .foregroundStyle(StrandPalette.metricCyan)
+                    .font(StrandFont.subhead.weight(.semibold))
             }
+            .foregroundStyle(StrandPalette.accent)
             Spacer(minLength: 8)
             Text(verbatim: NutritionFormat.mealClock(Date(timeIntervalSince1970: TimeInterval(proposal.eatenAt))))
-                .font(StrandFont.captionNumber)
+                .font(StrandFont.footnote.monospacedDigit())
                 .foregroundStyle(StrandPalette.textSecondary)
         }
     }
@@ -79,9 +77,7 @@ struct CoachMealCard: View {
     private func labelPer100Row(_ per100: MealPer100) -> some View {
         HStack(spacing: 8) {
             Text("Per 100 g")
-                .font(StrandFont.overlineScaled(11))
-                .tracking(1.5)
-                .textCase(.uppercase)
+                .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textSecondary)
             Text(verbatim: NutritionFormat.per100Line(per100))
                 .font(StrandFont.footnote.monospacedDigit())
@@ -143,17 +139,15 @@ struct CoachMealCard: View {
     private func totalBox(_ total: MealNutrients) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Meal total")
-                .font(StrandFont.overline)
-                .tracking(2)
-                .textCase(.uppercase)
+                .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textSecondary)
             MealTotalsRow(total: total)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(StrandPalette.surfaceInset,
+                    in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -186,7 +180,7 @@ struct MealTotalsRow: View {
     var body: some View {
         HStack(spacing: 4) {
             mealTotalValue(title: "kcal", value: NutritionFormat.whole(total.kcal), tint: StrandPalette.onDarkSecondary)
-            // Short labels: four columns share the card's width ("PROTÉINES" would be cut).
+            // Short labels: four columns share the card's width ("Protéines" would be cut).
             mealTotalValue(title: "Prot.", value: NutritionFormat.totalGramsText(total.proteinG),
                        tint: NutritionMacro.protein.tint)
             mealTotalValue(title: "Carb.", value: NutritionFormat.totalGramsText(total.carbsG),
@@ -201,9 +195,7 @@ struct MealTotalsRow: View {
             HStack(spacing: 4) {
                 Circle().fill(tint).frame(width: 6, height: 6).accessibilityHidden(true)
                 Text(title)
-                    .font(StrandFont.overlineScaled(10))
-                    .tracking(1)
-                    .textCase(.uppercase)
+                    .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .lineLimit(1)
             }

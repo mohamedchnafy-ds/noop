@@ -3,7 +3,9 @@ import StrandDesign
 
 /// The session the Coach proposes, as a card under its reply (personal fork, Coach mockup 3): the lines
 /// done on their own, the supersets boxed with their A1/A2 badges and the rest after the round, then
-/// "Add to Lift Log" and "Start". Nothing is stored until one of them is tapped.
+/// "Start" and "Add to Lift Log". Nothing is stored until one of them is tapped. Fork chantier 7 (mockup
+/// « Coach »): a blue sentence-case header with its icon alone, a 20-point title, grey targets, a white
+/// primary button and a grey secondary one, no spaced capitals.
 struct CoachSessionCard: View {
     let proposal: CoachSessionProposal
     let system: UnitSystem
@@ -17,9 +19,9 @@ struct CoachSessionCard: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Text(proposal.name)
-                .font(StrandFont.headline)
+                .font(StrandFont.sectionTitle)
                 .foregroundStyle(StrandPalette.textPrimary)
-                .padding(.top, 6)
+                .padding(.top, 8)
                 .fixedSize(horizontal: false, vertical: true)
             Text(summary)
                 .font(StrandFont.footnote)
@@ -38,7 +40,7 @@ struct CoachSessionCard: View {
                 .padding(.top, 14)
         }
         .padding(16)
-        .background(NoopPanelSurface(cornerRadius: 24))
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Proposed session: \(proposal.name)"))
     }
@@ -50,18 +52,15 @@ struct CoachSessionCard: View {
             Label {
                 Text("Proposed session")
                     .font(StrandFont.overline)
-                    .tracking(2)
-                    .textCase(.uppercase)
-                    .foregroundStyle(StrandPalette.textSecondary)
             } icon: {
                 Image(systemName: "dumbbell.fill")
-                    .font(StrandFont.caption.weight(.semibold))
-                    .foregroundStyle(StrandPalette.effortColor)
+                    .font(StrandFont.subhead.weight(.semibold))
             }
+            .foregroundStyle(StrandPalette.accent)
             Spacer(minLength: 8)
             if let minutes = proposal.minutes {
                 Text("≈ \(minutes) min")
-                    .font(StrandFont.captionNumber)
+                    .font(StrandFont.footnote.monospacedDigit())
                     .foregroundStyle(StrandPalette.textSecondary)
             }
         }
@@ -109,8 +108,6 @@ struct CoachSessionCard: View {
             HStack {
                 Text("Superset \(label)")
                     .font(StrandFont.overline)
-                    .tracking(2)
-                    .textCase(.uppercase)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Spacer(minLength: 8)
                 if let rest = proposal.lines[range.upperBound - 1].restSec,
@@ -137,9 +134,8 @@ struct CoachSessionCard: View {
         .padding(.horizontal, 10)
         .padding(.top, 4)
         .padding(.bottom, 6)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        .background(StrandPalette.surfaceInset,
+                    in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
     }
 
     private func lineRow(_ line: CoachSessionProposal.Line) -> some View {
@@ -153,11 +149,11 @@ struct CoachSessionCard: View {
                 Text(CoachSessionProposal.target(line))
                 if let kg = line.weightKg {
                     Text(" · ")
-                    Text(weight(kg)).fontWeight(.semibold)
+                    Text(weight(kg))
                 }
             }
             .font(StrandFont.subhead.monospacedDigit())
-            .foregroundStyle(StrandPalette.textPrimary)
+            .foregroundStyle(StrandPalette.textSecondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -168,21 +164,25 @@ struct CoachSessionCard: View {
 
     // MARK: Actions
 
+    /// Start (white, primary) then Add to Lift Log (grey, secondary), as in the mockup; where the session
+    /// cannot run (the Mac), Add to Lift Log is the primary button on its own.
     private var actions: some View {
         HStack(spacing: 8) {
-            if proposal.programId == nil {
-                NoopButton("Add to Lift Log", systemImage: "plus", kind: .primary, fullWidth: true, action: onAdd)
+            if let onStart {
+                NoopButton("Start", systemImage: "play.fill", kind: .primary, fullWidth: true, action: onStart)
                     .disabled(busy)
-                    .layoutPriority(1.45)
+                    .layoutPriority(1)
+            }
+            if proposal.programId == nil {
+                NoopButton("Add to Lift Log", kind: onStart == nil ? .primary : .secondary,
+                           fullWidth: true, action: onAdd)
+                    .disabled(busy)
+                    .fixedSize(horizontal: onStart != nil, vertical: false)
             } else {
                 Label("In your Lift Log", systemImage: "checkmark")
                     .font(StrandFont.subhead.weight(.semibold))
                     .foregroundStyle(StrandPalette.accent)
                     .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            if let onStart {
-                NoopButton("Start", systemImage: "play.fill", kind: .secondary, fullWidth: true, action: onStart)
-                    .disabled(busy)
             }
         }
     }

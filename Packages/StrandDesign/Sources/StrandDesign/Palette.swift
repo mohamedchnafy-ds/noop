@@ -130,6 +130,10 @@ public enum StrandPalette {
     public static let accentMuted = Color(light: "#007AFF2E", dark: "#0A84FF2E")
     /// Focus ring color — the same accent, on both schemes.
     public static let focusRing = accent
+    /// The "on" colour of a settings switch: the system green of iOS Settings, fixed whatever the chart
+    /// style (fork chantier 7, mockup « Paramètres »). Set explicitly because the tabs tint their content
+    /// with `accent`, which a switch would otherwise inherit.
+    public static let switchOn = Color(light: "#34C759", dark: "#30D158")
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
     public static let disabledOpacity: Double = 0.45
     /// Liquid-scene activity tint shared by heart-rate feedback and transient sync chrome.
@@ -229,14 +233,14 @@ public enum StrandPalette {
     public static var strainGradient: Gradient { Gradient(stops: strainStops) }
 
     // MARK: Sleep stages — the blue "Rest" colour world (Titanium); Classic adds a purple REM.
-    // WHOOP sleep-stage palette (adopted from ryanAtriumAi #988): four distinct hues per stage —
-    // Awake white-grey #CAC8CB, Light periwinkle #A7A4F4, SWS/Deep orchid-pink #FD96FD, REM purple
-    // #AE5BEF — because the previous three near-identical blues made a fragmented on-device
-    // hypnogram unreadable. Light-mode variants are the same hues darkened for contrast on white.
-    public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#8E949E", dark: "#CAC8CB") }
-    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#7B78E0", dark: "#A7A4F4") }
-    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#C13EC1", dark: "#FD96FD") }
-    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#8E3BD6", dark: "#AE5BEF") }
+    // Four distinct system hues, one per stage (fork chantier 7, design F): Deep indigo #5E5CE6, REM
+    // light blue #64D2FF, Light blue #0A84FF, Awake orange #FF9F0A. They differ in lightness as well
+    // as hue, so a fragmented hypnogram stays readable (the reason #988 moved off near-identical
+    // blues). Light-mode variants are Apple's light counterparts, darker for contrast on white.
+    public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#C93400", dark: "#FF9F0A") }
+    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#007AFF", dark: "#0A84FF") }
+    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#5856D6", dark: "#5E5CE6") }
+    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#0071A4", dark: "#64D2FF") }
 
     // MARK: HR zones — Titanium cool→warm (no green), or the Classic grey→green→yellow→orange→red.
     public static var zone1: Color { isClassic ? cZone1 : Color(light: "#3A80D6", dark: "#4A90E2") }
@@ -264,6 +268,12 @@ public enum StrandPalette {
     public static let caloriesResting = Color(light: "#7F6545", dark: "#A2845E")
     /// Sleep debt (fork chantier 7, Apple indigo).
     public static let sleepDebt = Color(light: "#5856D6", dark: "#5E5CE6")
+    /// Nutrition (fork chantier 7): the eaten ring in Apple green, then one distinct hue per macro —
+    /// protein purple, carbs orange, fat yellow — so protein and fat no longer share a colour.
+    public static let intakeColor = Color(light: "#248A3D", dark: "#30D158")
+    public static let macroProtein = Color(light: "#8944AB", dark: "#BF5AF2")
+    public static let macroCarbs = Color(light: "#C93400", dark: "#FF9F0A")
+    public static let macroFat = Color(light: "#B25000", dark: "#FFD60A")
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
     //
@@ -283,6 +293,16 @@ public enum StrandPalette {
     public static var chargeGlow: Color    { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#248A3D", dark: "#30D158") }
     /// Diagonal accent pair for the Charge card wash + gauge stroke (deep → bright).
     public static var chargeGradient: Gradient { Gradient(colors: [chargeDeep, chargeBright]) }
+
+    /// Charge tint for a score on 0...100, in the WHOOP bands drawn with the system colours: red under
+    /// 34, yellow from 34 to 66, green from 67 (fork chantier 7, the Today ring and its line).
+    public static func chargeTint(_ score: Double) -> Color {
+        switch score {
+        case ..<34: return Color(light: "#D70015", dark: "#FF453A")
+        case ..<67: return Color(light: "#B25000", dark: "#FFD60A")
+        default:    return chargeColor
+        }
+    }
 
     /// Effort (strain) — amber world / Classic blue.
     public static var effortColor: Color   { isClassic ? Color(light: "#3A74C4", dark: "#4A90E2") : Color(light: "#007AFF", dark: "#0A84FF") }

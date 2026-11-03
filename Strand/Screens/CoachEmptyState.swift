@@ -2,7 +2,9 @@ import SwiftUI
 import StrandDesign
 
 /// A round header button face of the Coach screen (personal fork, Coach mockup 1): the history, a new
-/// conversation and the ⋯ menu all share it, so the three read as one row.
+/// conversation and the ⋯ menu all share it, so the three read as one row. Fork chantier 7: only the
+/// symbol; the caller wraps it in the Liquid Glass circle (`nativeLiquidGlassButtonChrome`), the same
+/// chrome as the Today and Sleep header buttons.
 struct CoachHeaderIcon: View {
     let symbol: String
 
@@ -10,15 +12,14 @@ struct CoachHeaderIcon: View {
         Image(systemName: symbol)
             .font(StrandFont.headline)
             .foregroundStyle(StrandPalette.textPrimary)
-            .frame(width: 44, height: 44)
-            .background(StrandPalette.surfaceInset, in: Circle())
-            .overlay(Circle().strokeBorder(StrandPalette.hairline, lineWidth: 1))
+            .frame(width: NoopMetrics.compactControlSize, height: NoopMetrics.compactControlSize)
             .contentShape(Circle())
     }
 }
 
 /// What an empty conversation shows (personal fork, Coach mockup 1): the brief on demand, the suggested
-/// questions theme by theme, what the coach reads, and when anything is sent.
+/// questions theme by theme, and what the coach reads. When anything is sent is said once, under the
+/// screen's title (fork chantier 7), not here as well.
 ///
 /// Nothing here sends on its own. The brief runs only when its card is tapped, and a suggestion is asked
 /// only when it is tapped, both through the callbacks the screen hands in (`beginBriefIfNeeded` and
@@ -52,11 +53,11 @@ struct CoachEmptyState: View {
             if briefAvailable { onBrief() } else { onShowData() }
         } label: {
             HStack(spacing: 14) {
+                // Fork chantier 7: the coloured icon alone, no tinted disc behind it.
                 Image(systemName: "sun.max.fill")
-                    .font(StrandFont.subhead.weight(.semibold))
+                    .font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.metricAmber)
                     .frame(width: 34, height: 34)
-                    .background(StrandPalette.metricAmber.opacity(0.16), in: Circle())
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Today's brief")
@@ -78,10 +79,8 @@ struct CoachEmptyState: View {
                     Text("Generate")
                         .font(StrandFont.subhead.weight(.semibold))
                         .foregroundStyle(StrandPalette.accent)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 4)
                         .frame(minHeight: 32)
-                        .overlay(Capsule(style: .continuous)
-                            .strokeBorder(StrandPalette.accent.opacity(0.5), lineWidth: 1))
                 } else {
                     Image(systemName: "chevron.right")
                         .font(StrandFont.caption.weight(.semibold))
@@ -109,8 +108,6 @@ struct CoachEmptyState: View {
             Label {
                 Text(themeTitle(theme))
                     .font(StrandFont.overline)
-                    .tracking(2)
-                    .textCase(.uppercase)
                     .foregroundStyle(StrandPalette.textSecondary)
             } icon: {
                 Image(systemName: themeSymbol(theme))
@@ -143,7 +140,7 @@ struct CoachEmptyState: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "arrow.up.right")
                     .font(StrandFont.caption.weight(.semibold))
-                    .foregroundStyle(StrandPalette.textTertiary)
+                    .foregroundStyle(StrandPalette.textSecondary)
                     .accessibilityHidden(true)
             }
             .padding(.vertical, 12)
@@ -180,6 +177,8 @@ struct CoachEmptyState: View {
 
     // MARK: Footer
 
+    /// What the coach reads, one tap from its screen. The "Sent to … only when you ask" line that sat
+    /// under it moved to the screen's header (fork chantier 7), so the screen states it once.
     private var footer: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button(action: onShowData) {
@@ -198,14 +197,6 @@ struct CoachEmptyState: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            Label {
-                Text("Sent to \(providerName) only when you ask")
-            } icon: {
-                Image(systemName: "lock")
-            }
-            .font(StrandFont.footnote)
-            .foregroundStyle(StrandPalette.textTertiary)
-            .accessibilityElement(children: .combine)
         }
         .padding(.top, -4)
     }

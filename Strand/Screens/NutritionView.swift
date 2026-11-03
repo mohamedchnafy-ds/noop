@@ -75,7 +75,6 @@ struct NutritionView: View {
         List {
             Group {
                 header
-                dayNavigator
                 NutritionBalanceCard(model: NutritionBalanceModel(summary: current, plan: plan),
                                      onGoals: { showGoals = true })
                 mealsTitle(count: meals.count)
@@ -174,42 +173,34 @@ struct NutritionView: View {
 
     // MARK: Parts
 
+    /// Fork chantier 7: the day in 13 semibold grey capitals over the title in 34 bold; ‹ › and the goals
+    /// on the right as round glass buttons (the day is named once, here).
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("Nutrition")
-                .font(StrandFont.screenTitle)
-                .foregroundStyle(StrandPalette.textPrimary)
-            Spacer(minLength: 0)
-            Button { showGoals = true } label: {
-                Image(systemName: "target")
-                    .font(.system(size: 17, weight: .semibold))
+        HStack(alignment: .bottom, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: dayLabel)
+                    .font(StrandFont.overline)
+                    .textCase(.uppercase)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text("Nutrition")
+                    .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(StrandPalette.surfaceRaised, in: Circle())
-                    .overlay(Circle().strokeBorder(StrandPalette.hairline, lineWidth: NoopMetrics.hairlineWidth))
+                    .accessibilityAddTraits(.isHeader)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Nutrition goals"))
-        }
-        .padding(.top, 8)
-    }
-
-    private var dayNavigator: some View {
-        HStack {
-            journalDayButton(symbol: "chevron.left", label: "Previous day", enabled: dayOffset < Self.maxDaysBack) {
+            Spacer(minLength: 0)
+            journalHeaderButton(symbol: "chevron.left", label: "Previous day", enabled: dayOffset < Self.maxDaysBack) {
                 dayOffset += 1
             }
-            Spacer(minLength: 4)
-            Text(verbatim: dayLabel)
-                .font(StrandFont.subhead.weight(.semibold))
-                .foregroundStyle(StrandPalette.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Spacer(minLength: 4)
-            journalDayButton(symbol: "chevron.right", label: "Next day", enabled: dayOffset > 0) {
+            journalHeaderButton(symbol: "chevron.right", label: "Next day", enabled: dayOffset > 0) {
                 dayOffset -= 1
             }
+            journalHeaderButton(symbol: "target", label: "Nutrition goals", enabled: true) {
+                showGoals = true
+            }
         }
+        .padding(.top, 8)
     }
 
     private var dayLabel: String {
@@ -221,14 +212,18 @@ struct NutritionView: View {
         }
     }
 
-    private func journalDayButton(symbol: String, label: LocalizedStringKey, enabled: Bool,
-                           action: @escaping () -> Void) -> some View {
+    /// A round header button: a Liquid Glass circle on iOS, a flat surface circle elsewhere. A plain button
+    /// with the glass on its label, so the three buttons of the List row stay separate taps.
+    private func journalHeaderButton(symbol: String, label: LocalizedStringKey, enabled: Bool,
+                                     action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(StrandPalette.textSecondary)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            journalHeaderCircle(
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .frame(width: NoopMetrics.compactControlSize, height: NoopMetrics.compactControlSize)
+            )
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -236,9 +231,22 @@ struct NutritionView: View {
         .accessibilityLabel(Text(label))
     }
 
+    @ViewBuilder
+    private func journalHeaderCircle<Content: View>(_ content: Content) -> some View {
+        #if os(iOS)
+        content.nativeLiquidGlassCircleFinish()
+        #else
+        content.background(StrandPalette.surfaceRaised, in: Circle())
+        #endif
+    }
+
+    /// "Meals" in 20 bold (fork chantier 7), the count on the right.
     private func mealsTitle(count: Int) -> some View {
-        HStack {
-            Text("Meals").strandOverline()
+        HStack(alignment: .firstTextBaseline) {
+            Text("Meals")
+                .font(StrandFont.sectionTitle)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             if count > 0 {
                 Text(count == 1 ? String(localized: "1 meal") : String(localized: "\(count) meals"))
@@ -247,7 +255,7 @@ struct NutritionView: View {
             }
         }
         .padding(.top, 14)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 2)
     }
 
     /// The Coach is on, connected, and its provider reads photos (Anthropic).
@@ -311,9 +319,11 @@ struct NutritionBalanceModel: Equatable {
     var proteinGoalG: Int?
     var carbsGoalG: Int?
     var fatGoalG: Int?
+    /// The day's measured expenditure split (activity / resting), for the Spent cell's bar and legend.
+    var spent: TodayEnergy.Split?
 
     init(eaten: MealNutrients, goalKcal: Int?, spentKcal: Int?, balanceKcal: Int?,
-         proteinGoalG: Int?, carbsGoalG: Int?, fatGoalG: Int?) {
+         proteinGoalG: Int?, carbsGoalG: Int?, fatGoalG: Int?, spent: TodayEnergy.Split? = nil) {
         self.eaten = eaten
         self.goalKcal = goalKcal
         self.spentKcal = spentKcal
@@ -321,6 +331,7 @@ struct NutritionBalanceModel: Equatable {
         self.proteinGoalG = proteinGoalG
         self.carbsGoalG = carbsGoalG
         self.fatGoalG = fatGoalG
+        self.spent = spent
     }
 
     init(summary: NutritionDaySummary, plan: NutritionGoals.Plan) {
@@ -329,7 +340,8 @@ struct NutritionBalanceModel: Equatable {
                   balanceKcal: summary.balanceKcal,
                   proteinGoalG: plan.proteinG > 0 ? plan.proteinG : nil,
                   carbsGoalG: plan.carbsG,
-                  fatGoalG: plan.fatG > 0 ? plan.fatG : nil)
+                  fatGoalG: plan.fatG > 0 ? plan.fatG : nil,
+                  spent: summary.spent)
     }
 
     func goal(_ macro: NutritionMacro) -> Int? {
@@ -341,120 +353,210 @@ struct NutritionBalanceModel: Equatable {
     }
 }
 
-/// The day's intake card: the big gauge, goal / spent / balance, then the three macros.
+/// The day's intake card, laid out like Today's hero (fork chantier 7): four flat concentric rings (eaten
+/// against the intake goal, then protein, carbs and fat against theirs) beside one line each, a hairline,
+/// then three cells on Today's fixed row grid — Goal, Spent (Today's own cell), Net.
 struct NutritionBalanceCard: View {
     let model: NutritionBalanceModel
     var onGoals: () -> Void = {}
 
-    var body: some View {
-        VStack(spacing: 0) {
-            NutritionIntakeGauge(eatenKcal: model.eaten.kcal, goalKcal: model.goalKcal)
-            HStack(alignment: .top, spacing: 4) {
-                stat(String(localized: "Goal"), model.goalKcal.map(NutritionFormat.whole))
-                stat(String(localized: "Spent"), model.spentKcal.map(NutritionFormat.whole))
-                stat(String(localized: "Net"), model.balanceKcal.map(NutritionFormat.signedKcal))
-            }
-            .padding(.top, 10)
-            Rectangle()
-                .fill(StrandPalette.hairline)
-                .frame(height: NoopMetrics.hairlineWidth)
-                .padding(.top, 14)
-            Button(action: onGoals) {
-                HStack(alignment: .top, spacing: 4) {
-                    ForEach(NutritionMacro.allCases, id: \.self) { macro in
-                        macroGauge(macro)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 12)
-        }
-        .padding(.top, 18)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity)
-        .background(NoopPanelSurface(cornerRadius: 28, elevated: true))
+    /// The share of the goal eaten, full at the goal (`NutritionIntakeGauge.intakeArc`).
+    private var intakeFill: Double {
+        NutritionIntakeGauge.intakeArc(eaten: model.eaten.kcal, goal: model.goalKcal).fill
     }
 
-    private func stat(_ title: String, _ value: String?) -> some View {
-        VStack(spacing: 3) {
-            Text(title.uppercased())
-                .font(StrandFont.overlineScaled(11))
-                .tracking(1.5)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            if let value {
-                Text(verbatim: value)
-                    .font(StrandFont.number(17))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            } else {
-                Text("no data")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func macroGauge(_ macro: NutritionMacro) -> some View {
+    /// A macro's share of its goal, full at the goal; no goal, no fill.
+    private func macroFill(_ macro: NutritionMacro) -> Double {
         let eaten = macro.grams(model.eaten)
         let goal = model.goal(macro)
         let scale = max(Double(goal ?? 0), eaten)
-        let fill = scale > 0 && goal != nil ? eaten / scale : 0
-        let mark: Double? = {
-            guard let goal, goal > 0, eaten > Double(goal) else { return nil }
-            return Double(goal) / scale
-        }()
-        return VStack(spacing: 5) {
-            HStack(spacing: 5) {
-                NutritionMacroDot(macro: macro)
-                Text(macro.title.uppercased())
-                    .font(StrandFont.overlineScaled(10.5))
-                    .tracking(1.2)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+        return scale > 0 && goal != nil ? eaten / scale : 0
+    }
+
+    private var rings: [TodayRing] {
+        [TodayRing(fraction: intakeFill, tint: StrandPalette.intakeColor)]
+            + NutritionMacro.allCases.map { TodayRing(fraction: macroFill($0), tint: $0.tint) }
+    }
+
+    private var hairline: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+            HStack(alignment: .center, spacing: 14) {
+                TodayConcentricRings(rings: rings)
+                VStack(alignment: .leading, spacing: 0) {
+                    eatenRow
+                    hairline
+                    Button(action: onGoals) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(NutritionMacro.allCases.enumerated()), id: \.offset) { index, macro in
+                                if index > 0 { hairline }
+                                macroRow(macro)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            TodayHalfGauge(parts: [TodayHalfGauge.Part(from: 0, to: fill, color: macro.tint)],
-                           goalMark: mark, value: NutritionFormat.grams(eaten), unit: "g")
-            if let goal {
-                Text("out of \(Text(verbatim: NutritionFormat.gramsUnit(goal)).foregroundColor(StrandPalette.textPrimary).fontWeight(.semibold))")
-                    .font(StrandFont.overlineScaled(11))
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
+            hairline
+            HStack(alignment: .top, spacing: 12) {
+                goalCell
+                TodayCaloriesTile(split: model.spent, goal: nil)
+                netCell
             }
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(goal.map {
-            String(localized: "\(macro.title): \(NutritionFormat.grams(eaten)) g of a \(NutritionFormat.whole($0)) g goal")
-        } ?? String(localized: "\(macro.title): \(NutritionFormat.grams(eaten)) g")))
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+    }
+
+    // MARK: Lines beside the rings
+
+    private var eatenRow: some View {
+        TodayRingRow(symbol: "fork.knife", tint: StrandPalette.intakeColor, label: String(localized: "Eaten"),
+                     value: NutritionFormat.whole(model.eaten.kcal),
+                     caption: model.goalKcal.map { "/" + NutritionFormat.kcalUnit($0) } ?? String(localized: "kcal"))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(model.goalKcal.map {
+                String(localized: "\(NutritionFormat.whole(model.eaten.kcal)) kcal eaten of a \(NutritionFormat.whole($0)) kcal goal")
+            } ?? String(localized: "\(NutritionFormat.whole(model.eaten.kcal)) kcal eaten")))
+    }
+
+    private func macroRow(_ macro: NutritionMacro) -> some View {
+        let eaten = macro.grams(model.eaten)
+        let goal = model.goal(macro)
+        return TodayRingRow(symbol: "drop.fill", tint: macro.tint, label: macro.title,
+                            value: NutritionFormat.grams(eaten),
+                            caption: goal.map { "/" + NutritionFormat.gramsUnit($0) } ?? "g")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(goal.map {
+                String(localized: "\(macro.title): \(NutritionFormat.grams(eaten)) g of a \(NutritionFormat.whole($0)) g goal")
+            } ?? String(localized: "\(macro.title): \(NutritionFormat.grams(eaten)) g")))
+    }
+
+    // MARK: Cells
+
+    /// "1 065 left" under the goal: what is left of it once the day's meals are counted, never below 0.
+    private var goalLegend: Text? {
+        guard let goal = model.goalKcal else { return nil }
+        let left = NutritionFormat.whole(max(0, goal - model.eaten.kcal))
+        return Text("\(left) left")
+    }
+
+    private var goalCell: some View {
+        TodayHeroCell(symbol: "target", tint: StrandPalette.intakeColor, title: String(localized: "Goal"),
+                      value: model.goalKcal.map(NutritionFormat.whole), unit: "kcal", legend: goalLegend) {
+            NutritionFillBar(fraction: model.goalKcal == nil ? nil : intakeFill, tint: StrandPalette.intakeColor)
+        }
+    }
+
+    /// "deficit" or "surplus" under the balance; nothing at exactly zero.
+    private var netLegend: Text? {
+        guard let balance = model.balanceKcal, balance != 0 else { return nil }
+        if balance < 0 {
+            return Text("deficit")
+        } else {
+            return Text("surplus")
+        }
+    }
+
+    private var netCell: some View {
+        TodayHeroCell(symbol: "chart.line.uptrend.xyaxis", tint: StrandPalette.restColor,
+                      title: String(localized: "Net"),
+                      value: model.balanceKcal.map(NutritionFormat.signedKcal), unit: "kcal", legend: netLegend) {
+            NutritionBalanceBar(balanceKcal: model.balanceKcal, scaleKcal: model.goalKcal ?? model.spentKcal,
+                                tint: StrandPalette.restColor)
+        }
     }
 }
 
-/// One meal in the day's list: its origin, name, time and macros, and its energy. Consecutive rows read
-/// as one card: the first is rounded at the top, the last at the bottom, a hairline between them.
+/// A flat bar on a white 10 % track, filled to `fraction` (0…1) in `tint`; nil draws the track alone.
+struct NutritionFillBar: View {
+    var fraction: Double?
+    var tint: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            barBody(width: geo.size.width)
+                .frame(height: geo.size.height)
+        }
+    }
+
+    private func barBody(width: CGFloat) -> some View {
+        let filled = width * CGFloat(min(1, max(0, fraction ?? 0)))
+        return ZStack(alignment: .leading) {
+            Capsule().fill(StrandPalette.textPrimary.opacity(0.10))
+            if filled > 0.5 {
+                Capsule().fill(tint).frame(width: filled)
+            }
+        }
+        .frame(width: width, height: 6)
+    }
+}
+
+/// The balance bar: a white tick at the middle for zero, a translucent band from it to the left for a
+/// deficit or to the right for a surplus, sized against the day's goal (half the bar = the whole goal).
+struct NutritionBalanceBar: View {
+    var balanceKcal: Int?
+    var scaleKcal: Int?
+    var tint: Color
+
+    /// The band's share of the bar's width, at most half of it.
+    private var share: CGFloat {
+        guard let balanceKcal, let scaleKcal, scaleKcal > 0 else { return 0 }
+        return min(0.5, CGFloat(abs(balanceKcal)) / CGFloat(scaleKcal))
+    }
+
+    private var isDeficit: Bool { (balanceKcal ?? 0) < 0 }
+
+    var body: some View {
+        GeometryReader { geo in
+            barBody(width: geo.size.width)
+                .frame(height: geo.size.height)
+        }
+    }
+
+    private func barBody(width: CGFloat) -> some View {
+        let half = width / 2
+        let band = share * width
+        let bandX: CGFloat = isDeficit ? half - band : half
+        return ZStack(alignment: .leading) {
+            Capsule().fill(StrandPalette.textPrimary.opacity(0.10)).frame(height: 6)
+            if band > 0.5 {
+                Capsule()
+                    .fill(tint.opacity(0.6))
+                    .frame(width: band, height: 6)
+                    .offset(x: bandX)
+            }
+            Rectangle()
+                .fill(StrandPalette.textPrimary)
+                .frame(width: 2, height: 10)
+                .offset(x: half - 1)
+        }
+        .frame(width: width, height: 10, alignment: .leading)
+    }
+}
+
+/// One meal in the day's list: its origin icon (grey, alone), name, time and macros, its energy in SF
+/// Rounded and a chevron. Consecutive rows read as one flat card: the first is rounded at the top, the last
+/// at the bottom, a hairline between them.
 struct NutritionMealRow: View {
     let entry: MealEntry
     let isFirst: Bool
     let isLast: Bool
 
-    private static let radius: CGFloat = 26
+    private static let radius = NoopMetrics.cardRadius
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             NutritionOriginIcon(origin: entry.meal.origin)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: NutritionFormat.mealTitle(entry))
-                    .font(StrandFont.body)
+                    .font(StrandFont.body.weight(.medium))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                 Text(verbatim: NutritionFormat.mealDetail(entry))
@@ -466,7 +568,7 @@ struct NutritionMealRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(verbatim: NutritionFormat.mealKcal(entry))
-                .font(StrandFont.number(16))
+                .font(StrandFont.rounded(17, weight: .semibold))
                 .foregroundStyle(StrandPalette.textPrimary)
                 .monospacedDigit()
             Image(systemName: "chevron.right")
@@ -474,8 +576,10 @@ struct NutritionMealRow: View {
                 .foregroundStyle(StrandPalette.textTertiary)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 64)
+        .padding(.horizontal, 18)
+        .padding(.top, isFirst ? 16 : 12)
+        .padding(.bottom, isLast ? 16 : 12)
+        .frame(minHeight: 60)
         .background(
             UnevenRoundedRectangle(topLeadingRadius: isFirst ? Self.radius : 0,
                                    bottomLeadingRadius: isLast ? Self.radius : 0,
@@ -489,7 +593,7 @@ struct NutritionMealRow: View {
                 Rectangle()
                     .fill(StrandPalette.hairline)
                     .frame(height: NoopMetrics.hairlineWidth)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 18)
             }
         }
         .contentShape(Rectangle())
@@ -501,17 +605,16 @@ struct NutritionMealRow: View {
 /// The journal of a day with no meal yet.
 struct NutritionEmptyMeals: View {
     var body: some View {
-        NoopCard {
-            HStack(alignment: .top, spacing: 14) {
+        NoopCard(padding: 18) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "fork.knife")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(StrandPalette.onDarkSecondary)
-                    .frame(width: 34, height: 34)
-                    .background(StrandPalette.onDarkSecondary.opacity(0.14), in: Circle())
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .frame(width: 24)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("No meals this day")
-                        .font(StrandFont.headline)
+                        .font(StrandFont.body.weight(.medium))
                         .foregroundStyle(StrandPalette.textPrimary)
                     Text("Add what you eat by hand, again from your recent meals, or from a photo with the Coach. The app calculates the calories and macros.")
                         .font(StrandFont.footnote)

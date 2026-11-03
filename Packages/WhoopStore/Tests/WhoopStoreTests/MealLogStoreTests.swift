@@ -38,14 +38,14 @@ final class MealLogStoreTests: XCTestCase {
     func testAPlannedMealIsKeptApartAndCanBeMarkedEaten() async throws {
         let dbQueue = try DatabaseQueue()
         try WhoopStore.makeMigrator().migrate(dbQueue, upTo: "v51-meal-log")
-        try dbQueue.write { db in
+        try await dbQueue.write { db in
             try db.execute(sql: """
                 INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt)
                 VALUES ('old', '2026-11-01', 1, 'Old', 'manual', 0, 1, 1)
                 """)
         }
         try WhoopStore.makeMigrator().migrate(dbQueue)
-        let old = try dbQueue.read { db in
+        let old = try await dbQueue.read { db in
             try Row.fetchAll(db, sql: "SELECT * FROM meal").map(MealRow.decode)
         }
         XCTAssertEqual(old.map(\.planned), [false], "a meal written before v52 stays eaten")

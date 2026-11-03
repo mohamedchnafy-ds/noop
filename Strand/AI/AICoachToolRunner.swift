@@ -69,7 +69,9 @@ extension AICoachEngine {
                                    durationMin: w.durationS.map { Int(($0 / 60).rounded()) },
                                    effort: w.strain, avgHr: w.avgHr, maxHr: w.maxHr,
                                    kcal: w.energyKcal.map { Int($0.rounded()) },
-                                   distance: w.distanceM.map { UnitFormatter.distanceFromMeters($0, system: distanceSystem) })
+                                   distance: w.distanceM.map { UnitFormatter.distanceFromMeters($0, system: distanceSystem) },
+                                   start: Self.toolClockFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(w.startTs))),
+                                   enteredByHand: WorkoutSource.classify(w.source) == .manual)
             }
             return CoachTools.workouts(Array(rows), days: days)
 

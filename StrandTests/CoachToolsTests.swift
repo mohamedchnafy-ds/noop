@@ -11,11 +11,11 @@ final class CoachToolsTests: XCTestCase {
 
     // MARK: Definitions
 
-    /// Without "Use my data" only the cards are offered (the session, the meal and its Ciqual search):
-    /// none reads the user's data and none saves anything.
+    /// Without "Use my data" only the cards are offered (the session, the meal and its Ciqual search, the nap
+    /// and the fact to remember): none reads the user's data and none saves anything without a tap.
     func testOnlyTheCardsWithoutDataAccess() {
         XCTAssertEqual(names(CoachTools.definitions(dataConsent: false, labBook: true)),
-                       ["create_program", "search_foods", "log_meal", "read_label"])
+                       ["create_program", "search_foods", "log_meal", "read_label", "log_nap", "remember"])
     }
 
     func testTheLabBookToolOnlyWithTheSecondOptIn() {
@@ -25,7 +25,8 @@ final class CoachToolsTests: XCTestCase {
 
     func testEveryToolIsNamedOnceAndHasAnObjectSchema() throws {
         let tools = CoachTools.definitions(dataConsent: true, labBook: true)
-        let cards = ["create_program", "search_foods", "log_meal", "read_label"]
+        let cards = ["create_program", "search_foods", "log_meal", "read_label", "log_nap", "remember",
+                     "correct_workout", "correct_lift_session"]
         XCTAssertEqual(Set(names(tools)), Set(CoachTools.Name.allCases.map(\.rawValue) + cards))
         XCTAssertEqual(names(tools).count, CoachTools.Name.allCases.count + cards.count)
         for tool in tools {
@@ -137,6 +138,13 @@ final class CoachToolsTests: XCTestCase {
         XCTAssertTrue(text.contains("2026-10-30 Running, 42 min, effort 12.3, avg HR 151, max HR 178, 480 kcal, 7.2 km"))
         XCTAssertTrue(text.hasSuffix("2026-10-28 Walking"))
         XCTAssertEqual(CoachTools.workouts([], days: 14), "No workout recorded in the last 14 days.")
+    }
+
+    /// The start and "entered by hand" are what `correct_workout` names a workout by (chantier 8).
+    func testAWorkoutNamesItsStartAndWhetherItWasEnteredByHand() {
+        let row = CoachTools.Workout(day: "2026-11-02", sport: "Running", durationMin: 45, effort: nil, avgHr: nil,
+                                     maxHr: nil, kcal: nil, distance: nil, start: "18:00", enteredByHand: true)
+        XCTAssertTrue(CoachTools.workouts([row], days: 7).hasSuffix("2026-11-02 18:00 Running, 45 min, entered by hand"))
     }
 
     private func set(_ exercise: String, _ kg: Double?, _ reps: Int?, warmup: Bool = false) -> LiftSetRow {

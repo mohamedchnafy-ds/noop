@@ -141,7 +141,8 @@ enum CoachTools {
     static func definitions(dataConsent: Bool, labBook: Bool) -> [[String: Any]] {
         // The cards: the session, and the meal with the Ciqual search it needs. None reads the user's data.
         let cards = [CoachSessionProposal.definition, CoachMealProposal.searchDefinition, CoachMealProposal.logDefinition,
-                     CoachMealProposal.labelDefinition]
+                     CoachMealProposal.labelDefinition, CoachActionProposal.napDefinition,
+                     CoachActionProposal.rememberDefinition]
         guard dataConsent else { return cards }
         var tools: [[String: Any]] = [
             tool(.metricHistory,
@@ -210,7 +211,8 @@ enum CoachTools {
                               + "each, with their dates. Logged by the user, not medical findings.",
                               properties: [:], required: []))
         }
-        return tools + cards
+        // The corrections name a record the read tools listed, so they come with "Use my data" only.
+        return tools + cards + [CoachActionProposal.workoutDefinition, CoachActionProposal.liftDefinition]
     }
 
     private static func tool(_ name: Name, _ description: String, properties: [String: Any],
@@ -426,6 +428,10 @@ enum CoachTools {
         var maxHr: Int?
         var kcal: Int?
         var distance: String?
+        /// "18:05", the start `correct_workout` names the workout by (chantier 8).
+        var start: String? = nil
+        /// True for a workout entered by hand, the only kind `correct_workout` can change.
+        var enteredByHand = false
     }
 
     /// `get_workouts`: newest first, one line each.
@@ -433,13 +439,14 @@ enum CoachTools {
         guard !rows.isEmpty else { return "No workout recorded in the last \(days) days." }
         var lines = ["Workouts of the last \(days) days (newest first):"]
         for w in rows {
-            var parts = ["\(w.day) \(w.sport)"]
+            var parts = [[w.day, w.start, w.sport].compactMap { $0 }.joined(separator: " ")]
             if let m = w.durationMin { parts.append("\(m) min") }
             if let e = w.effort { parts.append("effort \(String(format: "%.1f", e))") }
             if let hr = w.avgHr { parts.append("avg HR \(hr)") }
             if let hr = w.maxHr { parts.append("max HR \(hr)") }
             if let k = w.kcal { parts.append("\(k) kcal") }
             if let d = w.distance { parts.append(d) }
+            if w.enteredByHand { parts.append("entered by hand") }
             lines.append(parts.joined(separator: ", "))
         }
         return lines.joined(separator: "\n")

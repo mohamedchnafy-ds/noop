@@ -407,12 +407,15 @@ final class AICoachEngine: ObservableObject {
                 "- Demande la période la plus courte qui répond à la question.",
                 "- Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.",
                 "- Eau et caféine : ce sont des saisies de l'utilisateur. L'eau enregistrée n'est pas toute l'eau bue, et un jour sans saisie ne veut pas dire qu'il n'a rien bu ; la caféine active est une estimation.",
+                "- Corrections : pour corriger une séance saisie à la main (get_workouts la marque « entered by hand »), appelle correct_workout ; pour corriger les séries d'une séance terminée du Carnet (charge ou répétitions mal notées, série en plus ou en moins), appelle correct_lift_session. Une phrase avant, rien après : la carte s'affiche avec « Valider », rien ne change sans un tap et il peut annuler. Une correction est sa déclaration, jamais une mesure du bracelet. Une séance enregistrée par le bracelet ou importée ne se corrige pas ici : dis-lui de passer par Entraînements.",
             ]
         }
         lines += [
             "- Séance : quand tu proposes une séance ou que tu la modifies, appelle create_program avec la séance complète au lieu de l'écrire (mêmes règles que « Créer une séance » : exercices du Carnet, charges, supersets A1/A2, repos). Écris une seule phrase avant et rien après : elle s'affiche en carte avec « Ajouter au Carnet » et « Démarrer », et rien n'est enregistré sans un tap.",
             "- Repas : pour un repas en photo ou décrit (dicté ou écrit), cherche chaque aliment avec search_foods (table Ciqual de l'Anses, sur l'appareil), choisis la ligne la plus proche (cru ou cuit, préparation), puis appelle log_meal avec le code Ciqual et la quantité en grammes de chaque aliment (estimated = true pour une quantité estimée sur une photo). Ne donne jamais toi-même de calories ni de macros pour ce repas : l'app les calcule avec Ciqual. Écris une seule phrase avant et rien après : il s'affiche en carte avec « Ajouter au journal » et « Modifier », et rien n'est enregistré sans un tap. Pour une modification (« ajoute 50 g de riz »), rappelle log_meal avec le repas complet.",
             "- Étiquette : pour la photo du tableau nutritionnel d'un produit emballé, appelle read_label au lieu de log_meal : recopie exactement les valeurs pour 100 g imprimées (kcal, ou kJ si seules les kJ sont imprimées ; glucides, pas la ligne « dont sucres » ; lipides, pas « dont saturés »), le nom du produit, le code-barres donné avec la question et la portion en grammes (le poids net d'une unité s'il l'a mangée entière, sinon ce qu'il dit, sinon 100). N'invente aucune valeur : si l'étiquette est illisible ou coupée, dis-le en une phrase et demande une autre photo. Une seule phrase avant la carte, rien après.",
+            "- Sieste : quand il dit avoir fait une sieste et en donne les heures, appelle log_nap (date, début, fin) ; sans heures, demande-les. Une phrase avant, rien après : la carte s'affiche avec « Valider », rien n'est enregistré sans un tap et il peut annuler.",
+            "- Retenir : quand il te donne un fait durable (blessure, douleur, horaires, matériel, préférence) qui n'est pas déjà dans « Ce que l'utilisateur a dit au coach », propose-le avec remember, en une phrase dans sa langue. Jamais pour ce qui ne vaut que pour aujourd'hui, et pas plus d'une carte par réponse.",
         ]
         return lines.joined(separator: "\n")
     }
@@ -1197,6 +1200,7 @@ final class AICoachEngine: ObservableObject {
         var consulted: [String] = []
         var session: CoachSessionProposal?
         var meal: CoachMealProposal?
+        var action: CoachActionProposal?
 
         func joined(_ a: String, _ b: String) -> String {
             let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1210,7 +1214,8 @@ final class AICoachEngine: ObservableObject {
             messages[index] = ChatMessage(id: placeholder.id, role: .assistant, text: text)
         }
         func settled(_ body: String) -> String {
-            CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session, meal: meal))
+            CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session, meal: meal,
+                                                                 action: action))
         }
         defer { toolActivity = nil }
 
@@ -1282,6 +1287,17 @@ final class AICoachEngine: ObservableObject {
                         }
                         continue
                     }
+                    // An action card (chantier 8): a nap, a correction, a fact to remember. Written on Confirm only.
+                    if let kind = CoachActionProposal.Kind(toolName: call.name) {
+                        let parsed = await resolveAction(kind, input: input)
+                        if let proposal = parsed.proposal {
+                            action = proposal
+                            results.append((call.id, CoachActionProposal.shownResult, false))
+                        } else {
+                            results.append((call.id, parsed.problem ?? "That card could not be made.", true))
+                        }
+                        continue
+                    }
                     guard let name = CoachTools.Name(rawValue: call.name) else {
                         results.append((call.id, "Unknown tool \(call.name).", true))
                         continue
@@ -1297,18 +1313,18 @@ final class AICoachEngine: ObservableObject {
                 conversation.append(AnthropicToolRequest.assistant(turn))
                 conversation.append(AnthropicToolRequest.toolResults(results))
             }
-            show(finished.isEmpty && session == nil && meal == nil ? "(no reply)" : settled(finished))
+            show(finished.isEmpty && session == nil && meal == nil && action == nil ? "(no reply)" : settled(finished))
         } catch {
             let partial = joined(finished, streaming)
             if Task.isCancelled || error is CancellationError {
-                if partial.isEmpty && session == nil && meal == nil {
+                if partial.isEmpty && session == nil && meal == nil && action == nil {
                     messages.removeAll { $0.id == placeholder.id }
                 } else {
                     show(settled(partial))
                 }
                 return
             }
-            if partial.isEmpty && session == nil && meal == nil {
+            if partial.isEmpty && session == nil && meal == nil && action == nil {
                 messages.removeAll { $0.id == placeholder.id }
             } else {
                 show(settled(partial.isEmpty ? "*(stream interrupted)*" : partial + "\n\n*(stream interrupted)*"))

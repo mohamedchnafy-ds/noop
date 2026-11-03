@@ -84,6 +84,11 @@ enum NutritionFormat {
         date.formatted(.dateTime.hour().minute().locale(locale))
     }
 
+    /// "28 oct. 2026": the day of a Lab Book reading (personal fork, chantier 8).
+    static func labReadingDay(_ date: Date) -> String {
+        date.formatted(.dateTime.day().month(.abbreviated).year().locale(locale))
+    }
+
     /// "dimanche 1 novembre".
     static func longDay(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))

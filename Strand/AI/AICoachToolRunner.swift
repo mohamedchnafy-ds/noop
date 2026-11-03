@@ -1,6 +1,7 @@
 import Foundation
 import WhoopStore
 import StrandImport
+import StrandAnalytics
 
 // MARK: - The Coach's read tools, run on the device (personal fork)
 //
@@ -26,9 +27,13 @@ extension AICoachEngine {
                     + CoachTools.Metric.allCases.map(\.rawValue).joined(separator: ", ") + "."
             }
             let days = CoachTools.integer(input, "days", fallback: 30, in: CoachTools.dayRange)
+            let keys = CoachTools.dayKeys(days: days, endingAt: now)
+            guard metric.isDailyRow else {
+                let values = await seriesValues(metric, days: days, now: now)
+                return CoachTools.metricHistory(metric, dayKeys: keys, values: values)
+            }
             let byDay = Dictionary(repo.days.map { ($0.day, $0) }, uniquingKeysWith: { _, last in last })
-            return CoachTools.metricHistory(metric, dayKeys: CoachTools.dayKeys(days: days, endingAt: now),
-                                            byDay: byDay)
+            return CoachTools.metricHistory(metric, dayKeys: keys, byDay: byDay)
 
         case .night:
             guard let day = CoachTools.text(input, "date"), let date = Self.toolDayFormatter.date(from: day) else {
@@ -37,11 +42,22 @@ extension AICoachEngine {
             let back = max(Calendar.current.dateComponents([.day], from: date, to: now).day ?? 0, 0)
             guard back <= 400 else { return "That night is more than 400 days ago." }
             let sessions = await repo.allSleepSessions(days: back + 2)
-            let periods = sessions
+            let ending = sessions
                 .filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) == day }
-                .map { (start: $0.effectiveStartTs, end: $0.endTs) }
+            let periods = ending.map { (start: $0.effectiveStartTs, end: $0.endTs) }
+            // The Sleep screen's curves (`SleepView`): 1-minute sleeping HR from the session start, windowed
+            // rMSSD from the effective start, read per period and grouped by `CoachTools.night`.
+            var heartRate: [HRBucket] = []
+            var hrv: [(ts: Int, value: Double)] = []
+            for session in ending {
+                let beats = await repo.hrBuckets(from: session.startTs, to: session.endTs, bucketSeconds: 60)
+                let rmssd = await repo.timelineSeries(metric: .hrv, from: session.effectiveStartTs, to: session.endTs,
+                                                      targetPoints: 240)
+                heartRate.append(contentsOf: beats)
+                hrv.append(contentsOf: rmssd.points.map { (ts: Int($0.date.timeIntervalSince1970), value: $0.value) })
+            }
             return CoachTools.night(day: day, metric: repo.days.last { $0.day == day }, periods: periods,
-                                    timeZone: .current)
+                                    timeZone: .current, heartRate: heartRate, hrv: hrv)
 
         case .workouts:
             let days = CoachTools.integer(input, "days", fallback: 30, in: CoachTools.dayRange)
@@ -115,8 +131,81 @@ extension AICoachEngine {
                 })
             }
             return CoachTools.meals(mealDays, from: from, to: to)
+
+        case .dayHeartRate:
+            let calendar = Calendar.current
+            var date = now
+            if let text = CoachTools.text(input, "date") {
+                guard let asked = Self.toolDayFormatter.date(from: text) else {
+                    return "Give the day as YYYY-MM-DD."
+                }
+                let back = calendar.dateComponents([.day], from: calendar.startOfDay(for: asked),
+                                                   to: calendar.startOfDay(for: now)).day ?? 0
+                guard back >= 0 else { return "That day has not happened yet." }
+                guard back <= CoachTools.dayHeartRateLookbackDays else {
+                    return "That day is more than \(CoachTools.dayHeartRateLookbackDays) days ago."
+                }
+                date = asked
+            }
+            // The Today card's own window and read: local midnight to now (today) or to the next midnight.
+            let dayStart = calendar.startOfDay(for: date)
+            let from = Int(dayStart.timeIntervalSince1970)
+            let isToday = calendar.isDate(date, inSameDayAs: now)
+            let to = isToday ? Int(now.timeIntervalSince1970)
+                : Int((calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart).timeIntervalSince1970)
+            let dayKey = Repository.localDayKey(dayStart)
+            let buckets = await repo.hrBuckets(from: from, to: to, bucketSeconds: 300)
+            let samples = await repo.hrSamples(from: from, to: to, limit: 200_000)
+            let profile = self.profile ?? ProfileStore()
+            let zoneSet = profile.hrZoneSet
+            // A day is 170k+ samples: binned off the main actor, as Today scores its Effort.
+            let zones = await Task.detached(priority: .utility) {
+                samples.isEmpty ? nil : HRZones.timeInZone(samples, zoneSet: zoneSet)
+            }.value
+            let sleep = await repo.allSleepSessions(days: max(2, (Int(now.timeIntervalSince1970) - from) / 86_400 + 2))
+                .map { $0.effectiveStartTs...max($0.effectiveStartTs, $0.endTs) }
+                .filter { $0.upperBound > from && $0.lowerBound < to }
+                .map { max($0.lowerBound, from)...min($0.upperBound, to) }
+            return CoachTools.dayHeartRate(day: dayKey, buckets: buckets, sleep: sleep,
+                                           restingHR: repo.days.last { $0.day == dayKey }?.restingHr.map(Double.init),
+                                           zones: zones, hrMax: Int(zoneSet.maxHR.rounded()),
+                                           timeZone: .current)
+
+        case .caffeine:
+            let store = CaffeineLogStore.shared
+            return CoachTools.caffeine(store.intakes, estimate: store.estimate(), now: now, timeZone: .current)
         }
     }
+
+    /// One value per day of a series-backed metric, read where its screen reads it: the Apple Health weight
+    /// series (Today's weight tile), the water tracker's day totals (`hydrationHistory`, a day with nothing
+    /// logged left out rather than read as zero) and the Stress screen's daily history (`StressModel`).
+    private func seriesValues(_ metric: CoachTools.Metric, days: Int, now: Date) async -> [String: Double] {
+        switch metric {
+        case .weight:
+            let points = await repo.series(key: "weight", source: "apple-health", days: days + 1)
+            return Dictionary(points.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
+        case .water:
+            let points = await repo.hydrationHistory(days: days, now: now).filter { $0.value > 0 }
+            return Dictionary(points.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
+        case .stress:
+            let stored = await repo.series(key: "stress", source: "my-whoop")
+            guard let model = StressModel(days: repo.days, stored: stored) else { return [:] }
+            return Dictionary(model.fullTrend.map { (Self.stressDayFormatter.string(from: $0.date), $0.value) },
+                              uniquingKeysWith: { _, last in last })
+        default:
+            return [:]
+        }
+    }
+
+    /// Writes the Stress screen's trend dates back as day keys: `StressModel` parses its days in UTC.
+    static let stressDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     /// Writes a meal's time for a tool result, "HH:mm" in the local time zone.
     static let toolClockFormatter: DateFormatter = {

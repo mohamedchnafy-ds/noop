@@ -1,5 +1,6 @@
 import XCTest
 @testable import Strand
+import StrandAnalytics
 import WhoopStore
 
 /// The Coach's read tools (personal fork): which tools a question carries, how inputs are read, and
@@ -101,6 +102,27 @@ final class CoachToolsTests: XCTestCase {
         XCTAssertTrue(text.contains("sleep periods: 23:41–06:48 (7.1h)"))
     }
 
+    /// The Sleep screen's curves, grouped every 30 minutes on the clock, with the lowest beat and its time.
+    func testANightCarriesItsCurvesEveryThirtyMinutes() {
+        let utc = TimeZone(identifier: "UTC")!
+        let base = 1_793_404_800 // 2026-10-31 00:00 UTC
+        let hr = [HRBucket(ts: base, bpm: 56, minBpm: 54, maxBpm: 58),
+                  HRBucket(ts: base + 600, bpm: 52, minBpm: 50, maxBpm: 54),
+                  HRBucket(ts: base + 1800, bpm: 49, minBpm: 47, maxBpm: 51)]
+        let hrv: [(ts: Int, value: Double)] = [(ts: base + 60, value: 40), (ts: base + 900, value: 50),
+                                               (ts: base + 3600, value: 62)]
+        let text = CoachTools.night(day: "2026-10-31", metric: nil, periods: [(start: base, end: base + 4000)],
+                                    timeZone: utc, heartRate: hr, hrv: hrv)
+        XCTAssertTrue(text.contains("sleeping heart rate every 30 min (bpm): 00:00 54, 00:30 49; lowest 49 at 00:30"), text)
+        XCTAssertTrue(text.contains("HRV (rMSSD) every 30 min (ms): 00:00 45, 01:00 62"), text)
+    }
+
+    func testANightWithoutCurvesHasNoCurveLine() {
+        let text = CoachTools.night(day: "2026-10-31", metric: day("2026-10-31", hrv: 44, sleepMin: 410),
+                                    periods: [], timeZone: .current)
+        XCTAssertFalse(text.contains("every 30 min"))
+    }
+
     func testANightWithNothingRecorded() {
         XCTAssertEqual(CoachTools.night(day: "2026-10-31", metric: nil, periods: [], timeZone: .current),
                        "No night recorded ending on 2026-10-31.")
@@ -186,6 +208,96 @@ final class CoachToolsTests: XCTestCase {
         let lab = CoachTools.labBook([.init(marker: "Ferritin", day: "2026-09-01", value: "80 ng/mL"),
                                       .init(marker: "Ferritin", day: "2026-10-01", value: "95 ng/mL")])
         XCTAssertTrue(lab.contains("Ferritin: 95 ng/mL (2026-10-01), 80 ng/mL (2026-09-01)"))
+    }
+
+    // MARK: Chantier 8 reads
+
+    /// The series-backed metrics read one value per day; a day without one is a dash, never zero.
+    func testSeriesMetricsListTheirValuesAndDashTheMissingDays() {
+        let keys = ["2026-10-30", "2026-10-31", "2026-11-01"]
+        let weight = CoachTools.metricHistory(.weight, dayKeys: keys, values: ["2026-10-30": 80.44, "2026-11-01": 79.9])
+        XCTAssertTrue(weight.hasPrefix("Weight (kg, from Apple Health)"), weight)
+        XCTAssertTrue(weight.contains("2026-10-30 80.4"))
+        XCTAssertTrue(weight.contains("2026-10-31 —"))
+        XCTAssertTrue(weight.contains("Measured on 2 of 3 days"))
+        let water = CoachTools.metricHistory(.water, dayKeys: keys, values: ["2026-10-31": 1500])
+        XCTAssertTrue(water.contains("logged water is not all the water drunk"))
+        XCTAssertTrue(water.contains("2026-10-31 1500"))
+        XCTAssertTrue(CoachTools.metricHistory(.stress, dayKeys: keys, values: ["2026-11-01": 1.234])
+            .contains("2026-11-01 1.2"))
+        XCTAssertFalse(CoachTools.Metric.weight.isDailyRow)
+        XCTAssertTrue(CoachTools.Metric.hrv.isDailyRow)
+        XCTAssertNil(CoachTools.Metric.stress.value(day("2026-11-01", hrv: 40)))
+    }
+
+    /// The day's buckets grouped every 30 minutes with the lowest and highest beat, the card's figures, the
+    /// sleep inside the day and the zones.
+    func testDayHeartRateGroupsTheBucketsAndStatesTheZones() {
+        let utc = TimeZone(identifier: "UTC")!
+        let base = 1_793_404_800 // 2026-10-31 00:00 UTC
+        let buckets = [HRBucket(ts: base + 25_200, bpm: 60, minBpm: 55, maxBpm: 66),
+                       HRBucket(ts: base + 25_500, bpm: 70, minBpm: 62, maxBpm: 90),
+                       HRBucket(ts: base + 27_000, bpm: 110, minBpm: 95, maxBpm: 150)]
+        let zones = TimeInZone(seconds: [600, 300, 0, 0, 0], belowZone1: 3600)
+        let text = CoachTools.dayHeartRate(day: "2026-10-31", buckets: buckets,
+                                           sleep: [base...(base + 21_600)], restingHR: 52, zones: zones,
+                                           hrMax: 187, timeZone: utc)
+        XCTAssertTrue(text.contains("lowest 5-min average 60, average 80, highest 110; lowest beat 55, highest beat 150; "
+                                    + "resting HR 52"), text)
+        XCTAssertTrue(text.contains("asleep: 00:00–06:00"), text)
+        XCTAssertTrue(text.contains("  07:00 65 (55–90)"), text)
+        XCTAssertTrue(text.contains("  07:30 110 (95–150)"), text)
+        XCTAssertTrue(text.contains("below zone 1 1h 00m, zone 1 10m, zone 2 5m, zone 3 0m"), text)
+        XCTAssertTrue(text.contains("HR max 187"), text)
+    }
+
+    func testADayWithoutHeartRateSaysSo() {
+        let text = CoachTools.dayHeartRate(day: "2026-10-31", buckets: [], sleep: [], restingHR: nil, zones: nil,
+                                           hrMax: 187, timeZone: .current)
+        XCTAssertEqual(text, "No heart rate recorded on 2026-10-31: the strap was not worn or not synced.")
+    }
+
+    /// A whole day stays well under the result cap.
+    func testAWholeDayOfBucketsFitsTheCap() {
+        let base = 1_793_404_800
+        let buckets = (0..<288).map { HRBucket(ts: base + $0 * 300, bpm: 60, minBpm: 50, maxBpm: 120) }
+        let text = CoachTools.dayHeartRate(day: "2026-10-31", buckets: buckets, sleep: [], restingHR: nil,
+                                           zones: nil, hrMax: 187, timeZone: TimeZone(identifier: "UTC")!)
+        XCTAssertLessThan(text.count, CoachTools.maxResultCharacters)
+        XCTAssertEqual(text.components(separatedBy: "\n").filter { $0.hasPrefix("  ") }.count, 48)
+    }
+
+    func testCaffeineListsTheIntakesAndTheActiveEstimate() {
+        let utc = TimeZone(identifier: "UTC")!
+        let now = Date(timeIntervalSince1970: 1_793_448_000) // 2026-10-31 12:00 UTC
+        let intakes = [CaffeineIntake(at: now.addingTimeInterval(-2 * 3600), mg: 95),
+                       CaffeineIntake(at: now.addingTimeInterval(-26 * 3600)),
+                       CaffeineIntake(at: now.addingTimeInterval(-4 * 3600), mg: 60, externalId: "hk-1")]
+        let estimate = CaffeineActiveEstimate.compute(intakes: intakes, now: now)
+        let text = CoachTools.caffeine(intakes, estimate: estimate, now: now, timeZone: utc)
+        let lines = text.components(separatedBy: "\n")
+        XCTAssertEqual(lines[1], "  10:00 (2.0 h ago): 95 mg")
+        XCTAssertEqual(lines[2], "  08:00 (4.0 h ago): 60 mg (from Apple Health)")
+        XCTAssertEqual(lines[3], "  10:00 (26.0 h ago): amount not given")
+        XCTAssertTrue(text.contains("Still active now: about"), text)
+        XCTAssertEqual(CoachTools.caffeine([], estimate: CaffeineActiveEstimate.compute(intakes: [], now: now),
+                                           now: now, timeZone: utc),
+                       "No caffeine logged in the last 48 hours. That says nothing about what was drunk.")
+    }
+
+    func testSlotsAlignOnTheClockAndSkipEmptySlots() {
+        let slots = CoachTools.slots([(ts: 1800, value: 10), (ts: 3500, value: 20), (ts: 7300, value: 5)], seconds: 1800)
+        XCTAssertEqual(slots.map(\.ts), [1800, 7200])
+        XCTAssertEqual(slots.first?.mean, 15)
+        XCTAssertEqual(slots.first?.low, 10)
+        XCTAssertEqual(slots.first?.high, 20)
+    }
+
+    func testTheNewToolsAreOfferedWithDataAccessOnly() {
+        let with = names(CoachTools.definitions(dataConsent: true, labBook: false))
+        XCTAssertTrue(with.contains("get_day_heart_rate"))
+        XCTAssertTrue(with.contains("get_caffeine"))
+        XCTAssertFalse(names(CoachTools.definitions(dataConsent: false, labBook: false)).contains("get_caffeine"))
     }
 
     // MARK: Days and labels

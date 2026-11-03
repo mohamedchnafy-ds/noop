@@ -424,6 +424,7 @@ final class AICoachEngine: ObservableObject {
             "- Séance : quand tu proposes une séance ou que tu la modifies, appelle create_program avec la séance complète au lieu de l'écrire (mêmes règles que « Créer une séance » : exercices du Carnet, charges, supersets A1/A2, repos). Écris une seule phrase avant et rien après : elle s'affiche en carte avec « Ajouter au Carnet » et « Démarrer », et rien n'est enregistré sans un tap.",
             "- Repas : pour un repas en photo ou décrit (dicté ou écrit), cherche chaque aliment avec search_foods (table Ciqual de l'Anses, sur l'appareil), choisis la ligne la plus proche (cru ou cuit, préparation), puis appelle log_meal avec le code Ciqual et la quantité en grammes de chaque aliment (estimated = true pour une quantité estimée sur une photo). Ne donne jamais toi-même de calories ni de macros pour ce repas : l'app les calcule avec Ciqual. Écris une seule phrase avant et rien après : il s'affiche en carte avec « Ajouter au journal » et « Modifier », et rien n'est enregistré sans un tap. Pour une modification (« ajoute 50 g de riz »), rappelle log_meal avec le repas complet.",
             "- Étiquette : pour la photo du tableau nutritionnel d'un produit emballé, appelle read_label au lieu de log_meal : recopie exactement les valeurs pour 100 g imprimées (kcal, ou kJ si seules les kJ sont imprimées ; glucides, pas la ligne « dont sucres » ; lipides, pas « dont saturés »), le nom du produit, le code-barres donné avec la question et la portion en grammes (le poids net d'une unité s'il l'a mangée entière, sinon ce qu'il dit, sinon 100). N'invente aucune valeur : si l'étiquette est illisible ou coupée, dis-le en une phrase et demande une autre photo. Une seule phrase avant la carte, rien après.",
+            "- Menu : seulement quand il demande un menu ou ce qu'il pourrait manger (aujourd'hui ou un jour à venir, 7 jours au plus), cherche chaque aliment avec search_foods puis appelle plan_menu avec les repas de la journée (nom, heure HH:MM, aliments par code Ciqual et grammes). Vise ses objectifs d'apport et de protéines de la fiche sans les dépasser de beaucoup ; ne donne aucune valeur toi-même : l'app les calcule. Une phrase avant, rien après : la carte s'affiche avec « Ajouter comme prévus », et les repas prévus ne comptent nulle part tant qu'il ne les a pas marqués « Mangé ».",
             "- Sieste : quand il dit avoir fait une sieste et en donne les heures, appelle log_nap (date, début, fin) ; sans heures, demande-les. Une phrase avant, rien après : la carte s'affiche avec « Valider », rien n'est enregistré sans un tap et il peut annuler.",
             "- Retenir : quand il te donne un fait durable (blessure, douleur, horaires, matériel, préférence) qui n'est pas déjà dans « Ce que l'utilisateur a dit au coach », propose-le avec remember, en une phrase dans sa langue. Jamais pour ce qui ne vaut que pour aujourd'hui, et pas plus d'une carte par réponse.",
         ]
@@ -1211,6 +1212,7 @@ final class AICoachEngine: ObservableObject {
         var session: CoachSessionProposal?
         var meal: CoachMealProposal?
         var action: CoachActionProposal?
+        var menu: CoachMenuProposal?
 
         func joined(_ a: String, _ b: String) -> String {
             let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1225,7 +1227,7 @@ final class AICoachEngine: ObservableObject {
         }
         func settled(_ body: String) -> String {
             CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session, meal: meal,
-                                                                 action: action))
+                                                                 action: action, menu: menu))
         }
         defer { toolActivity = nil }
 
@@ -1297,6 +1299,18 @@ final class AICoachEngine: ObservableObject {
                         }
                         continue
                     }
+                    // The menu card (chantier 8): the meals of a day, added to the journal as planned on a tap only.
+                    if call.name == CoachMenuProposal.toolName {
+                        let parsed = CoachMenuProposal.fromMenuInput(input, now: Date(), food: CiqualTable.food(code:))
+                        if let proposal = parsed.proposal {
+                            menu = proposal
+                            results.append((call.id, CoachMenuProposal.shownResult(unknownCodes: parsed.unknownCodes), false))
+                        } else {
+                            results.append((call.id, "No usable meal: give each food by a Ciqual code from search_foods "
+                                            + "and its quantity in grams.", true))
+                        }
+                        continue
+                    }
                     // An action card (chantier 8): a nap, a correction, a fact to remember. Written on Confirm only.
                     if let kind = CoachActionProposal.Kind(toolName: call.name) {
                         let parsed = await resolveAction(kind, input: input)
@@ -1323,18 +1337,18 @@ final class AICoachEngine: ObservableObject {
                 conversation.append(AnthropicToolRequest.assistant(turn))
                 conversation.append(AnthropicToolRequest.toolResults(results))
             }
-            show(finished.isEmpty && session == nil && meal == nil && action == nil ? "(no reply)" : settled(finished))
+            show(finished.isEmpty && session == nil && meal == nil && action == nil && menu == nil ? "(no reply)" : settled(finished))
         } catch {
             let partial = joined(finished, streaming)
             if Task.isCancelled || error is CancellationError {
-                if partial.isEmpty && session == nil && meal == nil && action == nil {
+                if partial.isEmpty && session == nil && meal == nil && action == nil && menu == nil {
                     messages.removeAll { $0.id == placeholder.id }
                 } else {
                     show(settled(partial))
                 }
                 return
             }
-            if partial.isEmpty && session == nil && meal == nil && action == nil {
+            if partial.isEmpty && session == nil && meal == nil && action == nil && menu == nil {
                 messages.removeAll { $0.id == placeholder.id }
             } else {
                 show(settled(partial.isEmpty ? "*(stream interrupted)*" : partial + "\n\n*(stream interrupted)*"))

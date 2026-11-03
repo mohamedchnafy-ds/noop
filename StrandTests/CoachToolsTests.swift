@@ -11,11 +11,11 @@ final class CoachToolsTests: XCTestCase {
 
     // MARK: Definitions
 
-    /// Without "Use my data" only the cards are offered (the session, the meal and its Ciqual search, the nap
-    /// and the fact to remember): none reads the user's data and none saves anything without a tap.
+    /// Without "Use my data" only the cards are offered (the session, the meal and its Ciqual search, the menu,
+    /// the nap and the fact to remember): none reads the user's data and none saves anything without a tap.
     func testOnlyTheCardsWithoutDataAccess() {
         XCTAssertEqual(names(CoachTools.definitions(dataConsent: false, labBook: true)),
-                       ["create_program", "search_foods", "log_meal", "read_label", "log_nap", "remember"])
+                       ["create_program", "search_foods", "log_meal", "read_label", "plan_menu", "log_nap", "remember"])
     }
 
     func testTheLabBookToolOnlyWithTheSecondOptIn() {
@@ -25,7 +25,7 @@ final class CoachToolsTests: XCTestCase {
 
     func testEveryToolIsNamedOnceAndHasAnObjectSchema() throws {
         let tools = CoachTools.definitions(dataConsent: true, labBook: true)
-        let cards = ["create_program", "search_foods", "log_meal", "read_label", "log_nap", "remember",
+        let cards = ["create_program", "search_foods", "log_meal", "read_label", "plan_menu", "log_nap", "remember",
                      "correct_workout", "correct_lift_session"]
         XCTAssertEqual(Set(names(tools)), Set(CoachTools.Name.allCases.map(\.rawValue) + cards))
         XCTAssertEqual(names(tools).count, CoachTools.Name.allCases.count + cards.count)

@@ -139,9 +139,10 @@ enum CoachTools {
     /// the read tools only with "Use my data", and the Lab Book only with the second opt-in ("Patterns
     /// and Lab Book"), the same switch that gates its summary in the fiche.
     static func definitions(dataConsent: Bool, labBook: Bool) -> [[String: Any]] {
-        // The cards: the session, and the meal with the Ciqual search it needs. None reads the user's data.
+        // The cards: the session, the meal with the Ciqual search it needs, the menu of a day (chantier 8),
+        // the nap and the fact to remember. None reads the user's data.
         let cards = [CoachSessionProposal.definition, CoachMealProposal.searchDefinition, CoachMealProposal.logDefinition,
-                     CoachMealProposal.labelDefinition, CoachActionProposal.napDefinition,
+                     CoachMealProposal.labelDefinition, CoachMenuProposal.definition, CoachActionProposal.napDefinition,
                      CoachActionProposal.rememberDefinition]
         guard dataConsent else { return cards }
         var tools: [[String: Any]] = [

@@ -15,7 +15,7 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Les maquettes sont des artefacts claude.ai (liens dans les fiches). Si la session ne peut pas les ouvrir, demander une capture à Mohamed.
 
 ## Règles de travail (obligatoires)
-1. **Toujours partir de `main`** et vérifier d'abord qu'aucune branche `build/*` ou `feat/*` n'est en avance sur `main` (`git log origin/main..origin/<branche>`, ou `gh api repos/mohamedchnafy-ds/noop/compare/main...<branche> -q .ahead_by`). Si c'en est une, le dire avant de coder. Exceptions connues, à ignorer : `feat/lift-superset-rounds`, `build/lift-superset-rounds`, `build/supersets-coach`. La version installée sur le téléphone doit toujours correspondre à `main`.
+1. **Toujours partir de `main`** et vérifier d'abord qu'aucune branche `build/*` ou `feat/*` n'est en avance sur `main` (`git log origin/main..origin/<branche>`, ou `gh api repos/mohamedchnafy-ds/noop/compare/main...<branche> -q .ahead_by`). Si c'en est une, le dire avant de coder. Exceptions connues, à ignorer : `feat/lift-superset-rounds`, `build/lift-superset-rounds`, `build/supersets-coach`, `feat/coach-lift-context`, `feat/lift-supersets` (vieilles branches du 31 oct., ne rien y faire sans accord). La version installée sur le téléphone doit toujours correspondre à `main`.
 2. Lire `AGENTS.md` avant toute modification (design tokens uniquement, traductions obligatoires dans les 10 langues de `Strand/Resources/Localizable.xcstrings`, migrations numérotées, parité Swift/Android pour les données stockées).
 3. Avant de pousser : `python3 Tools/i18n_audit.py --ci origin/main`, `python3 Tools/doc_comment_lint.py`, puis depuis `Tools/` : `python3 -m unittest discover -q` (et la suite de parité quand on touche `Packages/`, voir la feuille de route). Sur le PC Windows, `python` ou `py -3` à la place de `python3`.
 4. Le Swift ne se compile pas localement (ni dans le cloud, ni sur le PC) : ouvrir une PR vers `main` (déclenche `app-build.yml` = compilation macOS + iOS + tests). Si un test échoue et que le journal est illisible, ajouter temporairement une étape qui remonte les lignes `error:` / `Test Case ... failed` en annotations (`::error::`), puis la retirer.
@@ -34,8 +34,8 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Toute question à Mohamed passe par l'outil de questions à choix multiples (AskUserQuestion), jamais en texte libre. Un seul lot de questions par étape ; les choix par défaut sont notés dans la fiche.
 - Il ne voit pas l'app depuis la session : lui demander des captures d'écran pour valider le rendu.
 
-## Chantier en cours (mis à jour le 3 nov. 2026, après-midi)
-- **Chantier 8** en cours, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, #46, #47, #48, #49. Reste : fin du lot 3 (historique 7 j / 30 j, repas prévus), lot 4 (+ écran de séance : maquette à 3 propositions d'abord), lot 5.
+## Chantier en cours (mis à jour le 3 nov. 2026, fin d'après-midi)
+- **Chantier 8** en cours, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, 3 (#46 à #54). Reste : lot 4 (planning, branche `claude/plan-multi`), puis l'écran de séance en cours (maquette A choisie, variantes cardio / muscu : voir la fiche), lot 5.
 - Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 
 ## Feuille de route (chargée à chaque session)

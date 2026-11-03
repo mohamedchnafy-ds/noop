@@ -191,6 +191,30 @@ final class NutritionRenderTests: XCTestCase {
         try render(AnyView(view), name: "17-repas-prevu")
     }
 
+    /// Chantier 8, lot 3: the Coach's menu card, before and after "Add as planned".
+    func testRendersTheMenuCard() throws {
+        let rice = MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7)
+        let chicken = MealPer100(kcal: 189, proteinG: 29.8, carbsG: 0, fatG: 7.8)
+        let skyr = MealPer100(kcal: 63, proteinG: 11, carbsG: 4, fatG: 0.2)
+        let meals = [
+            CoachMealProposal(name: "Skyr, flocons d'avoine", eatenAt: at(7, 30), origin: .manual,
+                              lines: [.init(name: "Skyr", ciqualCode: 19598, grams: 250, estimated: false, per100: skyr)],
+                              mealId: nil),
+            CoachMealProposal(name: "Poulet, riz", eatenAt: at(12, 30), origin: .manual,
+                              lines: [.init(name: "Poulet rôti", ciqualCode: 36032, grams: 180, estimated: false, per100: chicken),
+                                      .init(name: "Riz blanc cuit", ciqualCode: 9104, grams: 220, estimated: false, per100: rice)],
+                              mealId: nil),
+        ]
+        let menu = CoachMenuProposal(day: "2026-11-01", meals: meals)
+        var added = menu
+        added.mealIds = ["a", "b"]
+        let cards = VStack(spacing: 16) {
+            CoachMenuCard(proposal: menu, busy: false, onAdd: {}, onUndo: {})
+            CoachMenuCard(proposal: added, busy: false, onAdd: {}, onUndo: {})
+        }
+        try render(AnyView(cards), name: "18-coach-menu")
+    }
+
     /// Chantier 8, lot 3: the history card over 7 and 30 days, with unwritten days left empty.
     func testRendersTheNutritionHistory() throws {
         let cal = Calendar.current

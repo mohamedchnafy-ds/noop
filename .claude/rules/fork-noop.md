@@ -40,5 +40,10 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - **Priorité : finir d'abord la refonte visuelle (chantier 7, `docs/fork/refonte-design.md`).** Ces deux fichiers servent de contexte : ne lancer aucun des chantiers qu'ils proposent avant la fin de la refonte, sauf accord de Mohamed. Leurs numéros de ligne datent de 55a249b1 : les revérifier avant de coder.
 - Une fois lus et la refonte terminée, faire le point avec Mohamed (widget de questions), puis déplacer ce bloc dans la feuille de route.
 
+## Ponytail (ajouté le 3 nov. 2026)
+- Skills dans `.claude/skills/` (`ponytail`, `ponytail-review`, `ponytail-audit`, `ponytail-debt`, `ponytail-help`), copiés de `DietrichGebert/ponytail` (MIT, licence dans `.claude/skills/PONYTAIL-LICENSE`).
+- Ponytail simplifie, mais **`AGENTS.md` et ces règles l'emportent** : parité Swift/Android, traductions dans les 10 langues, jetons de design, migrations, tests : jamais « raccourcis ».
+- Usage : `/ponytail-review` avant d'ouvrir une PR ; `/ponytail-debt` pour lister les commentaires `shortcut:`.
+
 ## Feuille de route (chargée à chaque session)
 @../../docs/fork/feuille-de-route.md

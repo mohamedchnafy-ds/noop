@@ -627,6 +627,8 @@ struct NutritionAddTiles: View {
                 Image(systemName: symbol)
                     .font(StrandFont.body.weight(.semibold))
                     .foregroundStyle(StrandPalette.accent)
+                    // One icon height for the four tiles, so their labels share a baseline.
+                    .frame(height: 24)
                     .accessibilityHidden(true)
                 Text(title)
                     .font(StrandFont.footnote.weight(.medium))

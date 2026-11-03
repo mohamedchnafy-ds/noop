@@ -295,9 +295,9 @@ enum UnitFormatter {
 
     /// °C delta → °F delta: a DIFFERENCE scales by 9/5 with NO +32 offset (the offset cancels between
     /// the two absolute temperatures a delta is made of). Exposed as a Double because callers that need
-    /// locale-aware decimals — the illness-signal label formats through `AppLanguage.activeLocale` so a
-    /// German reader sees "0,7" — have to do their own formatting and would otherwise inline the 9/5,
-    /// scattering the one rule that must not drift.
+    /// their own formatting — the illness-signal label formats through `AppLanguage.activeLocale` so a
+    /// German reader sees "0,7" — would otherwise inline the 9/5, scattering the one rule that must not
+    /// drift.
     static func celsiusDeltaToFahrenheit(_ dc: Double) -> Double { dc * 9.0 / 5.0 }
 
     /// Format a temperature DEVIATION (a ±Δ°C, e.g. the skin-temp deviation pipeline). A delta scales by
@@ -365,9 +365,17 @@ enum UnitFormatter {
 
     // MARK: Helpers
 
-    private static func oneDecimal(_ v: Double) -> String { String(format: "%.1f", v) }
+    /// Every decimal this formatter prints (distance, speed, mass, temperature, Effort) is written in the
+    /// app's locale, so a French reader sees "4,6 km" and "9,4" where a plain `String(format:)` gives
+    /// "4.6 km" and "9.4". Same locale as the other locale-aware read-outs (`AppClock.activeLocale`,
+    /// memoised `AppLanguage.activeLocale`). [locale] is only overridden by tests.
+    static func decimal(_ v: Double, places: Int, locale: Locale = AppClock.activeLocale) -> String {
+        String(format: "%.\(places)f", locale: locale, v)
+    }
+
+    private static func oneDecimal(_ v: Double) -> String { decimal(v, places: 1) }
 
     private static func decimalString(_ v: Double, _ decimals: Int) -> String {
-        decimals == 0 ? "\(Int(v.rounded()))" : String(format: "%.\(decimals)f", v)
+        decimals == 0 ? "\(Int(v.rounded()))" : decimal(v, places: decimals)
     }
 }

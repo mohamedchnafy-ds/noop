@@ -95,8 +95,17 @@ final class SleepScreenRenderTests: XCTestCase {
                 deepMinutes: 47, remMinutes: 67, lightMinutes: 108, needMinutes: 480,
                 timesEdited: false, canEditTimes: true, tonight: (needMinutes: 480, debtMinutes: 143),
                 awakeMinutes: 31, stagePercent: [.awake: 12, .rem: 27, .light: 43, .deep: 18]),
-            actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {}),
-            selection: .constant(selected))
+            actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {},
+                                             addNap: {}),
+            selection: .constant(selected),
+            whyRow: AnyView(HStack(spacing: 12) {
+                Image(systemName: "info.circle")
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.restBright)
+                    .frame(width: 24)
+                Text("Why this sleep?").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                Spacer(minLength: 0)
+            }.frame(minHeight: 48)))
     }
 
     /// 03:54, the night's lowest heart rate: where the curves render tests hold their reading.
@@ -106,7 +115,7 @@ final class SleepScreenRenderTests: XCTestCase {
                         reading: Bool = false, selected: SleepStage? = nil) -> SleepPhasesCard {
         SleepPhasesCard(
             subtitle: "\(String(localized: "\(SleepDurationText.format(252)) in bed · \(SleepDurationText.format(221)) asleep"))\n\(String(localized: "Stages estimated on the device"))",
-            source: String(localized: "On-device"),
+            source: nil,
             intervals: intervals, nightStart: onset, palette: .noop,
             stages: [
                 .init(stage: .awake, minutes: 31, percent: 12, typicalMinutes: nil),
@@ -119,9 +128,6 @@ final class SleepScreenRenderTests: XCTestCase {
             selectedStage: .constant(selected),
             showHeartRate: .constant(hr), showHRV: .constant(hrvOn),
             showSkinTemp: .constant(temp), showMotion: .constant(motionOn),
-            whyButton: AnyView(Label("Why this sleep?", systemImage: "info.circle")
-                .font(StrandFont.footnote).foregroundStyle(StrandPalette.restBright).frame(minHeight: 44)),
-            addNap: {},
             initialReading: reading ? readingMinute * 60 : nil)
     }
 

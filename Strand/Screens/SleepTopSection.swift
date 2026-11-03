@@ -44,6 +44,8 @@ struct SleepTopSection: View {
         var previous: () -> Void
         var next: () -> Void
         var editTimes: () -> Void
+        /// Opens the add-a-nap sheet for the night shown; nil hides the row.
+        var addNap: (() -> Void)? = nil
     }
 
     let data: Model
@@ -51,6 +53,8 @@ struct SleepTopSection: View {
     /// The stage picked on the ring or its legend, shared with the phases chart below (the Sleep tab
     /// owns it). A constant nil (the default) leaves the ring display-only.
     var selection: Binding<SleepStage?> = .constant(nil)
+    /// The "Why this sleep?" row (the Sleep tab owns its popover); nil when there is no reason to show.
+    var whyRow: AnyView? = nil
 
     /// The night photo was retired (fork chantier 7): the top always sits on the plain black canvas
     /// and uses the regular text tokens.
@@ -64,9 +68,8 @@ struct SleepTopSection: View {
             titleRow
             nightPicker.padding(.top, NoopMetrics.space1)
             heroCard.padding(.top, NoopMetrics.space2)
-            if let tonight = data.tonight {
-                SleepTonightCard(needMinutes: tonight.needMinutes, debtMinutes: tonight.debtMinutes)
-                    .padding(.top, NoopMetrics.space3)
+            if data.tonight != nil || whyRow != nil || actions.addNap != nil {
+                listCard.padding(.top, NoopMetrics.space3)
             }
         }
         .frame(maxWidth: .infinity)
@@ -108,10 +111,12 @@ struct SleepTopSection: View {
                 .font(StrandFont.caption)
                 .foregroundStyle(secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Tap a stage to see it on its own, here and on the chart below")
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             timesRow
         }
@@ -121,6 +126,46 @@ struct SleepTopSection: View {
     }
 
     // MARK: Parts
+
+    /// Tonight's target, "Why this sleep?" and "Add a nap" as one grouped list under the ring (design F).
+    private var listCard: some View {
+        VStack(spacing: 0) {
+            if let tonight = data.tonight {
+                SleepTonightRow(needMinutes: tonight.needMinutes, debtMinutes: tonight.debtMinutes)
+            }
+            if let whyRow {
+                if data.tonight != nil { listDivider }
+                whyRow
+            }
+            if let addNap = actions.addNap {
+                if data.tonight != nil || whyRow != nil { listDivider }
+                Button(action: addNap) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus.circle")
+                            .font(StrandFont.body.weight(.semibold))
+                            .frame(width: 24)
+                            .accessibilityHidden(true)
+                        Text("Add a nap")
+                            .font(StrandFont.body)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(StrandPalette.accent)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(LiquidPressStyle())
+            }
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+    }
+
+    /// The hairline between two rows of the list, inset past the icon column like an iOS grouped list.
+    private var listDivider: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+            .padding(.leading, 36)
+    }
 
     private var titleRow: some View {
         HStack(spacing: NoopMetrics.space2) {
@@ -292,8 +337,9 @@ struct SleepTopSection: View {
     }
 }
 
-/// Tonight's target: the sleep need plus the current debt estimate. Shown for last night only.
-struct SleepTonightCard: View {
+/// Tonight's target: the sleep need plus the current debt estimate. Shown for last night only, as the
+/// first row of the list under the ring.
+struct SleepTonightRow: View {
     let needMinutes: Double
     let debtMinutes: Double
 
@@ -324,10 +370,8 @@ struct SleepTonightCard: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
-        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .combine)
     }
 }

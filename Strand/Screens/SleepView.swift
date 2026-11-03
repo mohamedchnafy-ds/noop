@@ -385,9 +385,11 @@ struct SleepView: View {
                 customize: { showSleepCustomize = true },
                 previous: { if nightOffset < lastIndex { nightOffset += 1 } },
                 next: { if nightOffset > 0 { nightOffset -= 1 } },
-                editTimes: { openTimeEditor(night) }),
+                editTimes: { openTimeEditor(night) },
+                addNap: { addNap = AddNapSeed(forNight: night) }),
             // One selection for the ring, its legend and the phases chart below (fork chantier 7).
-            selection: $selectedStage)
+            selection: $selectedStage,
+            whyRow: mainSleepReasonText(night) == nil ? nil : AnyView(whyRow(night)))
     }
 
     /// Open the bed/wake editor on the night's real stored main block (the hero shows a merged Night whose
@@ -807,11 +809,14 @@ struct SleepView: View {
             ? String(localized: "Raw on-device stages")
             : String(localized: "Stages estimated on the device")
         let base = String(localized: "\(durationText(night.timeInBed)) in bed · \(durationText(s.asleep)) asleep")
+        let source = nightSource(night)
         let typicalCount = typicalNightCount
         let hasTypical = typicalCount >= Self.typicalMinNights
         SleepPhasesCard(
             subtitle: isPersisted ? "\(base)\n\(stageCaption)" : base,
-            source: nightSource(night),
+            // The caption already says the stages were estimated on the device: do not repeat it as a
+            // source line (fork chantier 7). A WHOOP or Oura source still shows.
+            source: isPersisted && source == String(localized: "On-device") ? nil : source,
             intervals: Hypnogram.displaySmoothed(intervals.sorted { $0.start < $1.start }, minDuration: 300),
             nightStart: night.onsetDate,
             palette: stagePalette,
@@ -828,9 +833,8 @@ struct SleepView: View {
             showHRV: $showHRVCurve,
             showSkinTemp: $showSkinTempCurve,
             showMotion: $showMotionCurve,
-            notes: stageNotes(night),
-            whyButton: mainSleepReasonText(night) == nil ? nil : AnyView(whyButton(night)),
-            addNap: { addNap = AddNapSeed(forNight: night) })
+            // "Why this sleep?" and "Add a nap" moved to the list under the ring (fork chantier 7).
+            notes: stageNotes(night))
         // The night's curves (1-min sleeping HR, windowed rMSSD, skin temperature), reloaded only when the
         // displayed night changes. All three are the existing reads: no new computation.
         .task(id: night.session.startTs) {
@@ -859,13 +863,22 @@ struct SleepView: View {
     }
 
     /// "Why this sleep?": the foundation `MainNightReason` copy for the pick, in a popover. (spec 2026-06-20 C1)
-    private func whyButton(_ night: Night) -> some View {
+    /// A row of the list under the ring (fork chantier 7).
+    private func whyRow(_ night: Night) -> some View {
         Button { showMainSleepWhy.toggle() } label: {
-            Label("Why this sleep?", systemImage: "info.circle")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.restBright)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+            HStack(spacing: 12) {
+                Image(systemName: "info.circle")
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.restBright)
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                Text("Why this sleep?")
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
         }
         .buttonStyle(LiquidPressStyle())
         .help("Why this is your main sleep")

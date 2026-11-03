@@ -7,7 +7,8 @@ import WhoopStore
 // The night in one card: the stage lanes with the curves the user switched on (heart rate by default,
 // rMSSD, skin temperature, movement), each with its own scale, the four stage totals (tap one to light it
 // up on the lanes), the comparison with the usual night once there are enough nights, any honest caveat
-// about the staging, and the footer actions (why this sleep, add a nap). A button in the header opens the
+// about the staging, and optional footer actions (why this sleep, add a nap; the Sleep tab shows them
+// under the ring instead). A button in the header opens the
 // same chart full screen. A pure view: the Sleep tab feeds it, the render test feeds it fixed values.
 
 /// Which curves ride over the stage lanes. Persisted per curve (display-only preferences).
@@ -35,7 +36,8 @@ struct SleepPhasesCard: View {
     }
 
     let subtitle: String
-    let source: String
+    /// Where the stages come from; nil when the subtitle already says it.
+    let source: String?
     let intervals: [SleepInterval]
     let nightStart: Date
     let palette: SleepStagePalette
@@ -166,9 +168,11 @@ struct SleepPhasesCard: View {
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(source)
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
+                if let source {
+                    Text(source)
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
             }
             Spacer(minLength: NoopMetrics.space2)
             if intervals.count >= 2 {

@@ -7,8 +7,10 @@ import StrandDesign
 // the bedtime (moon, right of the opening at the top) to the wake time (sun, left of it). Each stage
 // stretch is a rounded arc drawn on its own track, and the track's distance from the centre is the
 // stage's depth: awake on the outside, then REM, light, and deep nearest the score. Thin light lines join
-// one stretch to the next, so the night reads as one path diving in and out. The score (or, without one,
-// the time asleep) sits in the middle. Display only: every number arrives from the caller.
+// one stretch to the next, so the night reads as one path diving in and out. Ticks outside the ring mark
+// each whole hour, and the bedtime and wake time are written by their badges. The score (or, without
+// one, the time asleep) sits in the middle; a tap on a stage lights it alone and puts its total there.
+// Display only: every number arrives from the caller.
 
 /// Pure geometry for `SleepNightDial`, kept apart so it can be tested without drawing.
 enum SleepNightRingMath {
@@ -67,24 +69,38 @@ struct SleepNightDial: View {
     let asleepMinutes: Double
     /// Kept for the call sites; the night photo is gone (fork chantier 7), the ring always sits on a card.
     var onScene: Bool = false
+    /// The ring's own size on the 260-point design; the hour labels add a margin around it.
     var diameter: CGFloat = 260
+    /// The stage picked on the ring, its legend or the phases chart below (one shared selection): only
+    /// that stage stays lit and the centre shows its total.
+    var selected: SleepStage? = nil
+    /// Each stage's minutes and share of the night, as the phases chart shows them (same funnel).
+    var stageMinutes: [SleepStage: Double] = [:]
+    var stagePercent: [SleepStage: Int] = [:]
+    /// A tap on a track picks its stage; a tap on the lit stage or the centre clears it. Nil = not tappable.
+    var onSelect: ((SleepStage?) -> Void)? = nil
 
     /// Track radii on the 260-point design, outermost (awake) first.
     private let trackRadii: [CGFloat] = [114, 100, 86, 72]
     private let lineWidth: CGFloat = 10
+    /// Room around the ring for the hour ticks and labels.
+    private let labelMargin: CGFloat = 22
     private var scale: CGFloat { diameter / 260 }
+    private var frameSide: CGFloat { diameter + labelMargin * 2 }
 
     var body: some View {
         let night = SleepNightRingMath.nightSeconds(intervals: intervals, span: wake.timeIntervalSince(onset))
         let arcs = SleepNightRingMath.arcs(intervals: intervals, night: night)
+        let hours = hourMarks(night: night)
         ZStack {
             Canvas { ctx, size in
                 let c = CGPoint(x: size.width / 2, y: size.height / 2)
                 drawTracks(ctx, center: c)
+                drawHours(ctx, center: c, hours: hours, night: night)
                 ctx.drawLayer { glow in
                     glow.addFilter(.blur(radius: 4 * scale))
                     glow.opacity = 0.6
-                    for arc in arcs { stroke(glow, arc, center: c) }
+                    for arc in arcs where isLit(arc.stage) { stroke(glow, arc, center: c) }
                 }
                 drawLinks(ctx, center: c, arcs: arcs)
                 for arc in arcs { stroke(ctx, arc, center: c) }
@@ -95,9 +111,32 @@ struct SleepNightDial: View {
                    at: SleepNightRingMath.angle(seconds: night, night: night))
             center
         }
-        .frame(width: diameter, height: diameter)
+        .frame(width: frameSide, height: frameSide)
+        .contentShape(Circle())
+        .gesture(SpatialTapGesture().onEnded { value in pickStageAtTap(at: value.location, arcs: arcs) },
+                 including: onSelect == nil ? .none : .all)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(accessibilitySummary))
+    }
+
+    // MARK: Selection
+
+    private func isLit(_ stage: SleepStage) -> Bool { selected == nil || selected == stage }
+
+    /// The track under the finger picks its stage (toggling it off when it is already the one lit); a tap
+    /// in the middle, or anywhere away from a track, clears the selection.
+    private func pickStageAtTap(at location: CGPoint, arcs: [SleepNightRingMath.Arc]) {
+        guard let onSelect else { return }
+        let c = CGPoint(x: frameSide / 2, y: frameSide / 2)
+        let distance = hypot(location.x - c.x, location.y - c.y)
+        let hit = [SleepStage.awake, .rem, .light, .deep].first { stage in
+            abs(distance - radius(stage)) <= 7 * scale && arcs.contains { $0.stage == stage }
+        }
+        guard let hit, hit != selected else {
+            onSelect(nil)
+            return
+        }
+        onSelect(hit)
     }
 
     // MARK: Drawing
@@ -110,26 +149,74 @@ struct SleepNightDial: View {
         for stage in [SleepStage.awake, .rem, .light, .deep] {
             let r = radius(stage)
             ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
-                       with: .color(StrandPalette.sleepStageColor(stage, palette: palette).opacity(0.10)),
+                       with: .color(StrandPalette.sleepStageColor(stage, palette: palette)
+                        .opacity(isLit(stage) ? 0.10 : 0.04)),
                        lineWidth: lineWidth * scale)
         }
     }
 
+    /// Every whole hour of the night as a tick outside the ring, with its label (« 3h ») unless the hour
+    /// falls right by the bedtime or wake-time badge, whose exact times are labelled instead.
+    private func drawHours(_ ctx: GraphicsContext, center c: CGPoint, hours: [(hour: Int, seconds: TimeInterval)],
+                           night: TimeInterval) {
+        let outer = trackRadii[0] * scale + lineWidth * scale / 2
+        let labelRadius = outer + 13
+        for mark in hours {
+            let a = SleepNightRingMath.angle(seconds: mark.seconds, night: night)
+            var tick = Path()
+            tick.move(to: point(c, outer + 2, a))
+            tick.addLine(to: point(c, outer + 6, a))
+            ctx.stroke(tick, with: .color(StrandPalette.textSecondary.opacity(0.8)), lineWidth: 1.5)
+            let nearBadge = mark.seconds < night * 0.06 || mark.seconds > night * 0.94
+            if !nearBadge {
+                let text = ctx.resolve(Text(String(localized: "\(mark.hour)h"))
+                    .font(StrandFont.caption2.weight(.medium)).foregroundColor(StrandPalette.textSecondary))
+                ctx.draw(text, at: point(c, labelRadius, a), anchor: .center)
+            }
+        }
+        let f = AppClock.hourMinuteFormatter()
+        for (seconds, date) in [(TimeInterval(0), onset), (night, onset.addingTimeInterval(night))] {
+            let a = SleepNightRingMath.angle(seconds: seconds, night: night)
+            let text = ctx.resolve(Text(f.string(from: date))
+                .font(StrandFont.captionNumber.weight(.semibold)).foregroundColor(StrandPalette.textPrimary))
+            // Pushed away from the opening so the two times do not meet at the top.
+            let side: Double = seconds == 0 ? 16 : -16
+            ctx.draw(text, at: point(c, labelRadius, a + side), anchor: .center)
+        }
+    }
+
+    /// The whole clock hours strictly inside the night, with their offset from the bedtime.
+    private func hourMarks(night: TimeInterval) -> [(hour: Int, seconds: TimeInterval)] {
+        guard night > 0 else { return [] }
+        let calendar = Calendar.current
+        guard var next = calendar.nextDate(after: onset, matching: DateComponents(minute: 0, second: 0),
+                                           matchingPolicy: .nextTime) else { return [] }
+        var marks: [(hour: Int, seconds: TimeInterval)] = []
+        while next.timeIntervalSince(onset) < night && marks.count < 24 {
+            marks.append((calendar.component(.hour, from: next), next.timeIntervalSince(onset)))
+            next = next.addingTimeInterval(3600)
+        }
+        return marks
+    }
+
     /// One stretch as a rounded arc on its track, trimmed a little at both ends so neighbours stay apart.
+    /// A stage other than the selected one is drawn faint.
     private func stroke(_ ctx: GraphicsContext, _ arc: SleepNightRingMath.Arc, center c: CGPoint) {
         let trim = min(0.6, (arc.end - arc.start) / 4)
         ctx.stroke(arcPath(center: c, radius: radius(arc.stage), from: arc.start + trim, to: arc.end - trim),
-                   with: .color(StrandPalette.sleepStageColor(arc.stage, palette: palette)),
+                   with: .color(StrandPalette.sleepStageColor(arc.stage, palette: palette)
+                    .opacity(isLit(arc.stage) ? 1 : 0.18)),
                    style: StrokeStyle(lineWidth: lineWidth * scale, lineCap: .round))
     }
 
     /// A thin light line from one stretch's track to the next one's, where the stage changes.
     private func drawLinks(_ ctx: GraphicsContext, center c: CGPoint, arcs: [SleepNightRingMath.Arc]) {
+        let opacity = selected == nil ? 0.35 : 0.12
         for (previous, next) in zip(arcs, arcs.dropFirst()) where previous.stage != next.stage {
             var link = Path()
             link.move(to: point(c, radius(previous.stage), next.start))
             link.addLine(to: point(c, radius(next.stage), next.start))
-            ctx.stroke(link, with: .color(StrandPalette.textPrimary.opacity(0.35)),
+            ctx.stroke(link, with: .color(StrandPalette.textPrimary.opacity(opacity)),
                        style: StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round))
         }
     }
@@ -172,7 +259,20 @@ struct SleepNightDial: View {
     @ViewBuilder
     private var center: some View {
         VStack(spacing: 1) {
-            if let score {
+            if let stage = selected {
+                // The picked stage alone: its name, its total and its share of the night.
+                Text(stage.label)
+                    .font(StrandFont.caption.weight(.semibold))
+                    .foregroundStyle(StrandPalette.sleepStageColor(stage, palette: palette))
+                Text(SleepDurationText.format(stageMinutes[stage] ?? 0))
+                    .font(StrandFont.number(40, weight: .bold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                if let share = stageShare(stage) {
+                    Text("\(share) of the night")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+            } else if let score {
                 Text("Rest")
                     .font(StrandFont.caption.weight(.semibold))
                     .foregroundStyle(StrandPalette.restColor)
@@ -195,6 +295,12 @@ struct SleepNightDial: View {
             }
         }
         .monospacedDigit()
+    }
+
+    /// The stage's share formatted apart (key « %lld%% », as the phases chart), so the sentence key
+    /// « %@ of the night » carries no literal percent sign.
+    private func stageShare(_ stage: SleepStage) -> String? {
+        stagePercent[stage].map { String(localized: "\($0)%") }
     }
 
     private var asleepLine: some View {

@@ -140,12 +140,21 @@ struct CoachDataView: View {
         HStack(spacing: 12) {
             CoachDataRow(symbol: "book.closed.fill", tint: StrandPalette.textSecondary,
                          title: "Patterns and Lab Book",
-                         detail: String(localized: "A summary only, never the readings"))
+                         detail: String(localized: "A summary of your patterns, and your Lab Book values when a question needs them"))
             Toggle("", isOn: $coach.includeOnDeviceSignals)
                 .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                 .accessibilityLabel("Also share my patterns and Lab Book with the coach")
         }
-    }
+        divider
+        // The lab-report opt-in (chantier 8): only "Read a PDF report with the Coach" in the Lab Book uses it.
+        HStack(spacing: 12) {
+            CoachDataRow(symbol: "doc.text.fill", tint: StrandPalette.textSecondary,
+                         title: "Lab reports (PDF)",
+                         detail: String(localized: "Only when you send one: the whole document goes, your name, your doctor and the lab included"))
+            Toggle("", isOn: $coach.labReportConsent)
+                .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                .accessibilityLabel("Let the coach read a lab report I send")
+        }
 
     /// What the read tools can fetch (`CoachTools`): nothing more leaves the device until a question
     /// needs it, and what was fetched is named under the reply.

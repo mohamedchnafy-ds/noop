@@ -248,24 +248,27 @@ struct CoachActionProposal: Codable, Equatable {
         }
         let new = WorkoutSource.preservingCaptured(base, from: old)
         var lines: [String] = [dayLine(day, now: now, calendar: calendar) + " · " + WorkoutSource.displaySport(old.sport)]
+        // Each label is in its key, so a language can put its own space before the colon ("Heure : …").
         if new.sport != old.sport {
-            lines.append(String(localized: "Sport") + ": " + WorkoutSource.displaySport(old.sport) + " → "
-                         + WorkoutSource.displaySport(new.sport))
+            let before = WorkoutSource.displaySport(old.sport), after = WorkoutSource.displaySport(new.sport)
+            lines.append(String(localized: "Sport: \(before) → \(after)"))
         }
         if new.startTs != old.startTs || new.endTs != old.endTs {
-            lines.append(String(localized: "Time") + ": " + span(old, calendar) + " → " + span(new, calendar))
+            let before = span(old, calendar), after = span(new, calendar)
+            lines.append(String(localized: "Time: \(before) → \(after)"))
         }
         if new.distanceM != old.distanceM {
-            lines.append(String(localized: "Distance") + ": " + (old.distanceM.map(distance) ?? "—") + " → "
-                         + (new.distanceM.map(distance) ?? "—"))
+            let before = old.distanceM.map(distance) ?? "—", after = new.distanceM.map(distance) ?? "—"
+            lines.append(String(localized: "Distance: \(before) → \(after)"))
         }
         if new.avgHr != old.avgHr {
-            lines.append(String(localized: "Avg HR") + ": " + (old.avgHr.map { "\($0)" } ?? "—") + " → "
-                         + (new.avgHr.map { "\($0)" } ?? "—"))
+            let before = old.avgHr.map { "\($0)" } ?? "—", after = new.avgHr.map { "\($0)" } ?? "—"
+            lines.append(String(localized: "Avg HR: \(before) → \(after)"))
         }
         if new.energyKcal != old.energyKcal {
-            lines.append(String(localized: "Calories") + ": " + (old.energyKcal.map { "\(Int($0.rounded()))" } ?? "—")
-                         + " → " + (new.energyKcal.map { "\(Int($0.rounded()))" } ?? "—"))
+            let before = old.energyKcal.map { "\(Int($0.rounded()))" } ?? "—"
+            let after = new.energyKcal.map { "\(Int($0.rounded()))" } ?? "—"
+            lines.append(String(localized: "Calories: \(before) → \(after)"))
         }
         guard lines.count > 1 else { return (nil, "That changes nothing in the workout.") }
         return (CoachActionProposal(kind: .workout, lines: lines, workout: WorkoutFix(before: old, after: new)), nil)

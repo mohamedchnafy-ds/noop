@@ -134,8 +134,6 @@ struct CoachHistoryView: View {
     private func sectionTitle(_ group: CoachHistory.Group) -> some View {
         Text(groupTitle(group))
             .font(StrandFont.overline)
-            .tracking(2)
-            .textCase(.uppercase)
             .foregroundStyle(StrandPalette.textSecondary)
             .padding(.top, 10)
             .padding(.bottom, 2)

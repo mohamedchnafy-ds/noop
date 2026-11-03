@@ -844,7 +844,7 @@ private struct LiveHeaderStats: View {
 
     private func stat(_ title: String, _ value: String) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
-            Text(title.uppercased())
+            Text(title)
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
             Text(value)
@@ -1048,7 +1048,7 @@ private struct LivePhysiology: View {
     /// broken live readout. The callers pass a word ("Offline") instead of a bare em-dash in that case.
     private func proofMetric(_ label: String, _ value: String, _ tint: Color, offline: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label.uppercased())
+            Text(label)
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
             Text(value)
@@ -1235,7 +1235,7 @@ private struct ActiveWorkoutLive: View {
 
     private func stat(_ title: String, _ value: String, tint: Color = StrandPalette.textPrimary) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased()).font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+            Text(title).font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                 .foregroundStyle(StrandPalette.textSecondary)
             Text(value).font(StrandFont.number(17))
                 .foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.6)
@@ -1279,7 +1279,7 @@ private struct LiveLogCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                Text("STRAP LOG").font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                Text("Strap log").font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Spacer()
                 // Export the log so people can attach it to a bug report (issue #17 — macOS users
@@ -1418,7 +1418,7 @@ private struct SignalTrustTile: View {
                 LiquidVessel(value: tile.frac, tint: tile.tint, animated: false)
                     .frame(width: 22, height: 22)
                     .accessibilityHidden(true)
-                Text(tile.title.uppercased())
+                Text(tile.title)
                     .font(StrandFont.overline)
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textSecondary)

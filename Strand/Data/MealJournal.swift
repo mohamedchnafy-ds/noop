@@ -5,7 +5,8 @@ import WhoopStore
 //
 // The Nutrition screens and the Coach build and read meals through here, so a meal is dated by the same
 // local day and its lines are rounded by the same `MealMath`, wherever it was entered: typed by hand,
-// read off a photo, dictated or scanned. Nothing here touches the interface.
+// read off a photo, dictated or scanned. Nothing here touches the interface. Every write that changes a
+// day's totals rebuilds the journal's metric series (`NutritionSeries`) before the revision is bumped.
 
 enum MealJournal {
 
@@ -58,6 +59,7 @@ enum MealJournal {
                            eatenAt: Int(eatenAt.timeIntervalSince1970), name: name, origin: origin,
                            favorite: favorite, createdAt: stamp, updatedAt: stamp)
         try await store.saveMeal(meal, items: lines)
+        await NutritionSeries.rebuildNutritionSeries(store)
         await bumpMealRevision()
         let saved = lines.enumerated().map { index, line -> MealItemRow in
             var row = line
@@ -109,6 +111,7 @@ enum MealJournal {
     /// Delete a meal and its lines.
     static func removeMeal(_ store: WhoopStore, id: String) async throws {
         try await store.deleteMeal(id: id)
+        await NutritionSeries.rebuildNutritionSeries(store)
         await bumpMealRevision()
     }
 }

@@ -135,6 +135,7 @@ struct NutritionView: View {
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
+            await NutritionSeries.backfillNutritionSeriesIfNeeded(repo)
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }
         }

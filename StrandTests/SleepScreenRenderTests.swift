@@ -86,25 +86,36 @@ final class SleepScreenRenderTests: XCTestCase {
 
     // MARK: Pieces
 
-    private func top() -> SleepTopSection {
+    private func top(selected: SleepStage? = nil) -> SleepTopSection {
         SleepTopSection(
             data: SleepTopSection.Model(
                 nightLabel: String(localized: "Last night"), dateLabel: "sam. 31 oct.",
                 canGoBack: false, canGoForward: false, onset: onset, wake: wake, intervals: intervals,
                 palette: .noop, score: 66, scoreWord: String(localized: "Fair"), asleepMinutes: 221,
                 deepMinutes: 47, remMinutes: 67, lightMinutes: 108, needMinutes: 480,
-                timesEdited: false, canEditTimes: true, tonight: (needMinutes: 480, debtMinutes: 143)),
-            actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {}))
+                timesEdited: false, canEditTimes: true, tonight: (needMinutes: 480, debtMinutes: 143),
+                awakeMinutes: 31, stagePercent: [.awake: 12, .rem: 27, .light: 43, .deep: 18]),
+            actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {},
+                                             addNap: {}),
+            selection: .constant(selected),
+            whyRow: AnyView(HStack(spacing: 12) {
+                Image(systemName: "info.circle")
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.restBright)
+                    .frame(width: 24)
+                Text("Why this sleep?").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                Spacer(minLength: 0)
+            }.frame(minHeight: 48)))
     }
 
     /// 03:54, the night's lowest heart rate: where the curves render tests hold their reading.
     private let readingMinute: Double = 123
 
     private func phases(hr: Bool = true, hrvOn: Bool = false, temp: Bool = false, motionOn: Bool = false,
-                        reading: Bool = false) -> SleepPhasesCard {
+                        reading: Bool = false, selected: SleepStage? = nil) -> SleepPhasesCard {
         SleepPhasesCard(
             subtitle: "\(String(localized: "\(SleepDurationText.format(252)) in bed · \(SleepDurationText.format(221)) asleep"))\n\(String(localized: "Stages estimated on the device"))",
-            source: String(localized: "On-device"),
+            source: nil,
             intervals: intervals, nightStart: onset, palette: .noop,
             stages: [
                 .init(stage: .awake, minutes: 31, percent: 12, typicalMinutes: nil),
@@ -114,12 +125,9 @@ final class SleepScreenRenderTests: XCTestCase {
             ],
             typicalProgress: (count: 1, needed: 5),
             curves: SleepPhasesCard.Curves(heartRate: heartRate, hrv: hrv, skinTemp: skinTemp, motion: motion),
-            selectedStage: .constant(nil),
+            selectedStage: .constant(selected),
             showHeartRate: .constant(hr), showHRV: .constant(hrvOn),
             showSkinTemp: .constant(temp), showMotion: .constant(motionOn),
-            whyButton: AnyView(Label("Why this sleep?", systemImage: "info.circle")
-                .font(StrandFont.footnote).foregroundStyle(StrandPalette.restBright).frame(minHeight: 44)),
-            addNap: {},
             initialReading: reading ? readingMinute * 60 : nil)
     }
 
@@ -178,6 +186,15 @@ final class SleepScreenRenderTests: XCTestCase {
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "3-courbes")
+
+        // One stage picked on the ring (deep sleep): lit alone on the ring and on the chart below, its
+        // total in the centre.
+        try render(VStack(spacing: NoopMetrics.sectionSpacing) {
+            top(selected: .deep)
+            phases(selected: .deep)
+        }
+        .padding(.horizontal, NoopMetrics.screenHPadding)
+        .padding(.top, 62), height: nil, clipped: false, name: "5-phase-choisie")
 
         // The chart full screen, heart rate + rMSSD + temperature.
         try render(phases(hr: true, hrvOn: true, temp: true, reading: true).fullScreenView

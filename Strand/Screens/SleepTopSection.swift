@@ -31,6 +31,11 @@ struct SleepTopSection: View {
         var canEditTimes: Bool
         /// Tonight's target, only for last night: the need and the debt to add to it.
         var tonight: (needMinutes: Double, debtMinutes: Double)?
+        /// Awake minutes and each stage's share of the night, from the same funnel as the phases chart
+        /// (`SleepView.stageSharePercent`), so the ring's centre and the chart's totals cannot disagree.
+        /// Without them the awake total falls back to the intervals and the share is left out.
+        var awakeMinutes: Double? = nil
+        var stagePercent: [SleepStage: Int] = [:]
     }
 
     struct Actions {
@@ -39,10 +44,17 @@ struct SleepTopSection: View {
         var previous: () -> Void
         var next: () -> Void
         var editTimes: () -> Void
+        /// Opens the add-a-nap sheet for the night shown; nil hides the row.
+        var addNap: (() -> Void)? = nil
     }
 
     let data: Model
     let actions: Actions
+    /// The stage picked on the ring or its legend, shared with the phases chart below (the Sleep tab
+    /// owns it). A constant nil (the default) leaves the ring display-only.
+    var selection: Binding<SleepStage?> = .constant(nil)
+    /// The "Why this sleep?" row (the Sleep tab owns its popover); nil when there is no reason to show.
+    var whyRow: AnyView? = nil
 
     /// The night photo was retired (fork chantier 7): the top always sits on the plain black canvas
     /// and uses the regular text tokens.
@@ -56,17 +68,31 @@ struct SleepTopSection: View {
             titleRow
             nightPicker.padding(.top, NoopMetrics.space1)
             heroCard.padding(.top, NoopMetrics.space2)
-            if let tonight = data.tonight {
-                SleepTonightCard(needMinutes: tonight.needMinutes, debtMinutes: tonight.debtMinutes)
-                    .padding(.top, NoopMetrics.space3)
+            if data.tonight != nil || whyRow != nil || actions.addNap != nil {
+                listCard.padding(.top, NoopMetrics.space3)
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Minutes awake inside the night, from the stage intervals (the legend's fourth entry).
+    /// Minutes awake inside the night: the tab's figure, else summed from the stage intervals.
     private var awakeMinutes: Double {
-        data.intervals.filter { $0.stage == .awake }.reduce(0) { $0 + max(0, $1.end - $1.start) } / 60
+        data.awakeMinutes
+            ?? data.intervals.filter { $0.stage == .awake }.reduce(0) { $0 + max(0, $1.end - $1.start) } / 60
+    }
+
+    private func minutes(_ stage: SleepStage) -> Double {
+        switch stage {
+        case .awake: return awakeMinutes
+        case .rem: return data.remMinutes
+        case .light: return data.lightMinutes
+        case .deep: return data.deepMinutes
+        }
+    }
+
+    /// Picks a stage (or clears the pick), with the same fade as the phases chart's stage cells.
+    private func select(_ stage: SleepStage?) {
+        withAnimation(StrandMotion.fade) { selection.wrappedValue = stage }
     }
 
     /// The ring, the four stage totals, its one-line key, then bed / wake / asleep (fork chantier 7).
@@ -75,12 +101,22 @@ struct SleepTopSection: View {
             SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
                            palette: data.palette, needMinutes: data.needMinutes,
                            score: data.score, scoreWord: data.scoreWord,
-                           asleepMinutes: data.asleepMinutes, onScene: showScene)
+                           asleepMinutes: data.asleepMinutes, onScene: showScene,
+                           selected: selection.wrappedValue,
+                           stageMinutes: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map { ($0, minutes($0)) }),
+                           stagePercent: data.stagePercent,
+                           onSelect: { select($0) })
             stageLegend
             Text("The further in the line sits, the deeper the sleep")
                 .font(StrandFont.caption)
                 .foregroundStyle(secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Tap a stage to see it on its own, here and on the chart below")
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             timesRow
         }
@@ -90,6 +126,46 @@ struct SleepTopSection: View {
     }
 
     // MARK: Parts
+
+    /// Tonight's target, "Why this sleep?" and "Add a nap" as one grouped list under the ring (design F).
+    private var listCard: some View {
+        VStack(spacing: 0) {
+            if let tonight = data.tonight {
+                SleepTonightRow(needMinutes: tonight.needMinutes, debtMinutes: tonight.debtMinutes)
+            }
+            if let whyRow {
+                if data.tonight != nil { listDivider }
+                whyRow
+            }
+            if let addNap = actions.addNap {
+                if data.tonight != nil || whyRow != nil { listDivider }
+                Button(action: addNap) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus.circle")
+                            .font(StrandFont.body.weight(.semibold))
+                            .frame(width: 24)
+                            .accessibilityHidden(true)
+                        Text("Add a nap")
+                            .font(StrandFont.body)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(StrandPalette.accent)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(LiquidPressStyle())
+            }
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+    }
+
+    /// The hairline between two rows of the list, inset past the icon column like an iOS grouped list.
+    private var listDivider: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+            .padding(.leading, 36)
+    }
 
     private var titleRow: some View {
         HStack(spacing: NoopMetrics.space2) {
@@ -169,22 +245,38 @@ struct SleepTopSection: View {
                 legendItem(.awake, awakeMinutes)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
+    /// One legend entry, a button: a tap lights that stage alone (on the ring and the chart below), a
+    /// second tap shows them all again.
     private func legendItem(_ stage: SleepStage, _ minutes: Double) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(StrandPalette.sleepStageColor(stage, palette: data.palette))
-                .frame(width: 8, height: 8)
-            Text(stage.label)
-                .font(StrandFont.footnote)
-                .foregroundStyle(secondary)
-            Text(SleepDurationText.format(minutes))
-                .font(StrandFont.footnote.weight(.semibold))
-                .foregroundStyle(primary)
-                .monospacedDigit()
+        let picked = selection.wrappedValue == stage
+        let dimmed = selection.wrappedValue != nil && !picked
+        return Button { select(picked ? nil : stage) } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(StrandPalette.sleepStageColor(stage, palette: data.palette))
+                    .frame(width: 8, height: 8)
+                Text(stage.label)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(secondary)
+                Text(SleepDurationText.format(minutes))
+                    .font(StrandFont.footnote.weight(.semibold))
+                    .foregroundStyle(primary)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 8)
+            .frame(minHeight: 30)
+            .background(StrandPalette.sleepStageColor(stage, palette: data.palette).opacity(picked ? 0.18 : 0),
+                        in: Capsule())
+            .opacity(dimmed ? 0.45 : 1)
+            .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("\(stage.label): \(SleepDurationText.format(minutes))"))
+        .accessibilityHint(Text("Highlights this stage on the sleep chart"))
+        .accessibilityAddTraits(picked ? .isSelected : [])
     }
 
     /// Bed, wake and asleep as three cells on one fixed grid (label / figure / caption). The bed and wake
@@ -245,8 +337,9 @@ struct SleepTopSection: View {
     }
 }
 
-/// Tonight's target: the sleep need plus the current debt estimate. Shown for last night only.
-struct SleepTonightCard: View {
+/// Tonight's target: the sleep need plus the current debt estimate. Shown for last night only, as the
+/// first row of the list under the ring.
+struct SleepTonightRow: View {
     let needMinutes: Double
     let debtMinutes: Double
 
@@ -277,10 +370,8 @@ struct SleepTonightCard: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
-        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .combine)
     }
 }

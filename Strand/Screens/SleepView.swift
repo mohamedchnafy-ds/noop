@@ -375,13 +375,19 @@ struct SleepView: View {
                 needMinutes: need,
                 timesEdited: target?.userEdited ?? false,
                 canEditTimes: target != nil,
-                tonight: nightOffset == 0 ? need.map { (needMinutes: $0, debtMinutes: ledger.isDebt ? ledger.magnitudeMin : 0) } : nil),
+                tonight: nightOffset == 0 ? need.map { (needMinutes: $0, debtMinutes: ledger.isDebt ? ledger.magnitudeMin : 0) } : nil,
+                awakeMinutes: night.stages.awake,
+                stagePercent: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map {
+                    ($0, stageSharePercent($0, night.stages))
+                })),
             actions: SleepTopSection.Actions(
                 alarms: { router.openAlarms() },
                 customize: { showSleepCustomize = true },
                 previous: { if nightOffset < lastIndex { nightOffset += 1 } },
                 next: { if nightOffset > 0 { nightOffset -= 1 } },
-                editTimes: { openTimeEditor(night) }))
+                editTimes: { openTimeEditor(night) }),
+            // One selection for the ring, its legend and the phases chart below (fork chantier 7).
+            selection: $selectedStage)
     }
 
     /// Open the bed/wake editor on the night's real stored main block (the hero shows a merged Night whose

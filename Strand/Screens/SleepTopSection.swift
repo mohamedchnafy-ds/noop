@@ -31,6 +31,11 @@ struct SleepTopSection: View {
         var canEditTimes: Bool
         /// Tonight's target, only for last night: the need and the debt to add to it.
         var tonight: (needMinutes: Double, debtMinutes: Double)?
+        /// Awake minutes and each stage's share of the night, from the same funnel as the phases chart
+        /// (`SleepView.stageSharePercent`), so the ring's centre and the chart's totals cannot disagree.
+        /// Without them the awake total falls back to the intervals and the share is left out.
+        var awakeMinutes: Double? = nil
+        var stagePercent: [SleepStage: Int] = [:]
     }
 
     struct Actions {
@@ -43,6 +48,9 @@ struct SleepTopSection: View {
 
     let data: Model
     let actions: Actions
+    /// The stage picked on the ring or its legend, shared with the phases chart below (the Sleep tab
+    /// owns it). A constant nil (the default) leaves the ring display-only.
+    var selection: Binding<SleepStage?> = .constant(nil)
 
     /// The night photo was retired (fork chantier 7): the top always sits on the plain black canvas
     /// and uses the regular text tokens.
@@ -64,9 +72,24 @@ struct SleepTopSection: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Minutes awake inside the night, from the stage intervals (the legend's fourth entry).
+    /// Minutes awake inside the night: the tab's figure, else summed from the stage intervals.
     private var awakeMinutes: Double {
-        data.intervals.filter { $0.stage == .awake }.reduce(0) { $0 + max(0, $1.end - $1.start) } / 60
+        data.awakeMinutes
+            ?? data.intervals.filter { $0.stage == .awake }.reduce(0) { $0 + max(0, $1.end - $1.start) } / 60
+    }
+
+    private func minutes(_ stage: SleepStage) -> Double {
+        switch stage {
+        case .awake: return awakeMinutes
+        case .rem: return data.remMinutes
+        case .light: return data.lightMinutes
+        case .deep: return data.deepMinutes
+        }
+    }
+
+    /// Picks a stage (or clears the pick), with the same fade as the phases chart's stage cells.
+    private func select(_ stage: SleepStage?) {
+        withAnimation(StrandMotion.fade) { selection.wrappedValue = stage }
     }
 
     /// The ring, the four stage totals, its one-line key, then bed / wake / asleep (fork chantier 7).
@@ -75,11 +98,19 @@ struct SleepTopSection: View {
             SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
                            palette: data.palette, needMinutes: data.needMinutes,
                            score: data.score, scoreWord: data.scoreWord,
-                           asleepMinutes: data.asleepMinutes, onScene: showScene)
+                           asleepMinutes: data.asleepMinutes, onScene: showScene,
+                           selected: selection.wrappedValue,
+                           stageMinutes: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map { ($0, minutes($0)) }),
+                           stagePercent: data.stagePercent,
+                           onSelect: { select($0) })
             stageLegend
             Text("The further in the line sits, the deeper the sleep")
                 .font(StrandFont.caption)
                 .foregroundStyle(secondary)
+                .multilineTextAlignment(.center)
+            Text("Tap a stage to see it on its own, here and on the chart below")
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
                 .multilineTextAlignment(.center)
             Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             timesRow
@@ -169,22 +200,38 @@ struct SleepTopSection: View {
                 legendItem(.awake, awakeMinutes)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
+    /// One legend entry, a button: a tap lights that stage alone (on the ring and the chart below), a
+    /// second tap shows them all again.
     private func legendItem(_ stage: SleepStage, _ minutes: Double) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(StrandPalette.sleepStageColor(stage, palette: data.palette))
-                .frame(width: 8, height: 8)
-            Text(stage.label)
-                .font(StrandFont.footnote)
-                .foregroundStyle(secondary)
-            Text(SleepDurationText.format(minutes))
-                .font(StrandFont.footnote.weight(.semibold))
-                .foregroundStyle(primary)
-                .monospacedDigit()
+        let picked = selection.wrappedValue == stage
+        let dimmed = selection.wrappedValue != nil && !picked
+        return Button { select(picked ? nil : stage) } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(StrandPalette.sleepStageColor(stage, palette: data.palette))
+                    .frame(width: 8, height: 8)
+                Text(stage.label)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(secondary)
+                Text(SleepDurationText.format(minutes))
+                    .font(StrandFont.footnote.weight(.semibold))
+                    .foregroundStyle(primary)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 8)
+            .frame(minHeight: 30)
+            .background(StrandPalette.sleepStageColor(stage, palette: data.palette).opacity(picked ? 0.18 : 0),
+                        in: Capsule())
+            .opacity(dimmed ? 0.45 : 1)
+            .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("\(stage.label): \(SleepDurationText.format(minutes))"))
+        .accessibilityHint(Text("Highlights this stage on the sleep chart"))
+        .accessibilityAddTraits(picked ? .isSelected : [])
     }
 
     /// Bed, wake and asleep as three cells on one fixed grid (label / figure / caption). The bed and wake

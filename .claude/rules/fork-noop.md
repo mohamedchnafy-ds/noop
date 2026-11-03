@@ -34,5 +34,11 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Toute question à Mohamed passe par l'outil de questions à choix multiples (AskUserQuestion), jamais en texte libre. Un seul lot de questions par étape ; les choix par défaut sont notés dans la fiche.
 - Il ne voit pas l'app depuis la session : lui demander des captures d'écran pour valider le rendu.
 
+## À lire au début de la prochaine conversation (ajouté le 3 nov. 2026)
+- `docs/fork/dossier-claude-code.md` : audit du code à 55a249b1 et pistes d'évolution (Coach, FC, nutrition, notifications, laboratoire de santé), avec les choix ouverts (§5.2) que Mohamed doit trancher.
+- `docs/fork/audit-delais-builds.md` : où part le temps entre une modification et l'IPA (cache de compilation, double compilation, runners macOS, re-push qui annule un build, expressions trop complexes pour le compilateur).
+- **Priorité : finir d'abord la refonte visuelle (chantier 7, `docs/fork/refonte-design.md`).** Ces deux fichiers servent de contexte : ne lancer aucun des chantiers qu'ils proposent avant la fin de la refonte, sauf accord de Mohamed. Leurs numéros de ligne datent de 55a249b1 : les revérifier avant de coder.
+- Une fois lus et la refonte terminée, faire le point avec Mohamed (widget de questions), puis déplacer ce bloc dans la feuille de route.
+
 ## Feuille de route (chargée à chaque session)
 @../../docs/fork/feuille-de-route.md

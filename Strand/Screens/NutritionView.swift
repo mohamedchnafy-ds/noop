@@ -146,6 +146,7 @@ struct NutritionView: View {
         .navigationDestination(isPresented: $showLabBook) { LabBookView() }
         .task(id: repo.refreshSeq) { labLines = await NutritionLabLines.loadLabLines(repo) }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
+            await NutritionSeries.backfillNutritionSeriesIfNeeded(repo)
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }
         }

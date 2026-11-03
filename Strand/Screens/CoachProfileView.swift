@@ -14,7 +14,6 @@ struct CoachProfileView: View {
     var body: some View {
         ScreenScaffold(title: "What the coach should know about you",
                        subtitle: "Sent with every question. Everything is optional.",
-                       topBackground: liquidScaffoldSky(),
                        trailing: {
                            Button("Done") { dismiss() }
                                .buttonStyle(.plain)

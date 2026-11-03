@@ -116,29 +116,24 @@ public enum StrandPalette {
     // Light, so the hero fits in with the other cards. Its own text uses the regular text*/tint tokens
     // (which flip) — NOT onDark*, which stays fixed for the genuinely-always-dark SKY backdrop
     // (ScreenScaffold's over-sky title). 8-digit hex = RRGGBBAA (alpha last).
-    public static let heroFill   = Color(light: "FFFFFFD9", dark: "0D0E14CC")
-    public static let heroBorder = Color(light: "0000001A", dark: "FFFFFF1C")
+    public static let heroFill   = Color(light: "FFFFFFFF", dark: "1C1C1EFF")
+    public static let heroBorder = Color(light: "00000000", dark: "FFFFFF00")
 
     // MARK: Glow — ambient bloom behind heroes / charts (additive on dark; faint warm on light)
     public static let glowAmbient    = NoopVisualStyle.mintGlow.opacity(0.28)
 
-    // MARK: Accent — chrome anchor (links, selection, focus, generic accent). USER-SELECTABLE (mint /
-    // WHOOP blue / custom) via `accentChoice` below, default mint (#1068). Only the chrome accent is
-    // user-themed — the recovery/strain/sleep DATA worlds follow `chartStyle`, never this.
-    /// The user's chrome-accent choice. Set from `@AppStorage(AccentColor.storageKey)` at the app root
-    /// via `.noopAccent(...)`; the four accessors below branch on it. Default mint.
-    public static var accentChoice: AccentColor = .mint
-    /// The custom accent's hex, used only when `accentChoice == .custom`. Set alongside `accentChoice`.
-    public static var customAccentHex: String = AccentColor.defaultCustomHex
-    public static var accent: Color { accentChoice.accent }
-    public static var accentHover: Color { accentChoice.accentHover }
-    public static var accentMuted: Color { accentChoice.accentMuted }
+    // MARK: Accent — chrome anchor (links, selection, focus, generic accent). The system blue, fixed
+    // (fork chantier 7: the user-selectable mint / WHOOP blue / custom accent was retired). Colour is
+    // carried by the metrics; chrome actions are blue.
+    public static let accent = Color(light: "#007AFF", dark: "#0A84FF")
+    public static let accentHover = Color(light: "#409CFF", dark: "#409CFF")
+    public static let accentMuted = Color(light: "#007AFF2E", dark: "#0A84FF2E")
     /// Focus ring color — the same accent, on both schemes.
-    public static var focusRing: Color { accentChoice.focusRing }
+    public static let focusRing = accent
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
     public static let disabledOpacity: Double = 0.45
     /// Liquid-scene activity tint shared by heart-rate feedback and transient sync chrome.
-    public static let liquidHeart = Color(light: "#D94C64", dark: "#FF6B81")
+    public static let liquidHeart = Color(light: "#FF2D55", dark: "#FF375F")
 
     // MARK: - Chart style (data-viz colour mode) — Titanium (brand) or Classic (throwback)
     //
@@ -254,19 +249,19 @@ public enum StrandPalette {
     public static var hrZones: [Color] { [zone1, zone1, zone2, zone3, zone4, zone5] }
 
     // MARK: Status — Titanium gold/amber/orange, or the Classic green/amber/red.
-    public static var statusPositive: Color { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#1F8A5B", dark: "#03E095") }
-    public static var statusWarning:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C2792E", dark: "#F0A020") }
-    public static var statusCritical: Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#C84E1E", dark: "#E0662F") }
+    public static var statusPositive: Color { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#248A3D", dark: "#30D158") }
+    public static var statusWarning:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C93400", dark: "#FF9F0A") }
+    public static var statusCritical: Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#D70015", dark: "#FF453A") }
 
     // MARK: Per-metric accents — HRV / SpO₂ / energy / risk. Classic leans the traditional hues (purple HRV, red risk).
-    public static var metricCyan:   Color { isClassic ? Color(light: "#2E92B4", dark: "#3FA9C9") : Color(light: "#2E92B4", dark: "#3FA9C9") }
-    public static var metricPurple: Color { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#3A80D6", dark: "#4A90E2") }
-    public static var metricAmber:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C2792E", dark: "#D98A3D") }
-    public static var metricRose:   Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#C84E1E", dark: "#E0662F") }
+    public static var metricCyan:   Color { isClassic ? Color(light: "#2E92B4", dark: "#3FA9C9") : Color(light: "#0C817B", dark: "#66D4CF") }
+    public static var metricPurple: Color { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#0C817B", dark: "#66D4CF") }
+    public static var metricAmber:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C93400", dark: "#FF9F0A") }
+    public static var metricRose:   Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#D30F45", dark: "#FF375F") }
     /// Today's calories (personal fork): bright gold for the activity part, dark copper for the resting
     /// part. Told apart by lightness as well as hue, so the two halves of one gauge never read as one.
-    public static let caloriesActivity = Color(light: "#B07F1E", dark: "#F2C46B")
-    public static let caloriesResting = Color(light: "#8A5530", dark: "#A8693A")
+    public static let caloriesActivity = Color(light: "#C93400", dark: "#FF9F0A")
+    public static let caloriesResting = Color(light: "#7F6545", dark: "#A2845E")
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
     //
@@ -280,25 +275,25 @@ public enum StrandPalette {
     // full red→green / blue / green→red in Classic regardless of these.
 
     /// Charge (recovery) — gold world / Classic green.
-    public static var chargeColor: Color  { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#0F9D62", dark: "#03E095") }
-    public static var chargeDeep: Color    { isClassic ? Color(light: "#207A3C", dark: "#2E9E4F") : Color(light: "#0B7A4A", dark: "#0B9D62") }
-    public static var chargeBright: Color  { isClassic ? Color(light: "#5FBE6E", dark: "#86D98E") : Color(light: "#5FD89A", dark: "#6BF0B4") }
-    public static var chargeGlow: Color    { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#0F9D62", dark: "#03E095") }
+    public static var chargeColor: Color  { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#248A3D", dark: "#30D158") }
+    public static var chargeDeep: Color    { isClassic ? Color(light: "#207A3C", dark: "#2E9E4F") : Color(light: "#1A6B2F", dark: "#24A148") }
+    public static var chargeBright: Color  { isClassic ? Color(light: "#5FBE6E", dark: "#86D98E") : Color(light: "#34C759", dark: "#5BE07D") }
+    public static var chargeGlow: Color    { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#248A3D", dark: "#30D158") }
     /// Diagonal accent pair for the Charge card wash + gauge stroke (deep → bright).
     public static var chargeGradient: Gradient { Gradient(colors: [chargeDeep, chargeBright]) }
 
     /// Effort (strain) — amber world / Classic blue.
-    public static var effortColor: Color   { isClassic ? Color(light: "#3A74C4", dark: "#4A90E2") : Color(light: "#2A78C8", dark: "#4090E0") }
-    public static var effortDeep: Color    { isClassic ? Color(light: "#284F9C", dark: "#2F6FCB") : Color(light: "#1E5B96", dark: "#2A6FB0") }
-    public static var effortBright: Color  { isClassic ? Color(light: "#5E92D6", dark: "#7FB2E8") : Color(light: "#5AA0E0", dark: "#74B6F0") }
-    public static var effortGlow: Color    { isClassic ? Color(light: "#3A74C4", dark: "#4A90E2") : Color(light: "#2A78C8", dark: "#4090E0") }
+    public static var effortColor: Color   { isClassic ? Color(light: "#3A74C4", dark: "#4A90E2") : Color(light: "#007AFF", dark: "#0A84FF") }
+    public static var effortDeep: Color    { isClassic ? Color(light: "#284F9C", dark: "#2F6FCB") : Color(light: "#0058B8", dark: "#0A6CD6") }
+    public static var effortBright: Color  { isClassic ? Color(light: "#5E92D6", dark: "#7FB2E8") : Color(light: "#409CFF", dark: "#5AA9FF") }
+    public static var effortGlow: Color    { isClassic ? Color(light: "#3A74C4", dark: "#4A90E2") : Color(light: "#007AFF", dark: "#0A84FF") }
     public static var effortGradient: Gradient { Gradient(colors: [effortDeep, effortBright]) }
 
     /// Rest (sleep) — blue world / Classic indigo.
-    public static var restColor: Color     { isClassic ? Color(light: "#3A80D6", dark: "#6FA8E8") : Color(light: "#5E7896", dark: "#83A0B8") }
-    public static var restDeep: Color      { isClassic ? Color(light: "#203E73", dark: "#2A4C8F") : Color(light: "#234F9E", dark: "#2F6FCB") }
-    public static var restBright: Color    { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#5790DA", dark: "#6FA8E8") }
-    public static var restGlow: Color      { isClassic ? Color(light: "#3A80D6", dark: "#6FA8E8") : Color(light: "#3A80D6", dark: "#4A90E2") }
+    public static var restColor: Color     { isClassic ? Color(light: "#3A80D6", dark: "#6FA8E8") : Color(light: "#0071A4", dark: "#64D2FF") }
+    public static var restDeep: Color      { isClassic ? Color(light: "#203E73", dark: "#2A4C8F") : Color(light: "#005A84", dark: "#3AB4EA") }
+    public static var restBright: Color    { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#32ADE6", dark: "#8ADFFF") }
+    public static var restGlow: Color      { isClassic ? Color(light: "#3A80D6", dark: "#6FA8E8") : Color(light: "#0071A4", dark: "#64D2FF") }
     /// The Rest family's most legible LINE colour — for strokes that must read on a busy or translucent
     /// surface, such as the body-clock dial's arcs over a custom background image.
     ///

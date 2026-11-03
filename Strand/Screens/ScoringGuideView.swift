@@ -134,7 +134,7 @@ struct ScoringGuideView: View {
                 Text("YOUR DAILY SCORES").font(StrandFont.overline)
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
-                Text("How your scores work").font(StrandFont.rounded(26, weight: .bold))
+                Text("How your scores work").font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text("Charge · Effort · Rest").font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)

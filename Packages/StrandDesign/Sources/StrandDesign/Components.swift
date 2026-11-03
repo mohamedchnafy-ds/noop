@@ -181,7 +181,7 @@ public struct SectionHeader: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 if let overline { Text(overline).strandOverline() }
-                Text(title).font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                Text(title).font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
             }
             Spacer()
             if let trailing {
@@ -358,7 +358,7 @@ public struct ChartFooter: View {
         HStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, it in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(it.0).textCase(.uppercase).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    Text(it.0).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     Text(it.1).font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -548,7 +548,7 @@ public struct SourceBadge: View {
         // `.frame(height:)` centres its content by default, so the label sits mid-capsule for free. Noted
         // because the Android twin pinned the same 18 with `heightIn` applied to the label itself, which
         // top-aligns — same number, different render. That one is matched to this, not the reverse.
-        Text(text).textCase(.uppercase).font(.system(size: 10, weight: .semibold, design: .rounded)).tracking(0.5)
+        Text(text).font(StrandFont.overlineScaled(11))
             .padding(.horizontal, 9).frame(height: NoopMetrics.sourceBadgeHeight)
             .background(tint.opacity(0.16), in: Capsule(style: .continuous))
             .foregroundStyle(tint)
@@ -597,43 +597,20 @@ public extension View {
 // CTAs. Drop in via `.buttonStyle(.noopPrimary)` etc. on any `Button`. All read off
 // the new gold tokens so they match Apple ⇄ Android. Pressed = subtle dim + scale.
 
-/// Primary call-to-action: gold-gradient fill, dark gold-deep ink (700), rounded 13.
+/// Primary call-to-action: solid white fill, black label, rounded 14 (fork chantier 7).
 public struct NoopPrimaryButtonStyle: ButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
         return configuration.label
-            .font(StrandFont.body.weight(.bold))
-            .foregroundStyle(StrandPalette.goldDeepText)
+            .font(StrandFont.body.weight(.semibold))
+            .foregroundStyle(StrandPalette.surfaceBase)
             .padding(.vertical, 11).padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(LinearGradient(gradient: StrandPalette.goldGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
+                    .fill(StrandPalette.textPrimary)
             )
-            // A crisp, subtle NEUTRAL elevation — the gold cast-glow read as too much against the
-            // clean design, so it's a soft dark lift now, no bloom.
-            .shadow(color: .black.opacity(pressed ? 0.08 : 0.16), radius: 6, x: 0, y: 3)
-            .opacity(pressed ? 0.9 : 1)
-            .scaleEffect(pressed ? 0.98 : 1)
-            .animation(StrandMotion.interactive, value: pressed)
-            .contentShape(Rectangle())
-    }
-}
-
-/// Secondary: inset well + 1px white-12 border + primary text. Quieter than gold.
-public struct NoopSecondaryButtonStyle: ButtonStyle {
-    public init() {}
-    public func makeBody(configuration: Configuration) -> some View {
-        let pressed = configuration.isPressed
-        let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
-        return configuration.label
-            .font(StrandFont.body.weight(.semibold))
-            .foregroundStyle(StrandPalette.textPrimary)
-            .padding(.vertical, 11).padding(.horizontal, 18)
-            .frame(maxWidth: .infinity)
-            .background(shape.fill(StrandPalette.surfaceInset))
-            .overlay(shape.strokeBorder(StrandPalette.hairline, lineWidth: 1))
             .opacity(pressed ? 0.82 : 1)
             .scaleEffect(pressed ? 0.98 : 1)
             .animation(StrandMotion.interactive, value: pressed)
@@ -641,19 +618,37 @@ public struct NoopSecondaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Ghost / gold: transparent + 1px gold@.3 hairline + gold text. Tertiary CTA.
+/// Secondary: #2C2C2E fill, no border, primary text, rounded 14.
+public struct NoopSecondaryButtonStyle: ButtonStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        let shape = RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
+        return configuration.label
+            .font(StrandFont.body.weight(.semibold))
+            .foregroundStyle(StrandPalette.textPrimary)
+            .padding(.vertical, 11).padding(.horizontal, 18)
+            .frame(maxWidth: .infinity)
+            .background(shape.fill(StrandPalette.surfaceInset))
+            .opacity(pressed ? 0.82 : 1)
+            .scaleEffect(pressed ? 0.98 : 1)
+            .animation(StrandMotion.interactive, value: pressed)
+            .contentShape(Rectangle())
+    }
+}
+
+/// Ghost: transparent, system-blue label. Tertiary CTA.
 public struct NoopGhostButtonStyle: ButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
         return configuration.label
             .font(StrandFont.body.weight(.semibold))
-            .foregroundStyle(StrandPalette.gold)
+            .foregroundStyle(StrandPalette.accent)
             .padding(.vertical, 11).padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
-            .background(shape.fill(StrandPalette.gold.opacity(pressed ? 0.10 : 0)))
-            .overlay(shape.strokeBorder(StrandPalette.gold.opacity(0.3), lineWidth: 1))
+            .background(shape.fill(StrandPalette.accent.opacity(pressed ? 0.10 : 0)))
             .scaleEffect(pressed ? 0.98 : 1)
             .animation(StrandMotion.interactive, value: pressed)
             .contentShape(Rectangle())
@@ -661,7 +656,7 @@ public struct NoopGhostButtonStyle: ButtonStyle {
 }
 
 public extension ButtonStyle where Self == NoopPrimaryButtonStyle {
-    /// Gold-gradient primary CTA.
+    /// White primary CTA.
     static var noopPrimary: NoopPrimaryButtonStyle { .init() }
 }
 public extension ButtonStyle where Self == NoopSecondaryButtonStyle {

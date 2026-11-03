@@ -118,9 +118,8 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 if let title {
-                    // Match the liquid home's title face (SF Rounded 28) so every page's header reads
-                    // identically (2026-07-02 cohesion pass).
-                    Text(title).font(StrandFont.rounded(28)).foregroundStyle(StrandPalette.textPrimary)
+                    // Screen title: SF Pro 34 bold (fork chantier 7).
+                    Text(title).font(StrandFont.screenTitle).foregroundStyle(StrandPalette.textPrimary)
                 }
                 if let subtitle {
                     Text(subtitle).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)

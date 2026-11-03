@@ -177,7 +177,7 @@ struct NutritionView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             Text("Nutrition")
-                .font(StrandFont.rounded(28))
+                .font(StrandFont.screenTitle)
                 .foregroundStyle(StrandPalette.textPrimary)
             Spacer(minLength: 0)
             Button { showGoals = true } label: {

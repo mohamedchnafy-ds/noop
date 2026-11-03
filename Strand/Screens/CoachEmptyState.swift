@@ -93,8 +93,8 @@ struct CoachEmptyState: View {
             .padding(.trailing, 12)
             .padding(.vertical, 10)
             .frame(minHeight: 64)
-            .background(NoopPanelSurface(cornerRadius: 22))
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+            .contentShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
         }
         .buttonStyle(LiquidPressStyle())
         .accessibilityElement(children: .combine)
@@ -127,7 +127,7 @@ struct CoachEmptyState: View {
                 }
             }
             .padding(.horizontal, 16)
-            .background(NoopPanelSurface(cornerRadius: 22))
+            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         }
     }
 

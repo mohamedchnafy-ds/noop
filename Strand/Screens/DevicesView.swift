@@ -22,10 +22,7 @@ struct DevicesView: View {
 
     var body: some View {
         ScreenScaffold(title: "Devices",
-                       subtitle: "Pair and manage the bands NOOP reads from.",
-                       // The day-of-sky liquid backdrop, matching Today / Health / Sleep / Trends: a fixed,
-                       // full-bleed time-of-day sky behind the scroll content (it does not scroll).
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "Pair and manage the bands NOOP reads from.") {
             if let registry = model.deviceRegistry {
                 DevicesContent(registry: registry)
             } else {
@@ -1767,8 +1764,7 @@ struct DeviceCardCatalog: View {
 
     var body: some View {
         ScreenScaffold(title: "Devices",
-                       subtitle: "What each band captures (and what NOOP uses it for).",
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "What each band captures (and what NOOP uses it for).") {
             VStack(spacing: NoopMetrics.gap) {
                 DeviceCard(device: Self.dev("whoop-4d", "WHOOP", "4.0", Self.whoopCaps),
                            isActive: true, isLiveConnected: true,
@@ -1811,8 +1807,7 @@ struct DeviceCardCatalog: View {
 struct OuraDeviceDemoScreen: View {
     var body: some View {
         ScreenScaffold(title: "Devices",
-                       subtitle: "A locally-adopted Oura ring, in beta.",
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "A locally-adopted Oura ring, in beta.") {
             VStack(spacing: NoopMetrics.gap) {
                 // Active + connected so the card shows "Active · Live" + a live battery readout.
                 DeviceCard(device: DeviceCardCatalog.oura("Oura Ring 3"),
@@ -1834,8 +1829,7 @@ struct OuraDeviceDemoScreen: View {
 struct BondRefusedDemoScreen: View {
     var body: some View {
         ScreenScaffold(title: "Devices",
-                       subtitle: "A WHOOP 5/MG whose encrypted bond was refused (#78).",
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "A WHOOP 5/MG whose encrypted bond was refused (#78).") {
             DeviceCard(device: PairedDevice(id: "whoop-5-refused-solo", brand: "WHOOP", model: "5.0 MG",
                                             nickname: nil, peripheralId: nil, sourceKind: .liveBLE,
                                             capabilities: WhoopLiveCapabilities.metrics(forModel: "5.0 MG"),

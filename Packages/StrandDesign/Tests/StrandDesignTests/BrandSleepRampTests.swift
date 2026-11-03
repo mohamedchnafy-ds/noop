@@ -16,7 +16,7 @@ final class BrandSleepRampTests: XCTestCase {
 
     /// `NoopVisualStyle.surface` — the card the stepped hypnogram is drawn on (ChartCard → NoopCard).
     private let lightSurface = "#FFFFFF"
-    private let darkSurface  = "#2A2C34"
+    private let darkSurface  = "#1C1C1E"
 
     private typealias Ramp = [(light: String, dark: String)]
     private var ramps: [(name: String, ramp: Ramp)] {

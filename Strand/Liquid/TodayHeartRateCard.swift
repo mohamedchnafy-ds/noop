@@ -614,7 +614,7 @@ struct TodayHeartRateSection: View {
                 card
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(NoopPanelSurface(cornerRadius: 22))
+                    .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
             }
             .buttonStyle(LiquidPressStyle())
             .accessibilityHint("Opens the full-day heart rate timeline")

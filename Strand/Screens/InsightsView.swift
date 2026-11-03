@@ -213,11 +213,7 @@ struct InsightsView: View {
                        // PERF (scroll): lazy column, byte-identical layout (LazyVStack == eager VStack
                        // alignment/spacing/header). The content is one inner eager VStack, so any nested
                        // staggered reveals are unchanged; this only defers building that stack on scroll-in.
-                       lazy: true,
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Insights sits in one atmosphere ("the options change, not the page").
-                       // Static + non-interactive; the cards below sit on the opaque canvas and stay legible.
-                       topBackground: liquidScaffoldSky()) {
+                       lazy: true) {
             if !loaded {
                 ComingSoon(what: "Reading your journal and outcomes…")
             } else {

@@ -41,7 +41,7 @@ struct TodaySynthesisCard: View {
             .padding(.horizontal, NoopMetrics.space4)
             .padding(.vertical, NoopMetrics.space1)
             .frame(maxWidth: .infinity)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: surfaceOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
         }
     }
 

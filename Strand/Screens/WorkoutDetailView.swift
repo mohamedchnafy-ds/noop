@@ -77,12 +77,7 @@ struct WorkoutDetailView: View {
                        // zone-split chart and the effort card). The LazyVStack path builds the off-screen
                        // ones on demand — byte-identical layout — so a tall detail doesn't materialise the
                        // map + both charts before the header is even on screen.
-                       lazy: true,
-                       // The day-of-sky liquid backdrop, matching the Workouts list this detail opens from
-                       // and every other liquid screen. Fixed and full-bleed; it does not scroll. This
-                       // screen is presented in a sheet wrapped in a NavigationStack by WorkoutsView, so it
-                       // needs no extra macOS NavigationStack of its own.
-                       topBackground: liquidScaffoldSky()) {
+                       lazy: true) {
             headerCard
             statStrip
             routeCard

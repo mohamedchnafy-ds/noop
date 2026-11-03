@@ -130,7 +130,7 @@ struct HowNoopWorksView: View {
                 Text("THE BASICS").font(StrandFont.overline)
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
-                Text("How NOOP works").font(StrandFont.rounded(26, weight: .bold))
+                Text("How NOOP works").font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text("Sleep · scores · recording · where your numbers come from")
                     .font(StrandFont.caption)

@@ -133,7 +133,8 @@ struct RootTabView: View {
             }
             moreTab(path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
         }
-        .tint(StrandPalette.accent)
+        // Liquid Glass tab bar with a white selected tab, no mint (fork chantier 7).
+        .tint(StrandPalette.textPrimary)
         // Switching Coach off while STANDING on it leaves `selectedTab` pointing at a tag no tab claims
         // any more, which renders as an empty tab rather than as an error. Send that wearer to Today, and
         // only in that case, so a flip made from anywhere else does not move them.
@@ -463,6 +464,8 @@ struct RootTabView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .tabRouteDestinations()
         }
+        // Content keeps the blue action tint; only the tab bar selection is white (fork chantier 7).
+        .tint(StrandPalette.accent)
         // Drive this tab's root scroll-to-top on an at-root re-tap (#198 follow-up); read by ScreenScaffold
         // / LiquidTodayView inside. Only THIS tab's token changes on its reselect, so the others don't scroll.
         .environment(\.scrollToTopSignal, scrollSignal)
@@ -476,8 +479,7 @@ struct RootTabView: View {
     private func moreTab(path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
         NavigationStack(path: path) {
             ScreenScaffold(title: "More", subtitle: "Everything else, in six places",
-                           onRefresh: { await repo.refresh() },
-                           topBackground: liquidScaffoldSky()) {
+                           onRefresh: { await repo.refresh() }) {
                 MoreHubCard { group, isLast in
                     NavigationLink(value: MoreDestination.hub(group)) {
                         MoreHubRowLabel(group: group, showsDivider: !isLast)
@@ -500,6 +502,7 @@ struct RootTabView: View {
                     .toolbarBackground(.hidden, for: .navigationBar)
             }
         }
+        .tint(StrandPalette.accent)
         // Scroll the More index to the top on an at-root re-tap (#198 follow-up); read by its ScreenScaffold.
         .environment(\.scrollToTopSignal, scrollSignal)
         .tabItem { Label("More", systemImage: "ellipsis") }

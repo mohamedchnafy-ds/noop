@@ -18,7 +18,6 @@ struct CoachDataView: View {
     var body: some View {
         ScreenScaffold(title: "What the coach reads",
                        subtitle: "Sent to \(coach.provider.displayName) with each question, and never without one.",
-                       topBackground: liquidScaffoldSky(),
                        trailing: {
                            Button("Done") { dismiss() }
                                .buttonStyle(.plain)
@@ -269,7 +268,6 @@ private struct CoachExactTextView: View {
     var body: some View {
         ScreenScaffold(title: "Exact text sent",
                        subtitle: "Sent with your question, after the coach's built-in instructions.",
-                       topBackground: liquidScaffoldSky(),
                        trailing: {
                            Button("Done") { dismiss() }
                                .buttonStyle(.plain)

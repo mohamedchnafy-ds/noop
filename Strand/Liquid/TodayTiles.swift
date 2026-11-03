@@ -32,7 +32,7 @@ struct TodayHeaderLayout<Controls: View>: View {
             }
             Button(action: onTitleTap) {
                 Text(title)
-                    .font(StrandFont.rounded(34))
+                    .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .shadow(color: .black.opacity(0.4), radius: 10, y: 1)
                     .lineLimit(1)

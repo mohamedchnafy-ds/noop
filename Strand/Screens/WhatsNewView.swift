@@ -60,7 +60,7 @@ struct WhatsNewView: View {
                     .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("NOOP \(AppChangelog.currentVersion)")
-                    .font(StrandFont.rounded(26, weight: .bold))
+                    .font(StrandFont.screenTitle)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text("Release notes").font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)

@@ -109,7 +109,7 @@ struct WorkoutSelectionScreen: View {
     private var headerCopy: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             Text(heading)
-                .font(StrandFont.rounded(34, weight: .bold))
+                .font(StrandFont.screenTitle)
                 .foregroundStyle(StrandPalette.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(explainer)

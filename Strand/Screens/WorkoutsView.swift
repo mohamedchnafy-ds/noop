@@ -183,10 +183,7 @@ struct WorkoutsView: View {
                        // zones card, and a row-per-session table). On a large imported history the eager
                        // VStack built every section + the whole table up-front; the LazyVStack path (which
                        // is byte-identical layout) builds the off-screen sections/rows on demand instead.
-                       lazy: true,
-                       // The day-of-sky liquid backdrop, matching Today / Health / Sleep / Trends: a fixed,
-                       // full-bleed time-of-day sky behind the scroll content (it does not scroll).
-                       topBackground: liquidScaffoldSky()) {
+                       lazy: true) {
             if allRows.isEmpty {
                 VStack(alignment: .leading, spacing: NoopMetrics.space4) {
                     ComingSoon(what: loaded

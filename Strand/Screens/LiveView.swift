@@ -32,10 +32,6 @@ struct LiveView: View {
     @AppStorage("selectedWhoopModel") private var selectedModelRaw = WhoopModel.whoop4.rawValue
     private var selectedModel: WhoopModel { WhoopModel(rawValue: selectedModelRaw) ?? .whoop4 }
 
-    /// "Card transparency" (0–100, default 100): fades the live console cards in lockstep with the frosted
-    /// cards; content stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     /// Maps the picked strap model to the HRV-reading source so the spot caveat is honest (#537): a
     /// WHOOP 5/MG's R-R is optical PPG (noisier), a WHOOP 4 is electrical R-R. Mirrors the Android
@@ -109,8 +105,7 @@ struct LiveView: View {
 
     var body: some View {
         ScreenScaffold(title: "Live Body Console",
-                       subtitle: "Current physiology, strap trust, and session controls in one working view.",
-                       topBackground: liquidScaffoldSky()) {
+                       subtitle: "Current physiology, strap trust, and session controls in one working view.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 consoleHeader
                 // Can't-connect-at-all guidance: the strap wiped its bond (firmware update / WHOOP app
@@ -210,7 +205,7 @@ struct LiveView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface())
     }
 
     // MARK: - Console header
@@ -616,7 +611,7 @@ struct LiveView: View {
                 scanButton
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
             .strokeBorder(StrandPalette.accent.opacity(0.30), lineWidth: 1))
     }
 
@@ -715,7 +710,7 @@ struct LiveView: View {
                 ringReconnectButton
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
             .strokeBorder(StrandPalette.accent.opacity(0.30), lineWidth: 1))
     }
 
@@ -1280,8 +1275,6 @@ private struct LiveLogCard: View {
     /// app-switcher snapshot, and blanking the log there would be visible for no benefit. The kill needs
     /// sustained non-frontmost CPU, which is `.background`.
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1321,7 +1314,7 @@ private struct LiveLogCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+        .background(NoopPanelSurface())
     }
 
     /// The tail of the log, lazily.
@@ -1404,8 +1397,6 @@ private enum LiveSyncFormat {
 /// and a one-line detail. The whole card is combined into a single accessibility element so VoiceOver
 /// reads "Heart rate: 62 bpm. Streaming now." rather than three disjoint fragments.
 private struct SignalTrustTile: View {
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
     struct Model: Identifiable {
         let title: String
@@ -1448,7 +1439,7 @@ private struct SignalTrustTile: View {
         .padding(14)
         .frame(minHeight: 112, alignment: .top)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface(cornerRadius: 20, surfaceOpacity: cardOpacity))
+        .background(NoopPanelSurface())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(tile.title): \(tile.value). \(tile.detail)")
     }

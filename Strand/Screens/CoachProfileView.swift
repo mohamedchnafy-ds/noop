@@ -24,10 +24,10 @@ struct CoachProfileView: View {
             goalSection
             rhythmSection
             equipmentSection
-            textSection(title: "PAIN OR CONSTRAINTS",
+            textSection(title: "Pain or constraints",
                         placeholder: "e.g. right shoulder sensitive on overhead press",
                         text: $coach.coachProfile.constraints)
-            textSection(title: "ANYTHING ELSE",
+            textSection(title: "Anything else",
                         placeholder: "e.g. football on Sundays, I train in the evening",
                         text: $coach.coachProfile.other)
             Label("Saved on this device only.", systemImage: "lock.fill")
@@ -40,7 +40,7 @@ struct CoachProfileView: View {
 
     @ViewBuilder
     private var bodySection: some View {
-        CoachSectionTitle("FROM YOUR NOOP PROFILE")
+        CoachSectionTitle("From your NOOP profile")
         NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
             VStack(alignment: .leading, spacing: 0) {
                 if let fiche = coach.bodyFiche {
@@ -86,7 +86,7 @@ struct CoachProfileView: View {
 
     @ViewBuilder
     private var goalSection: some View {
-        CoachSectionTitle("GOAL")
+        CoachSectionTitle("Goal")
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
             ForEach(CoachProfile.Goal.allCases) { goal in
                 CoachChip(goal.label, selected: coach.coachProfile.goal == goal) {
@@ -100,7 +100,7 @@ struct CoachProfileView: View {
 
     @ViewBuilder
     private var rhythmSection: some View {
-        CoachSectionTitle("RHYTHM")
+        CoachSectionTitle("Training rhythm")
         NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Sessions per week").font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
@@ -120,7 +120,7 @@ struct CoachProfileView: View {
 
     @ViewBuilder
     private var equipmentSection: some View {
-        CoachSectionTitle("EQUIPMENT")
+        CoachSectionTitle("Equipment")
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
             ForEach(CoachProfile.Equipment.allCases) { item in
                 CoachChip(item.label, selected: coach.coachProfile.equipment.contains(item)) {
@@ -157,7 +157,7 @@ enum CoachProfileText {
 
 // MARK: - Small pieces shared by the coach's sheets
 
-/// The overline above a group, in the coach sheets' style.
+/// The title above a group, in the coach sheets' style: 13 semibold grey, normal case (fork chantier 7).
 struct CoachSectionTitle: View {
     private let text: LocalizedStringKey
     init(_ text: LocalizedStringKey) { self.text = text }
@@ -165,8 +165,7 @@ struct CoachSectionTitle: View {
     var body: some View {
         Text(text)
             .font(StrandFont.overline)
-            .tracking(1.6)
-            .foregroundStyle(StrandPalette.textTertiary)
+            .foregroundStyle(StrandPalette.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 8)
             .accessibilityAddTraits(.isHeader)

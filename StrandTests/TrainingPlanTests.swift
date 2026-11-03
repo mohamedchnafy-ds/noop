@@ -26,21 +26,59 @@ final class TrainingPlanTests: XCTestCase {
 
     func testPlanRoundTripsAndKeepsOnlyExistingPrograms() {
         var plan = TrainingWeekPlan()
-        plan.assignProgram("A", weekday: 1)
-        plan.assignProgram("B", weekday: 3)
-        plan.assignProgram("C", weekday: 5)
-        plan.assignProgram("A", weekday: 6)
-        plan.assignProgram(nil, weekday: 6)
-        plan.assignProgram("Z", weekday: 9)   // not a weekday: ignored
+        plan.addItem(.program("A"), weekday: 1)
+        plan.addItem(.program("B"), weekday: 3)
+        plan.addItem(.cardio(sport: "Running", minutes: 30), weekday: 3)
+        plan.addItem(.program("C"), weekday: 5)
+        plan.addItem(.program("A"), weekday: 6)
+        plan.removeItem(at: 0, weekday: 6)
+        plan.addItem(.program("Z"), weekday: 9)   // not a weekday: ignored
+        plan.addItem(.program(""), weekday: 2)    // no program: ignored
         plan.since = "2026-11-02"
         let stored = plan.encodedWeekPlan()
         XCTAssertEqual(TrainingWeekPlan.decodeWeekPlan(stored), plan)
         XCTAssertEqual(stored, TrainingWeekPlan.decodeWeekPlan(stored).encodedWeekPlan())
+        XCTAssertTrue(stored.contains(#"{"minutes":30,"sport":"Running"}"#), stored)
         XCTAssertEqual(plan.plannedWeekdays(of: "A"), [1])
-        XCTAssertNil(plan.plannedProgramId(weekday: 2))
-        XCTAssertEqual(plan.keepingPrograms(["A", "C"]).programs, ["1": "A", "5": "C"])
+        XCTAssertEqual(plan.plannedItems(weekday: 2), [])
+        XCTAssertNil(plan.days["6"], "a day emptied is rest")
+        XCTAssertEqual(plan.keepingPrograms(["A", "C"]).days,
+                       ["1": [.program("A")], "3": [.cardio(sport: "Running", minutes: 30)], "5": [.program("C")]],
+                       "a deleted program frees its place, cardio stays")
+        XCTAssertEqual(plan.keepingPrograms([]).plannedItems(weekday: 1), [], "a day left empty is rest")
         XCTAssertEqual(TrainingWeekPlan.decodeWeekPlan("not json"), TrainingWeekPlan())
         XCTAssertEqual(TrainingWeekPlan.decodeWeekPlan(nil), TrainingWeekPlan())
+    }
+
+    func testADayHoldsThreeItemsAtMost() {
+        var plan = TrainingWeekPlan()
+        plan.addItem(.program("A"), weekday: 2)
+        plan.addItem(.cardio(sport: "Running", minutes: 30), weekday: 2)
+        plan.addItem(.program("B"), weekday: 2)
+        plan.addItem(.cardio(sport: "Cycling", minutes: 20), weekday: 2)
+        XCTAssertEqual(plan.plannedItems(weekday: 2),
+                       [.program("A"), .cardio(sport: "Running", minutes: 30), .program("B")])
+        plan.removeItem(at: 1, weekday: 2)
+        XCTAssertEqual(plan.plannedItems(weekday: 2), [.program("A"), .program("B")])
+        plan.removeItem(at: 5, weekday: 2)        // out of range: ignored
+        XCTAssertEqual(plan.plannedItems(weekday: 2).count, 2)
+    }
+
+    func testTheV1PlanIsCarriedOverWithoutLoss() {
+        let v1 = #"{"programs":{"1":"A","3":"B","5":"C"},"since":"2026-11-02"}"#
+        let plan = TrainingWeekPlan.decodeWeekPlan(v1)
+        XCTAssertEqual(plan, TrainingWeekPlan(days: ["1": [.program("A")], "3": [.program("B")], "5": [.program("C")]],
+                                              since: "2026-11-02"))
+        let defaults = UserDefaults(suiteName: "TrainingPlanTests.v1")!
+        defaults.removePersistentDomain(forName: "TrainingPlanTests.v1")
+        defaults.set(v1, forKey: TrainingWeekPlan.legacyStorageKey)
+        XCTAssertEqual(TrainingWeekPlan.loadWeekPlan(defaults), plan, "no v2 plan yet: the v1 plan is read")
+        var edited = plan
+        edited.addItem(.cardio(sport: "Running", minutes: 45), weekday: 2)
+        edited.storeWeekPlan(defaults)
+        XCTAssertEqual(TrainingWeekPlan.loadWeekPlan(defaults), edited, "once saved, the v2 plan is read")
+        XCTAssertEqual(defaults.string(forKey: TrainingWeekPlan.legacyStorageKey), v1, "the v1 plan is left as it was")
+        defaults.removePersistentDomain(forName: "TrainingPlanTests.v1")
     }
 
     func testPlanAppliesFromItsFirstDay() {
@@ -52,9 +90,11 @@ final class TrainingPlanTests: XCTestCase {
         XCTAssertTrue(plan.appliesToDay("2020-01-01"))
     }
 
-    func testPlanDecisionIsTheProgramRestOrNothingBeforeThePlan() {
-        let plan = TrainingWeekPlan(programs: ["1": "A", "3": "B"], since: "2026-11-02")
-        XCTAssertEqual(plan.planDecision(for: date(2, 9), calendar: calendar), .program("A"))
+    func testPlanDecisionIsTheItemsRestOrNothingBeforeThePlan() {
+        let plan = TrainingWeekPlan(days: ["1": [.program("A"), .cardio(sport: "Running", minutes: 30)],
+                                           "3": [.program("B")]], since: "2026-11-02")
+        XCTAssertEqual(plan.planDecision(for: date(2, 9), calendar: calendar),
+                       .planned([.program("A"), .cardio(sport: "Running", minutes: 30)]))
         XCTAssertEqual(plan.planDecision(for: date(3, 9), calendar: calendar), .rest)
         XCTAssertNil(plan.planDecision(for: date(28, 9, month: 10), calendar: calendar))  // before the plan
         XCTAssertNil(TrainingWeekPlan().planDecision(for: date(2, 9), calendar: calendar)) // no plan
@@ -89,8 +129,8 @@ final class TrainingPlanTests: XCTestCase {
                          startTs: ts(day, hour), endTs: ts(day, hour) + 52 * 60, workingSets: sets, effort: nil)
     }
 
-    private func activity(_ day: Int, _ hour: Int) -> TrainingActivityDone {
-        TrainingActivityDone(sport: "Walk", source: "detected", startTs: ts(day, hour),
+    private func activity(_ day: Int, _ hour: Int, sport: String = "Walk") -> TrainingActivityDone {
+        TrainingActivityDone(sport: sport, source: "detected", startTs: ts(day, hour),
                              endTs: ts(day, hour) + 25 * 60, kcal: 140)
     }
 
@@ -105,7 +145,7 @@ final class TrainingPlanTests: XCTestCase {
         XCTAssertTrue(days[0].isMissed)
         XCTAssertFalse(days[1].isMissed)
         XCTAssertTrue(days[1].hasLift)
-        XCTAssertNil(days[1].plannedProgramId)
+        XCTAssertEqual(days[1].planned, [])
         XCTAssertTrue(days[2].isToday)
         XCTAssertTrue(days[2].isPlannedOpen)      // planned today, not done yet
         XCTAssertTrue(days[2].hasActivity)
@@ -125,23 +165,56 @@ final class TrainingPlanTests: XCTestCase {
         let plan = TrainingWeekPlan(programs: ["1": "A"], since: "2026-11-02")
         let days = TrainingDays.buildTrainingDays([date(26, month: 10), date(2)], plan: plan, lifts: [],
                                                   activities: [], now: date(2, 9), calendar: calendar)
-        XCTAssertNil(days[0].plannedProgramId)
+        XCTAssertEqual(days[0].planned, [])
         XCTAssertFalse(days[0].isMissed)
-        XCTAssertEqual(days[1].plannedProgramId, "A")
+        XCTAssertEqual(days[1].openProgramIds, ["A"])
+    }
+
+    func testEachPlannedItemIsMatchedOnceAndCardioBySport() {
+        let items: [TrainingPlanItem] = [.program("A"), .program("B"), .cardio(sport: "Running", minutes: 30),
+                                         .cardio(sport: "Cycling", minutes: 20)]
+        // B done, then a session of another program (a swap: it does A's place); a run of 25 min (under its
+        // 30-min target: still done); a walk, which is not cycling.
+        let matched = TrainingDays.matchPlanned(items, lifts: [lift(2, 8, program: "B"), lift(2, 18, program: "Z")],
+                                                activities: [activity(2, 7, sport: "running"), activity(2, 12)])
+        XCTAssertEqual(matched.map(\.isDone), [true, true, true, false])
+        XCTAssertEqual(TrainingDays.matchPlanned(items, lifts: [lift(2, 8, program: "B")], activities: []).map(\.isDone),
+                       [false, true, false, false], "one session ticks one program, its own first")
+        XCTAssertTrue(TrainingDays.isSameSport("TraditionalStrengthTraining", "Traditional Strength Training"))
+        XCTAssertFalse(TrainingDays.isSameSport("detected", "Running"))
+    }
+
+    func testAMultiItemDayIsOpenMissedOrDoneItemByItem() {
+        let plan = TrainingWeekPlan(days: ["1": [.program("A"), .cardio(sport: "Running", minutes: 30)],
+                                           "3": [.cardio(sport: "Cycling", minutes: 45)]], since: "2026-11-02")
+        let week = TrainingCalendar.weekDates(from: date(2), calendar: calendar)
+        // Wednesday 4 Nov, 20:00: Monday's lift done, its run not; Wednesday's ride done.
+        let days = TrainingDays.buildTrainingDays(week, plan: plan, lifts: [lift(2, 18, program: "A")],
+                                                  activities: [activity(4, 17, sport: "Cycling")],
+                                                  now: date(4, 20), calendar: calendar)
+        XCTAssertTrue(days[0].isMissed)
+        XCTAssertEqual(days[0].openItems, [.cardio(sport: "Running", minutes: 30)])
+        XCTAssertFalse(days[0].hasOpenLift)
+        XCTAssertTrue(days[0].hasOpenCardio)
+        XCTAssertFalse(days[2].isPlannedOpen, "the ride planned today is done")
+        let tally = TrainingDays.sessionTally(days)
+        XCTAssertEqual(tally.done, 2, "the lift and the planned ride")
+        XCTAssertEqual(tally.planned, 3)
     }
 
     func testCoachWeekPlanTextNamesTheDaysTheCountMissedAndToday() {
-        let plan = TrainingWeekPlan(programs: ["1": "A", "3": "B", "5": "C"], since: "2026-11-02")
+        let plan = TrainingWeekPlan(days: ["1": [.program("A")], "3": [.program("B"), .cardio(sport: "Running", minutes: 30)],
+                                           "5": [.program("C")]], since: "2026-11-02")
         let week = TrainingDays.buildTrainingDays(TrainingCalendar.weekDates(from: date(2), calendar: calendar),
                                                   plan: plan, lifts: [lift(3, 18, program: "B")],
                                                   activities: [], now: date(4, 10), calendar: calendar)
         let text = CoachFiche.weekPlanText(plan, programNames: ["A": "Full body A", "B": "Full body B", "C": "Full body C"],
                                            week: week)
         XCTAssertTrue(text.hasPrefix("WEEK PLAN"), text)
-        XCTAssertTrue(text.contains("Monday: Full body A; Wednesday: Full body B; Friday: Full body C"), text)
-        XCTAssertTrue(text.contains("1 Lift Log session done for 3 planned"), text)
+        XCTAssertTrue(text.contains("Monday: Full body A; Wednesday: Full body B + Running 30 min (cardio); Friday: Full body C"), text)
+        XCTAssertTrue(text.contains("1 session done for 4 planned"), text)
         XCTAssertTrue(text.contains("Missed so far: Monday (Full body A)"), text)
-        XCTAssertTrue(text.contains("Today (Wednesday): Full body B planned, not done yet"), text)
+        XCTAssertTrue(text.contains("Today (Wednesday): Full body B, Running 30 min (cardio) planned, not done yet"), text)
         XCTAssertEqual(CoachFiche.weekPlanText(TrainingWeekPlan(), programNames: [:], week: week), "")
     }
 

@@ -138,7 +138,8 @@ enum MealReminder {
         let reminders = planMealReminders(
             now: now, calendar: calendar, minutes: reminderMinutes,
             isTrainingDay: { day in
-                if case .program = plan.planDecision(for: day, calendar: calendar) { return true }
+                // Any planned item makes a training day, cardio included (fork chantier 8, lot 4).
+                if case .planned = plan.planDecision(for: day, calendar: calendar) { return true }
                 return false
             },
             mealTimesToday: meals.map { Date(timeIntervalSince1970: TimeInterval($0.meal.eatenAt)) },

@@ -329,6 +329,23 @@ final class TodayVitalsTests: XCTestCase {
         XCTAssertNotNil(rest.subtitle)
     }
 
+    /// Fork chantier 8, lot 4: planned cardio names its target, and the day's other items still to do follow.
+    func testPlannedCardioAndTheOtherItemsOfTheDay() {
+        var lift = TodaySynthesisLogic.Session(name: "Full body A", state: .next, supersets: 4, singles: 0,
+                                               typicalMinutes: 50)
+        let alone = TodaySynthesisLogic.sessionRow(lift, route: nil).subtitle ?? ""
+        lift.alsoPlanned = ["Running · 30 min"]
+        let row = TodaySynthesisLogic.sessionRow(lift, route: nil)
+        XCTAssertEqual(row.subtitle, alone + " · + Running · 30 min")
+        XCTAssertEqual(row.symbol, "dumbbell.fill")
+        let cardio = TodaySynthesisLogic.sessionRow(
+            .init(name: "Running", state: .next, supersets: 0, singles: 0, typicalMinutes: nil, cardioMinutes: 30),
+            route: nil)
+        XCTAssertEqual(cardio.symbol, "figure.run")
+        XCTAssertEqual(cardio.subtitle, String(localized: "\(30) min"))
+        XCTAssertNotNil(cardio.action)
+    }
+
     func testSessionStillToDoOffersStartAndMovesTheNameIntoTheSubtitle() {
         let next = TodaySynthesisLogic.sessionRow(
             .init(name: "Full body A", state: .next, supersets: 0, singles: 0, typicalMinutes: 48), route: nil)

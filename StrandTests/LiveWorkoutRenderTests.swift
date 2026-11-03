@@ -14,13 +14,18 @@ final class LiveWorkoutRenderTests: XCTestCase {
 
     /// Ten minutes of 10-second buckets: a steady climb for the run, sets and rests for strength.
     private func runCurve() -> [Double?] {
-        (0..<60).map { 138 + Double($0) * 0.4 + (Double($0 % 7) - 3) }
+        (0..<60).map { index -> Double? in
+            let climb: Double = Double(index) * 0.4
+            let wobble: Double = Double(index % 7) - 3
+            return 138 + climb + wobble
+        }
     }
 
     private func strengthCurve() -> [Double?] {
         (0..<60).map { index -> Double? in
             let phase = index % 12
-            return phase < 4 ? 100 + Double(phase) * 14 : 156 - Double(phase - 4) * 7
+            if phase < 4 { return 100 + Double(phase) * 14 }
+            return 156 - Double(phase - 4) * 7
         }
     }
 

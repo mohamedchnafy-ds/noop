@@ -441,9 +441,7 @@ struct LabBookView: View {
     }
 
     private func latestLabel(_ row: LabMarkerRow?, key: String) -> String {
-        guard let row else { return "—" }
-        if let v = row.value { return "\(LabBookFormat.value(v, key: key)) \(row.unit)" }
-        return row.valueText ?? "—"
+        LabBookFormat.readingLabel(row, key: key)
     }
 
     private func lastTakenCaption(_ row: LabMarkerRow?) -> String {
@@ -510,6 +508,14 @@ extension LabMarkerCategory {
 // MARK: - Shared formatting (decimals from the catalog; UTC day labels)
 
 enum LabBookFormat {
+    /// A reading as the Lab Book prints it: "42 µg/L" (catalog decimals), the qualitative text, or "—"
+    /// without one. The marker card and Nutrition's lab line (personal fork) both go through it.
+    static func readingLabel(_ row: LabMarkerRow?, key: String) -> String {
+        guard let row else { return "—" }
+        if let v = row.value { return "\(value(v, key: key)) \(row.unit)" }
+        return row.valueText ?? "—"
+    }
+
     /// Format a numeric value with the marker's catalog decimals. A custom (non-catalog) marker has no
     /// declared precision, so it is shown at its own precision via `plain` rather than a fixed 1 decimal,
     /// which rounded plateletcrit 0.27 to "0.3" and urine specific gravity 1.020 to "1.0".

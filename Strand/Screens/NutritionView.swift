@@ -39,6 +39,9 @@ struct NutritionView: View {
     @State private var capturedDraft: MealEntry?
     // Personal fork, chantier 8: the day's planned meals (a menu), greyed under the eaten ones.
     @State private var planned: (dayKey: String, meals: [MealEntry]) = ("", [])
+    // Personal fork, chantier 8: the followed Lab Book markers, and the Lab Book they open.
+    @State private var labLines: [NutritionLabLine] = []
+    @State private var showLabBook = false
 
     private enum ScannerExit {
         case manual, coach
@@ -153,12 +156,20 @@ struct NutritionView: View {
                     }
                 }
             }
+
+            if !labLines.isEmpty {
+                NutritionLabCard(lines: labLines, onOpen: { showLabBook = true })
+                    .padding(.top, NoopMetrics.space2)
+                    .nutritionListRow()
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
+        .navigationDestination(isPresented: $showLabBook) { LabBookView() }
+        .task(id: repo.refreshSeq) { labLines = await NutritionLabLines.loadLabLines(repo) }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             await NutritionSeries.backfillNutritionSeriesIfNeeded(repo)
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)

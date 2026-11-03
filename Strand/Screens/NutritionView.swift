@@ -631,7 +631,8 @@ struct NutritionMealRow: View {
                         .padding(.vertical, 6)
                         .background(Capsule().fill(StrandPalette.intakeColor))
                 }
-                .buttonStyle(.borderless)
+                // The plain style, like the row's own button: the inner tap wins and the PNG render draws it.
+                .buttonStyle(.plain)
                 .accessibilityHint(Text("Counts this planned meal as eaten"))
             } else {
                 Image(systemName: "chevron.right")

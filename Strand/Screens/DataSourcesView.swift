@@ -322,10 +322,10 @@ struct DataSourcesView: View {
                     .disabled(oura.busy || !oura.isConfigured)
                     if !oura.isConfigured {
                         Text("Add your Oura app credentials to OuraSecrets.xcconfig to enable this.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
                     }
                 }
-                if let s = oura.statusText { Text(s).font(.caption).foregroundStyle(.secondary) }
+                if let s = oura.statusText { Text(s).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary) }
             }
         }
     }

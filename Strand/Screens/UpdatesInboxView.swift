@@ -46,7 +46,6 @@ struct UpdatesInboxView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("INBOX").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("Updates")
                     .font(StrandFont.screenTitle)
@@ -99,7 +98,6 @@ struct UpdatesInboxView: View {
     private func section(_ label: LocalizedStringKey, items: [UpdateItem]) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             Text(label).font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
                 .foregroundStyle(StrandPalette.textTertiary)
             ForEach(items) { item in
                 UpdateRow(item: item, onTap: { handleTap(item) }, onRestore: { restore(item) })

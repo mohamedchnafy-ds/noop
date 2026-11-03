@@ -219,7 +219,7 @@ struct RawDataCollectorView: View {
                             let current = Self.markerCurrentTime(session: session, now: timeline.date)
                             Text("Marker: \(binding.wrappedValue.at.formatted(date: .omitted, time: .standard))")
                             Text("Current time: \(current.formatted(date: .omitted, time: .standard))")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(StrandPalette.textSecondary)
                             HStack {
                                 Button { binding.wrappedValue.at.addTimeInterval(-10) } label: { Text(verbatim: "−10 s") }
                                 Spacer()

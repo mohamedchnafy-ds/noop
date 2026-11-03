@@ -89,7 +89,6 @@ struct NoopLimitationsView: View {
         NoopCard {
             VStack(alignment: .leading, spacing: 14) {
                 Text("WHAT NOOP READS").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 // Column header.
                 HStack {
@@ -124,7 +123,6 @@ struct NoopLimitationsView: View {
         NoopCard {
             VStack(alignment: .leading, spacing: 10) {
                 Text("LEGEND").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 legendRow(.full, "Read live off the strap")
                 legendRow(.partial, "On-device estimate, or experimental / firmware-gated")

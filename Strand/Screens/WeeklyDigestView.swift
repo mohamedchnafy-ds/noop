@@ -577,8 +577,6 @@ private struct DigestScoreCard: View {
             if isEmbedded {
                 Text(summary.metric.localizedName)
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
-                    .textCase(.uppercase)
                     .foregroundStyle(domain.color)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .multilineTextAlignment(.center)
@@ -635,8 +633,6 @@ private struct DigestScoreCard: View {
     private var metricLabel: some View {
         Text(summary.metric.localizedName)
             .font(StrandFont.overline)
-            .tracking(StrandFont.overlineTracking)
-            .textCase(.uppercase)
             .foregroundStyle(domain.color)
     }
 

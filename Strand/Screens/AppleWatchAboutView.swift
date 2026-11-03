@@ -152,7 +152,6 @@ struct AppleWatchAboutView: View {
         NoopCard {
             VStack(alignment: .leading, spacing: 14) {
                 Text("WHAT THE WATCH CAN DO").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Text("Each metric, where your Apple Watch sits on it, and why.")
                     .font(StrandFont.footnote)

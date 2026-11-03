@@ -191,8 +191,6 @@ struct BarcodeKnownPanel: View {
                 HStack(spacing: NoopMetrics.space2) {
                     Text("Per 100 g")
                         .font(StrandFont.overlineScaled(11))
-                        .tracking(1.5)
-                        .textCase(.uppercase)
                         .foregroundStyle(StrandPalette.textSecondary)
                     Text(verbatim: NutritionFormat.per100Line(product.per100))
                         .font(StrandFont.footnote.monospacedDigit())

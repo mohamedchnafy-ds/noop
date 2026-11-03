@@ -57,7 +57,6 @@ struct WhatsNewView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("WHAT'S NEW").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("NOOP \(AppChangelog.currentVersion)")
                     .font(StrandFont.screenTitle)
@@ -81,7 +80,6 @@ struct WhatsNewView: View {
         NoopCard(tint: StrandPalette.accent) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("WHAT TO EXPECT").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textSecondary)
                 ForEach(AppChangelog.expectations) { e in
                     HStack(alignment: .top, spacing: 12) {

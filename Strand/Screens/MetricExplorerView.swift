@@ -1266,7 +1266,7 @@ struct MetricDetailView: View {
                 // Category + title on their OWN full-width row so a long title ("Heart Rate Variability")
                 // is never crushed into a letter-per-line column by the range pill (2026-07-02).
                 if !isStepsDetail { VStack(alignment: .leading, spacing: 2) {
-                    Text(MetricCatalog.categoryDisplayName(metric.category).uppercased()).strandOverline()
+                    Text(MetricCatalog.categoryDisplayName(metric.category)).strandOverline()
                     Text(metric.title)
                         .font(StrandFont.title2)
                         .foregroundStyle(StrandPalette.textPrimary)
@@ -1296,12 +1296,12 @@ struct MetricDetailView: View {
                                     .accessibilityHidden(true)
                                 VStack(spacing: 2) {
                                     CountUpNumber(value: v, font: StrandFont.rounded(48))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(StrandPalette.onDarkPrimary)
                                         .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                                     if !metric.unit.isEmpty {
                                         Text(metric.unit)
                                             .font(StrandFont.footnote)
-                                            .foregroundStyle(.white.opacity(0.85))
+                                            .foregroundStyle(StrandPalette.onDarkPrimary.opacity(0.85))
                                             .shadow(color: .black.opacity(0.5), radius: 4, y: 1)
                                     }
                                 }
@@ -1382,7 +1382,7 @@ struct MetricDetailView: View {
                                    windowFellBack: windowFellBack)
         return VStack(alignment: .leading, spacing: 8) {
             if !isStepsDetail { VStack(alignment: .leading, spacing: 2) {
-                Text(MetricCatalog.categoryDisplayName(metric.category).uppercased()).strandOverline()
+                Text(MetricCatalog.categoryDisplayName(metric.category)).strandOverline()
                 Text(metric.title)
                     .font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.textPrimary)

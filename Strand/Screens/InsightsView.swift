@@ -303,7 +303,7 @@ struct InsightsView: View {
                         // WHOOP tappable-card title: UPPERCASE tracked white + trailing "›" chevron
                         // glyph (mirrors "HEALTH MONITOR ›"). The descriptive line stays beneath.
                         Text("WHAT MOVES YOU \u{203A}")
-                            .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                            .font(StrandFont.overline)
                             .foregroundStyle(StrandPalette.textPrimary)
                         Text("Ranked, lag-aware: which of your habits actually move your Charge, plus your personal alcohol/caffeine dose-response.")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
@@ -709,7 +709,6 @@ struct InsightsView: View {
         VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             Text(title)
                 .font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
                 .foregroundStyle(StrandPalette.textTertiary)
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)

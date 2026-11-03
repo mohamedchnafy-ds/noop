@@ -451,8 +451,6 @@ struct RhythmView: View {
             HStack {
                 Text(label)
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
-                    .textCase(.uppercase)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Spacer()
                 Text(percent(frac))

@@ -345,7 +345,7 @@ struct WorkoutDetailView: View {
 
     private func routeStat(_ title: String, _ value: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title.uppercased()).strandOverline()
+            Text(title).strandOverline()
             Text(value)
                 .font(StrandFont.number(15))
                 .foregroundStyle(tint)

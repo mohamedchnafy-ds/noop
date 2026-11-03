@@ -436,7 +436,6 @@ struct StressView: View {
                     VStack(alignment: .leading, spacing: NoopMetrics.space1) {
                         Text(model.band.title)
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
                             .foregroundStyle(StressRamp.color(model.score))
                         // One plain-English line beside the gauge.
                         Text(model.explanation)
@@ -727,7 +726,7 @@ private struct StressHeroGauge: View {
                     value: score,
                     format: { StressTrace.formatLevel($0) },
                     font: StrandFont.rounded(34, weight: .bold),
-                    color: .white
+                    color: StrandPalette.onDarkPrimary
                 )
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                 Text("of 3")
@@ -1314,7 +1313,6 @@ private struct StressPreviewHarness: View {
                             StressHeroGauge(score: score, tint: StressRamp.color(score))
                             VStack(alignment: .leading, spacing: NoopMetrics.space1) {
                                 Text(band.title).font(StrandFont.overline)
-                                    .tracking(StrandFont.overlineTracking)
                                     .foregroundStyle(StressRamp.color(score))
                                 Text(StressMath.explanation(band: band, rhrDelta: 3, hrvDelta: -8, usingStored: false))
                                     .font(StrandFont.subhead)

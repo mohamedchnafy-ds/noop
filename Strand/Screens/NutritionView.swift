@@ -77,6 +77,12 @@ struct NutritionView: View {
                 header
                 NutritionBalanceCard(model: NutritionBalanceModel(summary: current, plan: plan),
                                      onGoals: { showGoals = true })
+                // Fork chantier 7 (design F): the four ways to add a meal, straight from the screen.
+                NutritionAddTiles(onType: { editor = .add },
+                                  onScan: barcodeScannerAvailable ? { showScanner = true } : nil,
+                                  onPhoto: coach.canEstimateMeals ? { capture = .photo } : nil,
+                                  onDictate: coach.canEstimateMeals ? { capture = .voice } : nil)
+                    .padding(.top, NoopMetrics.space2)
                 mealsTitle(count: meals.count)
             }
             .nutritionListRow()
@@ -127,13 +133,6 @@ struct NutritionView: View {
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom) {
-            NoopButton("Add a meal", systemImage: "plus", kind: .primary, fullWidth: true) {
-                editor = .add
-            }
-            .padding(.horizontal, NoopMetrics.screenHPadding)
-            .padding(.bottom, NoopMetrics.space2)
-        }
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
@@ -599,6 +598,52 @@ struct NutritionMealRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint(Text("Opens the meal to edit it"))
+    }
+}
+
+/// The four ways to add a meal under the intake card (fork chantier 7, design F): type it in, scan a
+/// barcode, a photo or dictation estimated by the Coach. A nil action greys its tile out (no camera on
+/// the Mac, Coach off). A pure view: the screen and the render test feed it.
+struct NutritionAddTiles: View {
+    var onType: (() -> Void)?
+    var onScan: (() -> Void)?
+    var onPhoto: (() -> Void)?
+    var onDictate: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            tile(symbol: "pencil", title: "Type in", action: onType)
+            tile(symbol: "barcode.viewfinder", title: "Scan code", action: onScan)
+            tile(symbol: "camera", title: "Photo", action: onPhoto)
+            tile(symbol: "mic", title: "Dictate", action: onDictate)
+        }
+    }
+
+    private func tile(symbol: String, title: LocalizedStringKey, action: (() -> Void)?) -> some View {
+        Button {
+            action?()
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.accent)
+                    // One icon height for the four tiles, so their labels share a baseline.
+                    .frame(height: 24)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(StrandFont.footnote.weight(.medium))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.compactRadius + 2))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(LiquidPressStyle())
+        .disabled(action == nil)
+        .opacity(action == nil ? 0.45 : 1)
     }
 }
 

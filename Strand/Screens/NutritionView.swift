@@ -46,6 +46,9 @@ struct NutritionView: View {
         let range: NutritionHistoryRange
         let days: [NutritionHistoryDay]
     }
+    // Personal fork, chantier 8: the followed Lab Book markers, and the Lab Book they open.
+    @State private var labLines: [NutritionLabLine] = []
+    @State private var showLabBook = false
 
     private enum ScannerExit {
         case manual, coach
@@ -143,6 +146,11 @@ struct NutritionView: View {
                                  loading: history?.range != historyRange)
                 .padding(.top, NoopMetrics.space2)
                 .nutritionListRow()
+            if !labLines.isEmpty {
+                NutritionLabCard(lines: labLines, onOpen: { showLabBook = true })
+                    .padding(.top, NoopMetrics.space2)
+                    .nutritionListRow()
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -154,6 +162,8 @@ struct NutritionView: View {
             let days = await NutritionHistory.loadNutritionHistory(repo, profile: profile, range: range)
             if !Task.isCancelled { history = LoadedNutritionHistory(range: range, days: days) }
         }
+        .navigationDestination(isPresented: $showLabBook) { LabBookView() }
+        .task(id: repo.refreshSeq) { labLines = await NutritionLabLines.loadLabLines(repo) }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }

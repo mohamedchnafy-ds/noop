@@ -1,0 +1,37 @@
+# Chantier 8 — dossier Claude Code (Coach, Nutrition, Planning, Labo) — fiche (3 nov. 2026)
+
+Source : `docs/fork/dossier-claude-code.md` (audit v4.1 à 55a249b1 ; **revérifier chaque localisateur** avant de coder, la refonte a déplacé des lignes). Cette fiche consigne les **choix de Mohamed du 3 nov.** qui tranchent le §5.2 du dossier. En cas d'écart, cette fiche l'emporte sur le dossier.
+
+## Méthode (Mohamed, 3 nov.)
+- **Toutes les questions d'un coup**, puis tout le code ; **une seule IPA à la fin** du chantier (`build/<nom>` depuis `main`, avec les 3 rappels).
+- Travail **par lots dans l'ordre du §4** ; dans un lot, une PR par préoccupation. À chaque lot : contrôles de la règle 3, `render/<nom>` + PNG envoyés, PR. Fusion **dès que la CI est verte** (0 non-succès sur un total stable). Le mode automatique de la session peut refuser `gh api …/merge` : dans ce cas, demander à Mohamed de fusionner ou d'ajouter la permission, ne pas contourner.
+- Un écran que les maquettes ne montrent pas : dessiner d'abord un artboard dans le canevas (https://claude.ai/artifact/BM3c5Wt1e3cqLpbJMEeyCe), style F.
+- La couleur FC (§2.1) est **faite** (#40 : `metricRose` = `liquidHeart`).
+
+## Choix tranchés
+| Sujet (dossier) | Décision |
+|---|---|
+| Lecture Coach (§2.2, §2.7, §2.8) | Le Coach doit accéder aux **séries**, pas seulement à une valeur ponctuelle. À ajouter : **FC de la journée** (buckets 5 min + temps par zone, même lecteur que la carte FC d'Aujourd'hui), **poids** (série Apple Santé de `metricSeries`), **eau** (tracker hydratation), **caféine** (caféine active estimée), **historique du stress** (Baevsky jour par jour, même calcul que `StressView`), **VFC / FC de la nuit en détail** (courbes de l'écran Sommeil), **dette de sommeil sur 14 j**. Déjà lus et à garder : VFC, température, SpO₂, respiration, FC repos, pas, calories (`get_metric_history`). Lecture seule, consentement « Utiliser mes données », réutiliser les lecteurs des écrans (deux lectures d'un fait ne doivent pas diverger). Résumer pour tenir sous `maxResultCharacters`. |
+| Poids (§2.7) | **Apple Santé seulement**, pas de saisie manuelle, pas de migration. |
+| Eau / caféine (§2.8) | **Lecture Coach seule** ; aucun changement d'écran, trackers toujours opt-in. « Eau enregistrée ≠ eau bue ». |
+| Actions du Coach (§2.5) | Les trois : **ajouter une sieste**, **corriger une séance**, **corriger des séries**. |
+| Validation des actions | **Carte dans la conversation** (gabarit carte Repas : aperçu → Valider → Annuler possible ensuite). Annulation par snapshot (`deleteSleepSession` comme modèle). Une correction n'est jamais présentée comme une mesure ; origine journalisée. |
+| PDF de bilan (§2.10 bis A) | **Extraction par le Coach (Anthropic)**, document entier, avec un **consentement dédié** (libellé : le document part entier, identité / médecin / labo compris). Vérifier d'abord, dans la documentation officielle de l'API (skill `claude-api`), le bloc document PDF : existence, taille, pages, format. Carte d'aperçu valeur par valeur, rien écrit sans validation ; unités verbatim ; doublons inter-sources détectés et proposés, jamais fusionnés en silence ; date sans heure = midi local (`LabBookFormat.noonEpoch`). **Corriger avant** le libellé du 2e opt-in de `CoachDataView` (« jamais les mesures » est faux). |
+| Labo ↔ Nutrition (§2.10 bis B) | **Consigne dans le rôle du Coach + ligne écran** : Nutrition affiche la dernière valeur de 2–3 marqueurs choisis par Mohamed (ex. vitamine D, ferritine), lien vers le Carnet de labo. Jamais de diagnostic ni de changement automatique des objectifs. |
+| Mémoire (§2.9) | **Carte « Retenir »** : quand un fait durable apparaît (blessure, horaires…), le Coach propose de l'ajouter à `CoachProfile` (« Ce que le Coach doit savoir sur toi ») ; Mohamed valide. Pas de résumé automatique. |
+| Repas prévus (§2.6) | Statut **dédié** `planned` (orthogonal à `origin`, migration iOS v52 / Android 43→44 à revérifier, parité Room/GRDB). Affichés **grisés dans le journal du jour** avec « Mangé » ; ne comptent ni dans les anneaux, ni dans le bilan, ni dans le widget tant qu'ils ne sont pas mangés. Le Coach propose un menu par une carte. |
+| Historique Nutrition (§2.6 bis) | Section **7 j / 30 j dans Nutrition** (apports vs objectif, macros, bilan estimé) **et** totaux du jour écrits dans `metricSeries` (source dédiée, ex. `noop-nutrition`) pour Analyses / Comparer. Jour non saisi = trou, jamais 0. Objectifs actuels, libellé explicite. Repas prévus exclus. Parité : la série crosse la base → règle Swift/Kotlin. |
+| Rappels (§2.10) | **Oui, heure fixe** : opt-in, désactivé par défaut, 1 par jour max. Jour de séance : rappel à une heure réglable si aucun repas noté ; après une séance : « Tu as noté un repas depuis ? ». Annuler / replanifier à chaque repas, séance, changement de planning et retour au premier plan. Jamais de déficit affirmé. Formulations à montrer à Mohamed avant de coder. |
+| Planning (§2.3) | **Plusieurs séances par jour + cardio** (sport + durée cible). Modèle jour → liste typée, migration de `training.weekPlan.v1` sans perte. Cinq lecteurs à mettre à jour ensemble : `planDecision`, `buildTrainingDays`, `TrainingPlanSheet`, `CoachFiche.weekPlanText`, `TodaySessionResolver` (Synthèse + widget). |
+| Corps cliquable (§2.4) | **Oui** : `LiftBodyMap` dans `LiftProgramEditorSheet` comme filtre d'ajout ; l'ajout texte reste. |
+
+## Lots (ordre du §4)
+1. **Lecture Coach** : outils / blocs de fiche pour les séries ci-dessus ; `CoachDataView` à jour ; tests `CoachToolsTests`.
+2. **Actions Coach** : sieste, correction de séance, correction de séries, carte « Retenir » ; puis **PDF du bilan** (consentement + libellé du 2e opt-in d'abord) ; consigne Labo ↔ Nutrition dans le rôle (`coach-instructions.md`).
+3. **Nutrition** : repas prévus (migration), historique 7 j / 30 j + série `metricSeries`, ligne Labo, rappels.
+4. **Planning** multi-séances + cardio (seul, il touche 5 lecteurs).
+5. **Corps cliquable** dans l'éditeur de programme.
+Puis l'IPA, la validation sur le téléphone, la mise à jour de cette fiche et de la feuille de route.
+
+## Prompt de démarrage
+> Fork NOOP — chantier 8 (dossier Claude Code). Lis `.claude/rules/fork-noop.md`, `docs/fork/feuille-de-route.md`, `docs/fork/chantier-8-design.md` (choix de Mohamed, **ils priment**), puis `docs/fork/dossier-claude-code.md` (localisateurs à revérifier, base 55a249b1). Démarrage : `git fetch`, vérifier qu'aucune branche `build/*` / `feat/*` n'est en avance sur `main` (hors les 3 vieilles connues). Méthode : lots dans l'ordre de la fiche ; pour chaque lot, propose brièvement, code, fais les contrôles de la règle 3 (i18n, doc-lint, tests Tools, parité + gouvernance si `Packages/` ou données stockées, sorties dans le scratchpad), pousse `render/<nom>`, envoie-moi les PNG, ouvre la PR et fusionne dès que la CI est verte (0 non-succès sur un total stable ; si la fusion est refusée par la session, demande-moi). Les choix sont faits : ne me pose une question (widget, un seul lot) que si un point n'est pas tranché par la fiche — par exemple les formulations des rappels et les 2–3 marqueurs Labo à afficher dans Nutrition. Pas d'IPA avant la fin des 5 lots ; ensuite `build/<nom>` depuis `main` avec les 3 rappels. Pas de force-push, rien d'irréversible sans accord. Fin : mets à jour la fiche et la feuille de route. Réponses en français, courtes.

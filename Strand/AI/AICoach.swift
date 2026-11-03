@@ -243,11 +243,20 @@ final class AICoachEngine: ObservableObject {
     }
     /// SECOND opt-in (v5): also fold a SUMMARY of the new on-device signals, your strongest n-of-1
     /// correlations and your Lab Book markers, into the coach context. OFF by default and gated behind
-    /// `dataConsent` too, so it never adds anything without both consents. Summary-only: a few one-line
-    /// sentences, NEVER raw readings, the anonymity / no-raw-egress posture is preserved.
+    /// `dataConsent` too, so it never adds anything without both consents. The fiche carries a summary;
+    /// with this on, the `get_lab_book` tool (personal fork) also sends the latest Lab Book values when a
+    /// question needs them, which "What the coach reads" says.
     @Published var includeOnDeviceSignals: Bool {
         didSet { UserDefaults.standard.set(includeOnDeviceSignals, forKey: Self.onDeviceSignalsKey) }
     }
+
+    /// The lab-report opt-in (personal fork, chantier 8), OFF by default and separate from the others: a PDF
+    /// the user chooses goes WHOLE to Anthropic (their identity, their doctor and the lab included) to have its
+    /// values read. Only "Read a report with the Coach" in the Lab Book sends one, and only while this is on.
+    @Published var labReportConsent: Bool = UserDefaults.standard.bool(forKey: AICoachEngine.labReportConsentKey) {
+        didSet { UserDefaults.standard.set(labReportConsent, forKey: AICoachEngine.labReportConsentKey) }
+    }
+    static let labReportConsentKey = "ai.labReportConsent"
 
     /// K11: THIRD opt-in — send a chart image alongside the text when using Gemini's multimodal
     /// API. OFF by default and gated behind `dataConsent` too. Only active when the provider is
@@ -360,6 +369,7 @@ final class AICoachEngine: ObservableObject {
     - Les calories dépensées sont une estimation du bracelet.
     - Le bloc NUTRITION de la fiche donne ce qu'il a mangé aujourd'hui, ses objectifs (calculés par l'app avec son profil) et ses 7 derniers jours : pars de là pour parler de ses apports. Un jour sans repas noté n'est pas un jour sans manger.
     - Pas de régime extrême ni de jeûne prolongé. Compléments : seulement les classiques (créatine, protéine en poudre, caféine, vitamine D), toujours présentés comme facultatifs.
+    - Labo et nutrition : si le Lab Book montre un marqueur lié à l'alimentation (vitamine D, ferritine, vitamine B12, HbA1c, glycémie, lipides), tu peux en tenir compte dans tes conseils de repas, avec sa date et sa valeur telles qu'il les a notées. Jamais de diagnostic ni d'avis sur un résultat, jamais de changement de ses objectifs de nutrition de ta part (il les règle lui-même) : pour l'interprétation, renvoie à son médecin.
 
     ## Sécurité
     Tu n'es pas médecin : ne pose jamais de diagnostic. Douleur vive ou qui s'aggrave, douleur thoracique, malaise, essoufflement anormal → arrêter et consulter. Pour une douleur légère, propose d'adapter l'exercice (amplitude, charge, variante) plutôt que de forcer.

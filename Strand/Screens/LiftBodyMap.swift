@@ -16,6 +16,9 @@ struct LiftBodyMap: View {
     let sets: [LiftMuscle: Double]
     /// Muscles drawn with the priority outline.
     var highlighted: Set<LiftMuscle> = []
+    /// The outline of a highlighted muscle: the priority orange unless a caller gives another meaning
+    /// to the outline (the program editor's selected muscle).
+    var highlightColor: Color = StrandPalette.statusWarning
     var onTap: ((LiftMuscle) -> Void)?
 
     static let canvas = CGSize(width: 150, height: 316)
@@ -32,7 +35,7 @@ struct LiftBodyMap: View {
                     LiftBodyShape(outline: piece.path)
                         .fill(LiftBodyMapStyle.color(sets[piece.muscle] ?? 0))
                         .overlay(LiftBodyShape(outline: piece.path)
-                            .stroke(hot ? StrandPalette.statusWarning : LiftBodyMapStyle.silhouette,
+                            .stroke(hot ? highlightColor : LiftBodyMapStyle.silhouette,
                                     style: StrokeStyle(lineWidth: (hot ? 2.2 : 2) * scale, lineJoin: .round)))
                         .contentShape(LiftBodyShape(outline: piece.path))
                         .onTapGesture { onTap?(piece.muscle) }

@@ -45,6 +45,7 @@ jobs:
             -only-testing:StrandTests/CoachCardsRenderTests \
             -only-testing:StrandTests/LabReportRenderTests \
             -only-testing:StrandTests/LiveWorkoutRenderTests \
+            -only-testing:StrandTests/LiftProgramMuscleRenderTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?

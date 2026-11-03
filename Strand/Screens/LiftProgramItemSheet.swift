@@ -17,6 +17,10 @@ import WhoopStore
 struct LiftProgramItemSheet: View {
     /// The line being edited, or nil to add a new one.
     let item: LiftProgramItemRow?
+    /// A new line started from the program editor's body map: this known exercise, with its muscles.
+    var preset: LiftExerciseRow? = nil
+    /// A new line started from "New exercise for …": this muscle as the primary, the name still to type.
+    var presetMuscle: LiftMuscle? = nil
     /// Handed the finished line. The parent owns ordering and persistence.
     let onSave: (LiftProgramItemRow) -> Void
 
@@ -302,6 +306,10 @@ struct LiftProgramItemSheet: View {
             restText = item.restSec.map(String.init) ?? ""
             maxRpeText = item.targetRpe.map { LiftFormat.trim($0) } ?? ""
             note = item.note ?? ""
+        } else if let preset {
+            adopt(preset)
+        } else if let presetMuscle {
+            primary = presetMuscle
         }
         guard let store = await repo.storeHandle() else { return }
         vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []

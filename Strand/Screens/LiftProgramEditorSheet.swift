@@ -29,6 +29,10 @@ struct LiftProgramEditorSheet: View {
 
     /// The line being added or edited (nil = that sheet is closed).
     @State private var editingItem: ItemEditTarget?
+    /// The user's exercise vocabulary, for the body map ("Add by muscle").
+    @State private var vocabulary: [LiftExerciseRow] = []
+    /// The muscle touched on the body map (nil = none).
+    @State private var selectedMuscle: LiftMuscle?
     @State private var confirmingDelete = false
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
@@ -66,8 +70,9 @@ struct LiftProgramEditorSheet: View {
         .dismissesKeyboardOnTap($focused)
         .task { await loadIfNeeded() }
         .sheet(item: $editingItem) { target in
-            LiftProgramItemSheet(item: target.item) { saved in
+            LiftProgramItemSheet(item: target.item, preset: target.preset, presetMuscle: target.muscle) { saved in
                 apply(saved, replacing: target.item)
+                Task { await loadVocabulary() }
             }
         }
     }
@@ -131,6 +136,18 @@ struct LiftProgramEditorSheet: View {
                 Label("Add exercise", systemImage: "plus")
             }
             .buttonStyle(NoopButtonStyle(.secondary))
+
+            LiftProgramMuscleFilter(
+                vocabulary: vocabulary,
+                programExercises: items.map(\.exercise),
+                selected: $selectedMuscle,
+                onAdd: { row in
+                    editingItem = ItemEditTarget(id: "new-\(row.id)", item: nil, preset: row)
+                },
+                onNew: { muscle in
+                    editingItem = ItemEditTarget(id: "new-\(muscle.rawValue)", item: nil, muscle: muscle)
+                })
+            .padding(.top, NoopMetrics.gap)
         }
     }
 
@@ -371,11 +388,19 @@ struct LiftProgramEditorSheet: View {
     private func loadIfNeeded() async {
         guard !loaded else { return }
         loaded = true
+        await loadVocabulary()
         guard let program else { return }
         name = program.name
         note = program.note ?? ""
         guard let store = await repo.storeHandle() else { return }
         items = (try? await store.liftProgramItems(programId: program.id)) ?? []
+    }
+
+    /// The vocabulary, read again after a line is saved (the line editor may have remembered a new
+    /// exercise or a new classification).
+    private func loadVocabulary() async {
+        guard let store = await repo.storeHandle() else { return }
+        vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
     }
 
     private func save() async {
@@ -435,4 +460,7 @@ struct LiftProgramEditorSheet: View {
 private struct ItemEditTarget: Identifiable {
     let id: String
     let item: LiftProgramItemRow?
+    /// A new line started from the body map: a known exercise, or a muscle for a new one.
+    var preset: LiftExerciseRow? = nil
+    var muscle: LiftMuscle? = nil
 }

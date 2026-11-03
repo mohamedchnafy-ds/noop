@@ -11,6 +11,7 @@ import WhoopStore
 // - four keys per day, the names the CSV import uses: calories_in (whole kcal), protein_g, carbs_g, fat_g
 //   (one decimal), the day's lines added by `MealMath.totals`, exactly the figures the day page shows;
 // - a day with no meal has NO row (a hole, never 0): a day emptied of its last meal loses its rows;
+// - only EATEN meals count: a planned meal (a menu) adds nothing until it is marked eaten;
 // - the series is rebuilt from the journal, so it always says what the journal says (after every write,
 //   and once after an update that brings the series in, for the meals written before it).
 
@@ -54,7 +55,8 @@ enum NutritionSeries {
 
     /// Rebuild the series from the whole journal: upsert every logged day, delete the days left empty.
     static func rebuildNutritionSeries(_ store: WhoopStore) async {
-        guard let meals = try? await store.mealEntries(fromDay: "0000-01-01", toDay: "9999-12-31") else { return }
+        guard let meals = try? await MealJournal.mealJournalRange(store, fromDay: "0000-01-01", toDay: "9999-12-31")
+        else { return }
         let fresh = nutritionSeriesPoints(meals.map { (day: $0.meal.day, lines: $0.items.map(\.nutrients)) })
         var stored: [MetricPoint] = []
         for key in nutritionKeys {

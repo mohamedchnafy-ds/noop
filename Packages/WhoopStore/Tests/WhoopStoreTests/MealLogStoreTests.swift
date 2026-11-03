@@ -22,12 +22,50 @@ final class MealLogStoreTests: XCTestCase {
 
     // MARK: - Migration v51
 
-    func testV51CreatesBothTablesAndIsTheLastMigration() async throws {
+    func testV51CreatesBothTablesAndV52IsTheLastMigration() async throws {
         let store = try await WhoopStore.inMemory()
         let tables = try await store.tableNames()
         XCTAssertTrue(tables.contains("meal"))
         XCTAssertTrue(tables.contains("mealItem"))
-        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v51-meal-log")
+        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v52-meal-planned")
+    }
+
+    // MARK: - Migration v52 (personal fork, chantier 8)
+
+    /// Meals written before v52 stay eaten; a planned meal is stored apart, is never offered among the
+    /// recent meals, and becomes eaten in place (same id, time and lines). Kotlin twin:
+    /// `MealPlannedMigrationTest`.
+    func testAPlannedMealIsKeptApartAndCanBeMarkedEaten() async throws {
+        let dbQueue = try DatabaseQueue()
+        try WhoopStore.makeMigrator().migrate(dbQueue, upTo: "v51-meal-log")
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt)
+                VALUES ('old', '2026-11-01', 1, 'Old', 'manual', 0, 1, 1)
+                """)
+        }
+        try WhoopStore.makeMigrator().migrate(dbQueue)
+        let old = try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM meal").map(MealRow.decode)
+        }
+        XCTAssertEqual(old.map(\.planned), [false], "a meal written before v52 stays eaten")
+
+        let store = try await WhoopStore.inMemory()
+        var menu = meal("menu", day: "2026-11-03", at: 5_000, name: "Poulet, riz")
+        menu.planned = true
+        try await store.saveMeal(menu, items: [line("p", "Poulet", kcal: 300, p: 33, c: 0, f: 12)])
+        try await store.saveMeal(meal("eaten", day: "2026-11-03", at: 4_000, name: "Skyr"),
+                                 items: [line("s", "Skyr", kcal: 95, p: 16, c: 6, f: 0.3)])
+        let day = try await store.mealEntries(fromDay: "2026-11-03", toDay: "2026-11-03")
+        XCTAssertEqual(day.map(\.meal.planned), [false, true])
+        let recent = try await store.recentMeals(limit: 10)
+        XCTAssertEqual(recent.map(\.meal.id), ["eaten"], "a planned meal was never eaten: not offered again")
+
+        try await store.setMealPlanned(id: "menu", planned: false, updatedAt: 6_000)
+        let marked = try await store.mealEntry(id: "menu")
+        XCTAssertEqual(marked?.meal.planned, false)
+        XCTAssertEqual(marked?.meal.eatenAt, 5_000)
+        XCTAssertEqual(marked?.items.map(\.id), ["p"])
     }
 
     func testV51IsAdditiveOverAnExistingDatabase() throws {

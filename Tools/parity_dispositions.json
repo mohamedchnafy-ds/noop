@@ -620,6 +620,22 @@
       "identity_sha256": "adaa74b3e05b17f100a3b6f0e11995f084ed0bdea2f6246e68ba823d84a3d1b1",
       "platform": "kotlin",
       "rationale": "Room Migration.migrate override of MIGRATION_42_43, the personal-fork meal journal tables (meal, mealItem). GRDB registers each migration as a closure (`v51-meal-log`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/MealLogStore.swift::setMealPlanned/3#1",
+      "identity_sha256": "c3a29e8ba7dbbbe58fad820d8558a31e5d3c88d06be9c2c2db5b73ff029155a8",
+      "platform": "swift",
+      "rationale": "Personal fork, chantier 8: marks a planned meal eaten in the iOS meal journal store (GRDB migration v52-meal-planned; the meal.planned column is declared `both` in schema_oracle.json and twinned by Room MIGRATION_43_44). The Nutrition screens are iPhone only in this fork, so Android carries the schema but no DAO; this GRDB write helper has no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#42",
+      "identity_sha256": "d425fa1fa31afe6af0e50939396f252d547d73205d9cd4f67c5e9dffb4c445ef",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_43_44, the personal-fork planned meal column (meal.planned). GRDB registers each migration as a closure (`v52-meal-planned`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
     }
   ]
 }

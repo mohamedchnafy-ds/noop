@@ -128,9 +128,12 @@ public struct MealRow: Equatable, Codable, Sendable {
     public var createdAt: Int
     /// Unix seconds.
     public var updatedAt: Int
+    /// v52: a meal planned (a menu), not eaten yet. It counts nowhere until it is marked eaten; for a
+    /// planned meal `eatenAt` is the time it is planned for.
+    public var planned: Bool
 
     public init(id: String, day: String, eatenAt: Int, name: String, origin: MealOrigin,
-                favorite: Bool = false, createdAt: Int, updatedAt: Int) {
+                favorite: Bool = false, createdAt: Int, updatedAt: Int, planned: Bool = false) {
         self.id = id
         self.day = day
         self.eatenAt = eatenAt
@@ -139,13 +142,15 @@ public struct MealRow: Equatable, Codable, Sendable {
         self.favorite = favorite
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.planned = planned
     }
 
     static func decode(_ row: Row) -> MealRow {
         MealRow(id: row["id"], day: row["day"], eatenAt: row["eatenAt"], name: row["name"],
                 origin: MealOrigin(rawValue: row["origin"] ?? "") ?? .manual,
                 favorite: (row["favorite"] as Int) != 0,
-                createdAt: row["createdAt"], updatedAt: row["updatedAt"])
+                createdAt: row["createdAt"], updatedAt: row["updatedAt"],
+                planned: ((row["planned"] as Int?) ?? 0) != 0)
     }
 }
 
@@ -217,13 +222,14 @@ extension WhoopStore {
     public func saveMeal(_ meal: MealRow, items: [MealItemRow]) async throws {
         try syncWrite { db in
             try db.execute(sql: """
-                INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt, planned)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     day = excluded.day, eatenAt = excluded.eatenAt, name = excluded.name,
-                    origin = excluded.origin, favorite = excluded.favorite, updatedAt = excluded.updatedAt
+                    origin = excluded.origin, favorite = excluded.favorite, updatedAt = excluded.updatedAt,
+                    planned = excluded.planned
                 """, arguments: [meal.id, meal.day, meal.eatenAt, meal.name, meal.origin.rawValue,
-                                 meal.favorite ? 1 : 0, meal.createdAt, meal.updatedAt])
+                                 meal.favorite ? 1 : 0, meal.createdAt, meal.updatedAt, meal.planned ? 1 : 0])
             try db.execute(sql: "DELETE FROM mealItem WHERE mealId = ?", arguments: [meal.id])
             for (index, item) in items.enumerated() {
                 try db.execute(sql: """
@@ -239,8 +245,9 @@ extension WhoopStore {
         }
     }
 
-    /// The meals eaten from `fromDay` to `toDay` ("yyyy-MM-dd", both included), in the order they
-    /// were eaten, each with its lines.
+    /// The meals from `fromDay` to `toDay` ("yyyy-MM-dd", both included), in the order they were
+    /// eaten, each with its lines. v52: planned meals included (`MealRow.planned`); the app separates
+    /// them in `MealJournal`.
     public func mealEntries(fromDay: String, toDay: String) async throws -> [MealEntry] {
         try syncRead { db in
             let meals = try Row.fetchAll(db, sql: """
@@ -260,17 +267,26 @@ extension WhoopStore {
     }
 
     /// The latest meal of each name, favorites first, then the most recently eaten: what "Recent"
-    /// offers to add again in one tap.
+    /// offers to add again in one tap. A planned meal is not offered (it was never eaten).
     public func recentMeals(limit: Int) async throws -> [MealEntry] {
         try syncRead { db in
             let meals = try Row.fetchAll(db, sql: """
                 SELECT * FROM meal m
-                WHERE m.id = (SELECT m2.id FROM meal m2 WHERE m2.name = m.name
+                WHERE m.planned = 0
+                  AND m.id = (SELECT m2.id FROM meal m2 WHERE m2.name = m.name AND m2.planned = 0
                               ORDER BY m2.favorite DESC, m2.eatenAt DESC, m2.id DESC LIMIT 1)
                 ORDER BY m.favorite DESC, m.eatenAt DESC, m.id DESC
                 LIMIT ?
                 """, arguments: [max(limit, 0)]).map(MealRow.decode)
             return try Self.attachItems(to: meals, in: db)
+        }
+    }
+
+    /// Mark a planned meal as eaten (or back to planned), keeping its time and lines.
+    public func setMealPlanned(id: String, planned: Bool, updatedAt: Int) async throws {
+        try syncWrite { db in
+            try db.execute(sql: "UPDATE meal SET planned = ?, updatedAt = ? WHERE id = ?",
+                           arguments: [planned ? 1 : 0, updatedAt, id])
         }
     }
 

@@ -48,6 +48,9 @@ data class MealEntity(
     val favorite: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
+    /** v44 ([WhoopDatabase.MIGRATION_43_44]): a planned meal (a menu), not eaten yet. Swift `MealRow.planned`. */
+    @ColumnInfo(defaultValue = "0")
+    val planned: Boolean = false,
 )
 
 /** One line of a meal, e.g. "basmati rice, cooked · 180 g". */

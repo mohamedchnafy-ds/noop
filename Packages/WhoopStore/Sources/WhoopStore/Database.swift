@@ -1269,6 +1269,17 @@ extension WhoopStore {
             try db.create(index: "idx_mealItem_foodRef", on: "mealItem",
                           columns: ["foodRef"], options: [.ifNotExists])
         }
+        // v52-meal-planned (personal fork, chantier 8): a meal can be PLANNED (a menu the Coach proposed,
+        // not eaten yet). Twin of the Android `MIGRATION_43_44`: one column appended at the end of `meal`,
+        // NOT NULL DEFAULT 0, so every existing meal stays eaten and the column order matches Room's
+        // entity field order; pinned in schema_oracle.json as `both`. Orthogonal to `origin` (how the
+        // meal was entered). A planned meal counts nowhere (rings, balance, widget, series, Coach) until it
+        // is marked eaten; the app reads eaten meals through `MealJournal`, which filters on it.
+        migrator.registerMigration("v52-meal-planned") { db in
+            try db.alter(table: "meal") { t in
+                t.add(column: "planned", .integer).notNull().defaults(to: 0)
+            }
+        }
         return migrator
     }
 }

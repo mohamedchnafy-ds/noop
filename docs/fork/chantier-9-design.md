@@ -12,10 +12,14 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 
 - **Navigation, validée (4 nov.)** : bouton = **photo de profil** (l'avatar des Réglages) en haut à droite de chaque onglet ; Plus s'ouvre **en feuille** (OK ou glisser vers le bas, retour au même endroit) ; en-tête d'Aujourd'hui = **batterie · + · avatar** (« Personnaliser » descend en bas de l'écran, à côté des « Modifier ») ; **Tendances → Plus → Analyses** (première ligne).
 
-## Questions ouvertes (à poser au début de la prochaine conversation)
-- Fusionner la PR #61 (navigation, verte) maintenant, ou la garder ouverte jusqu'au code d'Aujourd'hui ?
-- Ordre d'Aujourd'hui : anneaux → Synthèse → carte FC → carte Stress → Métriques ?
-- Les blocs de « Ce qui quitte la page » (maquette Aujourd'hui, écran 2) : déplacés, ou masqués et réactivables dans « Personnaliser » ?
+## Réponses aux questions ouvertes (4 nov., matin)
+- **PR #61 fusionnée** dans `main` (9652643). Pas d'IPA.
+- **Ordre d'Aujourd'hui validé** : anneaux → Synthèse → carte FC (En direct | Journée) → carte Stress → Métriques (tuiles avec valeur) → Personnaliser.
+- **Blocs qui quittent Aujourd'hui : déplacés ET réactivables**. Chacun vit à sa nouvelle place (Âge fitness, Vitalité → Plus → Santé et récupération ; Démarrer la séance Bêta → Entraînement → Autres activités ; Dernières séances → Entraînement ; Sources de données → Plus → Données ; tuiles sans valeur → Métriques → Toutes). « Personnaliser Aujourd'hui » a une section « Remettre sur la page » : un interrupteur par bloc, **éteint par défaut** ; allumé, le bloc s'affiche sous les Métriques (et reste à sa place habituelle). L'ancienne carte Stress « Calibration » est remplacée par la nouvelle carte Stress (pas d'interrupteur).
+- Les 11 vieilles branches `build/*` / `feat/*` du 31 oct.–1er nov. (`sleep-redesign`, `superset-guided` 1 à 4, `superset-rounds`, `today-insights`) s'ignorent comme les autres (liste dans `.claude/rules/fork-noop.md`).
+
+## Questions ouvertes
+- Sommeil : voir la section 3 ci-dessous (en attente des réponses de Mohamed).
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)
@@ -29,10 +33,15 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 ## Maquettes
 - **1 · Navigation** : https://claude.ai/artifact/Rj7SsNJL3SrLpJmw8rPJx5 (Aujourd'hui, feuille Plus, Entraînement, Nutrition, barre d'onglets ; valeurs d'exemple). Proposition : avatar en haut à droite de chaque onglet → feuille « Plus » (profil + bracelet, Santé et récupération, Analyses avec Tendances, Données, Réglages) ; en-tête d'Aujourd'hui réduit à batterie · + · avatar (« Personnaliser » descend en bas de l'écran, à côté des « Modifier ») ; Entraînement et Nutrition à la racine de leur onglet, sans « ‹ Plus » ; Semaine | Mois sous le titre.
 
-- **2 · Aujourd'hui** : https://claude.ai/artifact/5Gtyju4onzwsH37moKvRZt (proposition interactive : En direct | Journée ; et la liste de ce qui quitte la page). Ordre proposé : anneaux · Synthèse · carte FC · carte Stress · Métriques (tuiles avec valeur seulement) · Personnaliser. **FC « En direct » reste dans la carte** (choix de Mohamed). Quittent la page : carte Stress « Calibration » (→ nouvelle carte Stress), Âge fitness et Vitalité (→ Plus → Santé), Démarrer la séance Bêta (→ Entraînement), Dernières séances, Sources de données (→ Plus → Données), tuiles « pas de donnée ». En attente de validation.
+- **2 · Aujourd'hui (validée le 4 nov.)** : https://claude.ai/artifact/5Gtyju4onzwsH37moKvRZt — écran 1 la page (anneaux · Synthèse · carte FC En direct | Journée · carte Stress · Métriques avec valeur · Personnaliser), écran 2 ce qui quitte la page et où ça va, écran 3 la feuille « Personnaliser » (ordre glissable ; « Remettre sur la page » avec un interrupteur par bloc déplacé, éteints par défaut).
+
+- **3 · Sommeil (proposition du 4 nov.)** : https://claude.ai/artifact/THF28w9AQZ2tAvyBEKkcKe — écran 1 la page proposée (touchez une phase), écran 2 les deux façons de mettre le coucher à gauche, écran 3 ce qui descend d'un niveau.
+  - Ordre proposé : en-tête (Sommeil · alarmes · avatar), ‹ nuit › ; carte anneau (score Repos au centre, 4 phases en puces tactiles avec leur durée, Coucher / Réveil / Endormi, « Lire l'anneau » ⓘ) ; carte « Ce soir » (Visez ≈ besoin + dette, Coucher conseillé, Pourquoi ce sommeil ?, Ajouter une sieste) ; Phases de la nuit (puces FC / VFC / Temp. peau / Mouvement, hypnogramme, sans les 4 durées en double) ; Indicateurs (4 tuiles) ; Vos nuits (dette, 14 nuits | 30 jours) ; « Personnaliser Sommeil ».
+  - Anneau proposé : **fer à cheval ouvert en bas** (coucher en bas à gauche, la nuit monte par la gauche, passe en haut, réveil en bas à droite ; sens d'une montre). Alternative : anneau complet en sens inverse (heures en haut).
+  - Descend d'un niveau : les 2 lignes d'aide grises (→ ⓘ), les durées des phases en double (→ sous l'anneau seulement), Horloge biologique et la carte « Je me couche / Je me lève » (→ Personnaliser, éteintes par défaut) ; comparaison à la nuit habituelle (dès 5 nuits) et régularité du coucher (dès 3 nuits) restent conditionnelles.
 
 ## Code
-- **Navigation (PR à venir, branche `claude/chantier-9-navigation`)** :
+- **Navigation (PR #61, fusionnée le 4 nov., `main` 9652643)** :
   - `StrandiOS/App/RootTabView.swift` : onglets `TabTag` 0 Aujourd'hui · 1 Entraînement (`LiftLogView`) · 2 Nutrition (`NutritionView`) · 3 Sommeil · 4 Coach (dernier, retiré si le Coach est désactivé). Plus n'est plus un onglet : **feuille** `moreSheet` (chemin `morePath`), ligne « Profil et réglages » (→ Paramètres) puis `MoreHubGroup.sheetGroups` (Santé et récupération, Analyses, Données, Réglages). **Tendances** = `MoreDestination.trends`, première ligne d'Analyses ; `router.openTrends()` ouvre la feuille dessus.
   - Une demande du routeur venue d'un écran **dans** la feuille : poussée dans la feuille si Plus a l'écran (`MoreDestination(routed:)`), sinon la feuille se ferme puis la demande est rejouée (une feuille ne peut pas en présenter une autre depuis le shell).
   - `Strand/App/TabShell.swift` : `\.showsMoreAvatar` (vrai seulement sur les racines d'onglet du shell iOS) + `MoreAvatarButton` (photo de profil → `router.openMore()`), et `TabRouteLink` + `\.tabRouteSwitch` : un lien d'Aujourd'hui vers `.liftLog`, `.nutrition` ou `.sleep` **change d'onglet** au lieu d'empiler une copie. Tout nouveau lien d'un écran racine vers un écran qui est un onglet passe par `TabRouteLink`. Hors shell (macOS, rendus) : rien ne change.

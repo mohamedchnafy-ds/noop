@@ -34,7 +34,6 @@ jobs:
         run: |
           set +e
           xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
-            -testLanguage fr -testRegion FR \
             -only-testing:StrandTests \
             -skip-testing:StrandTests/LiftSupersetRenderTests \
             -skip-testing:StrandTests/SleepScreenRenderTests \

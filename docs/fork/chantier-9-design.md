@@ -19,7 +19,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 - Les 11 vieilles branches `build/*` / `feat/*` du 31 oct.–1er nov. (`sleep-redesign`, `superset-guided` 1 à 4, `superset-rounds`, `today-insights`) s'ignorent comme les autres (liste dans `.claude/rules/fork-noop.md`).
 
 ## Questions ouvertes
-- Coach : validation finale de la maquette 6 ; Plus : questions posées avec la maquette 7 (en attente).
+- Aucune : **les 7 maquettes sont validées (4 nov.)**. Prochaine étape : le code, section par section (Aujourd'hui, Sommeil, Nutrition, Entraînement, Coach, Plus), une PR par section depuis `main`.
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)
@@ -52,7 +52,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 - **5 · Entraînement (validée le 4 nov., tout comme proposé)** : https://claude.ai/artifact/Y7mFfZxPcVt32RzjohHTxW — écran 1 la page, écran 2 ce qui change.
   - Ordre proposé : en-tête (Entraînement · avatar) ; Semaine | Mois, ‹ 2–8 nov. · 1 / 5 › ; bande des 7 jours (légende sur **une ligne** : muscu · cardio · ● fait ○ prévu) ; **une carte « Aujourd'hui »** (séance de muscu en grand : nom, durée, dernière fois, 2 lignes d'exercices, **charge à monter du jour**, Démarrer / Changer ; puis le cardio prévu en ligne avec son Démarrer) ; Progression compacte (4 compteurs, tap → écran Progression) ; Programmes (+ Planifier, Nouveau, Importer) ; Autres activités (Démarrer une activité, Intervalles, FC en direct, Tout l'historique, + **Démarrer la séance Bêta** venue d'Aujourd'hui = coaching silencieux du bracelet face à la Charge) ; Personnaliser.
 
-- **6 · Coach (proposition du 4 nov.)** : https://claude.ai/artifact/1J37v3mWQDTpa81kPHrRZ5 — écran 1 le Coach vide, écran 2 une conversation avec un graphique (touchez la courbe), écran 3 ce qui change. Captures de Mohamed (4 nov., IPA chantier 8) : écran vide, menu ⋯, Conversations.
+- **6 · Coach (validée le 4 nov.)** : https://claude.ai/artifact/1J37v3mWQDTpa81kPHrRZ5 — écran 1 le Coach vide, écran 2 une conversation avec un graphique (touchez la courbe), écran 3 ce qui change. Captures de Mohamed (4 nov., IPA chantier 8) : écran vide, menu ⋯, Conversations.
   - Demandes de Mohamed : **interface épurée** (trop de texte), **accès à toutes les données**, **graphiques dans les réponses**.
   - Écran vide : en-tête Coach · Conversations · Nouvelle · ⋯ · avatar ; au centre « Bonjour Mohamed », une phrase, un bouton blanc **Brief du jour** ; 6 pastilles courtes au-dessus de la saisie (+ · Demande au Coach… · micro). Quittent l'écran : la ligne « Envoyé à Anthropic… » et « Ce que lit le Coach » (→ menu ⋯), les 3 sections de suggestions.
   - Conversation : bulle grise pour Mohamed, réponse du Coach en texte simple et court (sans libellé « COACH »), **carte de graphique** (titre coloré, valeur en grand, courbe ou barres, plage normale, moyenne, toucher un point lit la valeur, « Analyses › »), petite ligne grise « ce qu'il a regardé », cartes d'action compactes (titre + 1 ligne + boutons ; l'explication passe dans ⓘ).
@@ -60,8 +60,9 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
   - **Accès à toutes les séries** (choix de Mohamed) : un outil « lire une série » qui couvre tout ce que l'app stocke (FC, VFC, sommeil, stress, pas, repas, séances, poids, labo…) sur la période demandée, lu seulement quand le Coach en a besoin (pas tout dans chaque message).
   - **Le bouton ⋯ reste** dans l'en-tête (Conversations · Nouvelle · ⋯ · avatar) ; la ligne « Envoyé à Anthropic seulement quand tu demandes » et le modèle vont en tête de ce menu.
 
-- **7 · Plus (proposition du 4 nov.)** : https://claude.ai/artifact/NNtUQQMqdrRvPFdEcxNs8f — écran 1 la feuille (touchez Avancé), écran 2 avant / après.
-  - Proposé : **une seule liste à sections** au lieu de 4 groupes à 2 niveaux. Carte profil (avatar, nom, bracelet, batterie, synchro) ; **Santé et récupération** (Santé avec Âge fitness et Vitalité, Stress, Respiration, Carnet de labo) ; **Analyses** (Tendances, Explorer, Comparer, Ce qui te fait bouger) ; **Données et réglages** (Alarmes, Sauvegarde, Sources de données, Réglages) ; **Avancé** repliable (Rythme, Intelligence, Perspectives, Données fusionnées, Apple Santé, Mi Band, Export Raccourcis, Limites de NOOP, Automatisations, Siri et Raccourcis, Économie d'énergie, Centre de test). Valeur à droite d'une ligne quand elle aide (Vitalité 44, alarme 06:04, sauvegarde hier).
+- **7 · Plus (validée le 4 nov.)** : https://claude.ai/artifact/NNtUQQMqdrRvPFdEcxNs8f — écran 1 la feuille (touchez Avancé), écran 2 avant / après.
+  - **Une seule liste à sections** au lieu de 4 groupes à 2 niveaux (remplace la liste de groupes de la navigation #61). Carte profil (avatar, nom, bracelet, batterie, synchro) ; **Santé et récupération** (Santé avec Âge fitness et Vitalité, Stress, Respiration, Carnet de labo) ; **Analyses** : **Tendances seul** (le seul écran d'analyse que Mohamed utilise) ; **Données et réglages** (Alarmes, Sauvegarde, Sources de données, Réglages) ; **Avancé** repliable, 15 écrans (Rythme, Explorer, Comparer, Ce qui te fait bouger, Intelligence, Perspectives, Données fusionnées, Apple Santé, Mi Band, Export Raccourcis, Limites de NOOP, Automatisations, Siri et Raccourcis, Économie d'énergie, Centre de test).
+  - Les écrans de Plus eux-mêmes (Santé, Stress, Tendances, Réglages…) se redessinent **après le code** des 7 maquettes, avec des captures. Valeur à droite d'une ligne quand elle aide (Vitalité 44, alarme 06:04, sauvegarde hier).
 
 ## Code
 - **Navigation (PR #61, fusionnée le 4 nov., `main` 9652643)** :

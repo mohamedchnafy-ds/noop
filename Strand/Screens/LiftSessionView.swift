@@ -1163,8 +1163,9 @@ struct LiftSessionView: View {
 
     private var finishSheet: some View {
         let unfinished = session.unfinishedSlots.count
-        let asksAboutProgram = !setCountChanges.isEmpty || !addedExercises.isEmpty || !restChanges.isEmpty
-            || orderChanged
+        // A freehand session (personal fork, « Start » sheet) has no program to keep its changes.
+        let asksAboutProgram = session.programId != nil
+            && (!setCountChanges.isEmpty || !addedExercises.isEmpty || !restChanges.isEmpty || orderChanged)
         let answered = (unfinished == 0 || unfinishedChoice != nil)
             && (!asksAboutProgram || programChoice != nil)
         return ScreenScaffold(title: "Finish session",

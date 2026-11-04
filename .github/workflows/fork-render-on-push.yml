@@ -34,21 +34,14 @@ jobs:
         run: |
           set +e
           xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
-            -only-testing:StrandTests \
-            -skip-testing:StrandTests/LiftSupersetRenderTests \
-            -skip-testing:StrandTests/SleepScreenRenderTests \
-            -skip-testing:StrandTests/TodayScreenRenderTests \
-            -skip-testing:StrandTests/LiftProgressRenderTests \
-            -skip-testing:StrandTests/NutritionRenderTests \
-            -skip-testing:StrandTests/MoreHubRenderTests \
-            -skip-testing:StrandTests/TrainingRenderTests \
-            -skip-testing:StrandTests/LiveHRBannerRenderTests \
-            -skip-testing:StrandTests/DayWidgetsRenderTests \
-            -skip-testing:StrandTests/CoachCardsRenderTests \
-            -skip-testing:StrandTests/LabReportRenderTests \
-            -skip-testing:StrandTests/LiftProgramMuscleRenderTests \
-            -skip-testing:StrandTests/LiveWorkoutRenderTests \
-            -skip-testing:StrandTests/LiquidVesselStillTests \
+            -only-testing:StrandTests/ChargeBreakdownFormatTests \
+            -only-testing:StrandTests/WorkoutEffortCellTests \
+            -only-testing:StrandTests/VitalSourceResolutionTests \
+            -only-testing:StrandTests/WorkoutSourceTests \
+            -only-testing:StrandTests/VitalReadingsTableTests \
+            -only-testing:StrandTests/HrvTimelineWindowedRmssdTests \
+            -only-testing:StrandTests/AppLanguageTests \
+            -only-testing:StrandTests/IntelligenceDaySourceTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?

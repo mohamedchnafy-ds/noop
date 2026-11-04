@@ -157,7 +157,7 @@ enum DayWidgetsContent {
                                      rest: goal.map { "/ " + NutritionFormat.gramsUnit($0) } ?? "g",
                                      fraction: share(grams, of: goal))
         }
-        let goal = plan.intakeKcal
+        let goal: Int? = plan.intakeKcal
         let balance = day.balanceKcal.map { kcal -> DayWidgetsSnapshot.Emphasis in
             let value = NutritionFormat.signedKcal(kcal)
             return emphasis(String(localized: "balance \(value)"), value: value)

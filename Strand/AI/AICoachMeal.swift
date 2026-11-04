@@ -61,19 +61,11 @@ extension AICoachEngine {
             weekKcal.append(total.kcal)
             weekProtein.append(total.proteinG)
         }
-        let defaults = UserDefaults.standard
         return CoachFiche.Nutrition(
             eaten: day.eaten, meals: day.meals.count,
             spentKcal: spent.map { Int($0.totalKcal.rounded()) }, balanceKcal: day.balanceKcal,
-            plan: NutritionDayReader.currentPlan(repo, profile: profile),
+            plan: NutritionDayReader.currentPlan(profile: profile),
             reference: NutritionDayReader.referenceBefore(repo, today: now),
-            goalPercent: NutritionGoals.clampedPercent(defaults.integer(forKey: NutritionGoals.goalPercentKey)),
-            proteinTenths: NutritionGoals.clampedTenths(defaults.integer(forKey: NutritionGoals.proteinTenthsKey),
-                                                        range: NutritionGoals.proteinTenthsRange,
-                                                        fallback: NutritionGoals.defaultProteinTenths),
-            fatTenths: NutritionGoals.clampedTenths(defaults.integer(forKey: NutritionGoals.fatTenthsKey),
-                                                    range: NutritionGoals.fatTenthsRange,
-                                                    fallback: NutritionGoals.defaultFatTenths),
             weekDaysLogged: weekKcal.count,
             weekMeanKcal: weekKcal.isEmpty ? nil : Int((Double(weekKcal.reduce(0, +)) / Double(weekKcal.count)).rounded()),
             weekMeanProteinG: weekProtein.isEmpty ? nil

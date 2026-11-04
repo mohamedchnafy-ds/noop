@@ -56,7 +56,7 @@ extension DayWidgetsSnapshot {
             let spent = await NutritionDayReader.spentOnDay(repo, profile: model.profile, day: today, now: now)
             nutrition = DayWidgetsContent.nutritionSection(
                 NutritionDaySummary(dayKey: todayKey, meals: meals, spent: spent),
-                plan: NutritionDayReader.currentPlan(repo, profile: model.profile))
+                plan: NutritionDayReader.currentPlan(profile: model.profile))
         }
 
         let rowKey = repo.today?.day ?? Repository.localDayKey(dayStart)

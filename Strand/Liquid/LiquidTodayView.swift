@@ -724,10 +724,8 @@ struct LiquidTodayView: View {
     private var nutritionLine: TodayNutritionLine.Model? {
         guard dayMealsKey == selectedDayKey, !dayMeals.isEmpty else { return nil }
         let day = NutritionDaySummary(dayKey: dayMealsKey, meals: dayMeals, spent: energySplit)
-        let goal = NutritionGoals.gramsFromTenths(
-            tenthsPerKg: NutritionGoals.clampedTenths(proteinTenthsSetting, range: NutritionGoals.proteinTenthsRange,
-                                                      fallback: NutritionGoals.defaultProteinTenths),
-            weightKg: profile.weightKg)
+        // The protein goal from the one resolver Nutrition reads (`proteinTenthsSetting` redraws it).
+        let goal = NutritionDayReader.currentPlan(profile: profile).proteinG
         return TodayNutritionLine.Model(eatenKcal: day.eaten.kcal, balanceKcal: day.balanceKcal,
                                         proteinG: Int(day.eaten.proteinG.rounded()),
                                         proteinGoalG: goal > 0 ? goal : nil)

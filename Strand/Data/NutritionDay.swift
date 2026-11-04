@@ -100,8 +100,8 @@ enum NutritionDayReader {
         return NutritionDaySummary(dayKey: dayKey, meals: meals, spent: spent)
     }
 
-    /// The reference expenditure for goals set on `today`: the strap's day totals over the
-    /// `NutritionGoals.referenceWindowDays` complete days before it.
+    /// The expenditure the strap measured over the `NutritionGoals.referenceWindowDays` complete days
+    /// before `today`: shown beside the goals for information, never used to calculate them.
     static func referenceBefore(_ repo: Repository, today: Date = Date()) -> NutritionGoals.Reference? {
         let cal = Calendar.current
         let start = cal.startOfDay(for: today)
@@ -111,17 +111,15 @@ enum NutritionDayReader {
             fromDay: Repository.localDayKey(from), beforeDay: Repository.localDayKey(start))
     }
 
-    /// The goals for the profile and settings as they stand.
-    static func currentPlan(_ repo: Repository, profile: ProfileStore, defaults: UserDefaults = .standard) -> NutritionGoals.Plan {
-        NutritionGoals.intakePlan(
-            weightKg: profile.weightKg,
-            proteinTenths: NutritionGoals.clampedTenths(
-                defaults.integer(forKey: NutritionGoals.proteinTenthsKey),
-                range: NutritionGoals.proteinTenthsRange, fallback: NutritionGoals.defaultProteinTenths),
-            fatTenths: NutritionGoals.clampedTenths(
-                defaults.integer(forKey: NutritionGoals.fatTenthsKey),
-                range: NutritionGoals.fatTenthsRange, fallback: NutritionGoals.defaultFatTenths),
-            goalPercent: NutritionGoals.clampedPercent(defaults.integer(forKey: NutritionGoals.goalPercentKey)),
-            reference: referenceBefore(repo))
+    /// The body the goals are calculated for: the profile, an unset value reading the estimator's default.
+    static func goalBody(_ profile: ProfileStore) -> NutritionGoals.Body {
+        NutritionGoals.Body(sex: profile.sex, weightKg: profile.weightKg, heightCm: profile.heightCm,
+                            age: Double(profile.age))
+    }
+
+    /// The goals for the profile and settings as they stand: the one resolver Nutrition, its history, the
+    /// widget and the Coach read (`NutritionGoals.intakePlan`).
+    static func currentPlan(profile: ProfileStore, defaults: UserDefaults = .standard) -> NutritionGoals.Plan {
+        NutritionGoals.intakePlan(body: goalBody(profile), settings: .storedGoalSettings(defaults))
     }
 }

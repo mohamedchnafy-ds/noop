@@ -1,12 +1,13 @@
 import SwiftUI
 import StrandDesign
 
-// MARK: - Nutrition goals (personal fork, Nutrition mockup 3)
+// MARK: - Nutrition goals (personal fork, Nutrition mockup 3; redone in fork chantier 9, mockup 4 screen 3)
 //
-// Every goal spelled out with its formula and the wearer's own numbers: the basal metabolic rate, the
-// expenditure the strap measured on the last complete days, the intake goal from the chosen percentage,
-// protein and fat from grams per kilogram, carbohydrates from what is left. The numbers come from
-// `NutritionGoals`; this screen only writes them out and moves the three settings.
+// The intake goal in large at the top with its whole calculation written out, then the four steps in the
+// order they are applied: the basal metabolic rate (the profile), the activity level it is multiplied by
+// (the strap's measured expenditure shown beside it for information only), the goal as a percentage or in
+// typed kcal, and the split into protein, fat and carbohydrates. The numbers come from `NutritionGoals`;
+// this screen only writes them out and moves the settings.
 
 struct NutritionGoalsView: View {
     @EnvironmentObject private var repo: Repository
@@ -15,6 +16,9 @@ struct NutritionGoalsView: View {
     @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenthsRaw = NutritionGoals.defaultProteinTenths
     @AppStorage(NutritionGoals.fatTenthsKey) private var fatTenthsRaw = NutritionGoals.defaultFatTenths
     @AppStorage(NutritionGoals.goalPercentKey) private var goalPercentRaw = NutritionGoals.defaultGoalPercent
+    @AppStorage(NutritionGoals.activityLevelKey) private var activityRaw = NutritionGoals.ActivityLevel.defaultLevel.rawValue
+    @AppStorage(NutritionGoals.goalModeKey) private var goalModeRaw = NutritionGoals.GoalMode.percent.rawValue
+    @AppStorage(NutritionGoals.manualKcalKey) private var manualKcalRaw = 0
     /// Personal fork: a new barcode is looked up on Open Food Facts (`OpenFoodFacts`).
     @AppStorage(OpenFoodFacts.enabledKey) private var openFoodFactsOn = true
     /// Personal fork, chantier 8: the meal reminders (`MealReminder`), off by default.
@@ -23,15 +27,13 @@ struct NutritionGoalsView: View {
     @State private var remindersDenied = false
 
     var body: some View {
-        ScreenScaffold(title: "Goals",
-                       subtitle: "Calculated from your profile and the energy the strap measured.") {
+        ScreenScaffold(title: "Goals") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 NutritionGoalsContent(
-                    wearer: NutritionGoals.Body(sex: profile.sex, weightKg: profile.weightKg, heightCm: profile.heightCm,
-                                                age: Double(profile.age)),
-                    age: profile.age, weightKg: profile.weightKg,
+                    wearer: NutritionDayReader.goalBody(profile), age: profile.age,
                     reference: NutritionDayReader.referenceBefore(repo),
-                    proteinTenthsRaw: $proteinTenthsRaw, fatTenthsRaw: $fatTenthsRaw, goalPercentRaw: $goalPercentRaw)
+                    activityRaw: $activityRaw, goalModeRaw: $goalModeRaw, goalPercentRaw: $goalPercentRaw,
+                    manualKcalRaw: $manualKcalRaw, proteinTenthsRaw: $proteinTenthsRaw, fatTenthsRaw: $fatTenthsRaw)
                 barcodeSection
                 remindersSection
             }
@@ -109,40 +111,41 @@ struct NutritionGoalsView: View {
     }
 }
 
-/// The Goals screen's content, from the profile, the reference expenditure and the three settings.
+/// The Goals screen's content, from the profile, the measured expenditure (information only) and the settings.
 struct NutritionGoalsContent: View {
     let wearer: NutritionGoals.Body
     let age: Int
-    /// The profile's weight as stored, which the macro goals multiply.
-    let weightKg: Double
     let reference: NutritionGoals.Reference?
+    @Binding var activityRaw: String
+    @Binding var goalModeRaw: String
+    @Binding var goalPercentRaw: Int
+    @Binding var manualKcalRaw: Int
     @Binding var proteinTenthsRaw: Int
     @Binding var fatTenthsRaw: Int
-    @Binding var goalPercentRaw: Int
 
-    private enum Direction: Hashable { case lose, maintain, gain }
+    private typealias Level = NutritionGoals.ActivityLevel
+    private typealias Mode = NutritionGoals.GoalMode
 
-    private var proteinTenths: Int {
-        NutritionGoals.clampedTenths(proteinTenthsRaw, range: NutritionGoals.proteinTenthsRange,
-                                     fallback: NutritionGoals.defaultProteinTenths)
+    /// The settings as every reader clamps them (`NutritionGoals.Settings.settingsFromStored`).
+    private var settings: NutritionGoals.Settings {
+        .settingsFromStored(activity: activityRaw, mode: goalModeRaw, goalPercent: goalPercentRaw,
+                            manualKcal: manualKcalRaw, proteinTenths: proteinTenthsRaw, fatTenths: fatTenthsRaw)
     }
-    private var fatTenths: Int {
-        NutritionGoals.clampedTenths(fatTenthsRaw, range: NutritionGoals.fatTenthsRange,
-                                     fallback: NutritionGoals.defaultFatTenths)
-    }
-    private var goalPercent: Int { NutritionGoals.clampedPercent(goalPercentRaw) }
 
-    private var plan: NutritionGoals.Plan {
-        NutritionGoals.intakePlan(weightKg: weightKg, proteinTenths: proteinTenths, fatTenths: fatTenths,
-                                  goalPercent: goalPercent, reference: reference)
-    }
+    private var plan: NutritionGoals.Plan { NutritionGoals.intakePlan(body: wearer, settings: settings) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
-            goalsSection("Your profile") { profileRow }
-            goalsSection("Calories") { caloriesCard }
-            goalsSection("Macros") { macrosCard }
-            Text("Calories per gram: 4 for protein and carbs, 9 for fat. Everything is recalculated when your weight or your average expenditure changes.")
+        let plan = plan
+        return VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+            resultCard(plan)
+            goalsSection("1 · Basal metabolic rate") { profileRow(plan) }
+            goalsSection("2 · Activity level") {
+                activityCard
+                expenditureLines(plan)
+            }
+            goalsSection("3 · Goal") { goalCard(plan) }
+            goalsSection("4 · Split") { macrosCard(plan) }
+            Text("Calories per gram: 4 for protein and carbs, 9 for fat.")
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -152,12 +155,70 @@ struct NutritionGoalsContent: View {
 
     private func goalsSection<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).strandOverline()
+            Text(title)
+                .strandOverline()
+                .padding(.horizontal, 4)
+                .accessibilityAddTraits(.isHeader)
             content()
         }
     }
 
-    // MARK: Profile
+    private var divider: some View {
+        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
+    }
+
+    // MARK: The result
+
+    /// "2 238 × 1,375 = 3 077 · −20 % → 2 460", or the typed goal beside the estimated expenditure.
+    private func chainText(_ plan: NutritionGoals.Plan) -> String {
+        let basal = NutritionFormat.whole(plan.basalKcal)
+        let factor = NutritionFormat.coefficient(plan.settings.activity.factor)
+        let expenditure = NutritionFormat.whole(plan.expenditureKcal)
+        if plan.isTyped {
+            return String(localized: "typed by you · your estimated expenditure: \(expenditure)")
+        }
+        return "\(basal) × \(factor) = \(expenditure) · \(NutritionFormat.signedPercent(plan.settings.goalPercent)) → "
+            + NutritionFormat.whole(plan.intakeKcal)
+    }
+
+    private func resultCard(_ plan: NutritionGoals.Plan) -> some View {
+        VStack(spacing: 6) {
+            Text("Your intake goal")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(verbatim: NutritionFormat.whole(plan.intakeKcal))
+                    .font(StrandFont.number(44, weight: .bold))
+                    .foregroundStyle(StrandPalette.intakeColor)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("kcal / day")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            Text(verbatim: chainText(plan))
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .monospacedDigit()
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if plan.isBelowBasal {
+                Text("Below your basal metabolic rate (\(NutritionFormat.whole(plan.basalKcal)) kcal): not advised without supervision.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.statusWarning)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity)
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: 1 · Basal metabolic rate
 
     private var sexLabel: String {
         switch wearer.sex.lowercased() {
@@ -174,17 +235,11 @@ struct NutritionGoalsContent: View {
         return [sexLabel, String(localized: "\(age) years"), height, weight].joined(separator: " · ")
     }
 
-    private var profileRow: some View {
+    private func profileRow(_ plan: NutritionGoals.Plan) -> some View {
         NavigationLink {
             SettingsView()
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "person")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(StrandPalette.onDarkSecondary)
-                    .frame(width: 34, height: 34)
-                    .background(StrandPalette.onDarkSecondary.opacity(0.14), in: Circle())
-                    .accessibilityHidden(true)
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: profileSummary)
                         .font(StrandFont.body)
@@ -192,11 +247,15 @@ struct NutritionGoalsContent: View {
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    Text("Profile, the same one the calories burned use")
+                    Text("Revised Harris-Benedict")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                Text(verbatim: NutritionFormat.whole(plan.basalKcal))
+                    .font(StrandFont.number(20, weight: .bold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .monospacedDigit()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -208,171 +267,170 @@ struct NutritionGoalsContent: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityHint(Text("Opens the profile, the same one the calories burned use"))
     }
 
-    // MARK: Calories
+    // MARK: 2 · Activity level
 
-    private var caloriesCard: some View {
-        let basal = NutritionGoals.basalKcalPerDay(wearer)
-        let formula = NutritionGoals.basalFormula(sex: wearer.sex)
+    private var activityCard: some View {
+        let selected = settings.activity
         return VStack(alignment: .leading, spacing: 0) {
-            goalsLine(title: "Basal metabolic rate",
-                 value: NutritionFormat.kcalUnit(Int(basal.rounded())),
-                 detail: String(localized: "Revised Harris-Benedict: \(basalFormulaText(formula))"))
-            divider
-            if let reference {
-                goalsLine(title: "Average expenditure",
-                     value: NutritionFormat.kcalUnit(Int(reference.kcal.rounded())),
-                     detail: String(localized: "measured over the last \(reference.days) complete days: resting (formula above) + activity (Keytel 2005, from your heart rate)"))
-            } else {
-                goalsLine(title: "Average expenditure", value: nil,
-                     detail: String(localized: "Needs at least \(NutritionGoals.referenceMinDays) complete days measured by the strap."))
+            ForEach(Array(Level.allCases.enumerated()), id: \.offset) { index, level in
+                if index > 0 { divider }
+                Button {
+                    activityRaw = level.rawValue
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(verbatim: level.levelTitle)
+                                .font(StrandFont.body)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                            Text(verbatim: level.levelHint)
+                                .font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(verbatim: "× " + NutritionFormat.coefficient(level.factor))
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .monospacedDigit()
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(StrandPalette.accent)
+                            .frame(width: 18)
+                            .opacity(level == selected ? 1 : 0)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 56)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(level == selected ? .isSelected : [])
             }
-            divider
-            goalPicker
-            resultBox
-                .padding(.top, 4)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 16)
         .background(NoopPanelSurface(cornerRadius: 26))
     }
 
-    /// "88,362 + 13,397 × 80 + 4,799 × 178 − 5,677 × 30".
-    private func basalFormulaText(_ f: NutritionGoals.BasalFormula) -> String {
-        let c = NutritionFormat.coefficient
-        return "\(c(f.alpha)) + \(c(f.perKg)) × \(NutritionFormat.editable(wearer.weightKg)) + \(c(f.perCm)) × \(NutritionFormat.whole(Int(wearer.heightCm.rounded()))) \u{2212} \(c(f.perYear)) × \(NutritionFormat.whole(Int(wearer.age.rounded())))"
-    }
-
-    private var divider: some View {
-        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
-    }
-
-    private func goalsLine(title: LocalizedStringKey, value: String?, detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(title)
-                    .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.textPrimary)
+    /// The daily expenditure, then how it is calculated and what the strap measured beside it.
+    private func expenditureLines(_ plan: NutritionGoals.Plan) -> some View {
+        let calculation = "\(NutritionFormat.whole(plan.basalKcal)) × \(NutritionFormat.coefficient(plan.settings.activity.factor))."
+        let measured = reference.map {
+            " " + String(localized: "The strap measured \(NutritionFormat.whole(Int($0.kcal.rounded()))) kcal on average (\($0.days) complete days): for information only, it under-counts when it is not worn all the time.")
+        } ?? ""
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Daily expenditure")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
                 Spacer(minLength: 8)
-                if let value {
-                    Text(verbatim: value)
-                        .font(StrandFont.number(16))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .monospacedDigit()
-                } else {
-                    Text("no data")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
+                Text(verbatim: NutritionFormat.kcalUnit(plan.expenditureKcal))
+                    .font(StrandFont.number(16, weight: .bold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .monospacedDigit()
             }
-            Text(verbatim: detail)
+            Text(verbatim: calculation + measured)
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 12)
+        .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
     }
 
-    private var direction: Direction {
-        goalPercent < 0 ? .lose : (goalPercent > 0 ? .gain : .maintain)
-    }
+    // MARK: 3 · Goal
 
-    private var directionBinding: Binding<Direction> {
-        Binding(get: { direction }, set: { next in
-            switch next {
-            case .lose: goalPercentRaw = goalPercent < 0 ? goalPercent : -10
-            case .maintain: goalPercentRaw = 0
-            case .gain: goalPercentRaw = goalPercent > 0 ? goalPercent : 10
+    private var modeBinding: Binding<Mode> {
+        Binding(get: { settings.mode }, set: { next in
+            // The first switch to kcal starts from the goal the percentage gave, on its 50 kcal step.
+            if next == .kcal, settings.manualKcal == 0 {
+                manualKcalRaw = NutritionGoals.clampedManualKcal(plan.intakeKcal)
             }
+            goalModeRaw = next.rawValue
         })
     }
 
-    private var goalPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Goal")
-                .font(StrandFont.body)
-                .foregroundStyle(StrandPalette.textPrimary)
-            SegmentedPillControl([Direction.lose, .maintain, .gain], selection: directionBinding,
-                                 fillsAvailableWidth: true) { item in
-                switch item {
-                case .lose:
-                    return String(localized: "Lose \(NutritionFormat.signedPercent(goalPercent < 0 ? goalPercent : -10))")
-                case .maintain:
-                    return String(localized: "Maintenance")
-                case .gain:
-                    return String(localized: "Gain \(NutritionFormat.signedPercent(goalPercent > 0 ? goalPercent : 10))")
+    private func goalCard(_ plan: NutritionGoals.Plan) -> some View {
+        let percent = plan.settings.goalPercent
+        return VStack(alignment: .leading, spacing: 12) {
+            SegmentedPillControl([Mode.percent, .kcal], selection: modeBinding, fillsAvailableWidth: true) { mode in
+                switch mode {
+                case .percent: return String(localized: "In \("%")")
+                case .kcal: return String(localized: "In kcal")
                 }
             }
-            if goalPercent != 0 {
+            if plan.settings.mode == .percent {
+                HStack(spacing: 6) {
+                    presetChip("Lose", value: NutritionGoals.losePresetPercent, active: percent < 0)
+                    presetChip("Maintenance", value: 0, active: percent == 0)
+                    presetChip("Gain", value: NutritionGoals.gainPresetPercent, active: percent > 0)
+                }
                 HStack(spacing: 8) {
                     Text("Deficit or surplus")
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
-                    Spacer()
-                    goalsStepper(value: NutritionFormat.signedPercent(goalPercent), unit: nil,
-                            minus: "Decrease the percentage", plus: "Increase the percentage",
-                            canMinus: abs(goalPercent) > NutritionGoals.goalPercentStep,
-                            canPlus: abs(goalPercent) < NutritionGoals.goalPercentRange.upperBound) { up in
-                        let magnitude = abs(goalPercent) + (up ? 1 : -1) * NutritionGoals.goalPercentStep
-                        goalPercentRaw = NutritionGoals.clampedPercent(goalPercent < 0 ? -magnitude : magnitude)
+                    Spacer(minLength: 8)
+                    goalsStepper(value: NutritionFormat.signedPercent(percent), unit: nil,
+                                 minus: "Decrease the percentage", plus: "Increase the percentage",
+                                 canMinus: percent > NutritionGoals.goalPercentRange.lowerBound,
+                                 canPlus: percent < NutritionGoals.goalPercentRange.upperBound) { up in
+                        goalPercentRaw = NutritionGoals.clampedPercent(percent + (up ? 1 : -1) * NutritionGoals.goalPercentStep)
                     }
                 }
-            }
-            Text("percentage adjustable in steps of \(NutritionFormat.percentText(NutritionGoals.goalPercentStep))")
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textSecondary)
-        }
-        .padding(.vertical, 12)
-    }
-
-    private var resultBox: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("Intake goal")
-                    .font(StrandFont.headline)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Spacer(minLength: 8)
-                if let intake = plan.intakeKcal {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(verbatim: NutritionFormat.whole(intake))
-                            .font(StrandFont.number(24, weight: .bold))
-                            .foregroundStyle(StrandPalette.textPrimary)
-                            .monospacedDigit()
-                        Text(verbatim: "kcal")
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                    }
-                } else {
-                    Text("no data")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
-            }
-            if let reference, plan.intakeKcal != nil {
-                let raw = reference.kcal * (1 + Double(goalPercent) / 100)
-                Text(verbatim: String(localized: "\(NutritionFormat.whole(Int(reference.kcal.rounded()))) × \(NutritionFormat.factor(goalPercent)) = \(NutritionFormat.whole(Int(raw.rounded()))), rounded to 10"))
+                Text(verbatim: String(localized: "In steps of \(NutritionFormat.percentText(NutritionGoals.goalPercentStep)), from \(NutritionFormat.signedPercent(NutritionGoals.goalPercentRange.lowerBound)) to \(NutritionFormat.signedPercent(NutritionGoals.goalPercentRange.upperBound)). Lose = \(NutritionFormat.signedPercent(NutritionGoals.losePresetPercent)), Maintenance = 0, Gain = \(NutritionFormat.signedPercent(NutritionGoals.gainPresetPercent)) to start."))
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
-                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                let manual = plan.intakeKcal
+                HStack(spacing: 8) {
+                    Text("My goal")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    Spacer(minLength: 8)
+                    goalsStepper(value: NutritionFormat.whole(manual), unit: "kcal",
+                                 minus: "Decrease by 50 kcal", plus: "Increase by 50 kcal",
+                                 canMinus: manual > NutritionGoals.manualKcalRange.lowerBound,
+                                 canPlus: manual < NutritionGoals.manualKcalRange.upperBound) { up in
+                        manualKcalRaw = NutritionGoals.clampedManualKcal(manual + (up ? 1 : -1) * NutritionGoals.manualKcalStep)
+                    }
+                }
+                Text("In steps of 50 kcal. The goal no longer moves when your weight or your activity changes.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: NoopMetrics.hairlineWidth))
-        .accessibilityElement(children: .combine)
+        .padding(16)
+        .background(NoopPanelSurface(cornerRadius: 26))
     }
 
-    // MARK: Macros
+    /// A preset: white when the goal points its way, tap = its starting percentage.
+    private func presetChip(_ title: LocalizedStringKey, value: Int, active: Bool) -> some View {
+        Button {
+            goalPercentRaw = value
+        } label: {
+            Text(title)
+                .font(StrandFont.subhead.weight(.semibold))
+                .foregroundStyle(active ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .background(Capsule().fill(active ? StrandPalette.textPrimary : StrandPalette.surfaceOverlay))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? .isSelected : [])
+    }
 
-    private var macrosCard: some View {
-        let plan = plan
-        let weight = NutritionFormat.editable(weightKg)
+    // MARK: 4 · Split
+
+    private func macrosCard(_ plan: NutritionGoals.Plan) -> some View {
+        let weight = NutritionFormat.editable(wearer.weightKg)
+        let proteinTenths = plan.settings.proteinTenths
+        let fatTenths = plan.settings.fatTenths
         return VStack(alignment: .leading, spacing: 0) {
             macroRow(.protein, grams: plan.proteinG,
                      detail: "\(NutritionFormat.oneDecimalText(Double(proteinTenths) / 10)) × \(weight) kg · \(NutritionFormat.whole(plan.proteinKcal)) kcal") {
@@ -395,8 +453,8 @@ struct NutritionGoalsContent: View {
             }
             divider
             carbsRow(plan)
-            if let intake = plan.intakeKcal, intake > 0, let carbsKcal = plan.carbsKcal {
-                shareBar(plan, carbsKcal: carbsKcal)
+            if plan.intakeKcal > 0 {
+                shareBar(plan)
                     .padding(.top, 10)
             }
         }
@@ -434,12 +492,7 @@ struct NutritionGoalsContent: View {
     }
 
     private func carbsRow(_ plan: NutritionGoals.Plan) -> some View {
-        let detail: String = {
-            guard let intake = plan.intakeKcal, let carbsKcal = plan.carbsKcal else {
-                return String(localized: "the energy left once the intake goal is known")
-            }
-            return "(\(NutritionFormat.whole(intake)) \u{2212} \(NutritionFormat.whole(plan.proteinKcal)) \u{2212} \(NutritionFormat.whole(plan.fatKcal))) ÷ 4 · \(NutritionFormat.whole(carbsKcal)) kcal"
-        }()
+        let detail = "(\(NutritionFormat.whole(plan.intakeKcal)) \u{2212} \(NutritionFormat.whole(plan.proteinKcal)) \u{2212} \(NutritionFormat.whole(plan.fatKcal))) ÷ 4 · \(NutritionFormat.whole(plan.carbsKcal)) kcal"
         return HStack(spacing: 12) {
             NutritionMacroDot(macro: .carbs, size: 10)
             VStack(alignment: .leading, spacing: 2) {
@@ -447,12 +500,10 @@ struct NutritionGoalsContent: View {
                     Text(verbatim: NutritionMacro.carbs.title)
                         .font(StrandFont.body)
                         .foregroundStyle(StrandPalette.textPrimary)
-                    if let carbs = plan.carbsG {
-                        Text(verbatim: NutritionFormat.gramsUnit(carbs))
-                            .font(StrandFont.number(16))
-                            .foregroundStyle(StrandPalette.textPrimary)
-                            .monospacedDigit()
-                    }
+                    Text(verbatim: NutritionFormat.gramsUnit(plan.carbsG))
+                        .font(StrandFont.number(16))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .monospacedDigit()
                 }
                 Text(verbatim: detail)
                     .font(StrandFont.caption)
@@ -480,9 +531,9 @@ struct NutritionGoalsContent: View {
         var id: NutritionMacro { macro }
     }
 
-    private func shareBar(_ plan: NutritionGoals.Plan, carbsKcal: Int) -> some View {
+    private func shareBar(_ plan: NutritionGoals.Plan) -> some View {
         let parts = [SharePart(macro: .protein, kcal: plan.proteinKcal), SharePart(macro: .fat, kcal: plan.fatKcal),
-                     SharePart(macro: .carbs, kcal: carbsKcal)]
+                     SharePart(macro: .carbs, kcal: plan.carbsKcal)]
         let total = max(1, parts.map(\.kcal).reduce(0, +))
         return VStack(alignment: .leading, spacing: 8) {
             GeometryReader { geo in
@@ -524,13 +575,15 @@ struct NutritionGoalsContent: View {
                     .font(StrandFont.number(16))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 if let unit {
                     Text(verbatim: unit)
                         .font(StrandFont.overlineScaled(10))
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
             }
-            .frame(width: 58)
+            .frame(width: 64)
             goalsStepButton(symbol: "plus", label: plus, enabled: canPlus) { step(true) }
         }
     }
@@ -549,5 +602,29 @@ struct NutritionGoalsContent: View {
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
         .accessibilityLabel(Text(label))
+    }
+}
+
+extension NutritionGoals.ActivityLevel {
+    /// "Lightly active".
+    var levelTitle: String {
+        switch self {
+        case .sedentary: return String(localized: "Sedentary")
+        case .light: return String(localized: "Lightly active")
+        case .moderate: return String(localized: "Moderately active")
+        case .active: return String(localized: "Very active")
+        case .extreme: return String(localized: "Extremely active")
+        }
+    }
+
+    /// "1 to 3 sessions a week".
+    var levelHint: String {
+        switch self {
+        case .sedentary: return String(localized: "desk job, little or no sport")
+        case .light: return String(localized: "1 to 3 sessions a week")
+        case .moderate: return String(localized: "3 to 5 sessions a week")
+        case .active: return String(localized: "6 to 7 sessions a week")
+        case .extreme: return String(localized: "twice a day, or physical work")
+        }
     }
 }

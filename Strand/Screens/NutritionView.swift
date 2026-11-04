@@ -19,9 +19,13 @@ struct NutritionView: View {
     @Environment(\.showsMoreAvatar) var showsMoreAvatar
 
     @AppStorage(MealJournal.revisionKey) private var mealRevision = 0
+    // The goal settings, read through `currentPlan`: declared so a change on the Goals screen redraws the rings.
     @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenths = NutritionGoals.defaultProteinTenths
     @AppStorage(NutritionGoals.fatTenthsKey) private var fatTenths = NutritionGoals.defaultFatTenths
     @AppStorage(NutritionGoals.goalPercentKey) private var goalPercent = NutritionGoals.defaultGoalPercent
+    @AppStorage(NutritionGoals.activityLevelKey) private var activityLevel = NutritionGoals.ActivityLevel.defaultLevel.rawValue
+    @AppStorage(NutritionGoals.goalModeKey) private var goalMode = NutritionGoals.GoalMode.percent.rawValue
+    @AppStorage(NutritionGoals.manualKcalKey) private var manualKcal = 0
 
     /// Days back from today (0 = today).
     @State private var dayOffset = 0
@@ -72,15 +76,9 @@ struct NutritionView: View {
         return NutritionDaySummary(dayKey: dayKey, meals: [], spent: nil)
     }
 
+    /// The goals, from the one resolver (`NutritionDayReader.currentPlan`).
     private var plan: NutritionGoals.Plan {
-        NutritionGoals.intakePlan(
-            weightKg: profile.weightKg,
-            proteinTenths: NutritionGoals.clampedTenths(proteinTenths, range: NutritionGoals.proteinTenthsRange,
-                                                        fallback: NutritionGoals.defaultProteinTenths),
-            fatTenths: NutritionGoals.clampedTenths(fatTenths, range: NutritionGoals.fatTenthsRange,
-                                                    fallback: NutritionGoals.defaultFatTenths),
-            goalPercent: NutritionGoals.clampedPercent(goalPercent),
-            reference: NutritionDayReader.referenceBefore(repo))
+        NutritionDayReader.currentPlan(profile: profile)
     }
 
     var body: some View {

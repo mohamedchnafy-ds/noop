@@ -4,10 +4,10 @@ import AppKit
 @testable import Strand
 import StrandDesign
 
-/// Renders the More hub (six groups) to PNG at iPhone width, in dark mode — the visual check against the
-/// « NOOP – Entraînement et Plus » mockup before an .ipa is built (personal fork). The page title and
-/// subtitle are drawn as `ScreenScaffold` draws them (the scaffold's scroll view does not render to an
-/// image). PNGs are written only when `NOOP_RENDER_DIR` is set.
+/// Renders the More sheet (fork chantier 9: the profile row, then the four groups that are not tabs) to PNG
+/// at iPhone width, in dark mode — the visual check against the « NOOP – Chantier 9 · Navigation » mockup
+/// before an .ipa is built (personal fork). The page title is drawn as `ScreenScaffold` draws it (the
+/// scaffold's scroll view does not render to an image). PNGs are written only when `NOOP_RENDER_DIR` is set.
 @MainActor
 final class MoreHubRenderTests: XCTestCase {
 
@@ -15,17 +15,17 @@ final class MoreHubRenderTests: XCTestCase {
 
     func testRenderMoreHub() throws {
         XCTAssertEqual(MoreHubGroup.allCases.count, 6)
+        // Training and Nutrition are tabs: the sheet lists the four others, in this order.
+        XCTAssertEqual(MoreHubGroup.sheetGroups, [.healthRecovery, .analysis, .data, .appSettings])
         let hub = VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("More")
-                    .font(StrandFont.title1)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text("Everything else, in six places")
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-            MoreHubCard { group, isLast in
-                MoreHubRowLabel(group: group, showsDivider: !isLast)
+            Text("More")
+                .font(StrandFont.title1)
+                .foregroundStyle(StrandPalette.textPrimary)
+            VStack(spacing: NoopMetrics.space3) {
+                MoreProfileRowLabel(avatarImageData: nil)
+                MoreHubCard(groups: MoreHubGroup.sheetGroups) { group, isLast in
+                    MoreHubRowLabel(group: group, showsDivider: !isLast)
+                }
             }
         }
         try render(AnyView(hub), name: "1-plus")

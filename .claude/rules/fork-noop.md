@@ -34,7 +34,10 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Toute question à Mohamed passe par l'outil de questions à choix multiples (AskUserQuestion), jamais en texte libre. Un seul lot de questions par étape ; les choix par défaut sont notés dans la fiche.
 - Il ne voit pas l'app depuis la session : lui demander des captures d'écran pour valider le rendu.
 
-## Chantier en cours (mis à jour le 3 nov. 2026, nuit)
+## Chantier en cours (mis à jour le 4 nov. 2026)
+- **Chantier 9** : lisibilité de l'app, une section à la fois (maquette → validation → code). Fiche `docs/fork/chantier-9-design.md`. Section 1 (navigation : 5 onglets + Plus en feuille sous l'avatar) validée, code en PR. Ensuite : Aujourd'hui.
+
+## Chantier précédent
 - **Chantier 8** : code terminé, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, 3 (#46 à #54), 4 (#55 planning, #57 écran de séance en cours), 5 (#58 corps cliquable), #59 virgule décimale. IPA unique construite : `build/chantier-8` = `main` ca02e9a. Reste : l'installer et valider sur le téléphone (liste « À tester » de la feuille de route).
 - Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 

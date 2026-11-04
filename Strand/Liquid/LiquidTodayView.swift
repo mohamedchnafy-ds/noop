@@ -23,6 +23,8 @@ struct LiquidTodayView: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var router: NavRouter
     @EnvironmentObject var profile: ProfileStore
+    /// True in the iOS tab shell, where the header carries the More avatar (fork chantier 9).
+    @Environment(\.showsMoreAvatar) private var showsMoreAvatar
     // For the pull-to-sync gesture (#334): a pull kicks a manual strap history offload via ble.syncNow().
     // Observe BLEManager, NOT AppModel — AppModel @Publishes `bpm` on the ~1 Hz HR tick, so observing it
     // would re-render all of Today every second (the exact churn the LiveState leaves isolate). BLEManager
@@ -406,6 +408,14 @@ struct LiquidTodayView: View {
                     // so it renders nothing by default.
                     AutoWorkoutCard()
                     dataSourcesSection
+                    // iOS tab shell (fork chantier 9): the header lost its slider button, so the one entry
+                    // point for section order/visibility and both card editors sits at the foot instead.
+                    if showsMoreAvatar {
+                        Button { customizationDestination = .today } label: {
+                            LiquidFullWidthNavigationAction("Customize Today")
+                        }
+                        .buttonStyle(LiquidPressStyle())
+                    }
                     Color.clear.frame(height: 90) // floating tab-bar clearance
                 }
                 .padding(.horizontal, NoopMetrics.screenHPadding)
@@ -557,39 +567,47 @@ struct LiquidTodayView: View {
         // left, so a long day name is never cut under them.
         TodayHeaderLayout(date: dateLine, title: dayTitle, onTitleTap: { showDayPicker = true }) {
             HStack(spacing: headerClusterSpacing) {
-                // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
-                Button { showSettings = true } label: {
-                    Color.clear.frame(
-                        width: NoopMetrics.compactControlSize,
-                        height: NoopMetrics.compactControlSize
-                    )
-                }
-                .nativeLiquidGlassHeaderButton()
-                .overlay {
-                    GeometryReader { proxy in
-                        let diameter = min(proxy.size.width, proxy.size.height)
-                        ProfileAvatarView(imageData: profile.avatarImageData, size: diameter)
-                            .frame(width: diameter, height: diameter)
-                            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                    }
-                    .allowsHitTesting(false)
-                }
-                .nativeLiquidGlassPhotoFinish()
-                .accessibilityLabel("Profile and settings")
-                LiquidAddButton()
-                LiquidBatteryButton()
-                // One entry point for section order/visibility and both nested card editors.
-                Button { customizationDestination = .today } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .frame(
+                if showsMoreAvatar {
+                    // iOS tab shell (fork chantier 9): the battery, the quick actions, then the profile
+                    // picture that opens More. « Customize Today » moved to the foot of the screen.
+                    LiquidBatteryButton()
+                    LiquidAddButton()
+                    MoreAvatarButton()
+                } else {
+                    // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
+                    Button { showSettings = true } label: {
+                        Color.clear.frame(
                             width: NoopMetrics.compactControlSize,
                             height: NoopMetrics.compactControlSize
                         )
+                    }
+                    .nativeLiquidGlassHeaderButton()
+                    .overlay {
+                        GeometryReader { proxy in
+                            let diameter = min(proxy.size.width, proxy.size.height)
+                            ProfileAvatarView(imageData: profile.avatarImageData, size: diameter)
+                                .frame(width: diameter, height: diameter)
+                                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    .nativeLiquidGlassPhotoFinish()
+                    .accessibilityLabel("Profile and settings")
+                    LiquidAddButton()
+                    LiquidBatteryButton()
+                    // One entry point for section order/visibility and both nested card editors.
+                    Button { customizationDestination = .today } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .frame(
+                                width: NoopMetrics.compactControlSize,
+                                height: NoopMetrics.compactControlSize
+                            )
+                    }
+                    .nativeLiquidGlassHeaderButton()
+                    .accessibilityLabel("Customize Today")
                 }
-                .nativeLiquidGlassHeaderButton()
-                .accessibilityLabel("Customize Today")
             }
         }
         .popover(isPresented: $showDayPicker) {
@@ -776,7 +794,7 @@ struct LiquidTodayView: View {
             VStack(spacing: NoopMetrics.sectionGap) {
                 ForEach(cards) { card in
                     if let route = card.route {
-                        NavigationLink(value: route) { hostedCard(for: card) }
+                        TabRouteLink(route: route) { hostedCard(for: card) }
                             .buttonStyle(.plain)
                     } else {
                         hostedCard(for: card)
@@ -1074,7 +1092,7 @@ struct LiquidTodayView: View {
     /// the tab's `NavigationPath` so a re-tap of the Today tab can pop it (#198; see TabRoute.swift).
     private func cardLink(_ route: TabRoute, title: String, sub: String,
                           value: String, tint: Color, frac: Double?) -> some View {
-        NavigationLink(value: route) {
+        TabRouteLink(route: route) {
             cardLinkBody(title: title, sub: sub, value: value, tint: tint, frac: frac)
         }
         .buttonStyle(LiquidPressStyle())

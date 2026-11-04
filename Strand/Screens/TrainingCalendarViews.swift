@@ -178,6 +178,10 @@ struct TrainingHeader: View {
     let subtitle: String
     var onPrevious: () -> Void = {}
     var onNext: () -> Void = {}
+    /// The iOS tab shell puts the More avatar beside the title, which leaves no room for the Week | Month
+    /// switch there: it moves to its own line, with ‹ › (fork chantier 9). Not `private`: that would make
+    /// the memberwise initializer the screens call private too.
+    @Environment(\.showsMoreAvatar) var showsMoreAvatar
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -189,18 +193,42 @@ struct TrainingHeader: View {
                     .minimumScaleFactor(0.8)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 0)
-                TrainingModeSwitch(mode: $mode)
+                if showsMoreAvatar {
+                    MoreAvatarButton()
+                } else {
+                    TrainingModeSwitch(mode: $mode)
+                }
             }
-            HStack(spacing: 0) {
+            if showsMoreAvatar {
+                HStack(spacing: 0) {
+                    TrainingModeSwitch(mode: $mode)
+                    Spacer(minLength: 4)
+                    TrainingPeriodArrow(symbol: "chevron.left", label: "Previous", action: onPrevious)
+                    TrainingPeriodArrow(symbol: "chevron.right", label: "Next", action: onNext)
+                }
+                .padding(.vertical, 6)
                 Text(verbatim: subtitle)
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
-                TrainingPeriodArrow(symbol: "chevron.left", label: "Previous", action: onPrevious)
-                TrainingPeriodArrow(symbol: "chevron.right", label: "Next", action: onNext)
+            } else {
+                periodLine
             }
+        }
+    }
+
+    /// The period with its count, then ‹ › — the header's second line outside the iOS tab shell.
+    private var periodLine: some View {
+        HStack(spacing: 0) {
+            Text(verbatim: subtitle)
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            TrainingPeriodArrow(symbol: "chevron.left", label: "Previous", action: onPrevious)
+            TrainingPeriodArrow(symbol: "chevron.right", label: "Next", action: onNext)
         }
     }
 }

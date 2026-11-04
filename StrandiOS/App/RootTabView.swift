@@ -3,8 +3,9 @@ import SwiftUI
 import StrandDesign
 
 /// iOS navigation shell. macOS uses a `NavigationSplitView` sidebar (`RootView`); on iPhone the
-/// natural analogue is a `TabView` with the most-used screens as tabs and everything else under a
-/// "More" list. Every screen is the same `StrandDesign`-built view the macOS app uses.
+/// natural analogue is a `TabView` with the most-used screens as tabs. Fork chantier 9: five tabs
+/// (Today, Training, Nutrition, Sleep, Coach), everything else in the More sheet that the profile picture
+/// at the top right of each tab opens. Every screen is the same `StrandDesign`-built view the macOS app uses.
 struct RootTabView: View {
     /// #1841: shared with Android by NAME and meaning, not by storage — the two platforms keep their own
     /// stores, exactly as the Clock format setting does.
@@ -30,6 +31,8 @@ struct RootTabView: View {
     let homeScreenQuickActionsEnabled: Bool
 
     @EnvironmentObject private var repo: Repository
+    /// The profile picture shown at the head of the More sheet.
+    @EnvironmentObject private var profile: ProfileStore
     /// Cross-screen navigation requests (e.g. Live → "Manage devices"). Devices isn't a tab — it lives
     /// behind the More list — so a request presents it as a sheet, matching the quick-action screens.
     @EnvironmentObject private var router: NavRouter
@@ -44,8 +47,42 @@ struct RootTabView: View {
     /// when a hub row deep-links to it via NavRouter. nil = closed.
     @State private var routedPillar: NavRouter.Destination?
     /// Selected tab — bound so tab switches can crossfade (README §Motion: ~240ms opacity swap
-    /// between tab roots, calm easing). Defaults to Today.
-    @State private var selectedTab: Int = 0
+    /// between tab roots, calm easing). Defaults to Today. Tags: see `TabTag`.
+    @State private var selectedTab: Int = TabTag.today
+    /// The More sheet (fork chantier 9), opened by the profile picture of any tab root, and its own path.
+    @State private var showMore = false
+    @State private var morePath = NavigationPath()
+
+    /// The tab tags, which also index `tabPaths` and `scrollTop`. Literal, so Coach switched off removes
+    /// the last tab without renumbering the others.
+    private enum TabTag {
+        static let today = 0
+        static let training = 1
+        static let nutrition = 2
+        static let sleep = 3
+        static let coach = 4
+    }
+
+    /// The tab a route is shown as, if any: Today's links to these screens switch tabs instead of pushing
+    /// a second copy of a tab root onto Today's stack.
+    private static func tabTag(for route: TabRoute) -> Int? {
+        switch route {
+        case .liftLog: return TabTag.training
+        case .nutrition: return TabTag.nutrition
+        case .sleep: return TabTag.sleep
+        default: return nil
+        }
+    }
+
+    /// Hands `TabRouteLink` the tab switch above.
+    private var routeSwitch: TabRouteSwitch {
+        TabRouteSwitch(
+            handles: { Self.tabTag(for: $0) != nil },
+            open: { route in
+                guard let tag = Self.tabTag(for: route) else { return }
+                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = tag }
+            })
+    }
     /// One `NavigationPath` per tab, indexed by tab tag. Re-tapping the already-active tab pops
     /// that tab's stack to its root (#135) by clearing its path — an animated pop that leaves the
     /// root view alive, so an at-root re-tap keeps scroll position and never re-runs `.task`
@@ -103,11 +140,12 @@ struct RootTabView: View {
     private var tabSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 24)
             .onEnded { v in
-                // Today (tab 0) uses horizontal swipe to change DAYS, so tab-swipe is off there.
-                guard selectedTab != 0 else { return }
+                // Today uses horizontal swipe to change DAYS, so tab-swipe is off there.
+                guard selectedTab != TabTag.today else { return }
                 let dx = v.translation.width, dy = v.translation.height
                 guard abs(dx) > 60, abs(dx) > abs(dy) * 1.6 else { return }
-                let next = min(4, max(0, selectedTab + (dx < 0 ? 1 : -1)))
+                let last = coachEnabled ? TabTag.coach : TabTag.sleep
+                let next = min(last, max(0, selectedTab + (dx < 0 ? 1 : -1)))
                 if next != selectedTab {
                     withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = next }
                 }
@@ -119,19 +157,17 @@ struct RootTabView: View {
         // its dynamic interaction with scrolling content automatically; older supported releases use
         // the corresponding system material and safe-area behaviour from the same TabView.
         TabView(selection: nativeTabSelection) {
-            tab(todayTabRoot, "Today", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
-            tab(TrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
-            tab(SleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
-            // K3: Coach promoted to a top-level tab (was behind the More list). The sparkles icon
-            // matches the More-tab row and the macOS sidebar entry.
-            // Conditional on the master switch. The tags stay LITERAL rather than being renumbered when
-            // Coach is absent: `tabPaths` and `scrollTop` are indexed by tag, and More stays tag 4 in both
-            // shapes, so a wearer's More tab keeps its identity, its navigation path and its scroll
-            // position across a flip instead of inheriting Coach's.
+            tab(todayTabRoot, "Today", "square.grid.2x2", tag: TabTag.today)
+            // Fork chantier 9: Training and Nutrition left the More list for tabs of their own; Trends
+            // moved the other way, to the head of More → Analysis.
+            tab(LiftLogView(), "Training", "dumbbell", tag: TabTag.training)
+            tab(NutritionView(), "Nutrition", "fork.knife", tag: TabTag.nutrition)
+            tab(SleepView(), "Sleep", "bed.double", tag: TabTag.sleep)
+            // K3: Coach is a top-level tab. Conditional on the master switch; it is the LAST tab, so its
+            // absence renumbers nothing.
             if coachEnabled {
-                tab(CoachView(), "Coach", "sparkles", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+                tab(CoachView(), "Coach", "sparkles", tag: TabTag.coach)
             }
-            moreTab(path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
         }
         // Liquid Glass tab bar with a white selected tab, no mint (fork chantier 7).
         .tint(StrandPalette.textPrimary)
@@ -139,7 +175,7 @@ struct RootTabView: View {
         // any more, which renders as an empty tab rather than as an error. Send that wearer to Today, and
         // only in that case, so a flip made from anywhere else does not move them.
         .onChangeCompat(of: coachEnabled) { enabled in
-            if !enabled && selectedTab == 3 { selectedTab = 0 }
+            if !enabled && selectedTab == TabTag.coach { selectedTab = TabTag.today }
         }
         // #1841: the same "Hide bar when scrolling" preference Android drives its own bar with. Here the
         // system owns the behaviour — iOS 26's tab bar MINIMISES to a pill on scroll down rather than
@@ -194,9 +230,36 @@ struct RootTabView: View {
         .sheet(item: $routedPillar) { dest in
             pillarScreen(dest)
         }
+        // Everything that is not a tab (fork chantier 9), opened by the profile picture of each tab root.
+        .sheet(isPresented: $showMore) {
+            moreSheet
+        }
+        .onChange(of: router.moreRequested) { _, req in
+            if req {
+                morePath = NavigationPath()
+                showMore = true
+                router.moreRequested = false
+            }
+        }
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
         // shared pillar sheet. Cleared so the same tap can fire again later.
         .onChange(of: router.requestedDestination) { _, dest in
+            // A request raised from a screen inside the More sheet: one sheet cannot present another
+            // from this shell, so a screen More holds is pushed in the sheet, and anything else closes
+            // the sheet before it is routed.
+            if showMore, let dest {
+                if let pushed = MoreDestination(routed: dest) {
+                    morePath.append(pushed)
+                    router.requestedDestination = nil
+                    return
+                }
+                showMore = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    router.requestedDestination = dest
+                }
+                router.requestedDestination = nil
+                return
+            }
             switch dest {
             case .devices:
                 showDevices = true
@@ -205,23 +268,26 @@ struct RootTabView: View {
                 routedPillar = dest
                 router.requestedDestination = nil
             case .coach:
-                // K3: Coach is now a top-level tab (tag 3) — switch to it directly instead of
-                // presenting it as a pillar sheet.
+                // K3: Coach is a top-level tab — switch to it directly instead of presenting it as a
+                // pillar sheet.
                 //
                 // Guarded on the master switch, because this route is reachable with Coach OFF. A brief
                 // notification already sitting in Notification Centre still calls `openCoach()` when it is
-                // tapped (StrandApp wires `onCoachBriefTapped` to it), and with no tab claiming tag 3 the
+                // tapped (StrandApp wires `onCoachBriefTapped` to it), and with no tab claiming Coach's tag the
                 // wearer would land on a BLANK tab. Dropping the request leaves them where they were, which
                 // is the honest answer for a feature that is switched off.
                 guard coachEnabled else {
                     router.requestedDestination = nil
                     break
                 }
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 3 }
+                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = TabTag.coach }
                 router.requestedDestination = nil
             case .trends:
-                // Trends is a primary tab on iPhone (not a pillar sheet) — switch to it.
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 1 }
+                // Trends lives in More → Analysis (fork chantier 9): open the sheet on it.
+                var path = NavigationPath()
+                path.append(MoreDestination.trends)
+                morePath = path
+                showMore = true
                 router.requestedDestination = nil
             case .activeWorkout:
                 // The Today active-workout indicator opens Live through the quick-action Live sheet; once
@@ -232,7 +298,7 @@ struct RootTabView: View {
             case .liveSession:
                 // Live Sessions is presented from Today's own Start entry (a cover, not a routed sheet),
                 // so a deep-link lands on the Today tab where that entry lives.
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 0 }
+                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = TabTag.today }
                 router.requestedDestination = nil
             case .journal:
                 // The #627 Today journal widget opens the journal through the quick-action Journal sheet
@@ -288,22 +354,23 @@ struct RootTabView: View {
         }
     }
 
-    /// Opens the screen a day widget asked for: Sleep as its tab, Training and Nutrition pushed on Today's
-    /// stack (the routes Today's own rows push), over any sheet the shell had up.
+    /// Opens the screen a day widget asked for: Training, Nutrition and Sleep are tabs (fork chantier 9),
+    /// any other route is pushed on Today's stack; over any sheet the shell had up.
     private func openWidgetRoute(_ route: TabRoute?) {
         guard let route else { return }
         router.widgetRoute = nil
         showDevices = false
         routedPillar = nil
         quickAction = nil
-        if route == .sleep {
-            selectedTab = 2
+        showMore = false
+        if let tag = Self.tabTag(for: route) {
+            selectedTab = tag
             return
         }
         var path = NavigationPath()
         path.append(route)
-        tabPaths[0] = path
-        selectedTab = 0
+        tabPaths[TabTag.today] = path
+        selectedTab = TabTag.today
     }
 
     /// Mandatory launch gates defer an external action. Once the shell is available, an explicit Home
@@ -338,9 +405,9 @@ struct RootTabView: View {
                 case .fusedRecord: FusedRecordHost()
                 case .rhythm: RhythmHost(onClose: { routedPillar = nil })
                 case .devices: DevicesView()
-                // .trends is never presented as a pillar sheet on iPhone (it's a primary tab — the
-                // requestedDestination handler switches `selectedTab` instead), but the switch must stay
-                // exhaustive. Fall back to Trends inside the sheet host if it ever arrives here.
+                // .trends is never presented as a pillar sheet on iPhone (it opens the More sheet on
+                // Trends — see the requestedDestination handler), but the switch must stay exhaustive.
+                // Fall back to Trends inside the sheet host if it ever arrives here.
                 case .trends: TrendsView()
                 // .activeWorkout routes through the quick-action Live sheet (handled above); this keeps the
                 // switch exhaustive and falls back to Live if it ever reaches the pillar host.
@@ -448,8 +515,7 @@ struct RootTabView: View {
         }
     }
 
-    private func tab<V: View>(_ view: V, _ title: LocalizedStringKey, _ icon: String,
-                              path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
+    private func tab<V: View>(_ view: V, _ title: LocalizedStringKey, _ icon: String, tag: Int) -> some View {
         // Each primary tab gets its OWN NavigationStack so the in-content NavigationLinks (e.g. the Today
         // dashboard card rows) both navigate AND render opaque. An ORPHANED NavigationLink (no
         // NavigationStack ancestor) renders its whole label in a disabled/translucent state — that was
@@ -458,8 +524,12 @@ struct RootTabView: View {
         // detail screens get their own nav bar + back button. The stack is bound to the tab's path so a
         // re-tap of the active tab can pop it to the root (#135/#198); the roots' first-hop links push
         // TabRoute values, registered here ONCE per stack (a double registration double-pushes, #38).
-        NavigationStack(path: path) {
+        NavigationStack(path: $tabPaths[tag]) {
             view
+                // Fork chantier 9: the root shows the profile picture that opens More, and its links to
+                // a screen that is a tab switch to that tab instead of pushing a copy.
+                .environment(\.showsMoreAvatar, true)
+                .environment(\.tabRouteSwitch, routeSwitch)
                 .background(StrandPalette.surfaceBase.ignoresSafeArea())
                 .toolbar(.hidden, for: .navigationBar)
                 .tabRouteDestinations()
@@ -468,28 +538,37 @@ struct RootTabView: View {
         .tint(StrandPalette.accent)
         // Drive this tab's root scroll-to-top on an at-root re-tap (#198 follow-up); read by ScreenScaffold
         // / LiquidTodayView inside. Only THIS tab's token changes on its reselect, so the others don't scroll.
-        .environment(\.scrollToTopSignal, scrollSignal)
+        .environment(\.scrollToTopSignal, scrollTop[tag])
         .tabItem { Label(title, systemImage: icon) }
+        .tag(tag)
     }
 
-    // The "More" tab is the app's catch-all index. Fork: the ~30 rows (formerly four collapsible
-    // sections) are grouped into six rows on the shared page chrome (ScreenScaffold title1 + subtitle,
-    // one grouped NoopCard). Training and Nutrition open their screen directly; every other group opens
-    // a screen listing its entries (`MoreGroupScreen`). Every former destination stays reachable.
-    private func moreTab(path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
-        NavigationStack(path: path) {
-            ScreenScaffold(title: "More", subtitle: "Everything else, in six places",
-                           onRefresh: { await repo.refresh() }) {
-                MoreHubCard { group, isLast in
-                    NavigationLink(value: MoreDestination.hub(group)) {
-                        MoreHubRowLabel(group: group, showsDivider: !isLast)
+    // The More sheet is the app's catch-all index (fork chantier 9: it was a tab). The profile row opens
+    // Settings, as the Today avatar did; then the four groups that are not tabs. Health & recovery, Analysis,
+    // Data and App settings each open a screen listing their entries (`MoreGroupScreen`); every former
+    // destination stays reachable, Training and Nutrition as tabs.
+    private var moreSheet: some View {
+        NavigationStack(path: $morePath) {
+            ScreenScaffold(title: "More", onRefresh: { await repo.refresh() }) {
+                VStack(spacing: NoopMetrics.space3) {
+                    NavigationLink(value: MoreDestination.settings) {
+                        MoreProfileRowLabel(avatarImageData: profile.avatarImageData)
                     }
                     .buttonStyle(.plain)
+                    MoreHubCard(groups: MoreHubGroup.sheetGroups) { group, isLast in
+                        NavigationLink(value: MoreDestination.hub(group)) {
+                            MoreHubRowLabel(group: group, showsDivider: !isLast)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
-            // The rows push MoreDestination VALUES so a re-tap of the More tab can pop them off the
-            // bound path (#135/#198). Each destination keeps the per-screen wrapper the rows used to
-            // apply inline (surfaceBase background, inline title bar, hidden bar background):
+            // Trends and the other screens push TabRoute values (#198); they need a destination
+            // registered in THIS stack to resolve.
+            .tabRouteDestinations()
+            // The rows push MoreDestination VALUES on the sheet's path, so a widget or a router request
+            // can open the sheet on one of them. Each destination keeps the per-screen wrapper the rows
+            // used to apply inline (surfaceBase background, inline title bar, hidden bar background):
             // #1027 — a pushed sky-scaffold screen (Live, Workouts, Health, …) draws a full-bleed liquid
             // sky; an opaque surfaceBase nav-bar band sat over it and clipped the top on scroll. A hidden
             // bar background keeps the sky edge-to-edge. On the flat (no-sky) screens this is visually
@@ -501,11 +580,20 @@ struct RootTabView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.hidden, for: .navigationBar)
             }
+            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showMore = false }
+                        .foregroundStyle(StrandPalette.accent)
+                }
+            }
         }
         .tint(StrandPalette.accent)
-        // Scroll the More index to the top on an at-root re-tap (#198 follow-up); read by its ScreenScaffold.
-        .environment(\.scrollToTopSignal, scrollSignal)
-        .tabItem { Label("More", systemImage: "ellipsis") }
+        // A tab root reached from inside the sheet is not a tab root: no avatar, every link pushes.
+        .environment(\.showsMoreAvatar, false)
+        .environment(\.tabRouteSwitch, nil)
     }
 }
 
@@ -540,6 +628,8 @@ private struct MoreGroupScreen: View {
             MoreRow("Rhythm", "waveform.path", .rhythm)
             MoreRow("Lab Book", "books.vertical.fill", .labBook)
         case .analysis:
+            // Fork chantier 9: Trends left the tab bar for the head of Analysis.
+            MoreRow("Trends", "chart.line.uptrend.xyaxis", .trends)
             MoreRow("What Moves You", "wand.and.sparkles", .insightsHub)
             MoreRow("Intelligence", "brain.head.profile", .intelligence)
             // K3: Coach promoted to a top-level tab — no longer listed under More.
@@ -583,20 +673,35 @@ private struct MoreGroupScreen: View {
 /// Every screen the More index links to, as a `Hashable` value the tab's `NavigationPath` can carry
 /// (#198): a closure-destination push would bypass the path and be un-poppable on tab re-tap. The
 /// per-screen chrome the old inline links applied lives at the single `navigationDestination(for:)`
-/// registration in `moreTab`.
+/// registration in `moreSheet`.
 private enum MoreDestination: Hashable {
-    case insightsHub, intelligence, coach, insights, explore, compare
+    case trends, insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, liftLog, nutrition, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
     /// A More group's row: Nutrition opens its screen directly, the others their list of entries.
     case hub(MoreHubGroup)
 
+    /// The More screen a router request names, when the sheet holds one: a request raised from a screen
+    /// inside the sheet is pushed there rather than presented over it.
+    init?(routed destination: NavRouter.Destination) {
+        switch destination {
+        case .trends: self = .trends
+        case .insightsHub: self = .insightsHub
+        case .labBook: self = .labBook
+        case .fusedRecord: self = .fusedRecord
+        case .rhythm: self = .rhythm
+        case .alarms: self = .alarms
+        case .devices, .activeWorkout, .liveSession, .journal, .coach: return nil
+        }
+    }
+
     @ViewBuilder var destination: some View {
         switch self {
         case .hub(.training):  LiftLogView()
         case .hub(.nutrition): NutritionView()
         case .hub(let group):  MoreGroupScreen(group: group)
+        case .trends:          TrendsView()
         case .insightsHub:     InsightsHubView()
         case .intelligence:    IntelligenceView()
         case .coach:           CoachView()

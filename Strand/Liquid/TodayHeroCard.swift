@@ -333,7 +333,7 @@ struct TodayNutritionLine: View {
     }
 
     var body: some View {
-        NavigationLink(value: TabRoute.nutrition) {
+        TabRouteLink(route: .nutrition) {
             HStack(spacing: 8) {
                 Image(systemName: "fork.knife")
                     .font(.system(size: 13, weight: .semibold))
@@ -464,7 +464,7 @@ struct TodayHeroCard: View {
     private func line(_ row: TodayRingRow, route: TabRoute?, guide: ScoreSection?) -> some View {
         Group {
             if let route {
-                NavigationLink(value: route) { row }
+                TabRouteLink(route: route) { row }
                     .buttonStyle(LiquidPressStyle())
             } else {
                 row

@@ -417,6 +417,8 @@ struct CoachView: View {
                 headerButton("square.and.pencil", label: "New conversation") { coach.startNewConversation() }
                     .disabled(coach.sending || coach.messages.isEmpty)
                 optionsMenu
+                // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere.
+                MoreAvatarButton()
             }
             HStack(spacing: 6) {
                 // Once the conversation has a name, the grey line shows it (Mohamed, 3 Nov.); before

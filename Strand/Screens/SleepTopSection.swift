@@ -176,6 +176,8 @@ struct SleepTopSection: View {
             Spacer(minLength: NoopMetrics.space2)
             roundButton("alarm.fill", label: "Alarms", action: actions.alarms)
             roundButton("slider.horizontal.3", label: "Customize Sleep", action: actions.customize)
+            // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere.
+            MoreAvatarButton()
         }
     }
 

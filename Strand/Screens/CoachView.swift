@@ -569,7 +569,7 @@ struct CoachView: View {
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
             if isEmptyConversation {
-                CoachQuickPrompts { ask($0) }
+                CoachQuickPrompts(photosAvailable: photosAvailable) { ask($0) }
                     .padding(.bottom, 4)
             }
             composer
@@ -699,7 +699,8 @@ struct CoachView: View {
             let meal = reply.meta?.meal
             let action = reply.meta?.action
             let menu = reply.meta?.menu
-            if !reply.body.isEmpty || session != nil || meal != nil || action != nil || menu != nil {
+            let charts = reply.meta?.charts ?? []
+            if !reply.body.isEmpty || session != nil || meal != nil || action != nil || menu != nil || !charts.isEmpty {
                 // Fork chantier 9: no "Coach" mark above the answer; the words, then its cards.
                 VStack(alignment: .leading, spacing: 6) {
                     if !reply.body.isEmpty {
@@ -709,6 +710,12 @@ struct CoachView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: 680, alignment: .leading)
                             .accessibilityLabel("Coach said: \(reply.body)")
+                    }
+                    // Fork chantier 9: the charts the coach asked for, drawn from the app's own data.
+                    ForEach(Array(charts.enumerated()), id: \.offset) { _, spec in
+                        CoachChartCard(spec: spec, dataAvailable: coach.dataConsent) { await coach.chartPoints(spec) }
+                            .frame(maxWidth: 520, alignment: .leading)
+                            .padding(.top, 2)
                     }
                     if let session {
                         sessionCard(session, messageId: message.id)

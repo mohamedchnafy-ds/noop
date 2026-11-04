@@ -59,29 +59,73 @@ final class NutritionRenderTests: XCTestCase {
 
     func testRendersTheNutritionScreens() throws {
         let day = summary
-        let journal = VStack(alignment: .leading, spacing: 12) {
-            NutritionBalanceCard(model: NutritionBalanceModel(summary: day, plan: plan))
-            NutritionAddTiles(onType: {}, onScan: {}, onPhoto: {}, onDictate: {})
-            Text("Meals")
-                .font(StrandFont.sectionTitle)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .padding(.top, 14)
-                .padding(.horizontal, 2)
-            VStack(spacing: 0) {
-                ForEach(Array(day.meals.enumerated()), id: \.element.meal.id) { index, entry in
-                    NutritionMealRow(entry: entry, isFirst: index == 0, isLast: index == day.meals.count - 1)
+        // Fork chantier 9, mockup 4: the page by moment — search field, compact card, the four moments
+        // (breakfast unfolded), the week; then an empty day.
+        let groups = NutritionSlots.groupMealsBySlot(day.meals)
+        func slots(_ groups: [NutritionSlotGroup], unfolded: Set<MealSlot>) -> some View {
+            VStack(spacing: 12) {
+                ForEach(groups) { group in
+                    let open = unfolded.contains(group.slot) && group.hasMeals
+                    VStack(spacing: 0) {
+                        NutritionSlotHeader(group: group, goalKcal: plan.intakeKcal, expanded: open,
+                                            onToggle: {}, onAdd: {})
+                        if open {
+                            ForEach(Array(group.meals.enumerated()), id: \.element.meal.id) { index, entry in
+                                NutritionMealRow(entry: entry, isFirst: false, isLast: index == group.meals.count - 1)
+                            }
+                        }
+                    }
                 }
             }
         }
+        let weekDays = NutritionHistory.historyDayKeys(before: Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 2))!,
+                                                       count: 7).enumerated().map { index, key in
+            NutritionHistory.historyDay(NutritionDaySummary(
+                dayKey: key,
+                meals: index == 2 || index == 5 ? [] : [MealEntry(meal: MealRow(id: key, day: key, eatenAt: 0, name: "j",
+                                                                                  origin: .manual, createdAt: 0, updatedAt: 0),
+                                                                    items: [MealItemRow(id: key, mealId: key, ord: 0, name: "j", grams: nil,
+                                                                                        nutrients: MealNutrients(kcal: 1_900 + index * 80, proteinG: 120,
+                                                                                                                 carbsG: 220, fatG: 70))])],
+                spent: nil))
+        }
+        let journal = VStack(alignment: .leading, spacing: 12) {
+            NutritionSearchBar(onSearch: {}, onScan: {})
+            NutritionBalanceCard(model: NutritionBalanceModel(summary: day, plan: plan))
+            slots(groups, unfolded: [.breakfast, .dinner])
+            NutritionWeekCard(model: NutritionHistoryModel(days: weekDays, plan: plan), onOpen: {})
+            LiquidFullWidthNavigationAction("Customize Nutrition")
+        }
         try render(AnyView(journal), name: "1-journal")
+        XCTAssertEqual(groups.map { $0.meals.map(\.meal.id) }, [["1", "2"], ["3"], [], ["4"]],
+                       "no saved moment: 07:40 and 10:30 breakfast, 13:05 lunch, 18:15 dinner")
 
         let empty = NutritionDaySummary(dayKey: "2026-11-01", meals: [], spent: TodayEnergy.Split(restingKcal: 900, activityKcal: 120))
         let emptyJournal = VStack(alignment: .leading, spacing: 12) {
             NutritionBalanceCard(model: NutritionBalanceModel(summary: empty, plan: plan))
-            NutritionAddTiles(onType: {}, onScan: {}, onPhoto: nil, onDictate: nil)
-            NutritionEmptyMeals()
+            slots(NutritionSlots.groupMealsBySlot([]), unfolded: [])
+            NutritionWeekCard(model: NutritionHistoryModel(days: [], plan: plan), onOpen: {})
         }
         try render(AnyView(emptyJournal), name: "2-journal-vide")
+
+        // The add sheet's parts: the moment chips, the four other ways in, a search result, the portion.
+        let rice = NutritionFoodHit(name: "Riz blanc, cuit", per100: MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7),
+                                    foodRef: "ciqual:9104", source: .ciqual, lastGrams: nil)
+        let skyrHit = NutritionFoodHit(name: "Skyr nature", per100: MealPer100(kcal: 63, proteinG: 11, carbsG: 4, fatG: 0.2),
+                                       foodRef: "ean:3033490004743", source: .journal, lastGrams: 150)
+        let addParts = VStack(alignment: .leading, spacing: 16) {
+            NutritionSlotChips(selection: .constant(.lunch))
+            NutritionAddTiles(onScan: {}, onPhoto: {}, onDictate: nil, onType: {})
+            VStack(spacing: 0) {
+                NutritionFoodHitRow(hit: skyrHit, onPick: {})
+                NutritionHairline()
+                NutritionFoodHitRow(hit: rice, onPick: {})
+            }
+            .padding(.horizontal, 14)
+            .background(StrandPalette.surfaceBase, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            NutritionPortionPanel(hit: skyrHit, slot: .snack, grams: .constant(150), saving: false, onAdd: {})
+        }
+        try render(AnyView(addParts), name: "5-ajout-dejeuner")
 
         // Fork chantier 9, mockup 4 screen 3: the profile of the mockup (homme, 31 ans, 172 cm, 112 kg),
         // lightly active, −20 %, the strap's 1 744 kcal beside it; then a typed goal under the basal rate.

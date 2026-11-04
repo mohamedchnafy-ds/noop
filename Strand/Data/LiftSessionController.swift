@@ -631,6 +631,24 @@ final class LiftSessionController: ObservableObject {
         return true
     }
 
+    /// Move the block holding line `index` up (−1) or down (+1) for today (Supersets et blocs). Values
+    /// typed ahead for its sets move with it. Finishing asks whether the program keeps the new order.
+    @discardableResult
+    func moveBlock(containing index: Int, by offset: Int) -> Bool {
+        guard var moving = engine, let newIndex = moving.moveSessionBlock(containing: index, by: offset) else {
+            return false
+        }
+        var moved: [LiftSlot: PendingSetValues] = [:]
+        for (slot, values) in pendingValues {
+            moved[LiftSlot(exerciseIndex: newIndex[slot.exerciseIndex] ?? slot.exerciseIndex,
+                           setIndex: slot.setIndex)] = values
+        }
+        pendingValues = moved
+        engine = moving
+        persist()
+        return true
+    }
+
     /// Drop the last pending set of an exercise. See `LiftSessionEngine.canRemoveSet(fromExercise:)`
     /// for what "can" means — a completed set is never removed this way.
     @discardableResult
@@ -790,6 +808,38 @@ final class LiftSessionController: ObservableObject {
         }
     }
 
+    /// Whether this session ran the program's lines in another order (blocks moved for the day): the
+    /// plan's lines that the program still has, in plan order, against the program's order of them.
+    static func sessionOrderChanged(plan: [LiftPlanItem], program items: [LiftProgramItemRow]) -> Bool {
+        let known = Set(items.map(\.id))
+        let ran = plan.compactMap(\.programItemId).filter { known.contains($0) }
+        let ranSet = Set(ran)
+        return ran != items.sorted { $0.ord < $1.ord }.map(\.id).filter { ranSet.contains($0) }
+    }
+
+    /// The program's lines in the order this session ran them: the places the plan's lines held are
+    /// filled again in plan order, any other line keeps its place, every `ord` is rewritten 0, 1, 2…
+    /// and the supersets relettered.
+    static func applyingSessionOrder(plan: [LiftPlanItem], to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
+        // Lettered once in the program's own order first, so two supersets spelled alike cannot meet and merge.
+        var sorted = items.sorted { $0.ord < $1.ord }
+        let before = LiftSuperset.relabeled(sorted.map(\.supersetGroup))
+        for i in sorted.indices { sorted[i].supersetGroup = before[i] }
+        let byId = Dictionary(sorted.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var queue = plan.compactMap(\.programItemId).compactMap { byId[$0] }[...]
+        let ranIds = Set(queue.map(\.id))
+        var lines = sorted.map { row -> LiftProgramItemRow in
+            guard ranIds.contains(row.id), let next = queue.popFirst() else { return row }
+            return next
+        }
+        let labels = LiftSuperset.relabeled(lines.map(\.supersetGroup))
+        for i in lines.indices {
+            lines[i].ord = i
+            lines[i].supersetGroup = labels[i]
+        }
+        return lines
+    }
+
     /// The program's lines with `changes` applied. Only `restSec` moves.
     static func applyingRests(_ changes: [RestChange], to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
         let rests = Dictionary(changes.map { ($0.itemId, $0.to) }, uniquingKeysWith: { first, _ in first })
@@ -852,6 +902,9 @@ final class LiftSessionController: ObservableObject {
                                     programId: String, deviceId: String) -> [LiftProgramItemRow] {
         var lines = items
         if keepingChanges {
+            if sessionOrderChanged(plan: plan, program: items) {
+                lines = applyingSessionOrder(plan: plan, to: lines)
+            }
             lines = applying(setCountChanges(plan: plan, program: items), to: lines)
             lines = applyingRests(restChanges(plan: plan, program: items), to: lines)
             let next = (items.map(\.ord).max() ?? -1) + 1

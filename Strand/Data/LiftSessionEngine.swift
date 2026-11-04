@@ -686,6 +686,59 @@ struct LiftSessionEngine: Equatable {
         return true
     }
 
+    // MARK: - Moving a block (personal fork, Supersets et blocs)
+    //
+    // The day's order is the lifter's: arriving at the gym, they may take Superset B before the squat.
+    // A whole block moves (a superset with all its lines), and only blocks that have not begun: a block
+    // with a done set, or the one being worked or rested from, stays where it is, as does the block it
+    // would trade places with. Swapping two such neighbours moves no line of any other block, so no
+    // recorded set and no current slot changes index.
+
+    /// Whether `block` has begun: a line of it has a done set, or is the one being worked or rested from.
+    func hasBlockStarted(_ block: Range<Int>) -> Bool {
+        if let current = currentSlot, block.contains(current.exerciseIndex) { return true }
+        return sets.contains { block.contains($0.exerciseIndex) }
+    }
+
+    /// Whether the block holding line `index` can move `offset` blocks (−1 up, +1 down): it and the
+    /// block it would trade places with have not begun, and the session is still running.
+    func canMoveSessionBlock(containing index: Int, by offset: Int) -> Bool {
+        guard stage != .finished else { return false }
+        let all = blocks
+        guard let from = all.firstIndex(where: { $0.contains(index) }), all.indices.contains(from + offset) else {
+            return false
+        }
+        return !hasBlockStarted(all[from]) && !hasBlockStarted(all[from + offset])
+    }
+
+    /// Move the block holding line `index` by `offset` blocks. Returns each old line's new index, so a
+    /// caller holding values by slot can follow, or nil when the rule above says no.
+    ///
+    /// The labels are lettered A, B, C… first, so two supersets an imported program spelled alike cannot
+    /// meet and merge. A move is not an undo step: the undo stack is cleared, since a snapshot taken
+    /// before it would put the lines back without the values the caller moved with them.
+    @discardableResult
+    mutating func moveSessionBlock(containing index: Int, by offset: Int) -> [Int: Int]? {
+        guard canMoveSessionBlock(containing: index, by: offset) else { return nil }
+        let labels = LiftSuperset.relabeled(plan.map(\.supersetGroup))
+        for i in plan.indices { plan[i].supersetGroup = labels[i] }
+        let order = LiftProgramBlocks.moveProgramBlock(labels: labels, containing: index, by: offset)
+        var newIndex: [Int: Int] = [:]
+        for (position, old) in order.enumerated() { newIndex[old] = position }
+        plan = order.map { plan[$0] }
+        func moved(_ slot: LiftSlot) -> LiftSlot {
+            LiftSlot(exerciseIndex: newIndex[slot.exerciseIndex] ?? slot.exerciseIndex, setIndex: slot.setIndex)
+        }
+        for i in sets.indices { sets[i].exerciseIndex = newIndex[sets[i].exerciseIndex] ?? sets[i].exerciseIndex }
+        switch stage {
+        case .working(let slot): stage = .working(moved(slot))
+        case .resting(let slot, let endsAt): stage = .resting(moved(slot), endsAt: endsAt)
+        case .warmup, .finished: break
+        }
+        history = []
+        return newIndex
+    }
+
     // MARK: - Adding an exercise
 
     /// The most lines one session may hold: the importer's cap on one program, so a session grown during

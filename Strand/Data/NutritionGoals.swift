@@ -7,9 +7,15 @@ import Foundation
 // - Basal metabolic rate: the revised Harris-Benedict equation, with exactly the coefficients the calorie
 //   estimator charges as resting energy (`Calories.estimateDayEnergy`), so "basal" here and "resting"
 //   under Today's calories are one figure. A test holds the two together.
-// - Reference expenditure: the mean of the totals the strap measured on the last complete days.
-// - Intake goal: that mean × (1 + the goal percentage), rounded to 10 kcal.
+// - Daily expenditure (fork chantier 9): that rate × the activity level's factor (1.2 to 1.9). The
+//   strap's measured expenditure under-counts whenever it is not worn, so it is shown for information only
+//   (`referenceExpenditure`) and never enters the goal.
+// - Intake goal: the daily expenditure × (1 + the goal percentage), rounded to 10 kcal, or the kcal the
+//   wearer typed (in steps of 50), which then no longer moves with the weight or the activity.
 // - Protein and fat: grams per kilogram of body weight; carbohydrates: the energy that is left, ÷ 4.
+//
+// `NutritionDayReader.currentPlan` is the one resolver every reader goes through (Nutrition, its rings,
+// the history, the widget, the Coach); the Goals screen calls `intakePlan` with the same settings.
 
 enum NutritionGoals {
 
@@ -19,17 +25,111 @@ enum NutritionGoals {
     static let proteinTenthsKey = "nutrition.proteinTenthsPerKg"
     /// Fat in tenths of a gram per kilogram (10 = 1.0 g/kg).
     static let fatTenthsKey = "nutrition.fatTenthsPerKg"
-    /// The goal against the reference expenditure, in percent: −10 loses, 0 maintains, +10 gains.
+    /// The goal against the daily expenditure, in percent: −20 loses, 0 maintains, +10 gains.
     static let goalPercentKey = "nutrition.goalPercent"
+    /// The activity level the basal rate is multiplied by (`ActivityLevel` raw value).
+    static let activityLevelKey = "nutrition.activityLevel"
+    /// How the goal is set (`GoalMode` raw value): a percentage of the expenditure, or typed kcal.
+    static let goalModeKey = "nutrition.goalMode"
+    /// The intake goal typed by the wearer, kcal a day (0 = not typed yet).
+    static let manualKcalKey = "nutrition.manualIntakeKcal"
 
     static let defaultProteinTenths = 20
     static let defaultFatTenths = 10
     static let defaultGoalPercent = 0
     static let proteinTenthsRange = 10...30
     static let fatTenthsRange = 5...20
-    static let goalPercentRange = -25...25
+    static let goalPercentRange = -30...25
     /// The goal percentage moves by this much.
     static let goalPercentStep = 5
+    /// The starting percentage of each preset: Lose, Maintain, Gain.
+    static let losePresetPercent = -20
+    static let gainPresetPercent = 10
+    /// The typed goal moves by this much, within this range.
+    static let manualKcalStep = 50
+    static let manualKcalRange = 1_000...6_000
+
+    // MARK: Activity level and goal mode
+
+    /// The classic activity factors applied to the basal rate.
+    enum ActivityLevel: String, CaseIterable, Identifiable {
+        case sedentary, light, moderate, active, extreme
+
+        static let defaultLevel: ActivityLevel = .light
+
+        var id: String { rawValue }
+
+        var factor: Double {
+            switch self {
+            case .sedentary: return 1.2
+            case .light: return 1.375
+            case .moderate: return 1.55
+            case .active: return 1.725
+            case .extreme: return 1.9
+            }
+        }
+
+        /// An unknown or missing stored value reads the default level.
+        static func storedLevel(_ raw: String?) -> ActivityLevel {
+            raw.flatMap(ActivityLevel.init(rawValue:)) ?? defaultLevel
+        }
+    }
+
+    enum GoalMode: String, CaseIterable, Identifiable {
+        /// A percentage of the daily expenditure.
+        case percent
+        /// Kcal typed by the wearer.
+        case kcal
+
+        var id: String { rawValue }
+
+        static func storedMode(_ raw: String?) -> GoalMode { raw.flatMap(GoalMode.init(rawValue:)) ?? .percent }
+    }
+
+    /// Every setting the plan is calculated from, already brought back into range.
+    struct Settings: Equatable {
+        var activity: ActivityLevel
+        var mode: GoalMode
+        var goalPercent: Int
+        /// The typed goal, kcal a day; 0 when none was typed (the % goal stands in until one is).
+        var manualKcal: Int
+        var proteinTenths: Int
+        var fatTenths: Int
+
+        init(activity: ActivityLevel = .defaultLevel, mode: GoalMode = .percent, goalPercent: Int = 0,
+             manualKcal: Int = 0, proteinTenths: Int = NutritionGoals.defaultProteinTenths,
+             fatTenths: Int = NutritionGoals.defaultFatTenths) {
+            self.activity = activity
+            self.mode = mode
+            self.goalPercent = goalPercent
+            self.manualKcal = manualKcal
+            self.proteinTenths = proteinTenths
+            self.fatTenths = fatTenths
+        }
+
+        /// The settings as stored on this device (`settingsFromStored`).
+        static func storedGoalSettings(_ defaults: UserDefaults = .standard) -> Settings {
+            settingsFromStored(activity: defaults.string(forKey: NutritionGoals.activityLevelKey),
+                               mode: defaults.string(forKey: NutritionGoals.goalModeKey),
+                               goalPercent: defaults.integer(forKey: NutritionGoals.goalPercentKey),
+                               manualKcal: defaults.integer(forKey: NutritionGoals.manualKcalKey),
+                               proteinTenths: defaults.integer(forKey: NutritionGoals.proteinTenthsKey),
+                               fatTenths: defaults.integer(forKey: NutritionGoals.fatTenthsKey))
+        }
+
+        /// The stored values brought back into range, each the way it is read everywhere: an unknown
+        /// level or mode reads the default, a percentage snaps to its step, an unset key reads its default.
+        static func settingsFromStored(activity: String?, mode: String?, goalPercent: Int, manualKcal: Int,
+                                       proteinTenths: Int, fatTenths: Int) -> Settings {
+            Settings(activity: ActivityLevel.storedLevel(activity), mode: GoalMode.storedMode(mode),
+                     goalPercent: NutritionGoals.clampedPercent(goalPercent),
+                     manualKcal: NutritionGoals.clampedManualKcal(manualKcal),
+                     proteinTenths: NutritionGoals.clampedTenths(proteinTenths, range: NutritionGoals.proteinTenthsRange,
+                                                                 fallback: NutritionGoals.defaultProteinTenths),
+                     fatTenths: NutritionGoals.clampedTenths(fatTenths, range: NutritionGoals.fatTenthsRange,
+                                                             fallback: NutritionGoals.defaultFatTenths))
+        }
+    }
 
     // MARK: Basal metabolic rate
 
@@ -75,7 +175,7 @@ enum NutritionGoals {
         basalFormula(sex: body.sex).kcalPerDay(weightKg: body.weightKg, heightCm: body.heightCm, age: body.age)
     }
 
-    // MARK: Reference expenditure
+    // MARK: Measured expenditure (shown for information only)
 
     /// Complete days the reference expenditure averages over, and the fewest it needs.
     static let referenceWindowDays = 14
@@ -103,27 +203,37 @@ enum NutritionGoals {
     // MARK: The plan
 
     struct Plan: Equatable {
-        /// The intake goal, kcal a day, rounded to 10; nil without a reference expenditure.
-        let intakeKcal: Int?
+        /// What it was calculated from.
+        let settings: Settings
+        /// The basal metabolic rate, kcal a day, to the whole kcal.
+        let basalKcal: Int
+        /// Basal rate × activity factor, kcal a day, to the whole kcal.
+        let expenditureKcal: Int
+        /// The intake goal, kcal a day: the % goal rounded to 10, or the typed goal.
+        let intakeKcal: Int
+        /// The goal sits under the basal rate: the Goals screen warns (it never blocks).
+        let isBelowBasal: Bool
         let proteinG: Int
         let fatG: Int
-        /// The energy left after protein and fat, ÷ 4; never below 0. Nil without an intake goal.
-        let carbsG: Int?
+        /// The energy left after protein and fat, ÷ 4; never below 0.
+        let carbsG: Int
 
         var proteinKcal: Int { 4 * proteinG }
         var fatKcal: Int { 9 * fatG }
-        var carbsKcal: Int? { carbsG.map { 4 * $0 } }
+        var carbsKcal: Int { 4 * carbsG }
+        /// True when the goal is the typed one (kcal mode with a typed value).
+        var isTyped: Bool { settings.mode == .kcal && settings.manualKcal > 0 }
 
         /// A part's share of the intake goal, in whole percent.
         func shareOfIntake(_ kcal: Int) -> Int? {
-            guard let intakeKcal, intakeKcal > 0 else { return nil }
+            guard intakeKcal > 0 else { return nil }
             return Int((Double(kcal) * 100 / Double(intakeKcal)).rounded())
         }
     }
 
-    /// The intake goal from the reference expenditure: `reference × (1 + percent / 100)`, to 10 kcal.
-    static func intakeKcal(reference: Double, goalPercent: Int) -> Int {
-        let raw = reference * (1 + Double(goalPercent) / 100)
+    /// The intake goal from an expenditure: `expenditure × (1 + percent / 100)`, to 10 kcal.
+    static func intakeKcal(expenditure: Double, goalPercent: Int) -> Int {
+        let raw = expenditure * (1 + Double(goalPercent) / 100)
         return Int((raw / 10).rounded()) * 10
     }
 
@@ -132,13 +242,19 @@ enum NutritionGoals {
         Int((Double(tenthsPerKg) / 10 * max(weightKg, 0)).rounded())
     }
 
-    static func intakePlan(weightKg: Double, proteinTenths: Int, fatTenths: Int, goalPercent: Int,
-                     reference: Reference?) -> Plan {
-        let protein = gramsFromTenths(tenthsPerKg: proteinTenths, weightKg: weightKg)
-        let fat = gramsFromTenths(tenthsPerKg: fatTenths, weightKg: weightKg)
-        let intake = reference.map { intakeKcal(reference: $0.kcal, goalPercent: goalPercent) }
-        let carbs = intake.map { max(0, Int((Double($0 - 4 * protein - 9 * fat) / 4).rounded())) }
-        return Plan(intakeKcal: intake, proteinG: protein, fatG: fat, carbsG: carbs)
+    /// The plan for a body and settings: basal × activity, then the % goal (or the typed one), then the
+    /// macros against the body's weight.
+    static func intakePlan(body: Body, settings: Settings) -> Plan {
+        let basal = basalKcalPerDay(body)
+        let expenditure = basal * settings.activity.factor
+        let typed = settings.mode == .kcal && settings.manualKcal > 0
+        let intake = typed ? settings.manualKcal : intakeKcal(expenditure: expenditure, goalPercent: settings.goalPercent)
+        let protein = gramsFromTenths(tenthsPerKg: settings.proteinTenths, weightKg: body.weightKg)
+        let fat = gramsFromTenths(tenthsPerKg: settings.fatTenths, weightKg: body.weightKg)
+        let carbs = max(0, Int((Double(intake - 4 * protein - 9 * fat) / 4).rounded()))
+        return Plan(settings: settings, basalKcal: Int(basal.rounded()), expenditureKcal: Int(expenditure.rounded()),
+                    intakeKcal: intake, isBelowBasal: Double(intake) < basal,
+                    proteinG: protein, fatG: fat, carbsG: carbs)
     }
 
     /// A stored setting brought back into its range (an unset key reads 0, which means the default).
@@ -149,5 +265,12 @@ enum NutritionGoals {
     static func clampedPercent(_ stored: Int) -> Int {
         let stepped = (stored / goalPercentStep) * goalPercentStep
         return min(max(stepped, goalPercentRange.lowerBound), goalPercentRange.upperBound)
+    }
+
+    /// A typed goal on its 50 kcal step, within `manualKcalRange`; 0 (not typed) stays 0.
+    static func clampedManualKcal(_ stored: Int) -> Int {
+        guard stored > 0 else { return 0 }
+        let stepped = Int((Double(stored) / Double(manualKcalStep)).rounded()) * manualKcalStep
+        return min(max(stepped, manualKcalRange.lowerBound), manualKcalRange.upperBound)
     }
 }

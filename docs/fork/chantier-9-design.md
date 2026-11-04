@@ -19,7 +19,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 - Les 11 vieilles branches `build/*` / `feat/*` du 31 oct.–1er nov. (`sleep-redesign`, `superset-guided` 1 à 4, `superset-rounds`, `today-insights`) s'ignorent comme les autres (liste dans `.claude/rules/fork-noop.md`).
 
 ## Questions ouvertes
-- Sommeil : voir la section 3 ci-dessous (en attente des réponses de Mohamed).
+- Aucune pour l'instant (Nutrition : questions posées avec la maquette 4).
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)
@@ -35,11 +35,12 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 
 - **2 · Aujourd'hui (validée le 4 nov.)** : https://claude.ai/artifact/5Gtyju4onzwsH37moKvRZt — écran 1 la page (anneaux · Synthèse · carte FC En direct | Journée · carte Stress · Métriques avec valeur · Personnaliser), écran 2 ce qui quitte la page et où ça va, écran 3 la feuille « Personnaliser » (ordre glissable ; « Remettre sur la page » avec un interrupteur par bloc déplacé, éteints par défaut).
 
-- **3 · Sommeil (v2 du 4 nov., en attente de validation)** : https://claude.ai/artifact/THF28w9AQZ2tAvyBEKkcKe — écran 1 la page (touchez une phase ; Anneau | Courbes), écran 2 la forme de l'anneau, écran 3 ce qui descend d'un niveau.
+- **3 · Sommeil (validée le 4 nov.)** : https://claude.ai/artifact/THF28w9AQZ2tAvyBEKkcKe — écran 1 la page (touchez une phase ; Anneau | Courbes), écran 2 la forme de l'anneau, écran 3 ce qui descend d'un niveau.
   - **Anneau en fer à cheval, ouvert en bas** (choix de Mohamed) : coucher en bas à gauche, la nuit monte par la gauche, passe en haut et redescend jusqu'au réveil en bas à droite (sens d'une montre) ; chaque heure collée à sa pastille.
   - **Un seul graphique** (idée de Mohamed) : une carte de la nuit avec un sélecteur **Anneau | Courbes**. Anneau par défaut ; Courbes = l'hypnogramme actuel avec les puces FC / VFC / Temp. peau / Mouvement et le plein écran. Les **4 durées des phases restent fixes en haut** de la carte, dans les deux vues (toucher une phase la montre seule) ; elles ne sont plus affichées deux fois. ⓘ remplace les 2 lignes d'aide grises. Coucher / Réveil / Endormi en bas de la carte.
-  - **« Ce soir » en petits boutons** (choix de Mohamed : la carte prenait trop de place) : sous la carte, 3 pastilles « Ce soir ≈ 10h 23m » (ouvre le détail : besoin + dette, coucher conseillé), « Pourquoi ? », « + Sieste ».
-  - Ordre : carte de la nuit → 3 pastilles → Indicateurs (4 tuiles ; Régularité du coucher dès 3 nuits) → Vos nuits (dette, 14 nuits | 30 jours) → « Personnaliser Sommeil ».
+  - **« Ce soir » quitte la page** (choix de Mohamed : information jugée peu pertinente, elle prenait trop de place ; une étape « petits boutons » a été essayée puis retirée) : « Ce soir, visez… » et « Pourquoi ce sommeil ? » vont dans « Personnaliser Sommeil », éteints par défaut, réactivables ; « Ajouter une sieste » devient une ligne d'action de cette feuille. Le coucher conseillé reste sur Aujourd'hui (Synthèse).
+  - Sélecteur **Anneau | Courbes en haut de la carte** (ⓘ et plein écran à droite).
+  - Ordre : carte de la nuit → Indicateurs (4 tuiles ; Régularité du coucher dès 3 nuits) → Vos nuits (dette, 14 nuits | 30 jours) → « Personnaliser Sommeil ».
   - **Horloge biologique et carte « Je me couche / Je me lève » rangées** dans « Personnaliser Sommeil », éteintes par défaut, réactivables (choix de Mohamed). Comparaison à la nuit habituelle : dans la vue Courbes, dès 5 nuits.
 
 ## Code

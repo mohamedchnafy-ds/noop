@@ -18,7 +18,8 @@ concurrency:
 
 jobs:
   render:
-    # Combined render branch only (4 Nov.): the arm64 macOS pool is saturated, try the Intel one.
+    # Combined branch only (4 Nov.): the arm64 macOS pool is saturated. The Intel VM has no GPU (ImageRenderer
+    # needs Metal), so it runs StrandTests without the render classes: the compile + unit-test check.
     runs-on: macos-15-intel
     timeout-minutes: 60
     steps:
@@ -34,12 +35,25 @@ jobs:
           set +e
           xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
             -testLanguage fr -testRegion FR \
-            -only-testing:StrandTests/NutritionRenderTests \
-            -only-testing:StrandTests/TrainingRenderTests \
+            -only-testing:StrandTests \
+            -skip-testing:StrandTests/LiftSupersetRenderTests \
+            -skip-testing:StrandTests/SleepScreenRenderTests \
+            -skip-testing:StrandTests/TodayScreenRenderTests \
+            -skip-testing:StrandTests/LiftProgressRenderTests \
+            -skip-testing:StrandTests/NutritionRenderTests \
+            -skip-testing:StrandTests/MoreHubRenderTests \
+            -skip-testing:StrandTests/TrainingRenderTests \
+            -skip-testing:StrandTests/LiveHRBannerRenderTests \
+            -skip-testing:StrandTests/DayWidgetsRenderTests \
+            -skip-testing:StrandTests/CoachCardsRenderTests \
+            -skip-testing:StrandTests/LabReportRenderTests \
+            -skip-testing:StrandTests/LiftProgramMuscleRenderTests \
+            -skip-testing:StrandTests/LiveWorkoutRenderTests \
+            -skip-testing:StrandTests/LiquidVesselStillTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?
-          grep -E "Test Case|\*\* TEST|error:" xcodebuild.log | tail -60
+          grep -E "failed|\*\* TEST|error:|Executed" xcodebuild.log | tail -60
           if [ $status -ne 0 ]; then
             # The job log is not readable from where the fork is worked on: failures go up as annotations.
             grep -E "error:|failed|XCTAssert" xcodebuild.log | head -40 | sed 's/^/::error::/'

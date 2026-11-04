@@ -45,17 +45,39 @@ enum LiftMuscleFilter {
 }
 
 /// The "Add by muscle" section of the program editor: front and back views, a legend, and the
-/// exercises of the muscle that was touched.
+/// exercises of the muscle that was touched. Supersets et blocs (4 Nov.): « One exercise | Superset »
+/// on top. In Superset mode a row ticks the exercise instead of adding it (A1, A2… in the order of the
+/// ticks, kept across muscles), and « Add the superset (n) » hands the ticked exercises over at once.
 struct LiftProgramMuscleFilter: View {
     /// The user's exercise vocabulary.
     let vocabulary: [LiftExerciseRow]
     /// The exercise names of the program's lines, in order.
     let programExercises: [String]
     @Binding var selected: LiftMuscle?
+    /// Whether the map adds a superset rather than one exercise.
+    @Binding var supersetMode: Bool
+    /// The exercises ticked for the superset, in the order of the round.
+    @Binding var picks: [LiftExerciseRow]
     /// "+" on a known exercise.
     let onAdd: (LiftExerciseRow) -> Void
     /// "New exercise for …": the line editor with this muscle as the primary.
     let onNew: (LiftMuscle) -> Void
+    /// « Add the superset »: the ticked exercises, two or more.
+    let onAddSuperset: ([LiftExerciseRow]) -> Void
+
+    init(vocabulary: [LiftExerciseRow], programExercises: [String], selected: Binding<LiftMuscle?>,
+         supersetMode: Binding<Bool> = .constant(false), picks: Binding<[LiftExerciseRow]> = .constant([]),
+         onAdd: @escaping (LiftExerciseRow) -> Void, onNew: @escaping (LiftMuscle) -> Void,
+         onAddSuperset: @escaping ([LiftExerciseRow]) -> Void = { _ in }) {
+        self.vocabulary = vocabulary
+        self.programExercises = programExercises
+        _selected = selected
+        _supersetMode = supersetMode
+        _picks = picks
+        self.onAdd = onAdd
+        self.onNew = onNew
+        self.onAddSuperset = onAddSuperset
+    }
 
     private var coverage: [LiftMuscle: Double] {
         LiftMuscleFilter.programCoverage(exercises: programExercises, vocabulary: vocabulary)
@@ -71,7 +93,16 @@ struct LiftProgramMuscleFilter: View {
             SectionHeader("Add by muscle")
             NoopCard {
                 VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-                    Text("Tap a muscle to see the exercises from your Lift Log that work it.")
+                    SegmentedPillControl([false, true], selection: $supersetMode, fillsAvailableWidth: true) {
+                        $0 ? String(localized: "Superset") : String(localized: "One exercise")
+                    }
+                    Group {
+                        if supersetMode {
+                            Text("Tap several muscles and tick 2 or 3 exercises in the order of the round: they arrive linked, as one block, at the end of the program.")
+                        } else {
+                            Text("Tap a muscle to see the exercises from your Lift Log that work it.")
+                        }
+                    }
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -85,6 +116,55 @@ struct LiftProgramMuscleFilter: View {
             if let muscle = selected {
                 exerciseList(muscle)
             }
+            if supersetMode {
+                supersetBar
+            }
+        }
+    }
+
+    /// What is ticked, A1 · A2 …, and the button that adds them as one superset.
+    private var supersetBar: some View {
+        NoopCard {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+                if picks.isEmpty {
+                    Text("No exercise ticked")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                } else {
+                    Text(verbatim: picks.enumerated().map { pickTag($0.offset) + " " + $0.element.name }
+                        .joined(separator: " · "))
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Button {
+                    onAddSuperset(picks)
+                } label: {
+                    Group {
+                        if picks.count >= 2 {
+                            Text(String(localized: "Add the superset (\(picks.count))"))
+                        } else {
+                            Text("Tick at least 2 exercises")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.noopPrimary)
+                .disabled(picks.count < 2)
+                .opacity(picks.count >= 2 ? 1 : NoopButtonMetrics.disabledOpacity)
+            }
+        }
+    }
+
+    /// « A1 », « A2 »… — the place in the round of the `n`th tick (0-based), as the editor tags it.
+    private func pickTag(_ n: Int) -> String { LiftSuperset.letter(0) + String(n + 1) }
+
+    /// Tick or untick an exercise for the superset; past the cap, a tick is ignored.
+    private func togglePick(_ row: LiftExerciseRow) {
+        if let at = picks.firstIndex(where: { $0.id == row.id }) {
+            picks.remove(at: at)
+        } else if picks.count < LiftProgramBlocks.maxSupersetPicks {
+            picks.append(row)
         }
     }
 
@@ -149,6 +229,7 @@ struct LiftProgramMuscleFilter: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                     ForEach(found.indirect, id: \.id) { row in addRow(row) }
                 }
+                if !supersetMode {
                 LiftDivider()
                 Button {
                     onNew(muscle)
@@ -164,18 +245,24 @@ struct LiftProgramMuscleFilter: View {
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
 
     private func addRow(_ row: LiftExerciseRow) -> some View {
-        Button {
-            onAdd(row)
+        let pick = picks.firstIndex(where: { $0.id == row.id })
+        return Button {
+            if supersetMode { togglePick(row) } else { onAdd(row) }
         } label: {
             HStack(spacing: NoopMetrics.space3) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(StrandPalette.accent)
+                if supersetMode {
+                    pickMark(pick)
+                } else {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(StrandPalette.accent)
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: row.name)
                         .font(StrandFont.body)
@@ -194,6 +281,24 @@ struct LiftProgramMuscleFilter: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(String(localized: "Add \(row.name)")))
+        .accessibilityLabel(supersetMode ? Text(verbatim: row.name) : Text(String(localized: "Add \(row.name)")))
+        .accessibilityAddTraits(supersetMode && pick != nil ? .isSelected : [])
+    }
+
+    /// The tick of a row in Superset mode: its place in the round (A1, A2…) once ticked, an empty box before.
+    private func pickMark(_ pick: Int?) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(pick == nil ? Color.clear : StrandPalette.effortColor)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(pick == nil ? StrandPalette.textTertiary : StrandPalette.effortColor, lineWidth: 2)
+            if let pick {
+                Text(verbatim: pickTag(pick))
+                    .font(StrandFont.caption.weight(.bold))
+                    .foregroundStyle(StrandPalette.surfaceBase)
+            }
+        }
+        .frame(width: 28, height: 28)
+        .accessibilityHidden(true)
     }
 }

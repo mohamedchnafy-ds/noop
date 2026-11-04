@@ -543,24 +543,19 @@ struct RootTabView: View {
         .tag(tag)
     }
 
-    // The More sheet is the app's catch-all index (fork chantier 9: it was a tab). The profile row opens
-    // Settings, as the Today avatar did; then the four groups that are not tabs. Health & recovery, Analysis,
-    // Data and App settings each open a screen listing their entries (`MoreGroupScreen`); every former
-    // destination stays reachable, Training and Nutrition as tabs.
+    // The More sheet is the app's catch-all index (fork chantier 9: it was a tab). Section 7 (mockup « Plus »):
+    // the profile card opens Settings, as the Today avatar did; then ONE list in sections with a value on
+    // the right of five rows, and « Advanced » folded with the fifteen other screens (`MoreSheetList`). Every
+    // former destination stays reachable, Training and Nutrition as tabs.
     private var moreSheet: some View {
         NavigationStack(path: $morePath) {
             ScreenScaffold(title: "More", onRefresh: { await repo.refresh() }) {
-                VStack(spacing: NoopMetrics.space3) {
+                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
                     NavigationLink(value: MoreDestination.settings) {
-                        MoreProfileRowLabel(avatarImageData: profile.avatarImageData)
+                        MoreProfileCardHost(avatarImageData: profile.avatarImageData)
                     }
                     .buttonStyle(.plain)
-                    MoreHubCard(groups: MoreHubGroup.sheetGroups) { group, isLast in
-                        NavigationLink(value: MoreDestination.hub(group)) {
-                            MoreHubRowLabel(group: group, showsDivider: !isLast)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    MoreSheetRows()
                 }
             }
             // Trends and the other screens push TabRoute values (#198); they need a destination
@@ -594,6 +589,28 @@ struct RootTabView: View {
         // A tab root reached from inside the sheet is not a tab root: no avatar, every link pushes.
         .environment(\.showsMoreAvatar, false)
         .environment(\.tabRouteSwitch, nil)
+    }
+}
+
+/// The More sheet's list (section 7), each row pushing its `MoreDestination`, with the five values read
+/// from the screens they name (`MoreSheetReader`). Its own view so only it observes the alarm settings and
+/// the strap family the « Alarms » value is gated on.
+private struct MoreSheetRows: View {
+    @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var behavior: BehaviorStore
+    @EnvironmentObject private var ble: BLEManager
+    @State private var values = MoreSheetValues()
+
+    var body: some View {
+        MoreSheetList { entry, isLast in
+            NavigationLink(value: MoreDestination(entry)) {
+                MoreSheetRowLabel(entry: entry, value: values.value(for: entry), showsDivider: !isLast)
+            }
+            .buttonStyle(.plain)
+        }
+        .task(id: "\(repo.refreshSeq)-\(behavior.smartAlarmEnabled)-\(behavior.smartAlarmMinutes)") {
+            values = await MoreSheetReader.loadMoreSheetValues(repo: repo, behavior: behavior, isWhoop5: ble.isWhoop5)
+        }
     }
 }
 
@@ -681,6 +698,36 @@ private enum MoreDestination: Hashable {
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
     /// A More group's row: Nutrition opens its screen directly, the others their list of entries.
     case hub(MoreHubGroup)
+
+    /// The screen a row of the More sheet opens (section 7).
+    init(_ entry: MoreSheetEntry) {
+        switch entry {
+        case .health: self = .health
+        case .stress: self = .stress
+        case .breathe: self = .breathe
+        case .labBook: self = .labBook
+        case .trends: self = .trends
+        case .alarms: self = .alarms
+        case .backupSync: self = .backupSync
+        case .dataSources: self = .dataSources
+        case .settings: self = .settings
+        case .rhythm: self = .rhythm
+        case .explore: self = .explore
+        case .compare: self = .compare
+        case .insightsHub: self = .insightsHub
+        case .intelligence: self = .intelligence
+        case .insights: self = .insights
+        case .fusedRecord: self = .fusedRecord
+        case .appleHealth: self = .appleHealth
+        case .miBand: self = .miBand
+        case .shortcutsExport: self = .shortcutsExport
+        case .noopLimitations: self = .noopLimitations
+        case .automations: self = .automations
+        case .siriShortcuts: self = .siriShortcuts
+        case .powerSaving: self = .powerSaving
+        case .testCentre: self = .testCentre
+        }
+    }
 
     /// The More screen a router request names, when the sheet holds one: a request raised from a screen
     /// inside the sheet is pushed there rather than presented over it.

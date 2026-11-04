@@ -3,10 +3,12 @@ import StrandDesign
 
 // MARK: - Training screen parts (personal fork)
 //
-// The pure parts of the Training screen (mockup « NOOP – Entraînement et Plus »): week strip, month grid,
-// legend, the selected day (planned card, what was done), the programs card and the month totals. They
-// take loaded models and closures only, so the render test draws them with sample data; the store, the
-// session controller and the navigation stay in `LiftLogView`.
+// The pure parts of the Training screen (mockup « NOOP – Entraînement et Plus », then « Entraînement
+// proposé » in chantier 9): header, week strip, month grid, one-line legend, the chosen day's single card
+// (planned programs with their loads to raise, planned cardio with its Start, what was done), the programs
+// card, the compact Progression card, the Other activities rows and the month totals. They take loaded
+// models and closures only, so the render test draws them with sample data; the store, the session
+// controller and the navigation stay in `LiftLogView`.
 
 /// Copy shared by the Training parts, worded through the catalogue.
 enum TrainingText {

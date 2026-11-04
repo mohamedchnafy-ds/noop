@@ -42,7 +42,7 @@ data class MealEntity(
     /** Unix seconds. */
     val eatenAt: Long,
     val name: String,
-    /** "manual" | "photo" | "voice" | "barcode" (Swift `MealOrigin`). A stored-data contract. */
+    /** "manual" | "photo" | "voice" | "barcode" | "coach" (Swift `MealOrigin`). A stored-data contract. */
     val origin: String,
     @ColumnInfo(defaultValue = "0")
     val favorite: Boolean = false,
@@ -51,6 +51,11 @@ data class MealEntity(
     /** v44 ([WhoopDatabase.MIGRATION_43_44]): a planned meal (a menu), not eaten yet. Swift `MealRow.planned`. */
     @ColumnInfo(defaultValue = "0")
     val planned: Boolean = false,
+    /**
+     * v45 ([WhoopDatabase.MIGRATION_44_45]): the moment of the day, "breakfast" | "lunch" | "snack" |
+     * "dinner" (Swift `MealSlot`), or null for a meal written before it. A stored-data contract.
+     */
+    val slot: String? = null,
 )
 
 /** One line of a meal, e.g. "basmati rice, cooked · 180 g". */

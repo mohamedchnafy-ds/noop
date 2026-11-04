@@ -18,8 +18,9 @@ concurrency:
 
 jobs:
   render:
-    runs-on: macos-15
-    timeout-minutes: 40
+    # Combined render branch only (4 Nov.): the arm64 macOS pool is saturated, try the Intel one.
+    runs-on: macos-15-intel
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - name: Install XcodeGen
@@ -33,19 +34,8 @@ jobs:
           set +e
           xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS' \
             -testLanguage fr -testRegion FR \
-            -only-testing:StrandTests/LiftSupersetRenderTests \
-            -only-testing:StrandTests/SleepScreenRenderTests \
-            -only-testing:StrandTests/TodayScreenRenderTests \
-            -only-testing:StrandTests/LiftProgressRenderTests \
             -only-testing:StrandTests/NutritionRenderTests \
-            -only-testing:StrandTests/MoreHubRenderTests \
             -only-testing:StrandTests/TrainingRenderTests \
-            -only-testing:StrandTests/LiveHRBannerRenderTests \
-            -only-testing:StrandTests/DayWidgetsRenderTests \
-            -only-testing:StrandTests/CoachCardsRenderTests \
-            -only-testing:StrandTests/LabReportRenderTests \
-            -only-testing:StrandTests/LiftProgramMuscleRenderTests \
-            -only-testing:StrandTests/LiveWorkoutRenderTests \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test > xcodebuild.log 2>&1
           status=$?

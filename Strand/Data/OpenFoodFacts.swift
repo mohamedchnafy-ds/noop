@@ -7,6 +7,8 @@ import WhoopStore
 // shown with its values for 100 g to check before "Add to journal"; once added, the journal line keeps
 // them (`foodRef = "ean:<code>"`) and the next scan finds it on the iPhone with no request. A product
 // Open Food Facts does not have, or no network, falls back to the label read by the Coach.
+// Fork chantier 9: the food search of Nutrition can also ask it for products by the words typed
+// (`searchProducts`), only when the wearer taps the line that asks for it; only those words are sent.
 // Data: Open Food Facts contributors, Open Database License (ODbL).
 
 enum OpenFoodFacts {
@@ -47,8 +49,13 @@ enum OpenFoodFacts {
     static func parseProduct(_ data: Data, barcode: String) -> BarcodeProduct? {
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               (number(root["status"]) ?? 0) == 1,
-              let product = root["product"] as? [String: Any],
-              let nutriments = product["nutriments"] as? [String: Any] else { return nil }
+              let product = root["product"] as? [String: Any] else { return nil }
+        return productFields(product, barcode: barcode)
+    }
+
+    /// One product object (the `product` of a lookup, or an item of a search) as a usable product, or nil.
+    static func productFields(_ product: [String: Any], barcode: String) -> BarcodeProduct? {
+        guard let nutriments = product["nutriments"] as? [String: Any] else { return nil }
         guard let protein = number(nutriments["proteins_100g"]),
               let carbs = number(nutriments["carbohydrates_100g"]),
               let fat = number(nutriments["fat_100g"]),
@@ -98,6 +105,66 @@ enum OpenFoodFacts {
             if status == 404 { return .notFound }
             guard (200..<300).contains(status) else { return .unreachable }
             return parseProduct(data, barcode: barcode).map(Lookup.found) ?? .notFound
+        } catch {
+            return .unreachable
+        }
+    }
+
+    // MARK: Search by words (fork chantier 9)
+
+    /// Most products a search lists.
+    static let searchPageSize = 20
+
+    /// What a search by words gave.
+    enum WordSearch: Equatable {
+        case found([BarcodeProduct])
+        /// No answer: offline, timed out, or an error.
+        case unreachable
+    }
+
+    /// The search request: the words typed, and only the fields used. Open Food Facts limits searches to
+    /// about ten a minute, so the app sends one only when the wearer taps the line that asks for it.
+    static func searchURL(terms: String) -> URL? {
+        var parts = URLComponents(string: "https://world.openfoodfacts.org/cgi/search.pl")
+        parts?.queryItems = [
+            URLQueryItem(name: "search_terms", value: terms),
+            URLQueryItem(name: "search_simple", value: "1"),
+            URLQueryItem(name: "action", value: "process"),
+            URLQueryItem(name: "json", value: "1"),
+            URLQueryItem(name: "page_size", value: String(searchPageSize)),
+            URLQueryItem(name: "fields", value: "code,product_name,product_name_fr,brands,nutriments"),
+        ]
+        return parts?.url
+    }
+
+    /// The usable products of a search answer, in its order: a product needs a barcode (8 to 14 digits)
+    /// and values for 100 g, read like a scanned one (`productFields`); one barcode once.
+    static func parseSearch(_ data: Data) -> [BarcodeProduct] {
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let products = root["products"] as? [[String: Any]] else { return [] }
+        var seen = Set<String>()
+        var found: [BarcodeProduct] = []
+        for product in products {
+            guard let raw = product["code"] as? String, let code = BarcodeCatalog.normalizedBarcode(raw),
+                  !seen.contains(code), let usable = productFields(product, barcode: code) else { continue }
+            seen.insert(code)
+            found.append(usable)
+        }
+        return found
+    }
+
+    /// Ask Open Food Facts for the products matching `terms`. Only the words typed leave the iPhone.
+    static func searchProducts(terms: String, session: URLSession = .shared) async -> WordSearch {
+        let trimmed = terms.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let url = searchURL(terms: trimmed) else { return .found([]) }
+        var request = URLRequest(url: url, timeoutInterval: timeoutSeconds)
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (data, response) = try await session.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(status) else { return .unreachable }
+            return .found(parseSearch(data))
         } catch {
             return .unreachable
         }

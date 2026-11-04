@@ -81,6 +81,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
   - **Anneau Repos d'Aujourd'hui : violet** (famille du sommeil, `#8A87FF`) au lieu du cyan.
   - **Nutrition : Glucides jaune** (`#FFD60A`), **Lipides cyan** (`#64D2FF`), **Bilan en blanc** ; Mangé vert et Protéines violet ne bougent pas.
   - Inchangés : Charge (couleur du score), Effort bleu, FC rose.
+  - **Courbe FC colorée par zone (validée le 4 nov., idée de Mohamed)** : maquette 2, écran 4. La courbe est **rouge vif (`#E5242B`) au-dessus du seuil haut**, **verte (`#30D158`) sous le seuil bas**, **rose FC entre les deux** ; les deux seuils deviennent des **pointillés** de la couleur de leur zone (plus l'orange / vert pleins). Partout où une courbe FC a ces seuils : carte FC d'Aujourd'hui (En direct et Journée), bannière, écran de séance. Pas de ligne « temps au-dessus / en dessous » (choix de Mohamed). Au code : un seul style partagé (dégradé à arrêts francs aux deux seuils, ou trois tracés découpés), un jeton par couleur de zone.
 
 ## Code
 - **Navigation (PR #61, fusionnée le 4 nov., `main` 9652643)** :

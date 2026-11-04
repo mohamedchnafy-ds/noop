@@ -19,7 +19,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 - Les 11 vieilles branches `build/*` / `feat/*` du 31 oct.–1er nov. (`sleep-redesign`, `superset-guided` 1 à 4, `superset-rounds`, `today-insights`) s'ignorent comme les autres (liste dans `.claude/rules/fork-noop.md`).
 
 ## Questions ouvertes
-- Entraînement : questions posées avec la maquette 5 (en attente).
+- Coach : questions posées avec la maquette 6 (en attente).
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)
@@ -49,7 +49,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
   - Menu du Coach : repas normaux avec une étiquette « Coach » ; plus de section Prévu (décision du 4 nov.).
   - Carte « Bilan sanguin » : Plus → Santé → Carnet de labo, et réactivable dans Personnaliser (éteinte par défaut).
 
-- **5 · Entraînement (proposition du 4 nov.)** : https://claude.ai/artifact/Y7mFfZxPcVt32RzjohHTxW — écran 1 la page, écran 2 ce qui change.
+- **5 · Entraînement (validée le 4 nov., tout comme proposé)** : https://claude.ai/artifact/Y7mFfZxPcVt32RzjohHTxW — écran 1 la page, écran 2 ce qui change.
   - Ordre proposé : en-tête (Entraînement · avatar) ; Semaine | Mois, ‹ 2–8 nov. · 1 / 5 › ; bande des 7 jours (légende sur **une ligne** : muscu · cardio · ● fait ○ prévu) ; **une carte « Aujourd'hui »** (séance de muscu en grand : nom, durée, dernière fois, 2 lignes d'exercices, **charge à monter du jour**, Démarrer / Changer ; puis le cardio prévu en ligne avec son Démarrer) ; Progression compacte (4 compteurs, tap → écran Progression) ; Programmes (+ Planifier, Nouveau, Importer) ; Autres activités (Démarrer une activité, Intervalles, FC en direct, Tout l'historique, + **Démarrer la séance Bêta** venue d'Aujourd'hui = coaching silencieux du bracelet face à la Charge) ; Personnaliser.
 
 ## Code

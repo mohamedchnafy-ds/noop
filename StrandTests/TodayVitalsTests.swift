@@ -308,9 +308,59 @@ final class TodayVitalsTests: XCTestCase {
         let chart = TodayHRCardLogic.liveChart(samples: [(ts: 0, bpm: 70), (ts: 1, bpm: 72)], thresholds: t, alert: nil)
         XCTAssertEqual(chart.highLine, 91)
         XCTAssertEqual(chart.lowLine, 58)
-        XCTAssertNil(chart.threshold, "nothing is coloured until a threshold is crossed while still")
+        XCTAssertNil(chart.threshold, "the alert waits for a crossing while still")
         let caption = TodayHRCardLogic.liveCaption(t, crossed: .low).map(\.crossed)
         XCTAssertEqual(caption, [.low, nil])
+        // Fork chantier 9: the curve is coloured by zone straight away, from the same two thresholds.
+        XCTAssertEqual(chart.zoneHigh.map(\.bpm), [91, 91])
+        XCTAssertEqual(chart.zoneLow.map(\.bpm), [58, 58])
+        XCTAssertEqual(chart.zone(of: .init(x: 0.5, bpm: 95, run: 0)), .high)
+        XCTAssertEqual(chart.zone(of: .init(x: 0.5, bpm: 55, run: 0)), .low)
+        XCTAssertNil(chart.zone(of: .init(x: 0.5, bpm: 75, run: 0)))
+    }
+
+    func testDayZonesFollowTheUsualDayAndLeaveSleepPink() {
+        let start = 1_000_000 - 1_000_000 % 86_400
+        let day = TodayHRDayInput(
+            bucketTs: [start, start + 3600, start + 2 * 3600], bucketBpm: [50, 50, 50],
+            segments: [], dayStart: start, domainEnd: start + 3 * 3600, isToday: true,
+            habitual: [0: 60, 12: 70], restingHR: 55, awakeFloor: 54,
+            sleep: [start + 3000...start + 4200])
+        let chart = TodayHRCardLogic.dayChart(day, zone: utc)
+        // The high line is the live rule at each step: usual + margin, provisional (rest + 30) elsewhere.
+        XCTAssertEqual(chart.zoneHigh.first?.bpm, 60 + TodayHRAlert.highMarginBpm)
+        XCTAssertEqual(TodayHRChartModel.zoneValue(of: chart.zoneHigh, at: 1.0 / 3), 70 + TodayHRAlert.highMarginBpm)
+        XCTAssertEqual(chart.zoneLow.first?.bpm, 54)
+        XCTAssertEqual(chart.zoneExclude, chart.sleep)
+        XCTAssertEqual(chart.zone(of: chart.points[0]), .low, "below the awake floor while awake")
+        XCTAssertNil(chart.zone(of: chart.points[1]), "asleep: no zone colour")
+    }
+
+    // MARK: Stress card (fork chantier 9)
+
+    func testStressModelPlacesHalfHourPointsBreaksOnMovingAndReadsTheLatest() {
+        let start = 1_000_000 - 1_000_000 % 86_400
+        func pt(_ i: Int, _ level: Double?, moving: Bool = false) -> DaytimeStress.HourPoint {
+            .init(hour: 6, startTs: start + 6 * 3600 + i * 1800, level: level, meanHR: nil, rmssd: nil,
+                  maskedForActivity: moving)
+        }
+        let timeline = [pt(0, 0.5), pt(1, 0.8), pt(2, nil, moving: true), pt(3, 1.4)]
+        let result = DaytimeStress.Result(hours: [], sustainedHigh: false, sustainedRun: 0, dayMean: 0.9,
+                                          peak: timeline[3], highStressMinutes: 0, timeline: timeline)
+        let now = start + 6 * 3600 + 3 * 1800 + 3600 + 600
+        let m = TodayStressLogic.model(result: result, dayStart: start, now: now, isToday: true)
+        XCTAssertEqual(m.points.count, 3)
+        XCTAssertEqual(m.points[0].x, 1800.0 / (16 * 3600), accuracy: 1e-9, "a point sits mid-window")
+        XCTAssertEqual(m.points[0].run, m.points[1].run)
+        XCTAssertNotEqual(m.points[1].run, m.points[2].run, "an unscored stretch breaks the line")
+        XCTAssertEqual(m.moving.count, 1)
+        XCTAssertEqual(m.latestLevel, 1.4)
+        XCTAssertTrue(m.latestIsNow)
+        XCTAssertFalse(TodayStressLogic.model(result: result, dayStart: start, now: now, isToday: false).latestIsNow)
+        XCTAssertEqual(TodayStressLogic.stressBand(1.4), .medium)
+        XCTAssertEqual(TodayStressLogic.stressBand(0.99), .low)
+        XCTAssertEqual(TodayStressLogic.stressBand(2.0), .high)
+        XCTAssertFalse(TodayStressLogic.model(result: .empty, dayStart: start, now: now, isToday: true).hasData)
     }
 
     // MARK: Synthesis copy

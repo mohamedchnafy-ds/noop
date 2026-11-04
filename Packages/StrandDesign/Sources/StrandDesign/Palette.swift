@@ -268,6 +268,21 @@ public enum StrandPalette {
     /// part. Told apart by lightness as well as hue, so the two halves of one gauge never read as one.
     public static let caloriesActivity = Color(light: "#C93400", dark: "#FF9F0A")
     public static let caloriesResting = Color(light: "#7F6545", dark: "#A2845E")
+    /// Today's Rest ring (fork chantier 9, « une couleur = un sens »): the sleep family's periwinkle
+    /// instead of the cyan it shared with other metrics.
+    public static let restRing = Color(light: "#5856D6", dark: "#8A87FF")
+    /// Today's heart-rate curve by zone (fork chantier 9): bright red above the high threshold, green below
+    /// the low one, the heart-rate pink between. The dashed thresholds take their zone's colour.
+    public static let hrZoneHigh = Color(light: "#D70015", dark: "#E5242B")
+    public static let hrZoneLow = Color(light: "#248A3D", dark: "#30D158")
+    public static var hrZoneMid: Color { liquidHeart }
+    /// Today's stress card (fork chantier 9): the title, and one colour per band (calm green, moderate
+    /// yellow, high red) for the level, the band fills and their legend; hours spent moving in grey.
+    public static let stressTitle = Color(light: "#B28600", dark: "#FFD60A")
+    public static let stressCalm = Color(light: "#248A3D", dark: "#30D158")
+    public static let stressModerate = Color(light: "#B28600", dark: "#FFD60A")
+    public static let stressHigh = Color(light: "#D70015", dark: "#FF453A")
+    public static let stressMoving = Color(light: "#C7C7CC", dark: "#48484A")
     /// Sleep debt (fork chantier 7, Apple indigo).
     public static let sleepDebt = Color(light: "#5856D6", dark: "#5E5CE6")
     /// Nutrition (fork chantier 7): the eaten ring in Apple green, then one distinct hue per macro —

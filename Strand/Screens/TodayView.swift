@@ -1614,7 +1614,8 @@ struct TodayView: View {
                 keyMetricsDetailed: $keyMetricsDetailed,
                 keyMetricsWindowDays: $keyMetricsWindowDays,
                 dashboardCardsRaw: $dashboardCardsRaw,
-                hostedCardsRaw: $hostedCardsRaw
+                hostedCardsRaw: $hostedCardsRaw,
+                exclusions: .classic
             )
         }
         // #1694: the same read-only WorkoutDetailView the Workouts list opens. Nothing here can edit or
@@ -1940,6 +1941,9 @@ struct TodayView: View {
             if selectedDayOffset == 0 { JournalReminderCard() }
         case .addedCards:
             hostedCardsSection
+        // The Liquid Today's stress card (personal fork); the classic Today keeps its own Stress card.
+        case .stress:
+            EmptyView()
         }
     }
 

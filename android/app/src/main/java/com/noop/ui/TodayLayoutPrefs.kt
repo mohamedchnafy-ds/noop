@@ -37,7 +37,12 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
     /** Cards hosted from the Trends / Sleep tabs (#today-hosted-cards). Renders the [HostedCardPrefs]
      *  selection in order; empty (and effectively invisible) until the user adds a card in Customise.
      *  Appended LAST so [decodeOrder]'s back-fill lands it predictably for existing saved orders. */
-    ADDED_CARDS("addedCards", R.string.today_section_added_cards);
+    ADDED_CARDS("addedCards", R.string.today_section_added_cards),
+
+    /** The hour-by-hour stress card the iPhone Today draws under the heart-rate card (personal fork,
+     *  chantier 9). Kept here so the stored order round-trips byte-identically; Android renders nothing for
+     *  it and leaves it out of its editor ([platformOnly]). Appended LAST, like [ADDED_CARDS]. */
+    STRESS("stress", R.string.today_section_stress);
 
     companion object {
         fun fromRaw(raw: String?): TodaySection? = entries.firstOrNull { it.raw == raw }
@@ -46,8 +51,11 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
          *  journal widget (#656) is last by default, where it was first added, above the data-sources card. */
         val defaultOrder: List<TodaySection> = listOf(
             HERO, LIVE_SESSION, SYNTHESIS, KEY_METRICS, WORKOUTS, HEART_RATE, RECOVERY_VITALS, YOUR_CARDS,
-            MENSTRUAL_CYCLE, JOURNAL, ADDED_CARDS,
+            MENSTRUAL_CYCLE, JOURNAL, ADDED_CARDS, STRESS,
         )
+
+        /** Sections only the iPhone draws: kept in the stored order, never rendered nor edited here. */
+        val platformOnly: Set<TodaySection> = setOf(STRESS)
     }
 }
 

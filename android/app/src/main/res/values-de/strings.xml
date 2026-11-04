@@ -2212,6 +2212,7 @@
     <string name="today_section_menstrual_cycle">Menstruationszyklus</string>
     <string name="today_section_journal">Tagebuch</string>
     <string name="today_section_added_cards">Hinzugefügte Karten</string>
+    <string name="today_section_stress">Stress</string>
     <string name="today_hr_window_today">Heute</string>
     <string name="today_hr_window_24h">24 Std.</string>
     <string name="today_hr_window_12h">12 Std.</string>

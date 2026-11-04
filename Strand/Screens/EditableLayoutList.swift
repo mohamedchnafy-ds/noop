@@ -25,6 +25,9 @@ where Item: Identifiable & Equatable, Options: View {
     /// Cards) keeps the single flat Available section. The Shown list stays flat — it is the user's own
     /// cross-origin order.
     var group: ((Item) -> String)? = nil
+    /// Optional sections drawn under the Hidden list, above Reset (the Liquid Today's « Put back on the
+    /// page » switches, fork chantier 9). nil draws nothing.
+    var bottom: AnyView? = nil
     @ViewBuilder let options: () -> Options
 
     var body: some View {
@@ -97,6 +100,8 @@ where Item: Identifiable & Equatable, Options: View {
                         .foregroundStyle(StrandPalette.textTertiary)
                 }
             }
+
+            if let bottom { bottom }
 
             Section {
                 Button("Reset This Layout", role: .destructive, action: onReset)

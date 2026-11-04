@@ -2162,6 +2162,7 @@
     <string name="today_section_menstrual_cycle">Менструальный цикл</string>
     <string name="today_section_journal">Журнал</string>
     <string name="today_section_added_cards">Добавленные карточки</string>
+    <string name="today_section_stress">Стресс</string>
     <string name="today_hr_window_today">Сегодня</string>
     <string name="today_hr_window_24h">24ч</string>
     <string name="today_hr_window_12h">12ч</string>

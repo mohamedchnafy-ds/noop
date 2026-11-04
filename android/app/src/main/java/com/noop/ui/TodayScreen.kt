@@ -1673,6 +1673,8 @@ fun TodayScreen(
                     selectedDayOffset == 0 && journalReminderOn
                 TodaySection.ADDED_CARDS ->
                     selectedDayOffset == 0 && enabledHostedCards.isNotEmpty()
+                // The iPhone's stress card (personal fork); Android keeps the token only.
+                TodaySection.STRESS -> false
                 else -> true
             }
             if (!sectionVisible) return@forEach
@@ -1937,6 +1939,7 @@ fun TodayScreen(
                             days = days,
                             viewModel = viewModel,
                         )
+                        TodaySection.STRESS -> Unit
                     }
                 }
             }
@@ -5263,11 +5266,15 @@ private fun TodayLayoutEditorDialog(
     onSave: (List<TodaySection>, List<TodaySection>) -> Unit,
 ) {
     val hiddenSet = remember(initialHidden) { initialHidden.toSet() }
+    // Sections only the iPhone draws stay out of the rows and are written back as they were stored.
+    val editable = remember(initialOrder) { initialOrder.filterNot { it in TodaySection.platformOnly } }
+    val keptOrder = remember(initialOrder) { initialOrder.filter { it in TodaySection.platformOnly } }
+    val keptHidden = remember(initialHidden) { initialHidden.filter { it in TodaySection.platformOnly } }
     val shown = remember {
-        mutableStateListOf<TodaySection>().apply { addAll(initialOrder.filterNot { it in hiddenSet }) }
+        mutableStateListOf<TodaySection>().apply { addAll(editable.filterNot { it in hiddenSet }) }
     }
     val hidden = remember {
-        mutableStateListOf<TodaySection>().apply { addAll(initialOrder.filter { it in hiddenSet }) }
+        mutableStateListOf<TodaySection>().apply { addAll(editable.filter { it in hiddenSet }) }
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -5311,14 +5318,14 @@ private fun TodayLayoutEditorDialog(
                     TextButton(
                         onClick = {
                             shown.clear()
-                            shown.addAll(TodaySection.defaultOrder)
+                            shown.addAll(TodaySection.defaultOrder.filterNot { it in TodaySection.platformOnly })
                             hidden.clear()
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
                     ) { Text(uiString(R.string.l10n_today_screen_reset_44c57abd), style = NoopType.body) }
                     Spacer(Modifier.weight(1f))
                     Button(
-                        onClick = { onSave(shown.toList() + hidden.toList(), hidden.toList()) },
+                        onClick = { onSave(shown.toList() + hidden.toList() + keptOrder, hidden.toList() + keptHidden) },
                         enabled = shown.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Palette.accent,

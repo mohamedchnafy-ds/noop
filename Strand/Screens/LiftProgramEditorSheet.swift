@@ -33,6 +33,10 @@ struct LiftProgramEditorSheet: View {
     @State private var vocabulary: [LiftExerciseRow] = []
     /// The muscle touched on the body map (nil = none).
     @State private var selectedMuscle: LiftMuscle?
+    /// The body map adds a superset instead of one exercise (Supersets et blocs, 4 Nov.).
+    @State private var supersetMode = false
+    /// The exercises ticked for that superset, in the order of the round.
+    @State private var supersetPicks: [LiftExerciseRow] = []
     @State private var confirmingDelete = false
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
@@ -124,45 +128,112 @@ struct LiftProgramEditorSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    itemRow(item, index: index)
-                    if index < items.count - 1 { supersetLink(after: index) }
+                // One card per BLOCK (Supersets et blocs): a superset is one card whose arrows move it
+                // whole; the link under a card joins it to the next block.
+                let blocks = LiftSuperset.blocks(labels)
+                ForEach(Array(blocks.enumerated()), id: \.element.lowerBound) { number, block in
+                    blockCard(block, number: number, count: blocks.count)
+                        .id(items[block.lowerBound].id)
+                    if number < blocks.count - 1 { blockLink(after: block) }
                 }
             }
 
-            Button {
-                editingItem = ItemEditTarget(id: "new", item: nil)
-            } label: {
-                Label("Add exercise", systemImage: "plus")
+            HStack(spacing: NoopMetrics.gap) {
+                Button {
+                    editingItem = ItemEditTarget(id: "new", item: nil)
+                } label: {
+                    Label("Add exercise", systemImage: "plus")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary))
+                Button {
+                    supersetMode = true
+                } label: {
+                    Label("Add a superset", systemImage: "link")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary))
             }
-            .buttonStyle(NoopButtonStyle(.secondary))
 
             LiftProgramMuscleFilter(
                 vocabulary: vocabulary,
                 programExercises: items.map(\.exercise),
                 selected: $selectedMuscle,
+                supersetMode: $supersetMode,
+                picks: $supersetPicks,
                 onAdd: { row in
                     editingItem = ItemEditTarget(id: "new-\(row.id)", item: nil, preset: row)
                 },
                 onNew: { muscle in
                     editingItem = ItemEditTarget(id: "new-\(muscle.rawValue)", item: nil, muscle: muscle)
+                },
+                onAddSuperset: { rows in
+                    Task { await addSuperset(rows) }
                 })
             .padding(.top, NoopMetrics.gap)
         }
     }
 
-    private func itemRow(_ item: LiftProgramItemRow, index: Int) -> some View {
-        NoopCard {
-            HStack(alignment: .top, spacing: NoopMetrics.gap) {
-                Button {
-                    editingItem = ItemEditTarget(id: item.id, item: item)
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let tag = LiftSuperset.tag(of: index, in: labels) {
-                            Text(String(localized: "Superset \(tag)"))
-                                .strandOverline()
-                                .foregroundStyle(StrandPalette.effortColor)
+    /// A block's card: a superset's letter, its lines, and on the right the arrows that move the whole
+    /// block; a line on its own is a block of one.
+    private func blockCard(_ block: Range<Int>, number: Int, count: Int) -> some View {
+        let isSuperset = block.count > 1
+        return NoopCard {
+            HStack(alignment: .center, spacing: NoopMetrics.gap) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if isSuperset, let letter = LiftSuperset.groupLetter(of: block.lowerBound, in: labels) {
+                        Label {
+                            Text(String(localized: "Superset \(letter)"))
+                        } icon: {
+                            Image(systemName: "link")
                         }
+                        .font(StrandFont.subhead.weight(.semibold))
+                        .foregroundStyle(StrandPalette.effortColor)
+                    }
+                    ForEach(Array(block), id: \.self) { index in
+                        lineRow(items[index], index: index, inSuperset: isSuperset)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(spacing: NoopMetrics.rowSpacing) {
+                    blockArrow("chevron.up", enabled: number > 0) { moveBlock(containing: block.lowerBound, by: -1) }
+                        .accessibilityLabel("Move up")
+                    blockArrow("chevron.down", enabled: number < count - 1) {
+                        moveBlock(containing: block.lowerBound, by: 1)
+                    }
+                    .accessibilityLabel("Move down")
+                }
+            }
+        }
+    }
+
+    private func blockArrow(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(enabled ? StrandPalette.textPrimary : StrandPalette.textTertiary)
+                .frame(width: 36, height: 36)
+                .background(StrandPalette.surfaceRaised, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+
+    /// One line of a block: tap to edit it; in a superset, its A1 / A2 tag and « Detach ».
+    private func lineRow(_ item: LiftProgramItemRow, index: Int, inSuperset: Bool) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Button {
+                editingItem = ItemEditTarget(id: item.id, item: item)
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    if inSuperset, let tag = LiftSuperset.tag(of: index, in: labels) {
+                        Text(verbatim: tag)
+                            .font(StrandFont.caption.weight(.bold))
+                            .foregroundStyle(StrandPalette.effortColor)
+                            .frame(width: 30, height: 30)
+                            .background(StrandPalette.effortColor.opacity(0.18), in: Circle())
+                            .accessibilityHidden(true)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(item.exercise)
                             .font(StrandFont.headline)
                             .foregroundStyle(StrandPalette.textPrimary)
@@ -177,39 +248,36 @@ struct LiftProgramEditorSheet: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-
-                VStack(spacing: NoopMetrics.rowSpacing) {
-                    Button {
-                        move(from: index, by: -1)
-                    } label: {
-                        Image(systemName: "chevron.up")
-                    }
-                    .disabled(index == 0)
-                    .accessibilityLabel("Move up")
-
-                    Button {
-                        move(from: index, by: 1)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                    }
-                    .disabled(index == items.count - 1)
-                    .accessibilityLabel("Move down")
-
-                    Button(role: .destructive) {
-                        items.removeAll { $0.id == item.id }
-                        relabel()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .accessibilityLabel("Remove exercise")
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .buttonStyle(.plain)
-                .foregroundStyle(StrandPalette.textSecondary)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+
+            if inSuperset {
+                Button {
+                    detach(index)
+                } label: {
+                    Text("Detach")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 30)
+                        .background(StrandPalette.surfaceRaised, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(String(localized: "Detach \(item.exercise) from the superset")))
+            }
+            Button(role: .destructive) {
+                items.removeAll { $0.id == item.id }
+                relabel()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove exercise")
         }
     }
 
@@ -224,29 +292,28 @@ struct LiftProgramEditorSheet: View {
         return LiftSuperset.group(of: index, in: labels)?.contains(index + 1) == true
     }
 
-    /// The link between two consecutive lines: one tap puts them in the same superset, another splits
-    /// it there. Sitting BETWEEN the two cards, because a superset is a relation between neighbours.
-    private func supersetLink(after index: Int) -> some View {
-        let linked = isLinked(index)
+    /// The link under a block: one tap joins it and the next block into one superset. A superset is
+    /// split with « Detach » on its lines.
+    private func blockLink(after block: Range<Int>) -> some View {
+        let last = block.upperBound - 1
         return Button {
-            toggleLink(after: index)
+            toggleLink(after: last)
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: linked ? "link.circle.fill" : "link")
+                Image(systemName: "link")
                     .font(.system(size: 13, weight: .semibold))
-                Text(linked ? String(localized: "Superset · tap to unlink")
-                            : String(localized: "Link as superset"))
+                Text("Link to the next block")
                     .font(StrandFont.caption)
             }
-            .foregroundStyle(linked ? StrandPalette.effortColor : StrandPalette.textTertiary)
+            .foregroundStyle(StrandPalette.textTertiary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(linked
-                            ? String(localized: "Unlink \(items[index].exercise) and \(items[index + 1].exercise)")
-                            : String(localized: "Link \(items[index].exercise) and \(items[index + 1].exercise) as a superset"))
+        .accessibilityLabel(items.indices.contains(last + 1)
+                            ? String(localized: "Link \(items[last].exercise) and \(items[last + 1].exercise) as a superset")
+                            : String(localized: "Link as superset"))
     }
 
     /// Link the line at `index` to the next one, or split their superset there.
@@ -367,11 +434,49 @@ struct LiftProgramEditorSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func move(from index: Int, by offset: Int) {
-        let target = index + offset
-        guard items.indices.contains(index), items.indices.contains(target) else { return }
-        items.swapAt(index, target)
+    /// Move the block holding line `index` up (−1) or down (+1), its lines together.
+    private func moveBlock(containing index: Int, by offset: Int) {
+        let order = LiftProgramBlocks.moveProgramBlock(labels: labels, containing: index, by: offset)
+        withAnimation(StrandMotion.fade) { items = order.map { items[$0] } }
         relabel()
+    }
+
+    /// Take line `index` out of its superset: it goes right after it, on its own.
+    private func detach(_ index: Int) {
+        let result = LiftProgramBlocks.detachFromSuperset(labels: labels, index: index)
+        withAnimation(StrandMotion.fade) { items = result.order.map { items[$0] } }
+        apply(labels: result.labels)
+    }
+
+    /// Add the exercises ticked on the body map as ONE superset at the end, each with the targets of its
+    /// last session (3 × 10 when never logged), the rest after the round on the last line.
+    private func addSuperset(_ rows: [LiftExerciseRow]) async {
+        guard rows.count >= 2 else { return }
+        let store = await repo.storeHandle()
+        var added: [LiftProgramItemRow] = []
+        for (n, row) in rows.enumerated() {
+            let last = (try? await store?.lastLiftSets(deviceId: repo.deviceId, exercise: row.name)) ?? []
+            let targets = LiftProgramBlocks.supersetDraftTargets(lastSets: last)
+            added.append(LiftProgramItemRow(
+                id: UUID().uuidString,
+                deviceId: repo.deviceId,
+                programId: program?.id ?? "",
+                ord: 0,
+                exercise: row.name,
+                targetSets: targets.sets,
+                targetRepsLow: targets.reps,
+                targetRepsHigh: nil,
+                targetRpe: nil,
+                targetWeightKg: targets.weightKg,
+                restSec: n == rows.count - 1 ? LiftProgramBlocks.supersetRestSec : nil,
+                note: nil))
+        }
+        let before = labels
+        items.append(contentsOf: added)
+        apply(labels: LiftProgramBlocks.appendingSuperset(labels: before, count: added.count))
+        supersetPicks = []
+        supersetMode = false
+        selectedMuscle = nil
     }
 
     /// Insert a new line, or replace an edited one in place so its position is kept.

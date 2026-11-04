@@ -19,7 +19,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 - Les 11 vieilles branches `build/*` / `feat/*` du 31 oct.–1er nov. (`sleep-redesign`, `superset-guided` 1 à 4, `superset-rounds`, `today-insights`) s'ignorent comme les autres (liste dans `.claude/rules/fork-noop.md`).
 
 ## Questions ouvertes
-- Coach : questions posées avec la maquette 6 (en attente).
+- Coach : validation finale de la maquette 6 ; Plus : questions posées avec la maquette 7 (en attente).
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)
@@ -59,6 +59,9 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
   - **Graphiques (choix de Mohamed)** : le Coach écrit un bloc (mesure, période, type) et **l'app dessine avec ses propres données** (aucun chiffre inventé, même série qu'Analyses). Types : **courbe**, **barres** (dont empilées), **deux mesures ensemble** (chacune son axe et sa couleur), **courbe d'une journée** (FC, stress heure par heure).
   - **Accès à toutes les séries** (choix de Mohamed) : un outil « lire une série » qui couvre tout ce que l'app stocke (FC, VFC, sommeil, stress, pas, repas, séances, poids, labo…) sur la période demandée, lu seulement quand le Coach en a besoin (pas tout dans chaque message).
   - **Le bouton ⋯ reste** dans l'en-tête (Conversations · Nouvelle · ⋯ · avatar) ; la ligne « Envoyé à Anthropic seulement quand tu demandes » et le modèle vont en tête de ce menu.
+
+- **7 · Plus (proposition du 4 nov.)** : https://claude.ai/artifact/NNtUQQMqdrRvPFdEcxNs8f — écran 1 la feuille (touchez Avancé), écran 2 avant / après.
+  - Proposé : **une seule liste à sections** au lieu de 4 groupes à 2 niveaux. Carte profil (avatar, nom, bracelet, batterie, synchro) ; **Santé et récupération** (Santé avec Âge fitness et Vitalité, Stress, Respiration, Carnet de labo) ; **Analyses** (Tendances, Explorer, Comparer, Ce qui te fait bouger) ; **Données et réglages** (Alarmes, Sauvegarde, Sources de données, Réglages) ; **Avancé** repliable (Rythme, Intelligence, Perspectives, Données fusionnées, Apple Santé, Mi Band, Export Raccourcis, Limites de NOOP, Automatisations, Siri et Raccourcis, Économie d'énergie, Centre de test). Valeur à droite d'une ligne quand elle aide (Vitalité 44, alarme 06:04, sauvegarde hier).
 
 ## Code
 - **Navigation (PR #61, fusionnée le 4 nov., `main` 9652643)** :

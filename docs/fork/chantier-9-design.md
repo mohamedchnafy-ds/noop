@@ -19,7 +19,7 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
 - Les 11 vieilles branches `build/*` / `feat/*` du 31 oct.–1er nov. (`sleep-redesign`, `superset-guided` 1 à 4, `superset-rounds`, `today-insights`) s'ignorent comme les autres (liste dans `.claude/rules/fork-noop.md`).
 
 ## Questions ouvertes
-- Aucune pour l'instant (Nutrition : questions posées avec la maquette 4).
+- Nutrition : questions posées avec la maquette 4 (en attente).
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)
@@ -42,6 +42,11 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
   - Sélecteur **Anneau | Courbes en haut de la carte** (ⓘ et plein écran à droite).
   - Ordre : carte de la nuit → Indicateurs (4 tuiles ; Régularité du coucher dès 3 nuits) → Vos nuits (dette, 14 nuits | 30 jours) → « Personnaliser Sommeil ».
   - **Horloge biologique et carte « Je me couche / Je me lève » rangées** dans « Personnaliser Sommeil », éteintes par défaut, réactivables (choix de Mohamed). Comparaison à la nuit habituelle : dans la vue Courbes, dès 5 nuits.
+
+- **4 · Nutrition (proposition du 4 nov.)** : https://claude.ai/artifact/Q58frnJhvdY33LrWE9Qhug — écran 1 la page, écran 2 ce qui change.
+  - Ordre proposé : en-tête (Nutrition · Objectifs · avatar), ‹ jour › ; carte anneaux (Mangé, Protéines, Glucides, Lipides) avec en bas **Reste / Dépensé / Bilan** (« Objectif » quitte la ligne : il est déjà écrit à côté de Mangé) ; **barre compacte** Saisir · Scanner · Photo · Dicter ; Repas ; carte **« Cette semaine »** (moyenne + 7 barres, tap → écran Historique avec les 3 graphiques et 7 j | 30 j) ; « Personnaliser Nutrition ».
+  - Menu du Coach : repas normaux avec une étiquette « Coach » ; plus de section Prévu (décision du 4 nov.).
+  - Carte « Bilan sanguin » : Plus → Santé → Carnet de labo, et réactivable dans Personnaliser (éteinte par défaut).
 
 ## Code
 - **Navigation (PR #61, fusionnée le 4 nov., `main` 9652643)** :

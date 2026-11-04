@@ -9,18 +9,21 @@ import UIKit
 
 // MARK: - SleepView
 //
-// Personal fork, redesigned (canvas "NOOP – Écran Sommeil", direction A). Scannable in two seconds:
-//   0. The top section over the night scene: title + Alarms / Customize buttons, the night picker, the
-//      night dial (score, time asleep, bed → wake, the stages on a 12-hour face, the need counted back
-//      from the wake time), the stage totals, the bed/wake row that opens the editor, tonight's target.
-//   1. The stages card: the stage lanes with the curves the user switches on (heart rate by default,
-//      rMSSD, skin temperature, movement), the stage totals, honest caveats, why / add-a-nap.
-//   2. The indicators: efficiency, restorative, breathing, lowest heart rate, each in its own colour.
-//   3. "Your nights": the sleep debt and the hours of each night against the need, 14 nights or 30 days.
-//   "Stages vs typical" joins once there are five nights to compare with.
+// Personal fork, redesigned (canvas "NOOP – Écran Sommeil", direction A; chantier 9 « lisibilité »):
+//   0. The top section: title + Alarms + the More avatar, the night picker, then ONE night card: Ring |
+//      Curves (ⓘ, full screen on the curves), the four stage totals fixed above both views, the horseshoe
+//      ring (score, time asleep, bed → wake, the stages, the need) or the stage lanes with the curves the
+//      user switches on (heart rate by default, rMSSD, skin temperature, movement), the bed/wake row that
+//      opens the editor. The day's naps follow when there are some.
+//   1. The indicators: efficiency, restorative, breathing, lowest heart rate (bedtime regularity from 3
+//      nights), each in its own colour.
+//   2. "Your nights": the average asleep and the sleep debt, one stacked bar per night against the need,
+//      14 nights or 30 days; touching a bar reads that night and can show it in the night card.
+//   3. The blocks switched back on in « Customize Sleep » (tonight, why this sleep, body clock, sleep
+//      marks; all off by default), then the « Customize Sleep » button.
 //
-// One stage palette (Settings → Appearance → Sleep chart), one duration format, one sleep need. Data
-// wiring is unchanged from the previous screen (stagesJSON minutes, typical = mean of repo.days).
+// One stage palette (the violets ramp), one duration format, one sleep need. Data wiring is unchanged
+// from the previous screen (stagesJSON minutes, typical = mean of repo.days).
 
 struct SleepView: View {
     @EnvironmentObject var repo: Repository
@@ -40,9 +43,6 @@ struct SleepView: View {
     /// only when the underlying repo data actually changes — NOT on hover/animation/1Hz HR
     /// ticks that merely re-evaluate `body`. `nil` until first build or when there's no night.
     @State private var model: SleepModel?
-    /// The Sleep tab's stage-chart shape (Settings → Appearance → Sleep chart). Display-only; Filled/Ribbon
-    /// draw the WHOOP-style stepped hypnogram, Classic keeps the per-stage rows. Mirrors Android. (#sleep-chart-style)
-    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
     /// Personal fork: the curves over the stage lanes. Heart rate is on by default; rMSSD, skin
     /// temperature and movement are switched on from the chips above the lanes. Display-only.
     @AppStorage(SleepCurvePrefs.hrKey) private var showSleepHR = true
@@ -140,10 +140,25 @@ struct SleepView: View {
     @AppStorage(SleepLayoutPrefs.orderKey) private var sleepSectionOrderRaw = ""
     @AppStorage(SleepLayoutPrefs.hiddenKey) private var sleepHiddenSectionsRaw = ""
     @State private var showSleepCustomize = false
+    /// Fork chantier 9: the blocks switched back on in « Customize Sleep », drawn under Your nights.
+    @AppStorage(SleepRestoredBlock.storageKey) private var sleepRestoredRaw = ""
+    /// Set by « Add a nap » in « Customize Sleep »: the nap editor opens once that sheet is gone.
+    @State private var napAfterCustomize = false
+    /// The night card's curves, full screen (opened from the card's header).
+    @State private var phasesFullScreen = false
+    /// Bumped by « See this night » on Your nights, added to the tab shell's scroll-to-top signal so the
+    /// screen goes back up to the night card.
+    @State private var nightScrollBump = 0
+    @Environment(\.scrollToTopSignal) private var shellScrollSignal
 
-    /// The analytical cards to render, in saved order minus the hidden set.
+    /// The analytical cards to render, in saved order minus the hidden set and the sections the page no
+    /// longer draws from the order (fork chantier 9).
     private var sleepVisibleSections: [SleepSection] {
-        SleepLayoutPrefs.visibleOrder(orderRaw: sleepSectionOrderRaw, hiddenRaw: sleepHiddenSectionsRaw)
+        SleepLayoutPrefs.pageSections(orderRaw: sleepSectionOrderRaw, hiddenRaw: sleepHiddenSectionsRaw)
+    }
+
+    private var sleepRestored: Set<SleepRestoredBlock> {
+        SleepRestoredBlock.decodeRestored(sleepRestoredRaw)
     }
 
     var body: some View {
@@ -185,11 +200,19 @@ struct SleepView: View {
                             .padding(.top, -12)
                             .zIndex(-1)
                             .staggeredAppear(index: 0)
+                        // The day's naps, under the night card they belong to.
+                        napSection(heroNapNight(resolved))
                         // #sleep-layout: the analytical cards render in the user's saved order minus the
-                        // hidden set, below the pinned Rest hero. Reordered via the Arrange sheet.
+                        // hidden set, below the pinned night card. Reordered via the Arrange sheet.
                         ForEach(Array(sleepVisibleSections.enumerated()), id: \.element) { idx, section in
                             sleepSectionView(section, resolved).staggeredAppear(index: idx + 1)
                         }
+                        // Fork chantier 9: the blocks put back on the page, under Your nights.
+                        restoredBlocks(resolved)
+                        Button { showSleepCustomize = true } label: {
+                            LiquidFullWidthNavigationAction("Customize Sleep")
+                        }
+                        .buttonStyle(LiquidPressStyle())
                     }
                 } else {
                     emptyState
@@ -293,10 +316,17 @@ struct SleepView: View {
             // Manually add a missed nap (#508): same picker, but the chosen window is staged from raw and
             // stored as its OWN separate session — never folded into main sleep (which would mislabel the
             // awake daytime gap as light sleep).
-            .sheet(isPresented: $showSleepCustomize) {
+            .sheet(isPresented: $showSleepCustomize, onDismiss: {
+                // « Add a nap » from the sheet: open the nap editor only once the sheet is gone.
+                guard napAfterCustomize else { return }
+                napAfterCustomize = false
+                if let m = model ?? resolved { addNap = AddNapSeed(forNight: heroNight(m)) }
+            }) {
                 SleepCustomizationSheet(
                     sectionOrderRaw: $sleepSectionOrderRaw,
-                    hiddenSectionsRaw: $sleepHiddenSectionsRaw
+                    hiddenSectionsRaw: $sleepHiddenSectionsRaw,
+                    restoredBlocksRaw: $sleepRestoredRaw,
+                    onAddNap: resolved == nil ? nil : { napAfterCustomize = true }
                 )
             }
             .sheet(item: $addNap) { seed in
@@ -311,6 +341,8 @@ struct SleepView: View {
                 }
             }
         }
+        // The tab shell's scroll-to-top signal, plus « See this night » on Your nights (fork chantier 9).
+        .environment(\.scrollToTopSignal, shellScrollSignal &+ nightScrollBump)
     }
 
     /// A direct route to the one alarm screen, available even before a night is recorded.
@@ -341,11 +373,11 @@ struct SleepView: View {
         .buttonStyle(LiquidPressStyle())
     }
 
-    // MARK: - 0. Top section — night dial, picker, times, tonight
+    // MARK: - 0. Top section — the night card (ring | curves), picker, times
 
-    /// The top of the tab for the displayed night: the dial (score, asleep, bed → wake, stages, the
-    /// need), the stage totals, the bed/wake row that opens the editor, and tonight's target on last
-    /// night. Every number comes from the same model the cards below read.
+    /// The top of the tab for the displayed night: one card with the stage totals, the ring (score,
+    /// asleep, bed → wake, stages, the need) or the curves, and the bed/wake row that opens the editor
+    /// (fork chantier 9). Every number comes from the same model the cards below read.
     @ViewBuilder
     private func sleepTop(_ model: SleepModel) -> some View {
         let night = heroNight(model)
@@ -375,21 +407,98 @@ struct SleepView: View {
                 needMinutes: need,
                 timesEdited: target?.userEdited ?? false,
                 canEditTimes: target != nil,
-                tonight: nightOffset == 0 ? need.map { (needMinutes: $0, debtMinutes: ledger.isDebt ? ledger.magnitudeMin : 0) } : nil,
                 awakeMinutes: night.stages.awake,
                 stagePercent: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map {
                     ($0, stageSharePercent($0, night.stages))
-                })),
+                }),
+                about: nightAbout(night)),
             actions: SleepTopSection.Actions(
                 alarms: { router.openAlarms() },
-                customize: { showSleepCustomize = true },
                 previous: { if nightOffset < lastIndex { nightOffset += 1 } },
                 next: { if nightOffset > 0 { nightOffset -= 1 } },
-                editTimes: { openTimeEditor(night) },
-                addNap: { addNap = AddNapSeed(forNight: night) }),
-            // One selection for the ring, its legend and the phases chart below (fork chantier 7).
+                editTimes: { openTimeEditor(night) }),
+            // One selection for the totals, the ring and the curves (fork chantier 7).
             selection: $selectedStage,
-            whyRow: mainSleepReasonText(night) == nil ? nil : AnyView(whyRow(night)))
+            curves: phasesNight(model).map { AnyView(stageCard($0.night, intervals: $0.intervals)) },
+            canShowFullScreen: (phasesNight(model)?.intervals.count ?? 0) >= 2,
+            fullScreen: $phasesFullScreen)
+        // The night's curves (1-min sleeping HR, windowed rMSSD, skin temperature), reloaded only when the
+        // displayed night changes. All three are the existing reads: no new computation. Here rather than on
+        // the curves view, so the lowest heart rate of the Indicators loads with the ring shown too.
+        .task(id: night.session.startTs) {
+            let from = night.session.effectiveStartTs
+            let to = night.session.endTs
+            nightHR = await repo.hrBuckets(from: night.session.startTs, to: to, bucketSeconds: 60)
+            nightHRV = await repo.timelineSeries(metric: .hrv, from: from, to: to, targetPoints: 240).points
+            nightSkinTemp = await repo.timelineSeries(metric: .skinTemp, from: from, to: to, targetPoints: 240).points
+        }
+        // Stale-highlight guard: browsing to another night clears the stage selection.
+        .onChange(of: nightOffset) { _ in selectedStage = nil }
+    }
+
+    /// What ⓘ on the night card says about the displayed night: time in bed and asleep, how the stages
+    /// were obtained, and where they come from when it is not this device (the old stages-card subtitle).
+    private func nightAbout(_ night: Night) -> [String] {
+        let isPersisted = (night.realSegments?.count ?? 0) >= 2
+        var lines = [String(localized: "\(durationText(night.timeInBed)) in bed · \(durationText(night.stages.asleep)) asleep")]
+        if isPersisted {
+            lines.append(repo.activeDeviceIsOura
+                ? String(localized: "Raw on-device stages")
+                : String(localized: "Stages estimated on the device"))
+        }
+        let source = nightSource(night)
+        if !(isPersisted && source == String(localized: "On-device")) { lines.append(source) }
+        return lines
+    }
+
+    /// The night the curves show, with its intervals: last night from the memoized model, a navigated
+    /// night from `navNight`, or a stage-less stub that keeps the real times. (#160, #940)
+    private func phasesNight(_ model: SleepModel) -> (night: Night, intervals: [SleepInterval])? {
+        if nightOffset == 0, !model.isStubNight { return (model.night, model.intervals) }
+        if let night = navNight { return (night, night.intervals) }
+        if let stub = stubNight(at: nightOffset) { return (stub, []) }
+        return nil
+    }
+
+    /// The night whose naps show under the night card (the same pick as the curves, else the hero night).
+    private func heroNapNight(_ model: SleepModel) -> Night {
+        phasesNight(model)?.night ?? heroNight(model)
+    }
+
+    /// « See this night » on Your nights: show the night of that wake day in the night card, then scroll
+    /// back up to it. Nothing happens for a day without a browsable night.
+    private func openNight(day: String) {
+        guard let index = openableNightIndex(day: day) else { return }
+        nightOffset = index
+        nightScrollBump &+= 1
+    }
+
+    /// The carousel offset of the night that woke on `day` (local wake-day key), if one is stored.
+    private func openableNightIndex(day: String) -> Int? {
+        navDays.firstIndex { group in
+            group.last.map { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) == day } ?? false
+        }
+    }
+
+    /// The blocks switched back on in « Customize Sleep » (fork chantier 9), under Your nights, in a fixed
+    /// order. « Tonight » and « Why this sleep? » need last night's need and a reason to show.
+    @ViewBuilder
+    private func restoredBlocks(_ model: SleepModel) -> some View {
+        let on = sleepRestored
+        let night = heroNight(model)
+        let ledger = model.sleepDebtLedger
+        if on.contains(.tonight), nightOffset == 0, ledger.needMin > 0 {
+            SleepTonightRow(needMinutes: ledger.needMin, debtMinutes: ledger.isDebt ? ledger.magnitudeMin : 0)
+                .padding(.horizontal, NoopMetrics.cardPadding)
+                .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        }
+        if on.contains(.whySleep), mainSleepReasonText(night) != nil {
+            whyRow(night)
+                .padding(.horizontal, NoopMetrics.cardPadding)
+                .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        }
+        if on.contains(.bodyClock) { bodyClockDial(model) }
+        if on.contains(.sleepMarks) { SleepMarkCard() }
     }
 
     /// Open the bed/wake editor on the night's real stored main block (the hero shows a merged Night whose
@@ -404,11 +513,9 @@ struct SleepView: View {
                             userEdited: target.userEdited)
     }
 
-    /// The one stage palette of the tab: the ramp of Settings → Appearance → Sleep chart, applied to the
-    /// dial, the lanes, the totals and the "vs typical" card alike.
-    private var stagePalette: SleepStagePalette {
-        SleepChartStyle.resolve(sleepChartStyleRaw).stagePalette
-    }
+    /// The one stage palette of the tab: the violets ramp (fork chantier 9, « one colour = one meaning »),
+    /// applied to the ring, the lanes, the totals and Your nights alike.
+    private var stagePalette: SleepStagePalette { .noop }
 
     /// The night's lowest sleeping heart rate and when, from the heart rate already loaded for the card.
     private var lowestHR: SleepLowestHR? {
@@ -559,12 +666,16 @@ struct SleepView: View {
     @ViewBuilder
     private func sleepSectionView(_ section: SleepSection, _ model: SleepModel) -> some View {
         switch section {
+        // Fork chantier 9: the iPhone page folds these four out of the order (`pageFoldedSections`); the
+        // marks and the body clock come back through `restoredBlocks`, the stages are the night card.
         case .sleepMarks:      SleepMarkCard()
-        case .stages:          hero(model)
+        case .stages:          EmptyView()
         case .bodyClock:       bodyClockDial(model)
         // The indicators describe the latest night, so the lowest heart rate joins them only there.
         case .nightDetail:     NightDetailCard(model: model, lowestHR: nightOffset == 0 ? lowestHR : nil)
-        case .sleepDebt:       SleepDebtLedgerCard(model: model)
+        case .sleepDebt:
+            SleepDebtLedgerCard(model: model, onOpenNight: { openNight(day: $0) },
+                                canOpenNight: { openableNightIndex(day: $0) != nil })
         // Personal fork: "vs typical" only once there is a typical to compare with; before that the
         // stages card says how many nights are still needed.
         case .stagesVsTypical:
@@ -632,30 +743,7 @@ struct SleepView: View {
     // so SleepView itself no longer observes LiveState and a 1 Hz HR tick can't re-render this body. The
     // card renders byte-for-byte what the inline `sleepMarkCard` did (same copy, buttons, haptic, layout).
 
-    // MARK: - 1. Stages card
-
-    @ViewBuilder
-    private func hero(_ model: SleepModel) -> some View {
-        // Offset 0 reads the memoized latest night; navigated offsets read the cached `navNight`, never a
-        // fresh decode here. A navigated session with no usable stages keeps its REAL times with an honest
-        // "no stage data" card, never the latest night under a navigated label. (#160) The night picker and
-        // the bed/wake row live in the top section now.
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            // #940: a NEWEST day that failed to merge (model.isStubNight) takes the same stage-less path.
-            if nightOffset == 0, !model.isStubNight {
-                stageCard(model.night, intervals: model.intervals)
-                napSection(model.night)
-            } else if let night = navNight {
-                stageCard(night, intervals: night.intervals)
-                napSection(night)
-            } else if let stub = stubNight(at: nightOffset) {
-                stageCard(stub, intervals: [])
-                napSection(stub)
-            }
-        }
-        // Stale-highlight guard: browsing to another night clears the stage selection.
-        .onChange(of: nightOffset) { _ in selectedStage = nil }
-    }
+    // MARK: - 1. Stages (the curves view of the night card)
 
     /// A stage-less night for a session that did not decode, purely to reuse Night's date/time formatting.
     private func stubNight(at offset: Int) -> Night? {
@@ -795,28 +883,20 @@ struct SleepView: View {
         return "\(start)-\(end)"
     }
 
-    /// The stages card for a decoded night (an empty `intervals` draws the honest "no stage data" card):
-    /// the lanes with the curves the user switched on, the stage totals, the usual night once there is
-    /// one, any caveat about the staging, and the why / add-a-nap footer. Intervals are passed in so
-    /// offset 0 uses the memoized `model.intervals` rather than re-deriving them. (#160)
+    /// The curves view of the night card for a decoded night (an empty `intervals` says there is no stage
+    /// data): the lanes with the curves the user switched on, the usual night once there is one, and any
+    /// caveat about the staging. Intervals are passed in so offset 0 uses the memoized `model.intervals`
+    /// rather than re-deriving them. (#160)
     @ViewBuilder
     private func stageCard(_ night: Night, intervals: [SleepInterval]) -> some View {
         let s = night.stages
-        let isPersisted = (night.realSegments?.count ?? 0) >= 2
-        // An Oura night's stages are the ring's RAW on-device classification, not a NOOP approximation,
-        // so it gets its own honest caption.
-        let stageCaption = repo.activeDeviceIsOura
-            ? String(localized: "Raw on-device stages")
-            : String(localized: "Stages estimated on the device")
-        let base = String(localized: "\(durationText(night.timeInBed)) in bed · \(durationText(s.asleep)) asleep")
-        let source = nightSource(night)
         let typicalCount = typicalNightCount
         let hasTypical = typicalCount >= Self.typicalMinNights
+        // Fork chantier 9: the « Curves » view of the night card. The time in bed, the stage caption and
+        // the source moved to the card's ⓘ (`nightAbout`); the stage totals sit above both views.
         SleepPhasesCard(
-            subtitle: isPersisted ? "\(base)\n\(stageCaption)" : base,
-            // The caption already says the stages were estimated on the device: do not repeat it as a
-            // source line (fork chantier 7). A WHOOP or Oura source still shows.
-            source: isPersisted && source == String(localized: "On-device") ? nil : source,
+            subtitle: nightAbout(night).joined(separator: "\n"),
+            source: nil,
             intervals: Hypnogram.displaySmoothed(intervals.sorted { $0.start < $1.start }, minDuration: 300),
             nightStart: night.onsetDate,
             palette: stagePalette,
@@ -833,17 +913,9 @@ struct SleepView: View {
             showHRV: $showHRVCurve,
             showSkinTemp: $showSkinTempCurve,
             showMotion: $showMotionCurve,
-            // "Why this sleep?" and "Add a nap" moved to the list under the ring (fork chantier 7).
-            notes: stageNotes(night))
-        // The night's curves (1-min sleeping HR, windowed rMSSD, skin temperature), reloaded only when the
-        // displayed night changes. All three are the existing reads: no new computation.
-        .task(id: night.session.startTs) {
-            let from = night.session.effectiveStartTs
-            let to = night.session.endTs
-            nightHR = await repo.hrBuckets(from: night.session.startTs, to: to, bucketSeconds: 60)
-            nightHRV = await repo.timelineSeries(metric: .hrv, from: from, to: to, targetPoints: 240).points
-            nightSkinTemp = await repo.timelineSeries(metric: .skinTemp, from: from, to: to, targetPoints: 240).points
-        }
+            notes: stageNotes(night),
+            embedded: true,
+            fullScreen: $phasesFullScreen)
     }
 
     /// The honest caveats about this night's staging, stacked under the stage totals; nil when none apply.

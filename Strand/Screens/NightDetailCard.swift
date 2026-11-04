@@ -85,12 +85,11 @@ struct NightDetailCard: View {
             usual: nil)
     }
 
-    /// With the lowest heart rate in the grid, regularity gets the row under it: the tile once it has a
-    /// value, the progress toward it before.
+    /// With the lowest heart rate in the grid, regularity gets the row under it once it has a value (from
+    /// three nights). Before that nothing shows: one tile more when there is one (fork chantier 9).
     private var regularity: SleepIndicatorsCard.Regularity? {
-        guard lowestHR != nil else { return nil }
-        if model.consistency.latest != nil { return .tile(regularityTile) }
-        return .progress(done: min(model.sleepDebtLedger.nightCount, 3), needed: 3)
+        guard lowestHR != nil, model.consistency.latest != nil else { return nil }
+        return .tile(regularityTile)
     }
 
     // MARK: Formatting

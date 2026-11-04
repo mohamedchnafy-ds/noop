@@ -4,13 +4,18 @@ import StrandAnalytics
 
 // MARK: - Top of the Sleep tab (personal fork)
 //
-// Everything the tab answers in two seconds, on the plain black canvas (fork chantier 7, design F): the
-// title with the Alarms and Customize buttons, the night picker, then one card holding the night ring
-// (a circular hypnogram, see `SleepNightDial`), the four stage totals and the bed / wake / asleep cells
-// (bed and wake open the time editor), and tonight's target when the night shown is last night. A pure
-// view: the Sleep tab feeds it, and the render test feeds it the same values without a repository.
+// Everything the tab answers in two seconds, on the plain black canvas: the title with the Alarms button
+// and the More avatar, the night picker, then ONE card for the night (fork chantier 9): a switch Ring |
+// Curves with ⓘ and, on the curves, the full-screen button; the four stage totals, fixed above both views
+// (a tap lights that stage alone in either view); the horseshoe ring (`SleepNightDial`) or the stage lanes
+// with their curves (the Sleep tab hands in `SleepPhasesCard` in its embedded form); and bed / wake /
+// asleep at the foot (bed and wake open the time editor). A pure view: the Sleep tab feeds it, and the
+// render test feeds it the same values without a repository.
 
 struct SleepTopSection: View {
+    /// The two views of the night card. The ring is the default; the choice is not stored.
+    enum NightView: Hashable { case ring, curves }
+
     struct Model {
         var nightLabel: String
         var dateLabel: String
@@ -29,48 +34,57 @@ struct SleepTopSection: View {
         var needMinutes: Double?
         var timesEdited: Bool
         var canEditTimes: Bool
-        /// Tonight's target, only for last night: the need and the debt to add to it.
-        var tonight: (needMinutes: Double, debtMinutes: Double)?
         /// Awake minutes and each stage's share of the night, from the same funnel as the phases chart
         /// (`SleepView.stageSharePercent`), so the ring's centre and the chart's totals cannot disagree.
         /// Without them the awake total falls back to the intervals and the share is left out.
         var awakeMinutes: Double? = nil
         var stagePercent: [SleepStage: Int] = [:]
+        /// What ⓘ says about the night beyond how to read the chart: time in bed and asleep, how the
+        /// stages were obtained, where they come from.
+        var about: [String] = []
     }
 
     struct Actions {
         var alarms: () -> Void
-        var customize: () -> Void
         var previous: () -> Void
         var next: () -> Void
         var editTimes: () -> Void
-        /// Opens the add-a-nap sheet for the night shown; nil hides the row.
-        var addNap: (() -> Void)? = nil
     }
 
     let data: Model
     let actions: Actions
-    /// The stage picked on the ring or its legend, shared with the phases chart below (the Sleep tab
-    /// owns it). A constant nil (the default) leaves the ring display-only.
-    var selection: Binding<SleepStage?> = .constant(nil)
-    /// The "Why this sleep?" row (the Sleep tab owns its popover); nil when there is no reason to show.
-    var whyRow: AnyView? = nil
+    /// The stage picked on the totals or the ring (the Sleep tab owns it, shared with the curves). A
+    /// constant nil leaves the ring display-only.
+    var selection: Binding<SleepStage?>
+    /// The « Curves » view; nil shows that the night has no stage chart.
+    var curves: AnyView?
+    /// Whether the curves can open full screen (a night with stage data), and who opens them.
+    var canShowFullScreen: Bool
+    var fullScreen: Binding<Bool>
 
-    /// The night photo was retired (fork chantier 7): the top always sits on the plain black canvas
-    /// and uses the regular text tokens.
-    private var showScene: Bool { false }
+    @State private var nightView: NightView
+    @State private var showsGuide = false
 
-    private var primary: Color { showScene ? StrandPalette.onDarkPrimary : StrandPalette.textPrimary }
-    private var secondary: Color { showScene ? StrandPalette.onDarkSecondary : StrandPalette.textSecondary }
+    init(data: Model, actions: Actions, selection: Binding<SleepStage?> = .constant(nil),
+         curves: AnyView? = nil, canShowFullScreen: Bool = false, fullScreen: Binding<Bool> = .constant(false),
+         initialView: NightView = .ring) {
+        self.data = data
+        self.actions = actions
+        self.selection = selection
+        self.curves = curves
+        self.canShowFullScreen = canShowFullScreen
+        self.fullScreen = fullScreen
+        _nightView = State(initialValue: initialView)
+    }
+
+    private var primary: Color { StrandPalette.textPrimary }
+    private var secondary: Color { StrandPalette.textSecondary }
 
     var body: some View {
         VStack(spacing: 0) {
             titleRow
             nightPicker.padding(.top, NoopMetrics.space1)
             heroCard.padding(.top, NoopMetrics.space2)
-            if data.tonight != nil || whyRow != nil || actions.addNap != nil {
-                listCard.padding(.top, NoopMetrics.space3)
-            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -90,81 +104,106 @@ struct SleepTopSection: View {
         }
     }
 
-    /// Picks a stage (or clears the pick), with the same fade as the phases chart's stage cells.
+    /// Picks a stage (or clears the pick), with the same fade as the phases chart.
     private func select(_ stage: SleepStage?) {
         withAnimation(StrandMotion.fade) { selection.wrappedValue = stage }
     }
 
-    /// The ring, the four stage totals, its one-line key, then bed / wake / asleep (fork chantier 7).
+    /// The night card: the view switch, the four totals, the ring or the curves, then bed / wake / asleep.
     private var heroCard: some View {
         VStack(spacing: NoopMetrics.space3) {
-            SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
-                           palette: data.palette, needMinutes: data.needMinutes,
-                           score: data.score, scoreWord: data.scoreWord,
-                           asleepMinutes: data.asleepMinutes, onScene: showScene,
-                           selected: selection.wrappedValue,
-                           stageMinutes: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map { ($0, minutes($0)) }),
-                           stagePercent: data.stagePercent,
-                           onSelect: { select($0) })
-            stageLegend
-            Text("The further in the line sits, the deeper the sleep")
-                .font(StrandFont.caption)
-                .foregroundStyle(secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Tap a stage to see it on its own, here and on the chart below")
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textTertiary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            cardHeader
+            stageTotals
+            switch nightView {
+            case .ring:
+                SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
+                               palette: data.palette, needMinutes: data.needMinutes,
+                               score: data.score, scoreWord: data.scoreWord,
+                               asleepMinutes: data.asleepMinutes,
+                               selected: selection.wrappedValue,
+                               stageMinutes: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map { ($0, minutes($0)) }),
+                               stagePercent: data.stagePercent,
+                               onSelect: { select($0) })
+            case .curves:
+                if let curves {
+                    curves
+                } else {
+                    Text("No stage data recorded for this night.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(secondary)
+                        .frame(maxWidth: .infinity, minHeight: 80)
+                }
+            }
             Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             timesRow
         }
-        .padding(18)
+        .padding(NoopMetrics.cardPadding)
         .frame(maxWidth: .infinity)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
     }
 
     // MARK: Parts
 
-    /// Tonight's target, "Why this sleep?" and "Add a nap" as one grouped list under the ring (design F).
-    private var listCard: some View {
-        VStack(spacing: 0) {
-            if let tonight = data.tonight {
-                SleepTonightRow(needMinutes: tonight.needMinutes, debtMinutes: tonight.debtMinutes)
+    /// Ring | Curves on the left; ⓘ, and on the curves the full-screen button, on the right.
+    private var cardHeader: some View {
+        HStack(spacing: NoopMetrics.space2) {
+            SegmentedPillControl([NightView.ring, NightView.curves], selection: $nightView) {
+                $0 == .ring ? String(localized: "Ring") : String(localized: "Curves")
             }
-            if let whyRow {
-                if data.tonight != nil { listDivider }
-                whyRow
-            }
-            if let addNap = actions.addNap {
-                if data.tonight != nil || whyRow != nil { listDivider }
-                Button(action: addNap) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus.circle")
-                            .font(StrandFont.body.weight(.semibold))
-                            .frame(width: 24)
-                            .accessibilityHidden(true)
-                        Text("Add a nap")
-                            .font(StrandFont.body)
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundStyle(StrandPalette.accent)
-                    .frame(minHeight: 48)
-                    .contentShape(Rectangle())
+            .fixedSize()
+            .accessibilityLabel(Text("Night view"))
+            Spacer(minLength: NoopMetrics.space2)
+            circleButton("info.circle", tint: secondary, label: "How to read this chart") { showsGuide = true }
+                .popover(isPresented: $showsGuide, arrowEdge: .top) {
+                    guide.sleepGuidePopoverAdaptation()
                 }
-                .buttonStyle(LiquidPressStyle())
+            if nightView == .curves && canShowFullScreen {
+                circleButton("arrow.up.left.and.arrow.down.right", tint: StrandPalette.accent,
+                             label: "Show the chart full screen") { fullScreen.wrappedValue = true }
             }
         }
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity)
-        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
     }
 
-    /// The hairline between two rows of the list, inset past the icon column like an iOS grouped list.
-    private var listDivider: some View {
-        Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
-            .padding(.leading, 36)
+    private func circleButton(_ symbol: String, tint: Color, label: LocalizedStringKey,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: NoopMetrics.compactControlSize, height: NoopMetrics.compactControlSize)
+                .background(StrandPalette.surfaceRaised, in: Circle())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(LiquidPressStyle())
+        .accessibilityLabel(Text(label))
+    }
+
+    /// ⓘ: how to read the ring and the curves (the two grey lines that sat under the ring), then what is
+    /// known about the night.
+    private var guide: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+            Text("How to read this chart")
+                .font(StrandFont.subhead.weight(.semibold))
+                .foregroundStyle(primary)
+            Text("On the ring, the further in the line sits, the deeper the sleep.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Tap a stage to see it on its own, on the ring and on the curves.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(data.about, id: \.self) { line in
+                Text(line)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(NoopMetrics.cardInnerPadding)
+        .frame(width: 280, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private var titleRow: some View {
@@ -175,8 +214,8 @@ struct SleepTopSection: View {
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: NoopMetrics.space2)
             roundButton("alarm.fill", label: "Alarms", action: actions.alarms)
-            roundButton("slider.horizontal.3", label: "Customize Sleep", action: actions.customize)
-            // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere.
+            // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere. « Customize Sleep »
+            // sits at the foot of the tab.
             MoreAvatarButton()
         }
     }
@@ -235,45 +274,48 @@ struct SleepTopSection: View {
         .accessibilityLabel(Text(label))
     }
 
-    private var stageLegend: some View {
-        // Two rows of two, deepest first, so four totals fit the card at any text size.
-        VStack(spacing: 6) {
-            HStack(spacing: NoopMetrics.space3) {
-                legendItem(.deep, data.deepMinutes)
-                legendItem(.rem, data.remMinutes)
-            }
-            HStack(spacing: NoopMetrics.space3) {
-                legendItem(.light, data.lightMinutes)
-                legendItem(.awake, awakeMinutes)
+    /// The four stage totals, two by two, deepest first, fixed above both views.
+    private var stageTotals: some View {
+        let columns = [GridItem(.flexible(), spacing: NoopMetrics.space2),
+                       GridItem(.flexible(), spacing: NoopMetrics.space2)]
+        return LazyVGrid(columns: columns, spacing: NoopMetrics.space2) {
+            ForEach([SleepStage.deep, .rem, .light, .awake], id: \.self) { stage in
+                stageTotal(stage, minutes(stage))
             }
         }
         .accessibilityElement(children: .contain)
     }
 
-    /// One legend entry, a button: a tap lights that stage alone (on the ring and the chart below), a
-    /// second tap shows them all again.
-    private func legendItem(_ stage: SleepStage, _ minutes: Double) -> some View {
+    /// One total, a button: a tap lights that stage alone (on the ring and the curves), a second tap shows
+    /// them all again.
+    private func stageTotal(_ stage: SleepStage, _ minutes: Double) -> some View {
         let picked = selection.wrappedValue == stage
         let dimmed = selection.wrappedValue != nil && !picked
+        let tint = StrandPalette.sleepStageColor(stage, palette: data.palette)
         return Button { select(picked ? nil : stage) } label: {
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(StrandPalette.sleepStageColor(stage, palette: data.palette))
-                    .frame(width: 8, height: 8)
+            HStack(spacing: NoopMetrics.space2) {
+                Circle().fill(tint).frame(width: 10, height: 10)
                 Text(stage.label)
-                    .font(StrandFont.footnote)
+                    .font(StrandFont.subhead)
                     .foregroundStyle(secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
                 Text(SleepDurationText.format(minutes))
-                    .font(StrandFont.footnote.weight(.semibold))
+                    .font(StrandFont.subhead.weight(.bold))
                     .foregroundStyle(primary)
                     .monospacedDigit()
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 8)
-            .frame(minHeight: 30)
-            .background(StrandPalette.sleepStageColor(stage, palette: data.palette).opacity(picked ? 0.18 : 0),
-                        in: Capsule())
+            .padding(.horizontal, NoopMetrics.space3)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            // The curve switches' fill, so the four totals read as buttons on the card.
+            .background(NoopVisualStyle.control.opacity(0.6),
+                        in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
+                .strokeBorder(tint.opacity(picked ? 1 : 0), lineWidth: 1))
             .opacity(dimmed ? 0.45 : 1)
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("\(stage.label): \(SleepDurationText.format(minutes))"))
@@ -282,17 +324,17 @@ struct SleepTopSection: View {
     }
 
     /// Bed, wake and asleep as three cells on one fixed grid (label / figure / caption). The bed and wake
-    /// cells open the time editor, as the old « Bed → Woke » row did.
+    /// cells open the time editor.
     private var timesRow: some View {
         let f = AppClock.hourMinuteFormatter()
         let inBed = max(0, data.wake.timeIntervalSince(data.onset)) / 60
         return HStack(alignment: .top, spacing: 14) {
             Button(action: actions.editTimes) {
                 HStack(alignment: .top, spacing: 14) {
-                    timeCell(symbol: "moon.fill", tint: StrandPalette.sleepStageColor(.deep, palette: data.palette),
+                    timeCell(symbol: "moon.fill", tint: StrandPalette.sleepBedtime,
                              label: String(localized: "Bed"), value: f.string(from: data.onset),
                              caption: data.canEditTimes ? String(localized: "Edit") : nil, captionIsAction: true)
-                    timeCell(symbol: "sun.max.fill", tint: StrandPalette.sleepStageColor(.awake, palette: data.palette),
+                    timeCell(symbol: "sun.max.fill", tint: StrandPalette.sleepWake,
                              label: String(localized: "Wake"), value: f.string(from: data.wake),
                              caption: data.timesEdited ? String(localized: "edited") : nil, captionIsAction: false)
                 }
@@ -339,8 +381,19 @@ struct SleepTopSection: View {
     }
 }
 
-/// Tonight's target: the sleep need plus the current debt estimate. Shown for last night only, as the
-/// first row of the list under the ring.
+extension View {
+    /// Keep a Sleep tab ⓘ a popover at phone width (iOS); macOS popovers never adapt.
+    @ViewBuilder func sleepGuidePopoverAdaptation() -> some View {
+        #if os(iOS)
+        presentationCompactAdaptation(.popover)
+        #else
+        self
+        #endif
+    }
+}
+
+/// Tonight's target: the sleep need plus the current debt estimate. Off the page since chantier 9: drawn
+/// only when switched back on in « Customize Sleep » (`SleepRestoredBlock.tonight`), for last night.
 struct SleepTonightRow: View {
     let needMinutes: Double
     let debtMinutes: Double

@@ -15,17 +15,14 @@ import WhoopStore
 /// per-stage means from the shared [SleepModel].
 struct StagesVsTypicalCard: View {
     let model: SleepModel
-    /// Personal fork: the stage colours follow Settings → Appearance → Sleep chart, like every other stage
-    /// visual on the Sleep tab.
-    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
-
     /// Personal fork: no "vs typical" before there is a typical. The means read the same history as the
     /// Sleep tab's usual ranges, which start at five nights.
     static let minNights = 5
 
     var body: some View {
         let s = model.night.stages
-        let palette = SleepChartStyle.resolve(sleepChartStyleRaw).stagePalette
+        // The one violets ramp of the sleep stages (fork chantier 9).
+        let palette = SleepStagePalette.noop
         let nights = model.trendPoints.count
         // Per-stage typical means are computed ONCE in the model build (each a full pass
         // over repo.days) and read here.

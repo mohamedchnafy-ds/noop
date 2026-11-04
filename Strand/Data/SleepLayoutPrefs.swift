@@ -130,3 +130,71 @@ enum SleepLayoutPrefs {
         return decodeOrder(orderRaw).filter { !hidden.contains($0) }
     }
 }
+
+// MARK: - The Sleep tab page, chantier 9 (personal fork)
+//
+// The page reads: the night card (pinned in the top section, with the day's naps under it), Indicators,
+// Your nights, then « Customize Sleep ». Four blocks left it and come back, under Your nights, only when
+// switched on in « Customize Sleep » (`SleepRestoredBlock`). The stored order and hidden set are untouched
+// and keep every token, so Android and a backup read the same layout.
+
+extension SleepLayoutPrefs {
+    /// Sections the iPhone Sleep page does not draw from the saved order: the stages (the night card is
+    /// pinned at the top now), the marks and the body clock (switched back on through `SleepRestoredBlock`),
+    /// the usual-night comparison (inside the curves view now) and the hours trend (the debt card's
+    /// « 30 days »). They stay in the order and are left out of the editor.
+    static let pageFoldedSections: Set<SleepSection> = [
+        .stages, .sleepMarks, .bodyClock, .stagesVsTypical, .asleepDuration,
+    ]
+
+    /// The sections the page draws, in saved order minus the hidden set and the folded sections.
+    static func pageSections(orderRaw: String, hiddenRaw: String) -> [SleepSection] {
+        visibleOrder(orderRaw: orderRaw, hiddenRaw: hiddenRaw).filter { !pageFoldedSections.contains($0) }
+    }
+}
+
+/// The blocks that left the Sleep page in chantier 9 and that « Customize Sleep » can put back, under
+/// Your nights. Off by default. iPhone display preference only: stored on the device under `storageKey`,
+/// outside the `.noopbak` whitelist, with no Android twin.
+enum SleepRestoredBlock: String, CaseIterable, Identifiable {
+    case tonight
+    case whySleep
+    case bodyClock
+    case sleepMarks
+
+    var id: String { rawValue }
+
+    /// UserDefaults key: a comma-joined list of the blocks switched back on.
+    static let storageKey = "sleep.restoredBlocks"
+
+    var title: String {
+        switch self {
+        case .tonight:    return String(localized: "Tonight, aim for…")
+        case .whySleep:   return String(localized: "Why this sleep?")
+        case .bodyClock:  return String(localized: "Body clock")
+        case .sleepMarks: return String(localized: "Sleep marks")
+        }
+    }
+
+    /// One line on what the block is, under its switch.
+    var detail: String {
+        switch self {
+        case .tonight:    return String(localized: "Your need plus the sleep debt. The suggested bedtime stays on Today.")
+        case .whySleep:   return String(localized: "Why this block was taken as your main sleep.")
+        case .bodyClock:  return String(localized: "Your rhythm's estimate against last night's bed and wake times.")
+        case .sleepMarks: return String(localized: "Manual marks: they do not change the detected sleep.")
+        }
+    }
+
+    /// Decode the stored list. Unknown tokens are dropped, duplicates collapsed; empty means all off.
+    static func decodeRestored(_ raw: String) -> Set<SleepRestoredBlock> {
+        Set(raw.split(separator: ",").compactMap {
+            SleepRestoredBlock(rawValue: $0.trimmingCharacters(in: .whitespaces))
+        })
+    }
+
+    /// Encode in the stable `allCases` order.
+    static func encodeRestored(_ blocks: Set<SleepRestoredBlock>) -> String {
+        allCases.filter { blocks.contains($0) }.map(\.rawValue).joined(separator: ",")
+    }
+}

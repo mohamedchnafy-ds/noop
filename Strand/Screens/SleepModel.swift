@@ -217,6 +217,10 @@ struct SleepModel {
     /// Recency-weighted sleep-debt estimate across the latest 14 usable nights, with
     /// raw per-night deltas for context. Computed once per data change.
     let sleepDebtLedger: SleepDebtLedger
+
+    /// Each night's stages by day key, for the stacked bars of « Your nights » (fork chantier 9). Read
+    /// once from the daily rows, like the series above.
+    let nightStageSplits: [String: SleepNightsData.Split]
 }
 
 /// Explicit inputs for `SleepModel.build(_:)` — a snapshot of the repository state the builder reads.
@@ -578,6 +582,7 @@ extension SleepModel {
             typicalRemMin: typicalStageMin(days: inputs.days, \.remMin),
             typicalLightMin: typicalStageMin(days: inputs.days, \.lightMin),
             trendPoints: durationTrendPoints(days: inputs.days),
-            sleepDebtLedger: debtLedger(days: inputs.days, napSleepMinByDay: napSleepMinByDay))
+            sleepDebtLedger: debtLedger(days: inputs.days, napSleepMinByDay: napSleepMinByDay),
+            nightStageSplits: SleepNightsData.nightStageSplits(days: inputs.days))
     }
 }

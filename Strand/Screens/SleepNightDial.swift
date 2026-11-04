@@ -1,21 +1,22 @@
 import SwiftUI
 import StrandDesign
 
-// MARK: - Night ring (personal fork, chantier 7 design A)
+// MARK: - Night ring (personal fork, chantier 7 design A; horseshoe since chantier 9)
 //
-// The Sleep tab's hero: a circular hypnogram. The whole night runs once round the ring, clockwise from
-// the bedtime (moon, right of the opening at the top) to the wake time (sun, left of it). Each stage
+// The Sleep tab's hero: a circular hypnogram shaped like a horseshoe, open at the bottom. The night runs
+// clockwise from the bedtime (moon, bottom left) up the left side, over the top and down to the wake time
+// (sun, bottom right), so it reads left to right like a watch; each time is written under its badge. Each stage
 // stretch is a rounded arc drawn on its own track, and the track's distance from the centre is the
 // stage's depth: awake on the outside, then REM, light, and deep nearest the score. Thin light lines join
 // one stretch to the next, so the night reads as one path diving in and out. Ticks outside the ring mark
-// each whole hour, and the bedtime and wake time are written by their badges. The score (or, without
+// each whole hour. The score (or, without
 // one, the time asleep) sits in the middle; a tap on a stage lights it alone and puts its total there.
 // Display only: every number arrives from the caller.
 
 /// Pure geometry for `SleepNightDial`, kept apart so it can be tested without drawing.
 enum SleepNightRingMath {
-    /// The opening at the top of the ring, in degrees, between the wake time and the bedtime.
-    static let gapDegrees: Double = 34
+    /// The opening at the bottom of the ring, in degrees, between the bedtime and the wake time.
+    static let gapDegrees: Double = 90
 
     /// One drawn stretch, in degrees clockwise from 12 o'clock.
     struct Arc: Equatable {
@@ -29,11 +30,13 @@ enum SleepNightRingMath {
         max(span, intervals.map(\.end).max() ?? 0)
     }
 
-    /// The ring angle of a moment `seconds` after the bedtime: the night fills the circle minus the gap.
+    /// The ring angle of a moment `seconds` after the bedtime: the night fills the circle minus the gap,
+    /// from just left of 6 o'clock (180° + half the gap) clockwise to just right of it. Angles past 360°
+    /// are kept as they are (the drawing only takes their sine and cosine), so a stretch never wraps.
     static func angle(seconds: TimeInterval, night: TimeInterval) -> Double {
-        guard night > 0 else { return gapDegrees / 2 }
+        guard night > 0 else { return 180 + gapDegrees / 2 }
         let t = min(max(seconds / night, 0), 1)
-        return gapDegrees / 2 + t * (360 - gapDegrees)
+        return 180 + gapDegrees / 2 + t * (360 - gapDegrees)
     }
 
     /// Every stretch of the night (awake included) as an arc, in time order.
@@ -105,9 +108,9 @@ struct SleepNightDial: View {
                 drawLinks(ctx, center: c, arcs: arcs)
                 for arc in arcs { stroke(ctx, arc, center: c) }
             }
-            marker("moon.fill", tint: StrandPalette.sleepStageColor(.deep, palette: palette),
+            marker("moon.fill", tint: StrandPalette.sleepBedtime,
                    at: SleepNightRingMath.angle(seconds: 0, night: night))
-            marker("sun.max.fill", tint: StrandPalette.sleepStageColor(.awake, palette: palette),
+            marker("sun.max.fill", tint: StrandPalette.sleepWake,
                    at: SleepNightRingMath.angle(seconds: night, night: night))
             center
         }
@@ -145,13 +148,15 @@ struct SleepNightDial: View {
         trackRadii[SleepNightRingMath.depth(stage)] * scale
     }
 
+    /// The four faint tracks, each a horseshoe from the bedtime to the wake time (open at the bottom).
     private func drawTracks(_ ctx: GraphicsContext, center c: CGPoint) {
+        let from = SleepNightRingMath.angle(seconds: 0, night: 1)
+        let to = SleepNightRingMath.angle(seconds: 1, night: 1)
         for stage in [SleepStage.awake, .rem, .light, .deep] {
-            let r = radius(stage)
-            ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+            ctx.stroke(arcPath(center: c, radius: radius(stage), from: from, to: to),
                        with: .color(StrandPalette.sleepStageColor(stage, palette: palette)
-                        .opacity(isLit(stage) ? 0.10 : 0.04)),
-                       lineWidth: lineWidth * scale)
+                        .opacity(isLit(stage) ? 0.14 : 0.05)),
+                       style: StrokeStyle(lineWidth: lineWidth * scale, lineCap: .round))
         }
     }
 
@@ -178,10 +183,10 @@ struct SleepNightDial: View {
         for (seconds, date) in [(TimeInterval(0), onset), (night, onset.addingTimeInterval(night))] {
             let a = SleepNightRingMath.angle(seconds: seconds, night: night)
             let text = ctx.resolve(Text(f.string(from: date))
-                .font(StrandFont.captionNumber.weight(.semibold)).foregroundColor(StrandPalette.textPrimary))
-            // Pushed away from the opening so the two times do not meet at the top.
-            let side: Double = seconds == 0 ? 16 : -16
-            ctx.draw(text, at: point(c, labelRadius, a + side), anchor: .center)
+                .font(StrandFont.rounded(17, weight: .bold)).foregroundColor(StrandPalette.textPrimary))
+            // Written right under its badge, so each time stays attached to its own end of the night.
+            let badge = point(c, trackRadii[0] * scale, a)
+            ctx.draw(text, at: CGPoint(x: badge.x, y: badge.y + 16 + 10 * scale), anchor: .top)
         }
     }
 
@@ -240,7 +245,7 @@ struct SleepNightDial: View {
         return CGPoint(x: c.x + r * CGFloat(sin(rad)), y: c.y - r * CGFloat(cos(rad)))
     }
 
-    /// The bedtime / wake-time badge, on the outer track at either side of the opening.
+    /// The bedtime / wake-time badge, on the outer track at either side of the opening at the bottom.
     private func marker(_ symbol: String, tint: Color, at degrees: Double) -> some View {
         let rad = degrees * .pi / 180
         let r = trackRadii[0] * scale
@@ -248,10 +253,10 @@ struct SleepNightDial: View {
             Circle().fill(StrandPalette.surfaceRaised)
             Circle().strokeBorder(tint, lineWidth: 2)
             Image(systemName: symbol)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(tint)
         }
-        .frame(width: 22, height: 22)
+        .frame(width: 28, height: 28)
         .offset(x: r * CGFloat(sin(rad)), y: -r * CGFloat(cos(rad)))
         .accessibilityHidden(true)
     }
@@ -274,8 +279,8 @@ struct SleepNightDial: View {
                 }
             } else if let score {
                 Text("Rest")
-                    .font(StrandFont.caption.weight(.semibold))
-                    .foregroundStyle(StrandPalette.restColor)
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(StrandPalette.restRing)
                 Text("\(Int(score.rounded()))")
                     .font(StrandFont.number(54, weight: .bold))
                     .foregroundStyle(StrandPalette.textPrimary)

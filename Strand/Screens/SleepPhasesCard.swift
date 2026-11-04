@@ -55,10 +55,75 @@ struct SleepPhasesCard: View {
     var addNap: (() -> Void)? = nil
     /// A reading shown on the chart before any touch, seconds from `nightStart` (the render test sets one).
     var initialReading: TimeInterval? = nil
+    /// The « Curves » view of the Sleep tab's night card (fork chantier 9): the curve switches, the lanes,
+    /// the usual night and the caveats, without a card, a header or the stage totals (the night card keeps
+    /// those above both of its views).
+    var embedded: Bool = false
+    /// Who opens the full-screen chart: the night card's header button when embedded; nil keeps the
+    /// card's own state and header button.
+    var fullScreen: Binding<Bool>? = nil
 
     @State private var showsFullScreen = false
 
+    private var fullScreenBinding: Binding<Bool> { fullScreen ?? $showsFullScreen }
+
     var body: some View {
+        if embedded {
+            embeddedBody
+                .sleepPhasesFullScreen(isPresented: fullScreenBinding) { fullScreenView }
+        } else {
+            cardBody
+        }
+    }
+
+    /// The curves view inside the night card: switches, lanes, the usual night, the caveats.
+    private var embeddedBody: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+            chips
+            if intervals.count >= 2 {
+                chart(laneHeight: 44, stripHeight: 84, bleed: NoopMetrics.cardPadding)
+            } else {
+                noStageData
+            }
+            usualNight
+            if let notes { notes }
+        }
+    }
+
+    /// The usual night under the curves once there are enough nights, the count toward it before.
+    @ViewBuilder
+    private var usualNight: some View {
+        if let typicalProgress {
+            ProgressNote(text: String(localized: "Comparison with your usual night from \(typicalProgress.needed) nights"),
+                         done: typicalProgress.count, total: typicalProgress.needed)
+        } else {
+            let usual = stages.compactMap { line in
+                line.typicalMinutes.map { "\(line.stage.label) \(SleepDurationText.format($0))" }
+            }
+            if !usual.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your usual night")
+                        .font(StrandFont.caption.weight(.semibold))
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    Text(usual.joined(separator: " · "))
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private var noStageData: some View {
+        Text("No stage data recorded for this night.")
+            .font(StrandFont.footnote)
+            .foregroundStyle(StrandPalette.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: 80)
+    }
+
+    private var cardBody: some View {
         NoopCard(tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                 header
@@ -66,10 +131,7 @@ struct SleepPhasesCard: View {
                 if intervals.count >= 2 {
                     chart(laneHeight: 56, stripHeight: 84, bleed: NoopMetrics.cardPadding)
                 } else {
-                    Text("No stage data recorded for this night.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 80)
+                    noStageData
                 }
                 stageGrid
                 if let typicalProgress {
@@ -87,7 +149,7 @@ struct SleepPhasesCard: View {
                 }
             }
         }
-        .sleepPhasesFullScreen(isPresented: $showsFullScreen) { fullScreenView }
+        .sleepPhasesFullScreen(isPresented: fullScreenBinding) { fullScreenView }
     }
 
     // MARK: Parts
@@ -116,7 +178,7 @@ struct SleepPhasesCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: NoopMetrics.space2)
-                Button { showsFullScreen = false } label: {
+                Button { fullScreenBinding.wrappedValue = false } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(StrandPalette.textPrimary)
@@ -176,7 +238,7 @@ struct SleepPhasesCard: View {
             }
             Spacer(minLength: NoopMetrics.space2)
             if intervals.count >= 2 {
-                Button { showsFullScreen = true } label: {
+                Button { fullScreenBinding.wrappedValue = true } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(StrandPalette.accent)

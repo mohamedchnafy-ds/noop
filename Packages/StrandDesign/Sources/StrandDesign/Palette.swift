@@ -232,15 +232,15 @@ public enum StrandPalette {
     /// The strain gradient (output / heat, or the Classic blue ramp).
     public static var strainGradient: Gradient { Gradient(stops: strainStops) }
 
-    // MARK: Sleep stages — the blue "Rest" colour world (Titanium); Classic adds a purple REM.
-    // Four distinct system hues, one per stage (fork chantier 7, design F): Deep indigo #5E5CE6, REM
-    // light blue #64D2FF, Light blue #0A84FF, Awake orange #FF9F0A. They differ in lightness as well
-    // as hue, so a fragmented hypnogram stays readable (the reason #988 moved off near-identical
-    // blues). Light-mode variants are Apple's light counterparts, darker for contrast on white.
-    public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#C93400", dark: "#FF9F0A") }
-    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#007AFF", dark: "#0A84FF") }
-    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#5856D6", dark: "#5E5CE6") }
-    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#0071A4", dark: "#64D2FF") }
+    // MARK: Sleep stages — the "violets" ramp (fork chantier 9, palette B); Classic keeps its own.
+    // One colour per stage everywhere (ring, curves, the stacked bars of "Your nights"): the deeper the
+    // stage, the darker the violet. Dark mode (the fork's canvas): Awake light grey #D1D1D6, REM lilac
+    // #C69CFF, Light periwinkle #8A87FF, Deep indigo #4E4BDB. Light mode keeps the same order with every
+    // band at 3:1 or more on white: #8E8E93, #9A5CE0, #5E5CE6, #3634A3.
+    public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#8E8E93", dark: "#D1D1D6") }
+    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#5E5CE6", dark: "#8A87FF") }
+    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#3634A3", dark: "#4E4BDB") }
+    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#9A5CE0", dark: "#C69CFF") }
 
     // MARK: HR zones — Titanium cool→warm (no green), or the Classic grey→green→yellow→orange→red.
     public static var zone1: Color { isClassic ? cZone1 : Color(light: "#3A80D6", dark: "#4A90E2") }
@@ -283,6 +283,11 @@ public enum StrandPalette {
     public static let stressModerate = Color(light: "#B28600", dark: "#FFD60A")
     public static let stressHigh = Color(light: "#D70015", dark: "#FF453A")
     public static let stressMoving = Color(light: "#C7C7CC", dark: "#48484A")
+    /// The Sleep tab's bedtime and wake time (fork chantier 9): the moon badge and « Bed » in indigo, the
+    /// sun badge and « Wake » in orange, the asleep total in the rest cyan. Labels, not data series, so they
+    /// stay apart from the stage violets.
+    public static let sleepBedtime = Color(light: "#5856D6", dark: "#5E5CE6")
+    public static let sleepWake = Color(light: "#C93400", dark: "#FF9F0A")
     /// Sleep debt (fork chantier 7, Apple indigo).
     public static let sleepDebt = Color(light: "#5856D6", dark: "#5E5CE6")
     /// Nutrition (fork chantier 7): the eaten ring in Apple green, then one distinct hue per macro —

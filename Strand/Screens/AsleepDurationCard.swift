@@ -69,7 +69,8 @@ struct AsleepDurationCard: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
                 if pts.count >= 2 {
-                    SleepNightsBars(slots: slots.map { $0.minutes }, needMinutes: nights.needMinutes)
+                    SleepNightsBars(bars: slots.map { SleepNightBar(day: $0.day, minutes: $0.minutes, split: nil) },
+                                    needMinutes: nights.needMinutes, plainColor: StrandPalette.restBright)
                         .frame(height: 132)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text("Hours asleep trend"))

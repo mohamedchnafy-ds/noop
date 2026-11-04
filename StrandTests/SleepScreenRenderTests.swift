@@ -8,7 +8,9 @@ import WhoopStore
 /// Renders the redesigned Sleep tab to PNG at iPhone width, in dark mode — the visual check against the
 /// mockups (canvas "NOOP – Écran Sommeil", direction A) before an .ipa is built (personal fork).
 ///
-/// The values are the night of Sat 31 Oct → Sun 1 Nov 2026 as the app showed it: asleep 01:51 → 06:04,
+/// Chantier 9: the night card (Ring | Curves) and Your nights in stacked bars, after the validated mock-up
+/// (claude.ai artifact THF28w9AQZ2tAvyBEKkcKe). The values are the night of Sat 31 Oct → Sun 1 Nov 2026 as
+/// the app showed it: asleep 01:51 → 06:04,
 /// 3h 41m asleep in 4h 12m in bed, score 66, deep 47m / REM 1h 07m / light 1h 48m / awake 31m, lowest
 /// heart rate 57 bpm, 17.8 breaths a minute, a 2h 23m debt against an 8 h need, one night recorded. The
 /// stage timeline and the curves are shaped after that night; the views, their layout and their tokens
@@ -86,49 +88,46 @@ final class SleepScreenRenderTests: XCTestCase {
 
     // MARK: Pieces
 
-    private func top(selected: SleepStage? = nil) -> SleepTopSection {
+    private func top(selected: SleepStage? = nil, view: SleepTopSection.NightView = .ring,
+                     curves: SleepPhasesCard? = nil) -> SleepTopSection {
         SleepTopSection(
             data: SleepTopSection.Model(
                 nightLabel: String(localized: "Last night"), dateLabel: "sam. 31 oct.",
-                canGoBack: false, canGoForward: false, onset: onset, wake: wake, intervals: intervals,
+                canGoBack: true, canGoForward: false, onset: onset, wake: wake, intervals: intervals,
                 palette: .noop, score: 66, scoreWord: String(localized: "Fair"), asleepMinutes: 221,
                 deepMinutes: 47, remMinutes: 67, lightMinutes: 108, needMinutes: 480,
-                timesEdited: false, canEditTimes: true, tonight: (needMinutes: 480, debtMinutes: 143),
+                timesEdited: false, canEditTimes: true,
                 awakeMinutes: 31, stagePercent: [.awake: 12, .rem: 27, .light: 43, .deep: 18]),
-            actions: SleepTopSection.Actions(alarms: {}, customize: {}, previous: {}, next: {}, editTimes: {},
-                                             addNap: {}),
+            actions: SleepTopSection.Actions(alarms: {}, previous: {}, next: {}, editTimes: {}),
             selection: .constant(selected),
-            whyRow: AnyView(HStack(spacing: 12) {
-                Image(systemName: "info.circle")
-                    .font(StrandFont.body.weight(.semibold))
-                    .foregroundStyle(StrandPalette.restBright)
-                    .frame(width: 24)
-                Text("Why this sleep?").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
-                Spacer(minLength: 0)
-            }.frame(minHeight: 48)))
+            curves: AnyView(curves ?? phases()),
+            canShowFullScreen: true,
+            initialView: view)
     }
 
     /// 03:54, the night's lowest heart rate: where the curves render tests hold their reading.
     private let readingMinute: Double = 123
 
     private func phases(hr: Bool = true, hrvOn: Bool = false, temp: Bool = false, motionOn: Bool = false,
-                        reading: Bool = false, selected: SleepStage? = nil) -> SleepPhasesCard {
+                        reading: Bool = false, selected: SleepStage? = nil, usual: Bool = false,
+                        embedded: Bool = true) -> SleepPhasesCard {
         SleepPhasesCard(
             subtitle: "\(String(localized: "\(SleepDurationText.format(252)) in bed · \(SleepDurationText.format(221)) asleep"))\n\(String(localized: "Stages estimated on the device"))",
             source: nil,
             intervals: intervals, nightStart: onset, palette: .noop,
             stages: [
-                .init(stage: .awake, minutes: 31, percent: 12, typicalMinutes: nil),
-                .init(stage: .rem, minutes: 67, percent: 27, typicalMinutes: nil),
-                .init(stage: .light, minutes: 108, percent: 43, typicalMinutes: nil),
-                .init(stage: .deep, minutes: 47, percent: 18, typicalMinutes: nil),
+                .init(stage: .awake, minutes: 31, percent: 12, typicalMinutes: usual ? 28 : nil),
+                .init(stage: .rem, minutes: 67, percent: 27, typicalMinutes: usual ? 92 : nil),
+                .init(stage: .light, minutes: 108, percent: 43, typicalMinutes: usual ? 214 : nil),
+                .init(stage: .deep, minutes: 47, percent: 18, typicalMinutes: usual ? 61 : nil),
             ],
-            typicalProgress: (count: 1, needed: 5),
+            typicalProgress: usual ? nil : (count: 1, needed: 5),
             curves: SleepPhasesCard.Curves(heartRate: heartRate, hrv: hrv, skinTemp: skinTemp, motion: motion),
             selectedStage: .constant(selected),
             showHeartRate: .constant(hr), showHRV: .constant(hrvOn),
             showSkinTemp: .constant(temp), showMotion: .constant(motionOn),
-            initialReading: reading ? readingMinute * 60 : nil)
+            initialReading: reading ? readingMinute * 60 : nil,
+            embedded: embedded)
     }
 
     private func indicators() -> SleepIndicatorsCard {
@@ -147,58 +146,86 @@ final class SleepScreenRenderTests: XCTestCase {
                                label: String(localized: "Lowest HR"), value: "57", unit: String(localized: "bpm"),
                                caption: String(localized: "at \(AppClock.hourMinuteFormatter().string(from: onset.addingTimeInterval(123 * 60)))"),
                                usual: nil),
-        ], regularity: .progress(done: 1, needed: 3))
+        ])
     }
 
-    private func nights() -> SleepNightsCard {
-        let day = SleepNightsData.dayKey(Calendar.current.startOfDay(for: wake).addingTimeInterval(12 * 3600))
-        return SleepNightsCard(data: SleepNightsData(
-            debtMinutes: 143, isDebt: true, needMinutes: 480, lastShortfallMinutes: 259,
-            recent: [.init(day: day, minutes: 221)], month: [.init(day: day, minutes: 221)]))
+    /// Fourteen nights ending on this one, shaped like the mock-up: each with its stages, one without.
+    private var nightsData: SleepNightsData {
+        let end = Calendar.current.startOfDay(for: wake).addingTimeInterval(12 * 3600)
+        var recent: [SleepNightsData.Night] = []
+        var splits: [String: SleepNightsData.Split] = [:]
+        for back in (0..<14).reversed() {
+            let day = SleepNightsData.dayKey(end.addingTimeInterval(TimeInterval(-back) * 86_400))
+            let k = Double((back * 37) % 11)
+            let deep = back == 0 ? 47 : 55 + (k * 7).truncatingRemainder(dividingBy: 35)
+            let rem = back == 0 ? 67 : 70 + (k * 13).truncatingRemainder(dividingBy: 45)
+            let light = back == 0 ? 107 : 200 + (k * 23).truncatingRemainder(dividingBy: 90)
+            recent.append(.init(day: day, minutes: deep + rem + light))
+            if back != 9 {
+                splits[day] = .init(deep: deep, rem: rem, light: light, awake: back == 0 ? 31 : 15 + k * 2)
+            }
+        }
+        return SleepNightsData(debtMinutes: 143, isDebt: true, needMinutes: 480, lastShortfallMinutes: 259,
+                               recent: recent, month: recent, splits: splits)
+    }
+
+    private func nights(picked: Bool = false) -> SleepNightsCard {
+        SleepNightsCard(data: nightsData, onOpenNight: { _ in },
+                        picked: picked ? nightsData.recent.last?.day : nil)
+    }
+
+    private var customize: some View {
+        LiquidFullWidthNavigationAction("Customize Sleep")
     }
 
     // MARK: Renders
 
     func testRendersTheSleepTab() throws {
-        // The first screen: the top section and the start of the stages card, cut at the iPhone height.
+        // The first screen: the night card on the ring, then the start of the indicators.
         try render(VStack(spacing: NoopMetrics.sectionSpacing) {
             top()
-            phases()
+            indicators()
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.top, 62), height: 844, clipped: true, name: "1-premier-ecran")
 
-        // The rest of the scroll.
+        // The rest of the scroll: indicators, Your nights, Customize Sleep.
         try render(VStack(spacing: NoopMetrics.sectionSpacing) {
-            phases()
             indicators()
             nights()
+            customize
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "2-suite")
 
-        // The curves, read at 03:54: heart rate + rMSSD over the lanes with the temperature below (canvas
-        // board PG), the temperature alone over the lanes (PG1), then rMSSD with temperature and movement.
+        // The night card on Curves, read at 03:54: heart rate + rMSSD over the lanes with the temperature
+        // below and the usual night; then the temperature alone, then rMSSD with temperature and movement.
         try render(VStack(spacing: NoopMetrics.sectionSpacing) {
-            phases(hr: true, hrvOn: true, temp: true, reading: true)
-            phases(hr: false, temp: true, reading: true)
-            phases(hr: false, hrvOn: true, temp: true, motionOn: true)
+            top(view: .curves, curves: phases(hr: true, hrvOn: true, temp: true, reading: true, usual: true))
+            top(view: .curves, curves: phases(hr: false, temp: true, reading: true))
+            top(view: .curves, curves: phases(hr: false, hrvOn: true, temp: true, motionOn: true))
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "3-courbes")
 
-        // One stage picked on the ring (deep sleep): lit alone on the ring and on the chart below, its
-        // total in the centre.
+        // One stage picked (deep sleep): lit alone on the ring, its total in the centre, and on the curves.
         try render(VStack(spacing: NoopMetrics.sectionSpacing) {
             top(selected: .deep)
-            phases(selected: .deep)
+            top(selected: .deep, view: .curves, curves: phases(selected: .deep))
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.top, 62), height: nil, clipped: false, name: "5-phase-choisie")
 
         // The chart full screen, heart rate + rMSSD + temperature.
-        try render(phases(hr: true, hrvOn: true, temp: true, reading: true).fullScreenView
+        try render(phases(hr: true, hrvOn: true, temp: true, reading: true, embedded: false).fullScreenView
             .padding(.top, 50), height: 844, clipped: true, name: "4-plein-ecran")
+
+        // Your nights with last night touched: its date, stages and awake time in the head, « See this night ».
+        try render(VStack(spacing: NoopMetrics.sectionSpacing) {
+            nights(picked: true)
+        }
+        .padding(.horizontal, NoopMetrics.screenHPadding)
+        .padding(.vertical, 24), height: nil, clipped: false, name: "6-vos-nuits-nuit-choisie")
     }
 
     private func render<V: View>(_ content: V, height: CGFloat?, clipped: Bool, name: String) throws {

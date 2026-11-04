@@ -4,6 +4,7 @@ import WhoopStore
 
 /// Today's order in a session (personal fork, Supersets et blocs): a block that has not begun moves
 /// whole, a block begun stays where it is, and finishing can carry the new order onto the program.
+@MainActor
 final class LiftSessionBlockOrderTests: XCTestCase {
 
     // Superset A (Bench, Triceps) · Squat · Superset B (Row, Curl)

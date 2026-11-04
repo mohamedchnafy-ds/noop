@@ -134,9 +134,14 @@ enum CoachChart {
     }
 
     /// What `show_chart` answers once the card is shown: the figures it draws, for the model to comment on.
-    static func shownResult(_ spec: CoachChartSpec, first: [CoachChartPoint], second: [CoachChartPoint]) -> String {
-        func line(_ name: String, _ points: [CoachChartPoint]) -> String {
-            guard let stats = stats(points.map(\.value)) else { return "\(name): no value in that period." }
+    /// Effort goes on the scale the card writes it on (`effortScale`, 0-100 or 0-21), so the reply and the
+    /// card under it cannot give two numbers for one day.
+    static func shownResult(_ spec: CoachChartSpec, first: [CoachChartPoint], second: [CoachChartPoint],
+                            effortScale: EffortScale = .hundred) -> String {
+        func line(_ name: String, _ points: [CoachChartPoint], _ id: String? = nil) -> String {
+            let isEffort = descriptor(id)?.key == "strain"
+            let values = points.map { isEffort ? UnitFormatter.effortValue($0.value, scale: effortScale) : $0.value }
+            guard let stats = stats(values) else { return "\(name): no value in that period." }
             return "\(name): \(points.count) values, mean \(number(stats.mean)), usual range "
                 + "\(number(stats.low))-\(number(stats.high)), lowest \(number(stats.lowest)), highest "
                 + "\(number(stats.highest)), last \(number(stats.last))."
@@ -148,16 +153,20 @@ enum CoachChart {
             return head + " " + line("\(what) on \(spec.day)", first)
         case .line, .bars, .pair:
             let period = "last \(spec.days ?? 30) days to \(spec.day)"
-            var text = head + " " + line("\(wireName(spec.metric)) (\(period))", first)
-            if spec.kind == .pair { text += " " + line(wireName(spec.second), second) }
+            var text = head + " " + line("\(wireName(spec.metric, effortScale: effortScale)) (\(period))",
+                                         first, spec.metric)
+            if spec.kind == .pair {
+                text += " " + line(wireName(spec.second, effortScale: effortScale), second, spec.second)
+            }
             return text
         }
     }
 
-    /// A metric as the model reads it: "Heart Rate Variability (ms)".
-    static func wireName(_ id: String?) -> String {
+    /// A metric as the model reads it: "Heart Rate Variability (ms)"; Effort with the scale the user reads it on.
+    static func wireName(_ id: String?, effortScale: EffortScale = .hundred) -> String {
         guard let descriptor = descriptor(id) else { return id ?? "?" }
-        return descriptor.unit.isEmpty ? descriptor.title : "\(descriptor.title) (\(descriptor.unit))"
+        let unit = descriptor.displayUnit(effortScale: effortScale)
+        return unit.isEmpty ? descriptor.title : "\(descriptor.title) (\(unit))"
     }
 
     /// A chart as a later turn reads it back: "[Chart shown: HRV, last 30 days to 2026-11-04]".

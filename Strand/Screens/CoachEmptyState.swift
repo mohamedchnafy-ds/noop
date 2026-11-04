@@ -97,13 +97,20 @@ struct CoachEmptyState: View {
 
 /// The six short questions above the composer of an empty conversation (fork chantier 9), wrapped rather
 /// than scrolled sideways (a sideways row fought the swipe between tabs). They go as soon as the
-/// conversation starts.
+/// conversation starts. Without photos (a provider other than Anthropic) the meal chip is left out: it
+/// would send « Analyze my meal from a photo » with no photo.
 struct CoachQuickPrompts: View {
+    let photosAvailable: Bool
     let onAsk: (String) -> Void
+
+    private var prompts: [CoachPrompts.QuickPrompt] {
+        photosAvailable ? CoachPrompts.quickPrompts
+            : CoachPrompts.quickPrompts.filter { $0.question != CoachPrompts.photoMealPrompt }
+    }
 
     var body: some View {
         CoachChipFlow(spacing: 8) {
-            ForEach(CoachPrompts.quickPrompts) { prompt in
+            ForEach(prompts) { prompt in
                 Button {
                     onAsk(prompt.question)
                 } label: {

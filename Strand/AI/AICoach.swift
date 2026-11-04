@@ -1336,7 +1336,10 @@ final class AICoachEngine: ObservableObject {
                         let points = await chartPoints(spec)
                         charts.append(spec)
                         if !consulted.contains(label) { consulted.append(label) }
-                        results.append((call.id, CoachChart.shownResult(spec, first: points.first, second: points.second), false))
+                        let scale = UnitPrefs.resolveEffortScale(
+                            UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? "")
+                        results.append((call.id, CoachChart.shownResult(spec, first: points.first, second: points.second,
+                                                                         effortScale: scale), false))
                         continue
                     }
                     // An action card (chantier 8): a nap, a correction, a fact to remember. Written on Confirm only.

@@ -21,6 +21,8 @@ struct NutritionBarcodeScanner: View {
     let onManual: () -> Void
     /// The label's photo went to the Coach: the scanner closes, then the Coach opens.
     let onLabelSent: () -> Void
+    /// Fork chantier 9: the moment of the day the product goes to (the "+" it was opened from); nil = by time.
+    var slot: MealSlot? = nil
 
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var coach: AICoachEngine
@@ -232,7 +234,7 @@ struct NutritionBarcodeScanner: View {
                                                     foodRef: BarcodeCatalog.productRef(product.barcode))
             let saved = try? await MealJournal.saveMealEntry(store, name: product.name, origin: .barcode,
                                                              eatenAt: NutritionMealEditor.defaultTime(on: day),
-                                                             lines: [line])
+                                                             slot: slot, lines: [line])
             if saved != nil {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 dismiss()

@@ -49,6 +49,9 @@ Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète d
   - Menu du Coach : repas normaux avec une étiquette « Coach » ; plus de section Prévu (décision du 4 nov.).
   - Carte « Bilan sanguin » : Plus → Santé → Carnet de labo, et réactivable dans Personnaliser (éteinte par défaut).
 
+- **5 · Entraînement (proposition du 4 nov.)** : https://claude.ai/artifact/Y7mFfZxPcVt32RzjohHTxW — écran 1 la page, écran 2 ce qui change.
+  - Ordre proposé : en-tête (Entraînement · avatar) ; Semaine | Mois, ‹ 2–8 nov. · 1 / 5 › ; bande des 7 jours (légende sur **une ligne** : muscu · cardio · ● fait ○ prévu) ; **une carte « Aujourd'hui »** (séance de muscu en grand : nom, durée, dernière fois, 2 lignes d'exercices, **charge à monter du jour**, Démarrer / Changer ; puis le cardio prévu en ligne avec son Démarrer) ; Progression compacte (4 compteurs, tap → écran Progression) ; Programmes (+ Planifier, Nouveau, Importer) ; Autres activités (Démarrer une activité, Intervalles, FC en direct, Tout l'historique, + **Démarrer la séance Bêta** venue d'Aujourd'hui = coaching silencieux du bracelet face à la Charge) ; Personnaliser.
+
 ## Code
 - **Navigation (PR #61, fusionnée le 4 nov., `main` 9652643)** :
   - `StrandiOS/App/RootTabView.swift` : onglets `TabTag` 0 Aujourd'hui · 1 Entraînement (`LiftLogView`) · 2 Nutrition (`NutritionView`) · 3 Sommeil · 4 Coach (dernier, retiré si le Coach est désactivé). Plus n'est plus un onglet : **feuille** `moreSheet` (chemin `morePath`), ligne « Profil et réglages » (→ Paramètres) puis `MoreHubGroup.sheetGroups` (Santé et récupération, Analyses, Données, Réglages). **Tendances** = `MoreDestination.trends`, première ligne d'Analyses ; `router.openTrends()` ouvre la feuille dessus.

@@ -46,12 +46,18 @@ struct NutritionMealEditor: View {
     var onDictate: (() -> Void)? = nil
     /// Called with the meal as saved (the Coach's card records that it is in the journal).
     var onSaved: ((MealEntry) -> Void)? = nil
+    /// Fork chantier 9: the moment the "+" of a moment opened the editor for; nil = the meal's own, else
+    /// the one its time falls in.
+    var initialSlot: MealSlot? = nil
 
     @EnvironmentObject private var repo: Repository
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
     @State private var eatenAt: Date
+    /// The moment of the day the meal goes to, and whether it was chosen (else it follows the time).
+    @State private var slot: MealSlot
+    @State private var slotChosen: Bool
     @State private var favorite: Bool
     @State private var proteinText: String
     @State private var carbsText: String
@@ -70,17 +76,22 @@ struct NutritionMealEditor: View {
     @FocusState private var focused: Bool
 
     init(target: NutritionEditorTarget, day: Date, onBarcode: (() -> Void)? = nil,
-         onPhoto: (() -> Void)? = nil, onDictate: (() -> Void)? = nil, onSaved: ((MealEntry) -> Void)? = nil) {
+         onPhoto: (() -> Void)? = nil, onDictate: (() -> Void)? = nil, onSaved: ((MealEntry) -> Void)? = nil,
+         initialSlot: MealSlot? = nil) {
         self.target = target
         self.day = day
         self.onBarcode = onBarcode
         self.onPhoto = onPhoto
         self.onDictate = onDictate
         self.onSaved = onSaved
+        self.initialSlot = initialSlot
         switch target {
         case .add:
+            let when = Self.defaultTime(on: day)
             _name = State(initialValue: "")
-            _eatenAt = State(initialValue: Self.defaultTime(on: day))
+            _eatenAt = State(initialValue: when)
+            _slot = State(initialValue: initialSlot ?? MealJournal.mealSlotForTime(when))
+            _slotChosen = State(initialValue: initialSlot != nil)
             _favorite = State(initialValue: false)
             _proteinText = State(initialValue: "")
             _carbsText = State(initialValue: "")
@@ -92,6 +103,8 @@ struct NutritionMealEditor: View {
         case .edit(let entry), .draft(let entry):
             _name = State(initialValue: entry.meal.name)
             _eatenAt = State(initialValue: Date(timeIntervalSince1970: TimeInterval(entry.meal.eatenAt)))
+            _slot = State(initialValue: initialSlot ?? entry.mealSlot)
+            _slotChosen = State(initialValue: initialSlot != nil || entry.meal.slot != nil)
             _favorite = State(initialValue: entry.meal.favorite)
             let typed = Self.isTypedByHand(entry)
             let line = entry.items.first
@@ -367,6 +380,7 @@ struct NutritionMealEditor: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text(favorite ? "Remove from favorites" : "Keep in favorites"))
                 }
+                slotPicker
                 if isWeighed {
                     weighedLinesSection
                 } else {
@@ -378,6 +392,39 @@ struct NutritionMealEditor: View {
             .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(StrandPalette.hairline, lineWidth: NoopMetrics.hairlineWidth))
+        }
+    }
+
+    /// The four moments of the day, two by two; the one the meal goes to is white. Until one is tapped,
+    /// it follows the meal time (`MealJournal.mealSlotForTime`).
+    private var slotPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Moment")
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(MealSlot.allCases, id: \.self) { item in
+                    Button {
+                        slot = item
+                        slotChosen = true
+                    } label: {
+                        Text(verbatim: NutritionSlot.slotTitle(item))
+                            .font(StrandFont.subhead.weight(.semibold))
+                            .foregroundStyle(item == slot ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .background(Capsule().fill(item == slot ? StrandPalette.textPrimary : StrandPalette.surfaceBase))
+                            .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: NoopMetrics.hairlineWidth))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(item == slot ? .isSelected : [])
+                }
+            }
+        }
+        .onChange(of: eatenAt) { when in
+            if !slotChosen { slot = MealJournal.mealSlotForTime(when) }
         }
     }
 
@@ -574,12 +621,13 @@ struct NutritionMealEditor: View {
         let id = existingId
         let when = eatenAt
         let favorite = favorite
+        let slot = slot
         Task {
             defer { saving = false }
             guard let store = await repo.storeHandle() else { return }
             do {
                 let saved = try await MealJournal.saveMealEntry(store, id: id, name: name, origin: origin, eatenAt: when,
-                                                                favorite: favorite, lines: lines)
+                                                                favorite: favorite, slot: slot, lines: lines)
                 onSaved?(saved)
                 dismiss()
             } catch {
@@ -591,10 +639,11 @@ struct NutritionMealEditor: View {
     private func addAgain(_ entry: MealEntry) {
         saving = true
         let when = Self.defaultTime(on: day)
+        let slot = slotChosen ? slot : MealJournal.mealSlotForTime(when)
         Task {
             defer { saving = false }
             guard let store = await repo.storeHandle() else { return }
-            if (try? await MealJournal.addMealAgain(store, entry, eatenAt: when)) != nil { dismiss() }
+            if (try? await MealJournal.addMealAgain(store, entry, eatenAt: when, slot: slot)) != nil { dismiss() }
         }
     }
 

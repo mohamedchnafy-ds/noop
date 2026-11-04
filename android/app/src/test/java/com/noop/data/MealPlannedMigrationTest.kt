@@ -9,7 +9,7 @@ import org.junit.Test
  * twin of the Swift WhoopStore `v52-meal-planned` GRDB migration. The column's shape is compared to
  * `schema_oracle.json` by `SchemaOracleTest`, and the chain is opened for real by `WhoopDatabaseUpgradeTest`.
  *
- * Swift twin: `MealLogStoreTests.testAPlannedMealIsKeptApartAndCanBeMarkedEaten`.
+ * Swift twin: `MealLogStoreTests.testAPlannedMealKeepsItsFlagAndIsNotOfferedAgain`.
  */
 class MealPlannedMigrationTest {
 

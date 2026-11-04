@@ -129,7 +129,8 @@ extension AICoachEngine {
                 CoachTools.MealDay(day: key, meals: (byDay[key] ?? []).map { entry in
                     CoachTools.MealDay.Meal(
                         time: Self.toolClockFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(entry.meal.eatenAt))),
-                        name: entry.meal.name, nutrients: entry.mealTotals)
+                        name: entry.meal.name, nutrients: entry.mealTotals, slot: entry.mealSlot.rawValue,
+                        fromCoachMenu: entry.isCoachMenuMeal)
                 })
             }
             return CoachTools.meals(mealDays, from: from, to: to)

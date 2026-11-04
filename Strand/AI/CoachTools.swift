@@ -600,6 +600,10 @@ enum CoachTools {
             var time: String
             var name: String
             var nutrients: MealNutrients
+            /// Fork chantier 9: the moment of the day it is filed in (`MealSlot` raw value).
+            var slot: String? = nil
+            /// A meal of a menu the Coach proposed (still in the journal: maybe not eaten).
+            var fromCoachMenu: Bool = false
         }
         var day: String
         var meals: [Meal]
@@ -621,7 +625,9 @@ enum CoachTools {
             let total = MealMath.totals(day.meals.map(\.nutrients))
             lines.append("\(day.day): \(values(total)) · \(day.meals.count) meal\(day.meals.count == 1 ? "" : "s")")
             for meal in day.meals {
-                lines.append("  \(meal.time) \(meal.name): \(values(meal.nutrients))")
+                var label = "  \(meal.time)" + (meal.slot.map { " \($0)" } ?? "") + " \(meal.name)"
+                if meal.fromCoachMenu { label += " (from your menu)" }
+                lines.append(label + ": " + values(meal.nutrients))
             }
         }
         return lines.joined(separator: "\n")

@@ -35,12 +35,6 @@ enum NutritionDayReader {
         return (try? await MealJournal.mealJournalDay(store, day: dayKey)) ?? []
     }
 
-    /// The meals planned for `dayKey` (a menu, not eaten yet); empty when the store is not open.
-    static func plannedOfDay(_ repo: Repository, dayKey: String) async -> [MealEntry] {
-        guard let store = await repo.storeHandle() else { return [] }
-        return (try? await MealJournal.plannedMealsOfDay(store, day: dayKey)) ?? []
-    }
-
     /// The strap's heart rate of the calendar day `day` falls on, over the window Today reads a day's
     /// calories over (`TodayEnergy.heartRateWindow`: from that day's sleep onset when the day cycle
     /// follows sleep, else midnight, up to the next onset, the next midnight, or now for today).

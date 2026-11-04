@@ -11,7 +11,8 @@ import WhoopStore
 // - four keys per day, the names the CSV import uses: calories_in (whole kcal), protein_g, carbs_g, fat_g
 //   (one decimal), the day's lines added by `MealMath.totals`, exactly the figures the day page shows;
 // - a day with no meal has NO row (a hole, never 0): a day emptied of its last meal loses its rows;
-// - only EATEN meals count: a planned meal (a menu) adds nothing until it is marked eaten;
+// - every meal of the journal counts (fork chantier 9: the menus planned in chantier 8 count too, as
+//   Coach meals);
 // - the series is rebuilt from the journal, so it always says what the journal says (after every write,
 //   and once after an update that brings the series in, for the meals written before it).
 
@@ -23,8 +24,9 @@ enum NutritionSeries {
     /// The four keys, in the order a day's points are written.
     static let nutritionKeys = ["calories_in", "protein_g", "carbs_g", "fat_g"]
 
-    /// Set once the series has been rebuilt from the whole journal on this install.
-    static let backfillKey = "nutrition.seriesBackfilled.v1"
+    /// Set once the series has been rebuilt from the whole journal on this install (v2, fork chantier 9:
+    /// rebuilt once more so the menus planned in chantier 8 count).
+    static let backfillKey = "nutrition.seriesBackfilled.v2"
 
     /// The points of every day that has at least one meal, by day then in `nutritionKeys` order. Each day's
     /// lines are added in the order given (meals as eaten, then their lines), as `NutritionDaySummary.eaten`.

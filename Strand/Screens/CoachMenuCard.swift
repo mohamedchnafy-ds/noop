@@ -3,9 +3,9 @@ import StrandDesign
 import WhoopStore
 
 /// The menu the Coach proposes for a day (personal fork, chantier 8, lot 3), on the meal card's template:
-/// one row per meal (time, name, energy), the day's total in a boxed row, then "Add as planned"; once added,
-/// "Planned in your journal" with "Undo". The meals go to the journal as planned, greyed and counted nowhere
-/// until marked eaten. Every figure comes from the card's lines (Ciqual values for 100 g × the quantity).
+/// one row per meal (time, name, energy), the day's total in a boxed row, then "Add to journal"; once added,
+/// "In your journal" with "Undo". Fork chantier 9: the meals go to the journal as normal meals labelled
+/// Coach, counted at once. Every figure comes from the card's lines (Ciqual values for 100 g × the quantity).
 struct CoachMenuCard: View {
     let proposal: CoachMenuProposal
     /// Running an action (the journal write): the buttons wait.
@@ -96,7 +96,7 @@ struct CoachMenuCard: View {
     private var actions: some View {
         HStack(spacing: 8) {
             if proposal.isAdded {
-                Label("Planned in your journal", systemImage: "checkmark")
+                Label("In your journal", systemImage: "checkmark")
                     .font(StrandFont.subhead.weight(.semibold))
                     .foregroundStyle(StrandPalette.accent)
                     .frame(maxWidth: .infinity, minHeight: 44)
@@ -104,7 +104,7 @@ struct CoachMenuCard: View {
                     .disabled(busy)
                     .fixedSize(horizontal: true, vertical: false)
             } else {
-                NoopButton("Add as planned", systemImage: "calendar.badge.plus", kind: .primary, fullWidth: true,
+                NoopButton("Add to journal", systemImage: "plus", kind: .primary, fullWidth: true,
                            action: onAdd)
                     .disabled(busy)
             }

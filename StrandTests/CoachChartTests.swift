@@ -96,6 +96,59 @@ final class CoachChartTests: XCTestCase {
         XCTAssertEqual(CoachChartText.name(sleep), sleep?.title)
     }
 
+    /// PR C: the sleep stages and the macros are stacked bars, by ids of their own; a line refuses them and
+    /// a stacked chart refuses a catalogue id.
+    func testAStackedChartTakesTheStagesOrTheMacros() {
+        let stages = parse(["kind": "stacked", "metric": "sleep:stages", "days": 14]).spec
+        XCTAssertEqual(stages, CoachChartSpec(kind: .stacked, metric: "sleep:stages", days: 14, day: "2026-11-04"))
+        XCTAssertEqual(parse(["kind": "stacked", "metric": "nutrition:macros", "days": 7]).spec?.metric,
+                       "nutrition:macros")
+        XCTAssertNil(parse(["kind": "stacked", "metric": "my-whoop:hrv"]).spec)
+        XCTAssertNil(parse(["kind": "line", "metric": "sleep:stages"]).spec)
+        XCTAssertTrue(CoachChart.seriesIds.contains("sleep:stages"))
+        XCTAssertTrue(CoachChart.seriesIds.contains("nutrition:macros"))
+        XCTAssertFalse(CoachChart.metricIds.contains("sleep:stages"), "the catalogue ids stay the catalogue's")
+    }
+
+    func testTheModelReadsTheStackPartByPart() {
+        let spec = CoachChartSpec(kind: .stacked, metric: "nutrition:macros", days: 7, day: "2026-11-04")
+        let base = Date(timeIntervalSince1970: 0)
+        let points = [CoachChartPoint(date: base, value: 470, parts: [150, 250, 70]),
+                      CoachChartPoint(date: base + 86_400, value: 430, parts: [130, 230, 70])]
+        let result = CoachChart.shownResult(spec, first: points, second: [])
+        XCTAssertTrue(result.contains("2 days logged; mean protein 140, carbs 240, fat 70."), result)
+        XCTAssertTrue(CoachChart.wireText(spec).hasPrefix("[Chart shown: Macros"))
+    }
+
+    /// `get_series` reads through the charts' reader: a catalogue id is a line, a stack a stacked chart;
+    /// the days go one by one up to the limit, then by 7-day blocks.
+    func testGetSeriesReadsDayByDayThenByBlocks() {
+        XCTAssertEqual(CoachTools.seriesSpec(["metric": "my-whoop:hrv", "days": 10], today: "2026-11-04"),
+                       CoachChartSpec(kind: .line, metric: "my-whoop:hrv", days: 10, day: "2026-11-04"))
+        XCTAssertEqual(CoachTools.seriesSpec(["metric": "sleep:stages", "days": 400], today: "2026-11-04")?.kind,
+                       .stacked)
+        XCTAssertEqual(CoachTools.seriesSpec(["metric": "sleep:stages", "days": 400], today: "2026-11-04")?.days, 365)
+        XCTAssertNil(CoachTools.seriesSpec(["metric": "my-whoop:nope", "days": 10], today: "2026-11-04"))
+
+        let day = { (key: String) in CoachChart.dayDate(key, calendar: self.calendar)! }
+        let short = CoachChartSpec(kind: .line, metric: "my-whoop:hrv", days: 3, day: "2026-11-04")
+        let text = CoachTools.seriesResult(short, points: [CoachChartPoint(date: day("2026-11-02"), value: 41),
+                                                           CoachChartPoint(date: day("2026-11-04"), value: 45)],
+                                           calendar: calendar)
+        XCTAssertTrue(text.contains("2 of 3 days with a value; mean 43"), text)
+        XCTAssertTrue(text.contains("2026-11-02: 41\n2026-11-04: 45"), text)
+
+        let long = CoachChartSpec(kind: .stacked, metric: "sleep:stages", days: 100, day: "2026-11-04")
+        let blocks = CoachTools.seriesResult(long, points: [CoachChartPoint(date: day("2026-11-03"), value: 420,
+                                                                            parts: [80, 100, 240]),
+                                                            CoachChartPoint(date: day("2026-11-04"), value: 400,
+                                                                            parts: [60, 100, 240])],
+                                             calendar: calendar)
+        XCTAssertTrue(blocks.contains("By 7-day blocks"), blocks)
+        XCTAssertTrue(blocks.contains("(2 days): deep 70, REM 100, light 240"), blocks)
+        XCTAssertTrue(CoachTools.seriesResult(short, points: [], calendar: calendar).contains("no value"))
+    }
+
     func testTheChartsAreStoredWithTheReply() throws {
         let spec = CoachChartSpec(kind: .day, day: "2026-11-03", series: .stress)
         let text = CoachReplyMeta.join(body: "Calme.", meta: CoachReplyMeta(charts: [spec]))

@@ -19,6 +19,19 @@ final class LiftProgressionTests: XCTestCase {
                      restSec: 90, targetRepsLow: low, targetRepsHigh: high, targetRpe: rpe)
     }
 
+    /// Fork chantier 9: a step up earned puts the raised weight in last session's grey numbers, reps
+    /// unchanged; a set with no weight and an exercise with no suggestion are left as they were.
+    func testRaisedLastSessionCarriesTheRaisedWeight() {
+        let bySet: [Int: LiftSetCarry] = [1: LiftSetCarry(weightKg: 60, reps: 12),
+                                          2: LiftSetCarry(weightKg: 60, reps: 12),
+                                          3: LiftSetCarry(weightKg: nil, reps: 10)]
+        let raised = LiftProgression.raisedLastSession(bySet, suggestion: .init(fromKg: 60, toKg: 62.5))
+        XCTAssertEqual(raised[1], LiftSetCarry(weightKg: 62.5, reps: 12))
+        XCTAssertEqual(raised[2], LiftSetCarry(weightKg: 62.5, reps: 12))
+        XCTAssertEqual(raised[3], LiftSetCarry(weightKg: nil, reps: 10))
+        XCTAssertEqual(LiftProgression.raisedLastSession(bySet, suggestion: nil), bySet)
+    }
+
     func testEverySetAtTheTopOfTheRangeUnderTheRpeCapEarnsAStep() {
         let last = [set(0, kg: 40, reps: 8, warmup: true), set(1, kg: 60, reps: 12, rpe: 7.5),
                     set(2, kg: 60, reps: 12, rpe: 8), set(3, kg: 60, reps: 13)]

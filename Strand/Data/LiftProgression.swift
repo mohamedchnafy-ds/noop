@@ -45,4 +45,16 @@ enum LiftProgression {
         guard let fromKg = weight else { return nil }
         return Suggestion(fromKg: fromKg, toKg: fromKg + stepKg)
     }
+
+    /// Last session's grey numbers for an exercise once it has earned a step up (fork chantier 9): every
+    /// set at the raised weight, its reps unchanged; without a suggestion, unchanged. What the Training
+    /// day card announces (« 60 → 62.5 kg today ») is then what the session proposes in grey — still a
+    /// proposal, saved only when the set is typed or the session's unfinished sets are completed.
+    static func raisedLastSession(_ bySet: [Int: LiftSetCarry], suggestion: Suggestion?) -> [Int: LiftSetCarry] {
+        guard let suggestion else { return bySet }
+        return bySet.mapValues { carry in
+            guard carry.weightKg != nil else { return carry }
+            return LiftSetCarry(weightKg: suggestion.toKg, reps: carry.reps)
+        }
+    }
 }

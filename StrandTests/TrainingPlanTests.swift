@@ -272,4 +272,50 @@ final class TrainingPlanTests: XCTestCase {
             TrainingBlockPreview(text: "B1 Développé couché · B2 Fentes", sets: 3),
         ])
     }
+
+    // MARK: - Day card (fork chantier 9)
+
+    /// The loads to raise in a program: one per exercise, from its first line, by the session's rule.
+    func testProgramRaisesJudgeEachExerciseOnceByItsFirstLine() {
+        func line(_ ord: Int, _ name: String, sets: Int, high: Int) -> LiftProgramItemRow {
+            LiftProgramItemRow(id: "\(ord)", deviceId: "d", programId: "B", ord: ord, exercise: name,
+                               targetSets: sets, targetRepsLow: 8, targetRepsHigh: high, targetRpe: nil,
+                               targetWeightKg: nil, restSec: 90, note: nil, supersetGroup: nil)
+        }
+        func sets(_ name: String, kg: Double, reps: [Int]) -> [LiftSetRow] {
+            reps.enumerated().map { index, count in
+                LiftSetRow(id: "\(name)\(index)", deviceId: "d", sessionId: "s", ord: index, exercise: name,
+                           primaryMuscle: nil, secondaryMuscles: [], setIndex: index + 1, weightKg: kg, reps: count,
+                           rpe: nil, isWarmup: false, startTs: nil, endTs: nil, restSec: nil, note: nil)
+            }
+        }
+        // Listed out of order; Leg curl twice (the second line asks for 15 reps, and is not the one judged).
+        let items = [line(2, "Leg curl", sets: 2, high: 15), line(0, "Leg curl", sets: 3, high: 10),
+                     line(1, "Squat", sets: 3, high: 10), line(3, "Pompes", sets: 3, high: 10)]
+        let last: [String: [LiftSetRow]] = [
+            "Leg curl": sets("Leg curl", kg: 60, reps: [10, 10, 11]),
+            "Squat": sets("Squat", kg: 80, reps: [10, 9, 10]),          // one set short: holds
+        ]
+        let raises = TrainingDays.programRaises(items: items, lastSets: { last[$0] }, stepKg: 2.5)
+        XCTAssertEqual(raises, [TrainingRaise(exercise: "Leg curl", fromKg: 60, toKg: 62.5)])
+    }
+
+    /// « All history »: the last day with something done, its kinds once each.
+    func testLatestDoneIsTheLastDayWithSomethingDone() {
+        XCTAssertNil(TrainingDays.latestDone(lifts: [], activities: [], calendar: calendar))
+        let lifts = [TrainingLiftDone(sessionId: "s1", programId: "A", name: "Full body A", startTs: ts(2, 18),
+                                      endTs: ts(2, 19), workingSets: 20, effort: nil),
+                     TrainingLiftDone(sessionId: "s0", programId: "B", name: "Full body B", startTs: ts(30, 18, month: 10),
+                                      endTs: ts(30, 19, month: 10), workingSets: 18, effort: nil)]
+        let activities = [TrainingActivityDone(sport: "Running", source: "recorded", startTs: ts(2, 7),
+                                               endTs: ts(2, 8), kcal: nil),
+                          TrainingActivityDone(sport: "running", source: "detected", startTs: ts(2, 20),
+                                               endTs: ts(2, 21), kcal: nil),
+                          TrainingActivityDone(sport: "Walking", source: "detected", startTs: ts(1, 10),
+                                               endTs: ts(1, 11), kcal: nil)]
+        XCTAssertEqual(TrainingDays.latestDone(lifts: lifts, activities: activities, calendar: calendar),
+                       TrainingLatestDone(hasLift: true, sports: ["Running"], startTs: ts(2, 20)))
+        XCTAssertEqual(TrainingDays.latestDone(lifts: [], activities: Array(activities.suffix(1)), calendar: calendar),
+                       TrainingLatestDone(hasLift: false, sports: ["Walking"], startTs: ts(1, 10)))
+    }
 }

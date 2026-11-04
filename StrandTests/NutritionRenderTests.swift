@@ -62,12 +62,13 @@ final class NutritionRenderTests: XCTestCase {
         // Fork chantier 9, mockup 4: the page by moment — search field, compact card, the four moments
         // (breakfast unfolded), the week; then an empty day.
         let groups = NutritionSlots.groupMealsBySlot(day.meals)
+        let goalKcal = plan.intakeKcal
         func slots(_ groups: [NutritionSlotGroup], unfolded: Set<MealSlot>) -> some View {
             VStack(spacing: 12) {
                 ForEach(groups) { group in
                     let open = unfolded.contains(group.slot) && group.hasMeals
                     VStack(spacing: 0) {
-                        NutritionSlotHeader(group: group, goalKcal: plan.intakeKcal, expanded: open,
+                        NutritionSlotHeader(group: group, goalKcal: goalKcal, expanded: open,
                                             onToggle: {}, onAdd: {})
                         if open {
                             ForEach(Array(group.meals.enumerated()), id: \.element.meal.id) { index, entry in
@@ -109,7 +110,7 @@ final class NutritionRenderTests: XCTestCase {
         try render(AnyView(emptyJournal), name: "2-journal-vide")
 
         // The add sheet's parts: the moment chips, the four other ways in, a search result, the portion.
-        let rice = NutritionFoodHit(name: "Riz blanc, cuit", per100: MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7),
+        let riceHit = NutritionFoodHit(name: "Riz blanc, cuit", per100: MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7),
                                     foodRef: "ciqual:9104", source: .ciqual, lastGrams: nil)
         let skyrHit = NutritionFoodHit(name: "Skyr nature", per100: MealPer100(kcal: 63, proteinG: 11, carbsG: 4, fatG: 0.2),
                                        foodRef: "ean:3033490004743", source: .journal, lastGrams: 150)
@@ -119,7 +120,7 @@ final class NutritionRenderTests: XCTestCase {
             VStack(spacing: 0) {
                 NutritionFoodHitRow(hit: skyrHit, onPick: {})
                 NutritionHairline()
-                NutritionFoodHitRow(hit: rice, onPick: {})
+                NutritionFoodHitRow(hit: riceHit, onPick: {})
             }
             .padding(.horizontal, 14)
             .background(StrandPalette.surfaceBase, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

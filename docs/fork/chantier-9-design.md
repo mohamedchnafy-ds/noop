@@ -2,7 +2,7 @@
 
 But : que l'utilisateur ne soit pas perdu et voie l'information utile **au premier regard**. Moins de défilement pour trouver ce qui sert ; ce qui sert peu, ou dont on ne comprend pas le calcul, est rangé un niveau plus bas (accessible, mais pas sur l'écran principal).
 
-Méthode (choix de Mohamed) : **une section à la fois** — maquette (artefact claude.ai) → discussion → validation → code → section suivante. État des lieux : captures du téléphone envoyées par Mohamed au fil des sections + rendus PNG de la CI (release `render-render-chantier-8`, 59 images ; ni Coach complet, ni écrans de Plus en détail, ni contrôles natifs).
+Méthode (choix de Mohamed, revue le 4 nov.) : **d'abord la maquette complète de l'app**, section par section (artefact claude.ai par section → discussion → validation), **puis le code**, section par section, dans l'ordre ci-dessous. Exception : la navigation (section 1) est déjà codée (PR #61) ; elle sert de cadre aux autres maquettes. Au départ : une section à la fois, du design au code. État des lieux : captures du téléphone envoyées par Mohamed au fil des sections + rendus PNG de la CI (release `render-render-chantier-8`, 59 images ; ni Coach complet, ni écrans de Plus en détail, ni contrôles natifs).
 
 ## Décisions (4 nov.)
 - **Barre d'onglets** : 5 onglets **Aujourd'hui · Entraînement · Nutrition · Sommeil · Coach**. **Plus** devient un bouton rond en verre **en haut à droite** de chaque écran (comme le profil de Santé / Fitness / App Store). iOS n'affiche que 5 onglets. L'onglet **Tendances** actuel (`TrendsView`, tag 1) quitte la barre : sa place (Plus → Analyses, ou Aujourd'hui) se décide dans la maquette de navigation.
@@ -11,6 +11,11 @@ Méthode (choix de Mohamed) : **une section à la fois** — maquette (artefact 
 - **Sommeil** : sur l'anneau, le coucher est aujourd'hui à droite et le réveil à gauche (sens horaire depuis le haut). À inverser (coucher à gauche, réveil à droite) ; la façon (sens de l'anneau ou ouverture en bas) se décide dans la maquette du Sommeil. Les deux libellés doivent rester attachés à leur vraie extrémité de la nuit.
 
 - **Navigation, validée (4 nov.)** : bouton = **photo de profil** (l'avatar des Réglages) en haut à droite de chaque onglet ; Plus s'ouvre **en feuille** (OK ou glisser vers le bas, retour au même endroit) ; en-tête d'Aujourd'hui = **batterie · + · avatar** (« Personnaliser » descend en bas de l'écran, à côté des « Modifier ») ; **Tendances → Plus → Analyses** (première ligne).
+
+## Questions ouvertes (à poser au début de la prochaine conversation)
+- Fusionner la PR #61 (navigation, verte) maintenant, ou la garder ouverte jusqu'au code d'Aujourd'hui ?
+- Ordre d'Aujourd'hui : anneaux → Synthèse → carte FC → carte Stress → Métriques ?
+- Les blocs de « Ce qui quitte la page » (maquette Aujourd'hui, écran 2) : déplacés, ou masqués et réactivables dans « Personnaliser » ?
 
 ## Ordre proposé des sections
 1. Navigation (barre d'onglets, bouton Plus, place de Tendances)

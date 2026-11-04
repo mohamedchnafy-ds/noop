@@ -6,8 +6,8 @@ import StrandDesign
 import WhoopStore
 
 /// Renders the Training screen's parts to PNG at iPhone width, in dark mode — the visual check against
-/// the « NOOP – Entraînement et Plus » mockup (artboards 2, 3 and 4) before an .ipa is built (personal
-/// fork). Sample week: Full body A / B / C planned Monday, Wednesday and Friday; today is Monday 2
+/// the « NOOP – Entraînement et Plus » mockup (artboards 2, 3 and 4), then (fork chantier 9) the
+/// « Entraînement proposé » mockup, before an .ipa is built (personal fork). Sample week: Full body A / B / C planned Monday, Wednesday and Friday; today is Monday 2
 /// November 2026; on Sunday 1 November Full body B was done and a walk was detected. The screen's own
 /// scroll view and navigation are not drawn; its parts are, in order. PNGs are written only when
 /// `NOOP_RENDER_DIR` is set.
@@ -40,8 +40,10 @@ final class TrainingRenderTests: XCTestCase {
         let b = a.map { item -> LiftProgramItemRow in var copy = item; copy.programId = "B"; return copy }
         let c = a.map { item -> LiftProgramItemRow in var copy = item; copy.programId = "C"; return copy }
         let done = (startTs: ts(26, 18, month: 10), endTs: ts(26, 18, 55, month: 10))
+        var first = TrainingDays.programSummary(id: "A", name: "Full body A", items: a, finished: [done])
+        first.raises = [TrainingRaise(exercise: "Curl incliné", fromKg: 14, toKg: 16.5)]
         return [
-            TrainingDays.programSummary(id: "A", name: "Full body A", items: a, finished: [done]),
+            first,
             TrainingDays.programSummary(id: "B", name: "Full body B", items: Array(b.prefix(9)),
                                         finished: [(startTs: ts(1, 14, 5), endTs: ts(1, 14, 57))]),
             TrainingDays.programSummary(id: "C", name: "Full body C", items: c, finished: []),
@@ -73,45 +75,74 @@ final class TrainingRenderTests: XCTestCase {
         TrainingHeader(mode: .constant(mode), subtitle: subtitle)
     }
 
+    /// Eight exercises progressing, two ready to raise, two stalled, one declining (the mockup's counts).
+    private var progress: LiftProgressData {
+        func exercise(_ name: String, _ status: LiftProgress.Status) -> LiftProgress.Exercise {
+            LiftProgress.Exercise(name: name, primaryMuscle: nil, secondaryMuscles: [], line: nil, points: [],
+                                  status: status)
+        }
+        var data = LiftProgressData()
+        data.exercises = (0..<8).map { exercise("P\($0)", .progressing) }
+            + [exercise("R0", .ready(fromKg: 14, toKg: 16.5)), exercise("R1", .ready(fromKg: 60, toKg: 62.5)),
+               exercise("S0", .stalled(sessions: 3)), exercise("S1", .stalled(sessions: 4)),
+               exercise("D0", .declining(percent: -6))]
+        return data
+    }
+
+    /// Other activities, as the screen draws them (its rows need the app model and navigation).
+    private var otherActivities: some View {
+        VStack(spacing: 0) {
+            TrainingActivityRowLabel(title: "Start an activity",
+                                     detail: "Run, ride, walk… with the strap's heart rate",
+                                     tint: StrandPalette.chargeColor)
+            TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
+                                     tint: StrandPalette.caloriesActivity)
+            TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
+                                     tint: StrandPalette.liquidHeart)
+            TrainingActivityRowLabel(title: "Start session (Beta)",
+                                     detail: "Silent strap coaching against today's Charge.",
+                                     tint: StrandPalette.metricCyan)
+            TrainingActivityRowLabel(title: "All history",
+                                     line: TrainingText.latestDoneLine(
+                                         TrainingDays.latestDone(lifts: lifts, activities: activities,
+                                                                 calendar: calendar)),
+                                     tint: StrandPalette.textSecondary, showsDivider: false)
+        }
+        .padding(.vertical, 4)
+        .background(NoopPanelSurface())
+    }
+
     func testRenderWeek() throws {
         let calendar = self.calendar
         let week = days(TrainingCalendar.weekDates(from: date(2), calendar: calendar))
         let tally = TrainingDays.sessionTally(week)
         let all = summaries
         let screen = VStack(alignment: .leading, spacing: NoopMetrics.space4) {
-            header(TrainingText.weekTitle(monday: date(2), calendar: calendar) + " · "
-                   + TrainingText.tallyLine(done: tally.done, planned: tally.planned, current: nil), mode: .week)
+            header(TrainingText.compactWeekTitle(monday: date(2), calendar: calendar) + " · "
+                   + TrainingText.compactTally(done: tally.done, planned: tally.planned), mode: .week)
             VStack(alignment: .leading, spacing: 10) {
                 TrainingWeekStrip(days: week, selectedKey: "2026-11-02",
                                   weekdays: TrainingText.shortWeekdays(calendar)) { _ in }
                 TrainingLegend()
             }
             TrainingDaySection(day: week[0], programs: all, others: Array(all.dropFirst()), isRunning: false)
+            TrainingProgressSummaryCard(data: progress) { EmptyView() }
             TrainingProgramsCard(programs: all, plan: plan, weekdays: TrainingText.shortWeekdays(calendar),
                                  loaded: true)
-            TrainingProgressSummaryCard(data: LiftProgressData()) { EmptyView() }
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Other activities")
-                    .font(StrandFont.sectionTitle)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .padding(.top, 6)
-                VStack(spacing: 0) {
-                    TrainingActivityRowLabel(title: "Start an activity",
-                                             detail: "Run, ride, walk… with the strap's heart rate",
-                                             symbol: "figure.run", tint: StrandPalette.chargeColor)
-                    TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
-                                             symbol: "timer", tint: StrandPalette.caloriesActivity)
-                    TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
-                                             symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart)
-                    TrainingActivityRowLabel(title: "All history", detail: "lifting and cardio",
-                                             symbol: "list.bullet", tint: StrandPalette.textSecondary,
-                                             showsDivider: false)
-                }
-                .padding(.vertical, 4)
-                .background(NoopPanelSurface())
-            }
+            otherActivities
+            LiquidFullWidthNavigationAction("Customize Training")
         }
         try render(AnyView(screen), name: "2-semaine")
+    }
+
+    /// Fork chantier 9: a past day in the week, with a session and an activity done, in the same card.
+    func testRenderPastDay() throws {
+        let sunday = days([date(1)])[0]
+        let screen = VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+            TrainingDaySection(day: sunday, programs: summaries, others: [], isRunning: false)
+            TrainingDaySection(day: days([date(4)])[0], programs: summaries, others: [], isRunning: false)
+        }
+        try render(AnyView(screen), name: "6-jour-passe")
     }
 
     func testRenderMonth() throws {

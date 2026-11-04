@@ -305,6 +305,24 @@ struct TrainingProgramSummary: Equatable, Identifiable {
     var blocks: [TrainingBlockPreview]
     /// Every block of the program, previewed or not.
     var blockCount: Int
+    /// The loads to raise next time this program is run (fork chantier 9: the day card's « ↑ » lines),
+    /// filled once the Progression data is read (`TrainingDays.programRaises`).
+    var raises: [TrainingRaise] = []
+}
+
+/// One load to raise: an exercise of a program whose last session earned a step up (`LiftProgression`).
+struct TrainingRaise: Equatable {
+    var exercise: String
+    var fromKg: Double
+    var toKg: Double
+}
+
+/// The most recent day something was done, for the « All history » row: a lift that day, the sports of
+/// the other activities (stored names, in order, once each), and when the last of them started.
+struct TrainingLatestDone: Equatable {
+    var hasLift: Bool
+    var sports: [String]
+    var startTs: Int
 }
 
 enum TrainingDays {
@@ -408,6 +426,46 @@ enum TrainingDays {
             }
         }
         return (lift, others)
+    }
+
+    /// The loads to raise in a program, in its order, one per exercise: each exercise's FIRST line judged
+    /// against the sets of the last session it was done in, by `LiftProgression.suggest` — the rule the
+    /// session sheet applies when it opens (`LiftSessionView.loadLastTime`, judged against the plan's first
+    /// line for the exercise, which is this one), so the day card and the session's grey numbers agree.
+    /// `lastSets` gives an exercise's working sets from its last session, nil when it was never done.
+    static func programRaises(items: [LiftProgramItemRow], lastSets: (String) -> [LiftSetRow]?,
+                              stepKg: Double) -> [TrainingRaise] {
+        var seen: Set<String> = []
+        var raises: [TrainingRaise] = []
+        for line in items.sorted(by: { $0.ord < $1.ord }) where !seen.contains(line.exercise) {
+            seen.insert(line.exercise)
+            guard let sets = lastSets(line.exercise) else { continue }
+            let item = LiftPlanItem(exercise: line.exercise, targetSets: line.targetSets,
+                                    targetRepsLow: line.targetRepsLow, targetRepsHigh: line.targetRepsHigh,
+                                    targetRpe: line.targetRpe, targetWeightKg: line.targetWeightKg)
+            if let step = LiftProgression.suggest(lastSets: sets, item: item, stepKg: stepKg) {
+                raises.append(TrainingRaise(exercise: line.exercise, fromKg: step.fromKg, toKg: step.toKg))
+            }
+        }
+        return raises
+    }
+
+    /// The last day (local, by start) with a Lift Log session or another activity, nil when nothing was
+    /// ever done.
+    static func latestDone(lifts: [TrainingLiftDone], activities: [TrainingActivityDone],
+                           calendar: Calendar) -> TrainingLatestDone? {
+        func dayKey(_ ts: Int) -> String {
+            TrainingCalendar.trainingDayKey(Date(timeIntervalSince1970: TimeInterval(ts)), calendar: calendar)
+        }
+        let starts = lifts.map(\.startTs) + activities.map(\.startTs)
+        guard let last = starts.max() else { return nil }
+        let key = dayKey(last)
+        var sports: [String] = []
+        for activity in activities.sorted(by: { $0.startTs < $1.startTs }) where dayKey(activity.startTs) == key {
+            if !sports.contains(where: { isSameSport($0, activity.sport) }) { sports.append(activity.sport) }
+        }
+        return TrainingLatestDone(hasLift: lifts.contains { dayKey($0.startTs) == key }, sports: sports,
+                                  startTs: last)
     }
 
     /// A program as the Training screen shows it. `items` in any order; `finished` = its sessions done.

@@ -67,33 +67,82 @@ enum TrainingText {
             .formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
-    /// "Monday 2 November", with "· today" on today.
-    static func dayTitle(_ day: TrainingDay) -> String {
-        let text = day.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
-        let title = text.prefix(1).uppercased() + text.dropFirst()
-        return day.isToday ? String(localized: "\(title) · today") : title
-    }
-
-    /// "Week of 2 to 8 November" (the month on both ends when the week spans two months).
-    static func weekTitle(monday: Date, calendar: Calendar) -> String {
-        let sunday = calendar.date(byAdding: .day, value: 6, to: monday) ?? monday
-        let sameMonth = calendar.component(.month, from: monday) == calendar.component(.month, from: sunday)
-        let start = sameMonth ? monday.formatted(.dateTime.day()) : monday.formatted(.dateTime.day().month(.wide))
-        let end = sunday.formatted(.dateTime.day().month(.wide))
-        return String(localized: "Week of \(start) to \(end)")
-    }
-
     /// "November 2026", capitalised.
     static func monthTitle(_ date: Date) -> String {
         let text = date.formatted(.dateTime.month(.wide).year())
         return text.prefix(1).uppercased() + text.dropFirst()
     }
 
-    /// The period bar's count: "This week · 1 / 3 sessions", or done sessions alone without a plan.
-    static func tallyLine(done: Int, planned: Int, current: String?) -> String {
-        let count = planned > 0 ? String(localized: "\(done) / \(planned) sessions") : String(localized: "\(done) sessions")
-        guard let current else { return count }
-        return current + " · " + count
+    /// The day card's title (fork chantier 9): "Today", else "Monday 2 November".
+    static func dayCardTitle(_ day: TrainingDay) -> String {
+        guard !day.isToday else { return String(localized: "Today") }
+        let text = day.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+
+    /// Beside the day card's title: today's date, then what is planned and what was done ("Wed 4 Nov · 2
+    /// planned", "2 planned · 1 done"); empty for a day with neither, other than today.
+    static func dayCount(_ day: TrainingDay) -> String {
+        var parts: [String] = []
+        if day.isToday { parts.append(day.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) }
+        let planned = day.planned.count
+        if planned > 0 {
+            parts.append(planned == 1 ? String(localized: "1 planned") : String(localized: "\(planned) planned"))
+        }
+        let done = day.lifts.count + day.activities.count
+        if done > 0 {
+            parts.append(done == 1 ? String(localized: "1 done") : String(localized: "\(done) done"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// A load to raise: "Leg curl: 60 → 62.5 kg today", or "… next time" on a later day. The weights in the
+    /// locale's decimal style.
+    static func raiseLine(_ raise: TrainingRaise, today: Bool, system: UnitSystem) -> String {
+        let from = weightNumber(raise.fromKg, system: system)
+        let to = weightNumber(raise.toKg, system: system)
+        let unit = LiftFormat.weightUnit(system)
+        return today
+            ? String(localized: "\(raise.exercise): \(from) → \(to) \(unit) today")
+            : String(localized: "\(raise.exercise): \(from) → \(to) \(unit) next time")
+    }
+
+    /// A weight in the wearer's unit, up to two decimals, in the locale's decimal style ("62,5").
+    static func weightNumber(_ kg: Double, system: UnitSystem) -> String {
+        LiftFormat.display(fromKilograms: kg, system: system).formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    /// Planned cardio's line: "Target: 30 min", then "not done yet" today or "Missed" once the day is over.
+    static func cardioLine(minutes: Int, day: TrainingDay) -> String {
+        var parts: [String] = []
+        if minutes > 0 { parts.append(String(localized: "Target: \(minutes) min")) }
+        if day.isToday { parts.append(String(localized: "not done yet")) }
+        if day.isPast { parts.append(String(localized: "Missed")) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The header's period (fork chantier 9): "2–8 Nov" (the month on both ends when the week spans two).
+    static func compactWeekTitle(monday: Date, calendar: Calendar) -> String {
+        let sunday = calendar.date(byAdding: .day, value: 6, to: monday) ?? monday
+        let sameMonth = calendar.component(.month, from: monday) == calendar.component(.month, from: sunday)
+        let start = sameMonth ? monday.formatted(.dateTime.day())
+            : monday.formatted(.dateTime.day().month(.abbreviated))
+        return start + "–" + sunday.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    /// The header's count: "1 / 5" against the plan, "1 session(s)" without one.
+    static func compactTally(done: Int, planned: Int) -> String {
+        planned > 0 ? "\(done) / \(planned)" : String(localized: "\(done) sessions")
+    }
+
+    /// « All history »'s line: "last: lifting + Running, Mon 2 Nov", or what it holds when nothing was done.
+    static func latestDoneLine(_ latest: TrainingLatestDone?) -> String {
+        guard let latest else { return String(localized: "lifting and cardio") }
+        var kinds: [String] = []
+        if latest.hasLift { kinds.append(String(localized: "lifting")) }
+        kinds += latest.sports.map { WorkoutSource.displaySport($0) }
+        let what = kinds.joined(separator: " + ")
+        return String(localized: "last: \(what), \(shortDate(latest.startTs))")
     }
 
     /// Short weekday names, Monday first ("lun.", "mar."…), from the locale.
@@ -171,10 +220,11 @@ struct TrainingModeSwitch: View {
 }
 
 /// The screen's header (fork chantier 7): the title in 34 bold beside the Week | Month switch, then one
-/// grey line naming the period shown and its count, with ‹ › to move to the previous or next period.
+/// grey line naming the period shown and its count, with ‹ › to move to the previous or next period. In
+/// the iOS tab shell (fork chantier 9): the title and the avatar, then the switch with ‹ period · count ›.
 struct TrainingHeader: View {
     @Binding var mode: TrainingViewMode
-    /// "Week of 2 to 8 November · 0 / 3 sessions".
+    /// "2–8 Nov · 0 / 3".
     let subtitle: String
     var onPrevious: () -> Void = {}
     var onNext: () -> Void = {}
@@ -200,18 +250,19 @@ struct TrainingHeader: View {
                 }
             }
             if showsMoreAvatar {
+                // Fork chantier 9: the period and its count between ‹ › ("‹ 2–8 Nov · 1 / 5 ›").
                 HStack(spacing: 0) {
                     TrainingModeSwitch(mode: $mode)
                     Spacer(minLength: 4)
                     TrainingPeriodArrow(symbol: "chevron.left", label: "Previous", action: onPrevious)
+                    Text(verbatim: subtitle)
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     TrainingPeriodArrow(symbol: "chevron.right", label: "Next", action: onNext)
                 }
                 .padding(.vertical, 6)
-                Text(verbatim: subtitle)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
             } else {
                 periodLine
             }
@@ -279,26 +330,30 @@ struct TrainingDayMarks: View {
     }
 }
 
-/// The legend under the week strip and the month grid.
+/// The legend under the week strip and the month grid, on one line (fork chantier 9): lifting in blue,
+/// cardio in pink, then a filled mark for done and an outlined one for planned.
 struct TrainingLegend: View {
     var body: some View {
-        // Two rows (fork chantier 8, lot 4: cardio can be planned too), lift then cardio.
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-            GridRow {
-                item(Circle().strokeBorder(StrandPalette.effortColor, lineWidth: 2), "lift planned")
-                item(Circle().fill(StrandPalette.effortColor), "lift done")
-            }
-            GridRow {
-                item(Circle().strokeBorder(StrandPalette.metricRose, lineWidth: 2), "cardio planned")
-                item(Circle().fill(StrandPalette.metricRose), "cardio done")
+        HStack(spacing: 14) {
+            item(Circle().fill(StrandPalette.effortColor), "lifting")
+            item(Circle().fill(StrandPalette.metricRose), "cardio")
+            HStack(spacing: 5) {
+                Circle().fill(StrandPalette.textSecondary).frame(width: 8, height: 8)
+                Text("done")
+                Text(verbatim: "·")
+                Circle().strokeBorder(StrandPalette.textSecondary, lineWidth: 1.5).frame(width: 8, height: 8)
+                Text("planned")
             }
         }
         .font(StrandFont.caption)
         .foregroundStyle(StrandPalette.textSecondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 2)
     }
 
     private func item<S: View>(_ mark: S, _ title: LocalizedStringKey) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             mark.frame(width: 8, height: 8)
             Text(title)
         }
@@ -444,80 +499,115 @@ struct TrainingMonthTotals: View {
     }
 }
 
-/// The chosen day: what the plan holds and is still to do — each program with Start and Swap today, each
-/// cardio with its target length (fork chantier 8, lot 4) — then what was done. A day with nothing planned
-/// and nothing done says so in one line. Fork chantier 7: the day's title in 20 bold, the planned card with
-/// its icon alone and "Planned today" in blue, the empty-day line inside the last planned card under a
-/// hairline, and the sessions done as cards with their icon alone.
+/// The chosen day in ONE card (fork chantier 9, section 5): above it the day's name ("Today", "Monday 2
+/// November") and its count ("Wed 4 Nov · 2 planned"); in it each program still to do in large — shape,
+/// ≈ usual length, last time, its first blocks, the loads to raise (« ↑ Leg curl: 60 → 62.5 kg today »), Start
+/// and Swap today — then each cardio still to do on one line with its own Start (today), then what was done
+/// (a Lift Log session opens its detail), each under a hairline. A day with nothing planned and nothing done
+/// says so in one line.
 struct TrainingDaySection: View {
     let day: TrainingDay
-    /// The saved programs (the planned cards read theirs by id).
+    /// The saved programs (the planned blocks read theirs by id).
     let programs: [TrainingProgramSummary]
     /// The other programs Swap offers (today only).
     let others: [TrainingProgramSummary]
     /// A Lift Log session is running: Start becomes "Running" and opens it.
     let isRunning: Bool
+    var unitSystem: UnitSystem = .metric
     var onStart: (String) -> Void = { _ in }
+    /// Starts the live workout of planned cardio (its stored sport name).
+    var onStartCardio: (String) -> Void = { _ in }
     var onOpenLift: (TrainingLiftDone) -> Void = { _ in }
 
-    /// One planned card: a program that still exists, or cardio.
-    private enum OpenCard {
+    /// One row of the card, in the order drawn.
+    private enum Row {
         case program(TrainingProgramSummary)
         case cardio(sport: String, minutes: Int)
+        case lift(TrainingLiftDone)
+        case activity(TrainingActivityDone)
+        case note(LocalizedStringKey)
     }
 
-    /// The day's planned items still to do, in the plan's order.
-    private var openCards: [OpenCard] {
-        day.openItems.compactMap { item in
-            switch item {
-            case .program(let id): return programs.first(where: { $0.id == id }).map(OpenCard.program)
-            case .cardio(let sport, let minutes): return .cardio(sport: sport, minutes: minutes)
-            }
+    /// Planned items still to do (programs that still exist, then cardio, each in the plan's order), then
+    /// what was done, or the empty-day line.
+    private var rows: [Row] {
+        let open = day.openItems
+        var rows: [Row] = open.compactMap { item in
+            guard let id = item.programId else { return nil }
+            return programs.first(where: { $0.id == id }).map(Row.program)
         }
+        rows += open.compactMap { item in
+            if case .cardio(let sport, let minutes) = item { return .cardio(sport: sport, minutes: minutes) }
+            return nil
+        }
+        rows += day.lifts.map(Row.lift)
+        rows += day.activities.map(Row.activity)
+        if rows.isEmpty, let emptyNote { rows.append(.note(emptyNote)) }
+        return rows
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(verbatim: TrainingText.dayTitle(day))
-                .font(StrandFont.sectionTitle)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .padding(.top, 6)
-                .accessibilityAddTraits(.isHeader)
-            let cards = openCards
-            if cards.isEmpty {
-                if let emptyNote { NoopCard { note(emptyNote) } }
-            }
-            ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
-                switch card {
-                case .program(let program):
-                    plannedCard(program, showsNote: index == cards.count - 1)
-                case .cardio(let sport, let minutes):
-                    cardioCard(sport: sport, minutes: minutes, showsNote: index == cards.count - 1)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(verbatim: TrainingText.dayCardTitle(day))
+                    .font(StrandFont.sectionTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                let count = TrainingText.dayCount(day)
+                if !count.isEmpty {
+                    Text(verbatim: count)
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
-            ForEach(Array(day.lifts.enumerated()), id: \.offset) { _, lift in
-                Button { onOpenLift(lift) } label: {
-                    doneRow(symbol: "dumbbell.fill", tint: StrandPalette.effortColor, title: lift.name,
-                            line: TrainingText.liftLine(lift), chevron: true)
+            .padding(.top, 6)
+            .padding(.horizontal, 4)
+            NoopCard(padding: 18) {
+                VStack(alignment: .leading, spacing: 14) {
+                    let all = rows
+                    ForEach(Array(all.enumerated()), id: \.offset) { index, row in
+                        if index > 0 { hairline }
+                        rowView(row)
+                    }
                 }
-                .buttonStyle(.plain)
-            }
-            ForEach(Array(day.activities.enumerated()), id: \.offset) { _, activity in
-                doneRow(symbol: "figure.run", tint: StrandPalette.metricRose,
-                        title: WorkoutSource.displaySport(activity.sport),
-                        line: TrainingText.activityLine(activity), chevron: false)
             }
         }
     }
 
-    /// The line of a day with nothing done, or nil when the day needs none (something was done, or a
-    /// future day already shows its planned card).
+    @ViewBuilder private func rowView(_ row: Row) -> some View {
+        switch row {
+        case .program(let program): programBlock(program)
+        case .cardio(let sport, let minutes): cardioRow(sport: sport, minutes: minutes)
+        case .lift(let lift):
+            Button { onOpenLift(lift) } label: {
+                doneRow(symbol: "dumbbell.fill", tint: StrandPalette.effortColor, title: lift.name,
+                        line: TrainingText.liftLine(lift), chevron: true)
+            }
+            .buttonStyle(.plain)
+        case .activity(let activity):
+            doneRow(symbol: "figure.run", tint: StrandPalette.metricRose,
+                    title: WorkoutSource.displaySport(activity.sport),
+                    line: TrainingText.activityLine(activity), chevron: false)
+        case .note(let text): note(text)
+        }
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(StrandPalette.hairline)
+            .frame(height: NoopMetrics.hairlineWidth)
+    }
+
+    /// The line of a day with nothing planned still to do and nothing done.
     private var emptyNote: LocalizedStringKey? {
-        guard !day.hasLift && !day.hasActivity else { return nil }
         if day.isToday { return "Nothing done today yet." }
         if day.isPast { return "Nothing logged that day." }
-        if day.planned.isEmpty { return "Rest day." }
-        return nil
+        return "Rest day."
     }
 
     private func note(_ text: LocalizedStringKey) -> some View {
@@ -533,141 +623,136 @@ struct TrainingDaySection: View {
         }
     }
 
-    @ViewBuilder private var plannedLabel: some View {
-        if day.isMissed {
-            Text("Missed")
-        } else if day.isToday {
-            Text("Planned today")
-        } else {
-            Text("Planned")
-        }
-    }
-
-    private func plannedCard(_ program: TrainingProgramSummary, showsNote: Bool) -> some View {
-        NoopCard(padding: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(day.isMissed ? StrandPalette.textTertiary : StrandPalette.effortColor)
-                        .frame(width: 28, height: 28)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        plannedLabel
+    /// A program still to do: its name in large, its first blocks, the loads to raise, Start and Swap today.
+    private func programBlock(_ program: TrainingProgramSummary) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "dumbbell.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(day.isMissed ? StrandPalette.textTertiary : StrandPalette.effortColor)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    if day.isMissed {
+                        Text("Missed")
                             .font(StrandFont.overline)
-                            .foregroundStyle(day.isMissed ? StrandPalette.statusWarning : StrandPalette.effortColor)
-                        Text(verbatim: program.name)
-                            .font(StrandFont.title2.weight(.bold))
-                            .foregroundStyle(StrandPalette.textPrimary)
-                        let line = TrainingText.plannedLine(program)
-                        if !line.isEmpty {
-                            Text(verbatim: line)
-                                .font(StrandFont.footnote)
-                                .foregroundStyle(StrandPalette.textSecondary)
+                            .foregroundStyle(StrandPalette.statusWarning)
+                    }
+                    Text(verbatim: program.name)
+                        .font(StrandFont.title2.weight(.bold))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    let line = TrainingText.plannedLine(program)
+                    if !line.isEmpty {
+                        Text(verbatim: line)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            let raises = day.isPast ? [] : program.raises
+            if !program.blocks.isEmpty || !raises.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(program.blocks.enumerated()), id: \.offset) { _, block in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(verbatim: block.text)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .lineLimit(2)
+                            Spacer(minLength: 8)
+                            if let sets = block.sets, sets > 0 {
+                                Text("\(sets) ×").foregroundStyle(StrandPalette.textSecondary)
+                            }
+                        }
+                    }
+                    if program.blockCount > program.blocks.count {
+                        Text("+ \(program.blockCount - program.blocks.count) more")
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    ForEach(Array(raises.enumerated()), id: \.offset) { _, raise in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 12, weight: .bold))
+                                .accessibilityHidden(true)
+                            Text(verbatim: TrainingText.raiseLine(raise, today: day.isToday, system: unitSystem))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                    }
-                    Spacer(minLength: 0)
-                }
-                if !program.blocks.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(program.blocks.enumerated()), id: \.offset) { _, block in
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(verbatim: block.text)
-                                    .foregroundStyle(StrandPalette.textPrimary)
-                                    .lineLimit(2)
-                                Spacer(minLength: 8)
-                                if let sets = block.sets, sets > 0 {
-                                    Text("\(sets) ×").foregroundStyle(StrandPalette.textSecondary)
-                                }
-                            }
-                        }
-                        if program.blockCount > program.blocks.count {
-                            Text("+ \(program.blockCount - program.blocks.count) more")
-                                .foregroundStyle(StrandPalette.textSecondary)
-                        }
-                    }
-                    .font(StrandFont.subhead)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(StrandPalette.surfaceInset,
-                                in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
-                }
-                if day.isToday {
-                    HStack(spacing: 10) {
-                        Button { onStart(program.id) } label: {
-                            Group {
-                                if isRunning {
-                                    Label("Running", systemImage: "timer")
-                                } else {
-                                    Label("Start", systemImage: "play.fill")
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(NoopButtonStyle(.primary, fullWidth: true))
-                        if !others.isEmpty && !isRunning {
-                            TrainingMenu {
-                                ForEach(others) { other in
-                                    Button { onStart(other.id) } label: { Text(verbatim: other.name) }
-                                }
-                            } label: {
-                                Label("Swap", systemImage: "arrow.left.arrow.right")
-                                    .font(StrandFont.headline)
-                                    .foregroundStyle(StrandPalette.textPrimary)
-                                    .padding(.horizontal, 20)
-                                    .frame(minHeight: NoopButtonMetrics.height)
-                                    .background(StrandPalette.surfaceOverlay,
-                                                in: RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
-                                                                     style: .continuous))
-                                    .contentShape(RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
-                                                                   style: .continuous))
-                            }
-                            .fixedSize()
-                        }
+                        .foregroundStyle(StrandPalette.effortBright)
                     }
                 }
-                if showsNote, let emptyNote {
-                    Rectangle()
-                        .fill(StrandPalette.hairline)
-                        .frame(height: NoopMetrics.hairlineWidth)
-                    note(emptyNote)
+                .font(StrandFont.subhead)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(StrandPalette.surfaceInset,
+                            in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
+            }
+            if day.isToday {
+                HStack(spacing: 10) {
+                    Button { onStart(program.id) } label: {
+                        Group {
+                            if isRunning {
+                                Label("Running", systemImage: "timer")
+                            } else {
+                                Label("Start", systemImage: "play.fill")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(NoopButtonStyle(.primary, fullWidth: true))
+                    if !others.isEmpty && !isRunning {
+                        TrainingMenu {
+                            ForEach(others) { other in
+                                Button { onStart(other.id) } label: { Text(verbatim: other.name) }
+                            }
+                        } label: {
+                            Label("Swap", systemImage: "arrow.left.arrow.right")
+                                .font(StrandFont.headline)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .padding(.horizontal, 20)
+                                .frame(minHeight: NoopButtonMetrics.height)
+                                .background(StrandPalette.surfaceOverlay,
+                                            in: RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
+                                                                 style: .continuous))
+                                .contentShape(RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
+                                                               style: .continuous))
+                        }
+                        .fixedSize()
+                    }
                 }
             }
         }
     }
 
-    /// Planned cardio: the sport in the app's language and its target length (a guide: an activity of the
-    /// same sport that day ticks it, whatever its length).
-    private func cardioCard(sport: String, minutes: Int, showsNote: Bool) -> some View {
-        NoopCard(padding: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "figure.run")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(day.isMissed ? StrandPalette.textTertiary : StrandPalette.metricRose)
-                        .frame(width: 28, height: 28)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        plannedLabel
-                            .font(StrandFont.overline)
-                            .foregroundStyle(day.isMissed ? StrandPalette.statusWarning : StrandPalette.metricRose)
-                        Text(verbatim: WorkoutCatalog.shownSportName(sport))
-                            .font(StrandFont.title2.weight(.bold))
-                            .foregroundStyle(StrandPalette.textPrimary)
-                        Text("Target: \(minutes) min")
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                    }
-                    Spacer(minLength: 0)
+    /// Planned cardio on one line: the sport in the app's language, its target length (a guide: an
+    /// activity of the same sport that day ticks it, whatever its length) and, today, its own Start.
+    private func cardioRow(sport: String, minutes: Int) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "figure.run")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(day.isMissed ? StrandPalette.textTertiary : StrandPalette.metricRose)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: WorkoutCatalog.shownSportName(sport))
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(verbatim: TrainingText.cardioLine(minutes: minutes, day: day))
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            Spacer(minLength: 8)
+            if day.isToday {
+                Button { onStartCardio(sport) } label: {
+                    Text("Start")
+                        .font(StrandFont.subhead.weight(.semibold))
+                        .foregroundStyle(StrandPalette.metricRose)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 36)
+                        .background(StrandPalette.surfaceOverlay, in: Capsule())
+                        .contentShape(Capsule())
                 }
-                if showsNote, let emptyNote {
-                    Rectangle()
-                        .fill(StrandPalette.hairline)
-                        .frame(height: NoopMetrics.hairlineWidth)
-                    note(emptyNote)
-                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -677,7 +762,7 @@ struct TrainingDaySection: View {
             Image(systemName: symbol)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 26)
+                .frame(width: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: title)
@@ -697,10 +782,7 @@ struct TrainingDaySection: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface())
         .contentShape(Rectangle())
     }
 }
@@ -824,9 +906,10 @@ struct TrainingProgramsCard: View {
     }
 }
 
-/// The Progression block of the Training screen: "Progression   See" in 20 bold, then the four counts in a
-/// flat card; the whole block opens the Progression screen. The render tests draw it without its link
-/// (`trainingMenusAsLabels`), since a link outside a navigation stack draws dimmed.
+/// The Progression block of the Training screen (fork chantier 9: one compact card): "Progression   See ›"
+/// inside it, then the four counts, each number in its status colour beside its arrow; the whole card opens
+/// the Progression screen. The render tests draw it without its link (`trainingMenusAsLabels`), since a
+/// link outside a navigation stack draws dimmed.
 struct TrainingProgressSummaryCard<Destination: View>: View {
     let data: LiftProgressData
     @ViewBuilder let destination: () -> Destination
@@ -850,46 +933,82 @@ struct TrainingProgressSummaryCard<Destination: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Progression")
-                    .font(StrandFont.sectionTitle)
+                    .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
-                Text("See")
-                    .font(StrandFont.subhead.weight(.medium))
-                    .foregroundStyle(StrandPalette.accent)
+                HStack(spacing: 4) {
+                    Text("See")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+                .font(StrandFont.subhead.weight(.medium))
+                .foregroundStyle(StrandPalette.accent)
             }
-            .padding(.top, 6)
-            LiftStatusCounters(data: data)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(NoopPanelSurface())
+            HStack(alignment: .top, spacing: 8) {
+                ForEach([3, 2, 0, 1], id: \.self) { rank in
+                    let status = LiftProgressText.sample(rank)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            LiftStatusIcon(status: status, size: 15)
+                            Text(verbatim: "\(data.count(rank))")
+                                .font(StrandFont.number(22, weight: .bold))
+                                .foregroundStyle(status.tint)
+                        }
+                        Text(LiftProgressText.counterLabel(rank))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .accessibilityElement(children: .combine)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoopPanelSurface())
         .contentShape(Rectangle())
     }
 }
 
-/// One row of "Other activities": the icon alone in its colour, a title, one line, a chevron, and a
-/// hairline under it unless it is the last row.
+/// One row of "Other activities" (fork chantier 9: the card has no title; each row a dot in its colour):
+/// the dot, a title, one line, a chevron, and a hairline under it unless it is the last row.
 struct TrainingActivityRowLabel: View {
-    let title: LocalizedStringKey
-    let detail: LocalizedStringKey
-    let symbol: String
-    let tint: Color
-    var showsDivider = true
+    private let title: LocalizedStringKey
+    private let detail: Text
+    private let tint: Color
+    private let showsDivider: Bool
+
+    init(title: LocalizedStringKey, detail: LocalizedStringKey, tint: Color, showsDivider: Bool = true) {
+        self.title = title
+        self.detail = Text(detail)
+        self.tint = tint
+        self.showsDivider = showsDivider
+    }
+
+    /// A line built by the screen ("last: lifting + Running, Mon 2 Nov"), already worded.
+    init(title: LocalizedStringKey, line: String, tint: Color, showsDivider: Bool = true) {
+        self.title = title
+        self.detail = Text(verbatim: line)
+        self.tint = tint
+        self.showsDivider = showsDivider
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 24)
+        HStack(spacing: 14) {
+            Circle()
+                .fill(tint)
+                .frame(width: 10, height: 10)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(StrandFont.body.weight(.medium))
+                    .font(StrandFont.body.weight(.semibold))
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text(detail)
+                detail
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
             }
@@ -900,7 +1019,7 @@ struct TrainingActivityRowLabel: View {
                 .accessibilityHidden(true)
         }
         .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if showsDivider {

@@ -353,8 +353,9 @@ struct LiftSessionView: View {
         .id(index)
     }
 
-    /// Personal fork: "↑ +2.5 kg → 62.5 kg" when last time earned a step up (`LiftProgression`). A
-    /// suggestion, not a change: the grey numbers still show last time's weight until the lifter types.
+    /// Personal fork: "↑ +2.5 kg → 62.5 kg" when last time earned a step up (`LiftProgression`). Fork
+    /// chantier 9: the grey numbers propose the raised weight too (`LiftProgression.raisedLastSession`),
+    /// still a proposal until the lifter types or completes the sets.
     @ViewBuilder
     private func loadSuggestionLine(for item: LiftPlanItem) -> some View {
         if let s = loadSuggestions[item.exercise] {
@@ -1261,7 +1262,6 @@ struct LiftSessionView: View {
             for r in rows where !r.isWarmup {
                 bySet[r.setIndex] = LiftSetCarry(weightKg: r.weightKg, reps: r.reps)
             }
-            out[exercise] = bySet
             rowsByExercise[exercise] = rows
             // Personal fork: the step-up rule, judged against the FIRST plan line for the exercise (a
             // program that lists a movement twice shares one answer, as it shares one "last time").
@@ -1270,6 +1270,8 @@ struct LiftSessionView: View {
                     lastSets: rows, item: item,
                     stepKg: unitSystem == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg)
             }
+            // Fork chantier 9: a step up earned shows in the grey numbers, at the raised weight.
+            out[exercise] = LiftProgression.raisedLastSession(bySet, suggestion: suggestions[exercise])
         }
         session.setLastSession(out)
         loadSuggestions = suggestions

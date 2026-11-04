@@ -21,6 +21,11 @@ import WhoopStore
 // (`TrainingWeekPlan`, fixed days), a week strip and a month grid of what was planned and done (Lift Log
 // sessions in Effort blue, every other workout in orange), the Progression counts, and the other
 // activities (start one, intervals, live heart rate, all history).
+//
+// Fork chantier 9 (section 5, mockup « Entraînement proposé »): the week, then ONE card for the chosen day
+// (the program in large with the loads to raise, cardio on a line with its own Start, what was done), then
+// Progression, Programs and Other activities in the order « Customize Training » keeps
+// (`TrainingLayoutPrefs`), each of them hideable there.
 
 struct LiftLogView: View {
     @EnvironmentObject var repo: Repository
@@ -57,6 +62,11 @@ struct LiftLogView: View {
     /// its start row moved here from Today).
     @AppStorage(LiveSessionPrefs.betaKey) private var liveSessionsBeta = true
     @State private var showLiveSession = false
+    /// Planned cardio whose Start was tapped: its stored sport name, until the live workout opens.
+    @State private var cardioToStart: String?
+    @State private var showCustomize = false
+    @AppStorage(TrainingLayoutPrefs.orderKey) private var sectionOrderRaw = ""
+    @AppStorage(TrainingLayoutPrefs.hiddenKey) private var hiddenSectionsRaw = ""
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -72,19 +82,19 @@ struct LiftLogView: View {
                 header
                 if mode == .week { weekSection } else { monthSection }
                 daySection
-                TrainingProgramsCard(programs: summaries, plan: plan, weekdays: TrainingText.shortWeekdays(calendar),
-                                     loaded: loaded,
-                                     onEdit: { id in
-                                         editing = ProgramEditTarget(id: id, program: programs.first { $0.id == id })
-                                     },
-                                     onNew: { editing = ProgramEditTarget(id: "new", program: nil) },
-                                     onImport: { importing = true },
-                                     onPlan: { planning = true })
-                TrainingProgressSummaryCard(data: progress) {
-                    LiftProgressView(data: progress, unitSystem: unitSystem)
+                ForEach(TrainingLayoutPrefs.shownSections(orderRaw: sectionOrderRaw, hiddenRaw: hiddenSectionsRaw)) {
+                    pageSection($0)
                 }
-                otherActivities
+                Button { showCustomize = true } label: {
+                    LiquidFullWidthNavigationAction("Customize Training")
+                }
+                .buttonStyle(.plain)
             }
+        }
+        .background(TrainingCardioLauncher(request: $cardioToStart))
+        .liveSessionCover(isPresented: $showLiveSession)
+        .sheet(isPresented: $showCustomize) {
+            TrainingCustomizeSheet(sectionOrderRaw: $sectionOrderRaw, hiddenSectionsRaw: $hiddenSectionsRaw)
         }
         // Also on a saved session: the session sheet lives above this screen and cannot tell it
         // directly, and a save does not always bump `refreshSeq`.
@@ -112,6 +122,28 @@ struct LiftLogView: View {
         }
     }
 
+    // MARK: - Sections
+
+    @ViewBuilder private func pageSection(_ section: TrainingSection) -> some View {
+        switch section {
+        case .progression:
+            TrainingProgressSummaryCard(data: progress) {
+                LiftProgressView(data: progress, unitSystem: unitSystem)
+            }
+        case .programs:
+            TrainingProgramsCard(programs: summaries, plan: plan, weekdays: TrainingText.shortWeekdays(calendar),
+                                 loaded: loaded,
+                                 onEdit: { id in
+                                     editing = ProgramEditTarget(id: id, program: programs.first { $0.id == id })
+                                 },
+                                 onNew: { editing = ProgramEditTarget(id: "new", program: nil) },
+                                 onImport: { importing = true },
+                                 onPlan: { planning = true })
+        case .otherActivities:
+            otherActivities
+        }
+    }
+
     // MARK: - Header
 
     /// The title and the Week | Month switch, then the week or month shown with its count and ‹ ›
@@ -122,14 +154,14 @@ struct LiftLogView: View {
                        onNext: { if mode == .week { shift(days: 7) } else { shift(months: 1) } })
     }
 
-    /// "Week of 2 to 8 November · 0 / 3 sessions"; the month alone ("November 2026"), since the month's
-    /// count is already in its totals under the grid.
+    /// "2–8 Nov · 0 / 3" (fork chantier 9); the month alone ("November 2026"), since the month's count is
+    /// already in its totals under the grid.
     private var headerSubtitle: String {
         guard mode == .week else { return TrainingText.monthTitle(selectedDate) }
         let monday = TrainingCalendar.mondayOf(selectedDate, calendar: calendar)
         let tally = TrainingDays.sessionTally(days(TrainingCalendar.weekDates(from: monday, calendar: calendar)))
-        return TrainingText.weekTitle(monday: monday, calendar: calendar) + " · "
-            + TrainingText.tallyLine(done: tally.done, planned: tally.planned, current: nil)
+        return TrainingText.compactWeekTitle(monday: monday, calendar: calendar) + " · "
+            + TrainingText.compactTally(done: tally.done, planned: tally.planned)
     }
 
     // MARK: - Week and month
@@ -179,10 +211,12 @@ struct LiftLogView: View {
                 TrainingDaySection(day: day, programs: summaries,
                                    others: summaries.filter { !openIds.contains($0.id) },
                                    isRunning: session.isActive,
+                                   unitSystem: unitSystem,
                                    onStart: { id in
                                        guard let program = programs.first(where: { $0.id == id }) else { return }
                                        Task { await start(program) }
                                    },
+                                   onStartCardio: { sport in cardioToStart = sport },
                                    onOpenLift: { lift in
                                        if let row = sessionsById[lift.sessionId] {
                                            viewing = SessionDetailTarget(id: row.id, session: row)
@@ -194,53 +228,48 @@ struct LiftLogView: View {
 
     // MARK: - Other activities
 
-    /// Fork chantier 7: the title in 20 bold, one flat card of rows with their icon alone (start an
-    /// activity green, intervals orange, live heart rate pink, all history grey).
+    /// Fork chantier 9: one card with no title, a dot per row in the mockup's order — start an activity
+    /// (green), intervals (orange), live heart rate (pink), the Beta session (cyan, when Live Sessions are on),
+    /// all history (grey, with the last day something was done).
     private var otherActivities: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Other activities")
-                .font(StrandFont.sectionTitle)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .padding(.top, 6)
-                .accessibilityAddTraits(.isHeader)
-            VStack(spacing: 0) {
-                TrainingStartActivityRow()
-                NavigationLink {
-                    IntervalTimerView()
-                } label: {
-                    TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
-                                             symbol: "timer", tint: StrandPalette.caloriesActivity)
-                }
-                .buttonStyle(.plain)
-                NavigationLink {
-                    LiveView()
-                } label: {
-                    TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
-                                             symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart)
-                }
-                .buttonStyle(.plain)
-                if liveSessionsBeta {
-                    Button { showLiveSession = true } label: {
-                        TrainingActivityRowLabel(title: "Start session (Beta)",
-                                                 detail: "Silent strap coaching against today's Charge.",
-                                                 symbol: "shield.lefthalf.filled", tint: StrandPalette.metricCyan)
-                    }
-                    .buttonStyle(.plain)
-                }
-                NavigationLink {
-                    WorkoutsView()
-                } label: {
-                    TrainingActivityRowLabel(title: "All history", detail: "lifting and cardio",
-                                             symbol: "list.bullet", tint: StrandPalette.textSecondary,
-                                             showsDivider: false)
+        VStack(spacing: 0) {
+            TrainingStartActivityRow()
+            NavigationLink {
+                IntervalTimerView()
+            } label: {
+                TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
+                                         tint: StrandPalette.caloriesActivity)
+            }
+            .buttonStyle(.plain)
+            NavigationLink {
+                LiveView()
+            } label: {
+                TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
+                                         tint: StrandPalette.liquidHeart)
+            }
+            .buttonStyle(.plain)
+            if liveSessionsBeta {
+                Button { showLiveSession = true } label: {
+                    TrainingActivityRowLabel(title: "Start session (Beta)",
+                                             detail: "Silent strap coaching against today's Charge.",
+                                             tint: StrandPalette.metricCyan)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface())
+            NavigationLink {
+                WorkoutsView()
+            } label: {
+                TrainingActivityRowLabel(title: "All history",
+                                         line: TrainingText.latestDoneLine(
+                                             TrainingDays.latestDone(lifts: lifts, activities: activities,
+                                                                     calendar: calendar)),
+                                         tint: StrandPalette.textSecondary, showsDivider: false)
+            }
+            .buttonStyle(.plain)
         }
-        .liveSessionCover(isPresented: $showLiveSession)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NoopPanelSurface())
     }
 
     // MARK: - Navigation in time
@@ -348,7 +377,7 @@ struct LiftLogView: View {
         }
         sessionsById = Dictionary(done.map { ($0.row.id, $0.row) }, uniquingKeysWith: { first, _ in first })
 
-        summaries = rows.map { program in
+        let built: [TrainingProgramSummary] = rows.map { program in
             let finished = done.filter { $0.row.programId == program.id }
                 .compactMap { entry in
                     entry.row.endTs.map { (startTs: entry.row.startTs,
@@ -362,7 +391,17 @@ struct LiftLogView: View {
         plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(rows.map(\.id)))
 
         let step = unitSystem == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg
-        if let data = await LiftProgressData.load(repo: repo, stepKg: step) { progress = data }
+        let read = await LiftProgressData.load(repo: repo, stepKg: step)
+        if let read { progress = read }
+        // The loads to raise, judged as the session sheet will judge them when the program starts.
+        let judged = read ?? progress
+        summaries = built.map { summary in
+            var raised = summary
+            raised.raises = TrainingDays.programRaises(items: itemsByProgram[summary.id] ?? [],
+                                                       lastSets: { judged.exercise(named: $0)?.points.last?.sets },
+                                                       stepKg: step)
+            return raised
+        }
         loaded = true
     }
 
@@ -391,7 +430,7 @@ private struct TrainingStartActivityRow: View {
         } label: {
             TrainingActivityRowLabel(title: "Start an activity",
                                      detail: "Run, ride, walk… with the strap's heart rate",
-                                     symbol: "figure.run", tint: StrandPalette.chargeColor)
+                                     tint: StrandPalette.chargeColor)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showLiveWorkout) {
@@ -404,6 +443,31 @@ private struct TrainingStartActivityRow: View {
                 showLiveWorkout = true
             }
         }
+    }
+}
+
+/// Starts the live workout of planned cardio from the day card (fork chantier 9): the sport is already
+/// chosen, so the sport picker is skipped. A workout already running is opened instead. Its own view so only
+/// it observes `AppModel`, like `TrainingStartActivityRow`.
+private struct TrainingCardioLauncher: View {
+    @EnvironmentObject var model: AppModel
+    @Binding var request: String?
+    @State private var showLiveWorkout = false
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .onChange(of: request) { sport in
+                guard let sport else { return }
+                request = nil
+                if model.activeWorkout == nil { model.startWorkout(sport: sport) }
+                showLiveWorkout = true
+            }
+            .sheet(isPresented: $showLiveWorkout) {
+                LiveWorkoutView(onClose: { showLiveWorkout = false })
+                    .environmentObject(model.live)
+            }
     }
 }
 

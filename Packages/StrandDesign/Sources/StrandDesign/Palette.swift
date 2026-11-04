@@ -290,12 +290,13 @@ public enum StrandPalette {
     public static let sleepWake = Color(light: "#C93400", dark: "#FF9F0A")
     /// Sleep debt (fork chantier 7, Apple indigo).
     public static let sleepDebt = Color(light: "#5856D6", dark: "#5E5CE6")
-    /// Nutrition (fork chantier 7): the eaten ring in Apple green, then one distinct hue per macro —
-    /// protein purple, carbs orange, fat yellow — so protein and fat no longer share a colour.
+    /// Nutrition (fork chantier 7): the eaten ring in Apple green, then one distinct hue per macro. Fork
+    /// chantier 9 (one colour = one meaning; orange is calories burned): protein purple, carbs yellow, fat
+    /// cyan.
     public static let intakeColor = Color(light: "#248A3D", dark: "#30D158")
     public static let macroProtein = Color(light: "#8944AB", dark: "#BF5AF2")
-    public static let macroCarbs = Color(light: "#C93400", dark: "#FF9F0A")
-    public static let macroFat = Color(light: "#B25000", dark: "#FFD60A")
+    public static let macroCarbs = Color(light: "#8F6A00", dark: "#FFD60A")
+    public static let macroFat = Color(light: "#0071A4", dark: "#64D2FF")
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
     //

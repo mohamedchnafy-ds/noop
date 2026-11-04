@@ -188,8 +188,8 @@ enum NutritionOrigin {
     }
 }
 
-/// The macro colours, the same ones the Coach's meal card uses (fork chantier 7: protein purple, carbs
-/// orange, fat yellow — protein and fat had come to share one teal).
+/// The macro colours, the same ones the Coach's meal card uses (fork chantier 9: protein purple, carbs
+/// yellow, fat cyan; `StrandPalette.macroProtein` / `macroCarbs` / `macroFat`).
 enum NutritionMacro: CaseIterable {
     case protein, carbs, fat
 

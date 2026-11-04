@@ -48,6 +48,31 @@ enum CoachPrompts {
     /// Every suggested question, theme by theme.
     static var suggestions: [String] { Theme.allCases.flatMap(\.prompts) }
 
+    /// One of the six short chips above the composer of an empty conversation (fork chantier 9, Coach
+    /// mockup): its short label and the question it asks. The questions are the themes' own where one
+    /// exists, so the follow-ups still recognise the conversation's theme.
+    struct QuickPrompt: Equatable, Identifiable {
+        let label: String
+        let question: String
+        var id: String { question }
+    }
+
+    /// The mockup's six chips, in its order. "Analyze my meal" opens the photo picker (`photoMealPrompt`).
+    static var quickPrompts: [QuickPrompt] {
+        [QuickPrompt(label: String(localized: "Can I train hard today?"),
+                     question: String(localized: "Can I train hard today?")),
+         QuickPrompt(label: String(localized: "My HRV over 30 days"),
+                     question: String(localized: "Show me my HRV over the last 30 days. Is it going down?")),
+         QuickPrompt(label: String(localized: "Protein left"),
+                     question: String(localized: "How much protein today?")),
+         QuickPrompt(label: String(localized: "Create a session for me"),
+                     question: String(localized: "Create a session for me for today")),
+         QuickPrompt(label: String(localized: "How was my night?"),
+                     question: String(localized: "How was my night?")),
+         QuickPrompt(label: String(localized: "Analyze my meal"),
+                     question: photoMealPrompt)]
+    }
+
     /// Follow-ups for an answer whose conversation has no known theme.
     static var genericFollowUps: [String] {
         [String(localized: "Explain why"),

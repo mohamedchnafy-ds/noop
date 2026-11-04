@@ -1,43 +1,62 @@
 import SwiftUI
 import StrandDesign
 
-/// An action the Coach proposes, as a card under its reply (personal fork, chantier 8), on the meal card's
-/// template: a blue header with its icon, what would change line by line, a note that it is the user's own
-/// correction and not a measurement, then "Confirm". Once confirmed the card offers "Undo"; once undone it
-/// says so. Nothing is written until the tap (`AICoachEngine.confirmAction`).
+/// An action the Coach proposes, as a card under its reply (personal fork, chantier 8). Fork chantier 9
+/// (Coach mockup): compact — its icon and title with an ⓘ that holds the explanation (it is the user's own
+/// correction, not a measurement), the item on one line and what would change under it, then "Confirm".
+/// Once confirmed the card offers "Undo"; once undone it says so. Nothing is written until the tap
+/// (`AICoachEngine.confirmAction`).
 struct CoachActionCard: View {
     let proposal: CoachActionProposal
     /// Running Confirm or Undo: the button waits.
     let busy: Bool
     let onConfirm: () -> Void
     let onUndo: () -> Void
+    @State private var showsNote = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Label {
-                headerTitle.font(StrandFont.overline)
-            } icon: {
-                Image(systemName: symbol).font(StrandFont.subhead.weight(.semibold))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.accent)
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                headerTitle
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Spacer(minLength: 8)
+                Button { showsNote = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("About this card"))
+                .popover(isPresented: $showsNote, arrowEdge: .top) {
+                    note
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(NoopMetrics.cardInnerPadding)
+                        .frame(width: 280, alignment: .leading)
+                        .sleepGuidePopoverAdaptation()
+                }
             }
-            .foregroundStyle(StrandPalette.accent)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(proposal.lines.enumerated()), id: \.offset) { index, line in
                     Text(verbatim: line)
-                        .font(index == 0 && proposal.kind != .remember ? StrandFont.headline : StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
+                        .font(index == 0 ? StrandFont.subhead : StrandFont.footnote)
+                        .foregroundStyle(index == 0 ? StrandPalette.textPrimary : StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.top, 10)
-            note
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
             actions
-                .padding(.top, 14)
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .accessibilityElement(children: .contain)
     }

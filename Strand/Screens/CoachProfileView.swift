@@ -10,6 +10,9 @@ import StrandDesign
 struct CoachProfileView: View {
     @EnvironmentObject var coach: AICoachEngine
     @Environment(\.dismiss) private var dismiss
+    /// The first name the empty Coach screen greets (fork chantier 9). Only the screen reads it: it is not
+    /// sent with the questions.
+    @AppStorage(CoachGreeting.firstNameKey) private var firstName = ""
 
     var body: some View {
         ScreenScaffold(title: "What the coach should know about you",
@@ -20,6 +23,8 @@ struct CoachProfileView: View {
                                .font(StrandFont.subhead)
                                .foregroundStyle(StrandPalette.accent)
                        }) {
+            CoachSectionTitle("First name")
+            CoachTextField(placeholder: "Shown on the Coach's empty screen", text: $firstName, lines: 1...1)
             bodySection
             goalSection
             rhythmSection
@@ -140,6 +145,13 @@ struct CoachProfileView: View {
         CoachSectionTitle(title)
         CoachTextField(placeholder: placeholder, text: text, lines: 3...6)
     }
+}
+
+/// The empty Coach screen's greeting (fork chantier 9).
+enum CoachGreeting {
+    /// UserDefaults key of the first name typed in « What the coach should know about you »: this device
+    /// only, outside the `.noopbak`, never sent to the provider.
+    static let firstNameKey = "coach.firstName"
 }
 
 /// Display text for the profile's stored tokens.

@@ -17,188 +17,110 @@ struct CoachHeaderIcon: View {
     }
 }
 
-/// What an empty conversation shows (personal fork, Coach mockup 1): the brief on demand, the suggested
-/// questions theme by theme, and what the coach reads. When anything is sent is said once, under the
-/// screen's title (fork chantier 7), not here as well.
+/// What an empty conversation shows (fork chantier 9, Coach mockup « Coach vide »): in the middle of the
+/// screen the Coach's mark, « Hello Mohamed » (the first name typed in « What the coach should know about
+/// you », « Hello » without one), one sentence and ONE white button, « Today's brief ». The suggested
+/// questions are the six chips above the composer (`CoachQuickPrompts`); what the coach reads and when
+/// anything is sent are in the ⋯ menu.
 ///
-/// Nothing here sends on its own. The brief runs only when its card is tapped, and a suggestion is asked
-/// only when it is tapped, both through the callbacks the screen hands in (`beginBriefIfNeeded` and
-/// `submit` on the engine).
+/// Nothing here sends on its own. The brief runs only when its button is tapped, through the callback the
+/// screen hands in (`beginBriefIfNeeded` on the engine). Without "Use my data" the brief cannot read
+/// anything, so the button says so and opens "What the coach reads", where the switch is.
 struct CoachEmptyState: View {
     /// Whether the brief can run: it reads the wearer's data, so it needs "Use my data".
     let briefAvailable: Bool
-    let providerName: String
+    /// The first name to greet, empty for « Hello » alone.
+    let firstName: String
     let onBrief: () -> Void
-    let onAsk: (String) -> Void
     let onShowData: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            briefCard
-            ForEach(CoachPrompts.Theme.allCases) { theme in
-                themeSection(theme)
+        VStack(spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 40, weight: .semibold))
+                .foregroundStyle(StrandPalette.macroProtein)
+                .accessibilityHidden(true)
+            greeting
+                .font(StrandFont.title2.weight(.bold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+            Text("Ask me anything about your data.")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            briefButton
+                .padding(.top, 6)
+            if !briefAvailable {
+                Text("Turn on “Use my data” first")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
             }
-            footer
         }
-        .padding(.top, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity)
     }
 
-    // MARK: Brief
+    @ViewBuilder private var greeting: some View {
+        let name = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty {
+            Text("Hello")
+        } else {
+            Text("Hello \(name)")
+        }
+    }
 
-    /// The brief card. Without "Use my data" the brief cannot read anything, so the card says so and
-    /// opens "What the coach reads", where the switch is.
-    private var briefCard: some View {
+    /// The white capsule with the brief's sun; without "Use my data", it opens what the coach reads.
+    private var briefButton: some View {
         Button {
             if briefAvailable { onBrief() } else { onShowData() }
         } label: {
-            HStack(spacing: 14) {
-                // Fork chantier 7: the coloured icon alone, no tinted disc behind it.
+            HStack(spacing: 8) {
                 Image(systemName: "sun.max.fill")
-                    .font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.metricAmber)
-                    .frame(width: 34, height: 34)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Today's brief")
-                        .font(StrandFont.body)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Group {
-                        if briefAvailable {
-                            Text("Readiness, session and recovery in 3 lines")
-                        } else {
-                            Text("Turn on “Use my data” first")
-                        }
-                    }
-                    .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if briefAvailable {
-                    Text("Generate")
-                        .font(StrandFont.subhead.weight(.semibold))
-                        .foregroundStyle(StrandPalette.accent)
-                        .padding(.horizontal, 4)
-                        .frame(minHeight: 32)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(StrandFont.caption.weight(.semibold))
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .accessibilityHidden(true)
-                }
+                Text("Today's brief")
+                    .foregroundStyle(StrandPalette.surfaceBase)
             }
-            .padding(.leading, 16)
-            .padding(.trailing, 12)
-            .padding(.vertical, 10)
-            .frame(minHeight: 64)
-            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
-            .contentShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+            .font(StrandFont.headline)
+            .padding(.horizontal, 22)
+            .frame(minHeight: NoopButtonMetrics.height)
+            .background(StrandPalette.textPrimary, in: Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(LiquidPressStyle())
-        .accessibilityElement(children: .combine)
         .accessibilityHint(briefAvailable ? Text("Generates today’s brief")
                                           : Text("Opens what the coach reads"))
     }
+}
 
-    // MARK: Suggestions
+/// The six short questions above the composer of an empty conversation (fork chantier 9), wrapped rather
+/// than scrolled sideways (a sideways row fought the swipe between tabs). They go as soon as the
+/// conversation starts.
+struct CoachQuickPrompts: View {
+    let onAsk: (String) -> Void
 
-    private func themeSection(_ theme: CoachPrompts.Theme) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label {
-                Text(themeTitle(theme))
-                    .font(StrandFont.overline)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            } icon: {
-                Image(systemName: themeSymbol(theme))
-                    .font(StrandFont.caption.weight(.semibold))
-                    .foregroundStyle(themeTint(theme))
-            }
-            .accessibilityAddTraits(.isHeader)
-            VStack(spacing: 0) {
-                ForEach(Array(theme.prompts.enumerated()), id: \.element) { index, prompt in
-                    if index > 0 {
-                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
-                    }
-                    promptRow(prompt)
+    var body: some View {
+        CoachChipFlow(spacing: 8) {
+            ForEach(CoachPrompts.quickPrompts) { prompt in
+                Button {
+                    onAsk(prompt.question)
+                } label: {
+                    Text(verbatim: prompt.label)
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 38)
+                        .background(StrandPalette.surfaceRaised, in: Capsule(style: .continuous))
+                        .overlay(Capsule(style: .continuous)
+                            .strokeBorder(StrandPalette.hairline, lineWidth: NoopMetrics.hairlineWidth))
                 }
+                .buttonStyle(LiquidPressStyle())
+                .accessibilityLabel(Text("Suggested question: \(prompt.label)"))
             }
-            .padding(.horizontal, 16)
-            .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         }
-    }
-
-    private func promptRow(_ prompt: String) -> some View {
-        Button {
-            onAsk(prompt)
-        } label: {
-            HStack(spacing: 10) {
-                Text(prompt)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "arrow.up.right")
-                    .font(StrandFont.caption.weight(.semibold))
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.vertical, 12)
-            .frame(minHeight: 48)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Suggested question: \(prompt)"))
-    }
-
-    private func themeTitle(_ theme: CoachPrompts.Theme) -> LocalizedStringKey {
-        switch theme {
-        case .session: return "Session"
-        case .recovery: return "Recovery and sleep"
-        case .nutrition: return "Nutrition"
-        }
-    }
-
-    private func themeSymbol(_ theme: CoachPrompts.Theme) -> String {
-        switch theme {
-        case .session: return "dumbbell.fill"
-        case .recovery: return "moon.fill"
-        case .nutrition: return "fork.knife"
-        }
-    }
-
-    private func themeTint(_ theme: CoachPrompts.Theme) -> Color {
-        switch theme {
-        case .session: return StrandPalette.effortColor
-        case .recovery: return StrandPalette.restBright
-        case .nutrition: return StrandPalette.metricAmber
-        }
-    }
-
-    // MARK: Footer
-
-    /// What the coach reads, one tap from its screen. The "Sent to … only when you ask" line that sat
-    /// under it moved to the screen's header (fork chantier 7), so the screen states it once.
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Button(action: onShowData) {
-                HStack(spacing: 7) {
-                    Image(systemName: "eye")
-                        .accessibilityHidden(true)
-                    Text("What the coach reads: profile, today, 14 days, Lift Log")
-                        .multilineTextAlignment(.leading)
-                    Image(systemName: "chevron.right")
-                        .font(StrandFont.overline)
-                        .accessibilityHidden(true)
-                }
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .frame(minHeight: 30)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.top, -4)
     }
 }
 

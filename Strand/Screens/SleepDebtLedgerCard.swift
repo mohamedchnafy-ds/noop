@@ -26,7 +26,7 @@ struct SleepDebtLedgerCard: View {
 
     var body: some View {
         SleepNightsCard(data: SleepNightsData(ledger: model.sleepDebtLedger, month: model.trendPoints,
-                                              splits: SleepNightsData.nightStageSplits(days: model.days)),
+                                              splits: model.nightStageSplits),
                         onOpenNight: onOpenNight, canOpenNight: canOpenNight)
     }
 }

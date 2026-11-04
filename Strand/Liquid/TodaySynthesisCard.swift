@@ -44,7 +44,7 @@ struct TodaySynthesisCard: View {
     @ViewBuilder
     private func link(_ row: TodaySynthesisRow) -> some View {
         if let route = row.route {
-            NavigationLink(value: route) { rowBody(row, linked: true) }
+            TabRouteLink(route: route) { rowBody(row, linked: true) }
                 .buttonStyle(LiquidPressStyle())
         } else {
             rowBody(row, linked: false)

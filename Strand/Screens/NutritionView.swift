@@ -15,6 +15,8 @@ struct NutritionView: View {
     /// The Coach whose key the Photo and Dictate tiles use, and the label reading of the scanner.
     @EnvironmentObject private var coach: AICoachEngine
     @EnvironmentObject private var router: NavRouter
+    /// True in the iOS tab shell, where Nutrition is a tab root with the More avatar (fork chantier 9).
+    @Environment(\.showsMoreAvatar) var showsMoreAvatar
 
     @AppStorage(MealJournal.revisionKey) private var mealRevision = 0
     @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenths = NutritionGoals.defaultProteinTenths
@@ -231,9 +233,50 @@ struct NutritionView: View {
 
     // MARK: Parts
 
+    /// The screen's header: the tab-root layout in the iOS tab shell, the pushed-screen one elsewhere.
+    @ViewBuilder
+    private var header: some View {
+        if showsMoreAvatar { shellHeader } else { stackHeader }
+    }
+
+    /// The iOS tab shell (fork chantier 9): the title with the goals and the More avatar on its right,
+    /// then the day between ‹ › on its own line — four round buttons beside the title would not fit.
+    private var shellHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("Nutrition")
+                    .font(StrandFont.screenTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                journalHeaderButton(symbol: "target", label: "Nutrition goals", enabled: true) {
+                    showGoals = true
+                }
+                MoreAvatarButton()
+            }
+            HStack(spacing: 8) {
+                journalHeaderButton(symbol: "chevron.left", label: "Previous day", enabled: dayOffset < Self.maxDaysBack) {
+                    dayOffset += 1
+                }
+                Text(verbatim: dayLabel)
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity)
+                journalHeaderButton(symbol: "chevron.right", label: "Next day", enabled: dayOffset > 0) {
+                    dayOffset -= 1
+                }
+            }
+        }
+        .padding(.top, 8)
+    }
+
     /// Fork chantier 7: the day in 13 semibold grey capitals over the title in 34 bold; ‹ › and the goals
     /// on the right as round glass buttons (the day is named once, here).
-    private var header: some View {
+    private var stackHeader: some View {
         HStack(alignment: .bottom, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: dayLabel)

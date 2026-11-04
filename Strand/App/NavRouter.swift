@@ -64,6 +64,13 @@ final class NavRouter: ObservableObject {
     /// Ask the shell to open the quick-action sheet (Live HR · workout · journal · breathe).
     func requestQuickActions() { quickActionsRequested = true }
 
+    /// Set when the profile picture at the top right of a tab asks the iOS shell to open the More sheet
+    /// (fork chantier 9). The shell presents it, then resets this to false.
+    @Published var moreRequested = false
+
+    /// Ask the shell to open the More sheet.
+    func openMore() { moreRequested = true }
+
     /// Ask the shell to open the Devices manager (pair / switch bands). The shell decides how.
     func openDevices() { requestedDestination = .devices }
     /// #1862: open Coach, optionally with a question the launcher already collected.

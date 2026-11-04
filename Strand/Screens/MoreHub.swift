@@ -3,17 +3,21 @@ import StrandDesign
 
 // MARK: - More hub (fork)
 //
-// The iPhone More tab used to be one long index of ~30 rows in four collapsible sections. It is now six
+// The iPhone More tab used to be one long index of ~30 rows in four collapsible sections. It became six
 // groups (Training, Nutrition, Health & recovery, Analysis, Data, App settings); each opens its own
-// screen, or a screen listing the entries it holds. Nothing was removed: every former row lives in one
-// group. The group model and the row label are shared (not iOS-only) so the hub renders to PNG in the
-// macOS test target; the navigation itself stays in `RootTabView`.
+// screen, or a screen listing the entries it holds. Fork chantier 9: More is a sheet opened by the
+// profile picture of each tab, and Training and Nutrition are tabs, so the sheet lists the four other
+// groups under a profile row. Nothing was removed. The group model and the row labels are shared (not
+// iOS-only) so the sheet renders to PNG in the macOS test target; the navigation stays in `RootTabView`.
 
 /// One of the six groups of the More tab, with the copy and the colour its row shows.
 enum MoreHubGroup: String, CaseIterable, Hashable, Identifiable {
     case training, nutrition, healthRecovery, analysis, data, appSettings
 
     var id: String { rawValue }
+
+    /// The groups the More sheet lists: Training and Nutrition are tabs of their own (fork chantier 9).
+    static let sheetGroups: [MoreHubGroup] = [.healthRecovery, .analysis, .data, .appSettings]
 
     /// The group's name, used for its row and as the title of the screen it opens.
     var title: LocalizedStringKey {
@@ -33,7 +37,7 @@ enum MoreHubGroup: String, CaseIterable, Hashable, Identifiable {
         case .training: return "Calendar, Lift Log, activities, intervals, live heart rate"
         case .nutrition: return "Meal journal, goals, barcodes"
         case .healthRecovery: return "Health, stress, breathing, rhythm, lab book"
-        case .analysis: return "What moves you, intelligence, insights, explore, compare"
+        case .analysis: return "Trends, what moves you, intelligence, insights, explore, compare"
         case .data: return "Fused data, Apple Health, Mi Band, sources, backup, export"
         case .appSettings: return "Alarms, automations, Siri, power saving, test centre, settings"
         }
@@ -109,21 +113,50 @@ struct MoreHubRowLabel: View {
     }
 }
 
-/// The More hub's single card: the six group rows in order. `row` wraps each label in the caller's
-/// navigation link (the tab's `NavigationPath` values live in `RootTabView`); the render test passes the
-/// bare label.
+/// The More hub's single card: the group rows in order (all six by default; the iPhone sheet passes
+/// `MoreHubGroup.sheetGroups`). `row` wraps each label in the caller's navigation link (the sheet's
+/// `NavigationPath` values live in `RootTabView`); the render test passes the bare label.
 struct MoreHubCard<Row: View>: View {
+    var groups: [MoreHubGroup] = MoreHubGroup.allCases
     @ViewBuilder let row: (MoreHubGroup, _ isLast: Bool) -> Row
 
     var body: some View {
         NoopCard(padding: 0) {
             VStack(spacing: 0) {
-                ForEach(MoreHubGroup.allCases) { group in
-                    row(group, group == MoreHubGroup.allCases.last)
+                ForEach(groups) { group in
+                    row(group, group == groups.last)
                 }
             }
             .padding(.vertical, 2)
             .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+        }
+    }
+}
+
+/// The More sheet's first row (fork chantier 9): the profile picture with « Profile and settings », which
+/// opens Settings, as the Today avatar did before it opened this sheet.
+struct MoreProfileRowLabel: View {
+    /// The stored profile photo bytes, or nil for the default icon.
+    var avatarImageData: Data?
+
+    var body: some View {
+        NoopCard(padding: 0) {
+            HStack(spacing: 14) {
+                ProfileAvatarView(imageData: avatarImageData, size: 48)
+                    .accessibilityHidden(true)
+                Text("Profile and settings")
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
     }
 }

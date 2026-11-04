@@ -35,7 +35,7 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Il ne voit pas l'app depuis la session : lui demander des captures d'écran pour valider le rendu.
 
 ## Chantier en cours (mis à jour le 4 nov. 2026)
-- **Chantier 9** : lisibilité de l'app, une section à la fois (maquette → validation → code). Fiche `docs/fork/chantier-9-design.md`. Méthode : toutes les maquettes d'abord (un artefact Design par section), le code après. Section 1 (navigation) fusionnée (#61) ; **maquettes 2 à 7 validées le 4 nov.** (liens dans la fiche). Prochaine étape : le code, section par section, une PR par section depuis `main`.
+- **Chantier 9** : lisibilité de l'app, une section à la fois (maquette → validation → code). Fiche `docs/fork/chantier-9-design.md`. Méthode : toutes les maquettes d'abord (un artefact Design par section), le code après. Section 1 (navigation) fusionnée (#61), section 2 (Aujourd'hui) fusionnée (#64) ; **maquettes 2 à 7 validées le 4 nov.** (liens dans la fiche). Prochaine étape : section 3 Sommeil, puis les suivantes, une PR par section depuis `main`.
 
 ## Chantier précédent
 - **Chantier 8** : code terminé, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, 3 (#46 à #54), 4 (#55 planning, #57 écran de séance en cours), 5 (#58 corps cliquable), #59 virgule décimale. IPA unique construite : `build/chantier-8` = `main` ca02e9a. Reste : l'installer et valider sur le téléphone (liste « À tester » de la feuille de route).

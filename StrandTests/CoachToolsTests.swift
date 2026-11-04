@@ -26,7 +26,7 @@ final class CoachToolsTests: XCTestCase {
     func testEveryToolIsNamedOnceAndHasAnObjectSchema() throws {
         let tools = CoachTools.definitions(dataConsent: true, labBook: true)
         let cards = ["create_program", "search_foods", "log_meal", "read_label", "plan_menu", "log_nap", "remember",
-                     "correct_workout", "correct_lift_session"]
+                     "show_chart", "correct_workout", "correct_lift_session"]
         XCTAssertEqual(Set(names(tools)), Set(CoachTools.Name.allCases.map(\.rawValue) + cards))
         XCTAssertEqual(names(tools).count, CoachTools.Name.allCases.count + cards.count)
         for tool in tools {

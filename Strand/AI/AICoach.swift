@@ -417,6 +417,7 @@ final class AICoachEngine: ObservableObject {
                 "- Demande la période la plus courte qui répond à la question.",
                 "- Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.",
                 "- Eau et caféine : ce sont des saisies de l'utilisateur. L'eau enregistrée n'est pas toute l'eau bue, et un jour sans saisie ne veut pas dire qu'il n'a rien bu ; la caféine active est une estimation.",
+                "- Graphiques : quand il veut voir une mesure, une tendance ou comparer deux mesures, appelle show_chart (au plus 3 par réponse) au lieu d'écrire les valeurs : line ou bars pour une mesure (période de 7, 14, 30, 90, 180 ou 365 jours), pair pour deux mesures sur la même période, day pour la FC ou le stress d'une journée. L'app dessine avec ses propres données et te renvoie les chiffres du graphique : commente-les en une ou deux phrases, sans les recopier.",
                 "- Corrections : pour corriger une séance saisie à la main (get_workouts la marque « entered by hand »), appelle correct_workout ; pour corriger les séries d'une séance terminée du Carnet (charge ou répétitions mal notées, série en plus ou en moins), appelle correct_lift_session. Une phrase avant, rien après : la carte s'affiche avec « Valider », rien ne change sans un tap et il peut annuler. Une correction est sa déclaration, jamais une mesure du bracelet. Une séance enregistrée par le bracelet ou importée ne se corrige pas ici : dis-lui de passer par Entraînements.",
             ]
         }
@@ -1213,6 +1214,7 @@ final class AICoachEngine: ObservableObject {
         var meal: CoachMealProposal?
         var action: CoachActionProposal?
         var menu: CoachMenuProposal?
+        var charts: [CoachChartSpec] = []
 
         func joined(_ a: String, _ b: String) -> String {
             let a = a.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1227,7 +1229,7 @@ final class AICoachEngine: ObservableObject {
         }
         func settled(_ body: String) -> String {
             CoachReplyMeta.join(body: body, meta: CoachReplyMeta(consulted: consulted, session: session, meal: meal,
-                                                                 action: action, menu: menu))
+                                                                 action: action, menu: menu, charts: charts))
         }
         defer { toolActivity = nil }
 
@@ -1311,6 +1313,32 @@ final class AICoachEngine: ObservableObject {
                         }
                         continue
                     }
+                    // A chart (chantier 9): what to draw, at most three; the app reads the values itself, and
+                    // the model gets the figures the card shows to comment on.
+                    if call.name == CoachChart.toolName {
+                        guard charts.count < CoachChart.maxPerReply else {
+                            results.append((call.id, "Already \(CoachChart.maxPerReply) charts in this reply: show no more.", true))
+                            continue
+                        }
+                        let today = CoachChart.dayKey(Date(), calendar: .current)
+                        let parsed = CoachChart.fromToolInput(input, today: today) { day in
+                            CoachChart.dayDate(day, calendar: .current).flatMap { date in
+                                Calendar.current.dateComponents([.day], from: date,
+                                                                to: Calendar.current.startOfDay(for: Date())).day
+                            }
+                        }
+                        guard let spec = parsed.spec else {
+                            results.append((call.id, parsed.problem ?? "That chart cannot be drawn.", true))
+                            continue
+                        }
+                        let label = CoachChartText.title(spec)
+                        toolActivity = label
+                        let points = await chartPoints(spec)
+                        charts.append(spec)
+                        if !consulted.contains(label) { consulted.append(label) }
+                        results.append((call.id, CoachChart.shownResult(spec, first: points.first, second: points.second), false))
+                        continue
+                    }
                     // An action card (chantier 8): a nap, a correction, a fact to remember. Written on Confirm only.
                     if let kind = CoachActionProposal.Kind(toolName: call.name) {
                         let parsed = await resolveAction(kind, input: input)
@@ -1337,18 +1365,19 @@ final class AICoachEngine: ObservableObject {
                 conversation.append(AnthropicToolRequest.assistant(turn))
                 conversation.append(AnthropicToolRequest.toolResults(results))
             }
-            show(finished.isEmpty && session == nil && meal == nil && action == nil && menu == nil ? "(no reply)" : settled(finished))
+            let nothing = session == nil && meal == nil && action == nil && menu == nil && charts.isEmpty
+            show(finished.isEmpty && nothing ? "(no reply)" : settled(finished))
         } catch {
             let partial = joined(finished, streaming)
             if Task.isCancelled || error is CancellationError {
-                if partial.isEmpty && session == nil && meal == nil && action == nil && menu == nil {
+                if partial.isEmpty && session == nil && meal == nil && action == nil && menu == nil && charts.isEmpty {
                     messages.removeAll { $0.id == placeholder.id }
                 } else {
                     show(settled(partial))
                 }
                 return
             }
-            if partial.isEmpty && session == nil && meal == nil && action == nil && menu == nil {
+            if partial.isEmpty && session == nil && meal == nil && action == nil && menu == nil && charts.isEmpty {
                 messages.removeAll { $0.id == placeholder.id }
             } else {
                 show(settled(partial.isEmpty ? "*(stream interrupted)*" : partial + "\n\n*(stream interrupted)*"))

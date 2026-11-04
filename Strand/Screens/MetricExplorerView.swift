@@ -40,7 +40,7 @@ private func longDate(_ d: Date) -> String {
 }
 
 /// The category accent (colour communicates category only — never decoration).
-private func metricAccent(_ m: MetricDescriptor) -> Color {
+func metricAccent(_ m: MetricDescriptor) -> Color {
     switch m.key {
     case "recovery", "sleep_performance", "hours_vs_needed_pct", "sleep_consistency",
          "restorative_pct", "restorative_min", "sleep_efficiency", "sleep_total_min",

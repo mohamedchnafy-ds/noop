@@ -212,8 +212,10 @@ enum CoachTools {
                               + "each, with their dates. Logged by the user, not medical findings.",
                               properties: [:], required: []))
         }
-        // The corrections name a record the read tools listed, so they come with "Use my data" only.
-        return tools + cards + [CoachActionProposal.workoutDefinition, CoachActionProposal.liftDefinition]
+        // The charts (chantier 9) draw the user's data, so they come with "Use my data" only, like the
+        // corrections, which name a record the read tools listed.
+        return tools + cards + [CoachChart.definition, CoachActionProposal.workoutDefinition,
+                                CoachActionProposal.liftDefinition]
     }
 
     private static func tool(_ name: Name, _ description: String, properties: [String: Any],

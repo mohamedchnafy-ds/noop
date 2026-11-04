@@ -309,10 +309,10 @@ struct RootTabView: View {
                 break
             }
         }
-        // A screen's top-bar "+" routes here: open the quick-action sheet, then clear the flag.
+        // A screen's top-bar "+" routes here: open the « Start » sheet (personal fork), then clear the flag.
         .onChange(of: router.quickActionsRequested) { _, req in
             if req {
-                withAnimation(Self.sheetEase) { quickAction = .menu }
+                withAnimation(Self.sheetEase) { quickAction = .start }
                 router.quickActionsRequested = false
             }
         }
@@ -382,7 +382,7 @@ struct RootTabView: View {
 
         let destination: QuickAction = switch action {
         case .liveHeartRate: .live
-        case .startWorkout: .workout
+        case .startWorkout: .start
         case .logJournal: .journal
         case .breathe: .breathe
         }
@@ -448,25 +448,17 @@ struct RootTabView: View {
 
     // MARK: - Quick-action sheet
 
-    /// Routes a chosen quick action to the existing screen, or shows the action menu itself.
+    /// Routes a chosen quick action to the existing screen, or shows the « Start » sheet (personal fork:
+    /// the « + » used to open a menu of four rows, its « Start workout » leading to the history).
     @ViewBuilder
     private func quickActionDestination(_ action: QuickAction) -> some View {
         switch action {
-        case .menu:
-            QuickActionSheet { picked in
-                // Swap the menu for the chosen destination on the next runloop so the sheet
-                // re-presents cleanly (avoids dismiss/re-present races). Calm easing on re-present.
-                quickAction = nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    withAnimation(Self.sheetEase) { quickAction = picked }
-                }
-            }
-            .presentationDetents([.height(344)])
-            .presentationDragIndicator(.hidden)
+        case .start:
+            StartSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         case .live:
             quickScreen(LiveView())
-        case .workout:
-            quickScreen(WorkoutsView())
         case .journal:
             quickScreen(InsightsView())
         case .breathe:
@@ -788,83 +780,11 @@ private struct MoreRow: View {
 
 // MARK: - Quick actions (centre FAB)
 
-/// The destinations the centre FAB can present. `.menu` is the action sheet itself; the rest
-/// route to existing screens. `Identifiable` so it drives `.sheet(item:)`.
+/// The destinations the « + » and the Home Screen menu can present. `.start` is the « Start » sheet
+/// (personal fork); the rest route to existing screens. `Identifiable` so it drives `.sheet(item:)`.
 private enum QuickAction: Int, Identifiable {
-    case menu, live, workout, journal, breathe
+    case start, live, journal, breathe
     var id: Int { rawValue }
-}
-
-/// The bottom sheet of quick actions presented by the centre FAB. Spec bottom sheet: surfaceOverlay
-/// fill, gold hairline top edge, grab handle, three flat action rows that route to existing screens.
-private struct QuickActionSheet: View {
-    /// Called with the picked destination (the host swaps the menu for that screen).
-    let onPick: (QuickAction) -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Grab handle (36×4) in the slate hairline tone.
-            Capsule()
-                .fill(StrandPalette.hairlineStrong)
-                .frame(width: 36, height: 4)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
-
-            Text("QUICK ACTIONS")
-                .font(StrandFont.overline)
-                .tracking(1.6)
-                .foregroundStyle(StrandPalette.textTertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
-
-            VStack(spacing: 8) {
-                row("Live HR", icon: "waveform.path.ecg", tint: StrandPalette.metricRose) { onPick(.live) }
-                row("Start workout", icon: "figure.run", tint: StrandPalette.effortColor) { onPick(.workout) }
-                row("Log journal", icon: "square.and.pencil", tint: StrandPalette.accent) { onPick(.journal) }
-                row("Breathe", icon: "wind", tint: StrandPalette.restColor) { onPick(.breathe) }
-            }
-            .padding(.horizontal, 16)
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(
-            NoopChromeSurface()
-                .overlay(alignment: .top) {
-                    // Gold hairline top edge per the bottom-sheet spec.
-                    Rectangle()
-                        .fill(StrandPalette.gold.opacity(0.35))
-                        .frame(height: 1)
-                }
-                .ignoresSafeArea()
-        )
-    }
-
-    /// One flat action row: hued line-icon tile + title, inset surface, hairline border.
-    private func row(_ title: LocalizedStringKey, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 13) {
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 38, height: 38)
-                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(StrandPalette.surfaceInset))
-                Text(title)
-                    .font(StrandFont.headline)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textTertiary)
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(NoopPanelSurface(cornerRadius: 14))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 #endif

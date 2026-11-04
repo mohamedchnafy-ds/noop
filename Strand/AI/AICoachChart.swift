@@ -34,6 +34,10 @@ extension AICoachEngine {
                 : Int(next.timeIntervalSince1970)
             let buckets = await repo.hrBuckets(from: from, to: to, bucketSeconds: 300)
             return (buckets.map { CoachChartPoint(date: Date(timeIntervalSince1970: TimeInterval($0.ts)), value: $0.bpm) }, [])
+        case .stacked:
+            let window = CoachChart.windowDays(endingOn: spec.day, days: spec.days ?? 30, calendar: calendar)
+            return (await stackedPoints(CoachChart.stack(spec.metric) ?? .sleepStages, window: window,
+                                        calendar: calendar), [])
         case .line, .bars, .pair:
             let window = CoachChart.windowDays(endingOn: spec.day, days: spec.days ?? 30, calendar: calendar)
             guard let start = window.first.flatMap({ CoachChart.dayDate($0, calendar: calendar) }) else { return ([], []) }
@@ -48,6 +52,33 @@ extension AICoachEngine {
             guard spec.kind == .pair else { return (first, []) }
             let second = await read(spec.second)
             return (first, second)
+        }
+    }
+
+    /// A stack's days, oldest first, each with its parts. The sleep stages are « Your nights »' own
+    /// (`SleepNightsData.nightStageSplits` over the daily rows); the macros are the meal journal's day totals
+    /// (`NutritionDaySummary`, the Nutrition screen's sum), a day without a meal being left out, never 0.
+    private func stackedPoints(_ stack: CoachChartSpec.Stack, window: [String],
+                               calendar: Calendar) async -> [CoachChartPoint] {
+        switch stack {
+        case .sleepStages:
+            let splits = SleepNightsData.nightStageSplits(days: repo.days)
+            return window.compactMap { day in
+                guard let split = splits[day], let date = CoachChart.dayDate(day, calendar: calendar) else { return nil }
+                return CoachChartPoint(date: date, value: split.asleep, parts: [split.deep, split.rem, split.light])
+            }
+        case .macros:
+            guard let firstDay = window.first, let lastDay = window.last,
+                  let store = await repo.storeHandle() else { return [] }
+            let meals = (try? await MealJournal.mealJournalRange(store, fromDay: firstDay, toDay: lastDay)) ?? []
+            let byDay = Dictionary(grouping: meals, by: \.meal.day)
+            return window.compactMap { day in
+                guard let dayMeals = byDay[day], !dayMeals.isEmpty,
+                      let date = CoachChart.dayDate(day, calendar: calendar) else { return nil }
+                let eaten = NutritionDaySummary(dayKey: day, meals: dayMeals, spent: nil).eaten
+                let parts = [eaten.proteinG, eaten.carbsG, eaten.fatG]
+                return CoachChartPoint(date: date, value: parts.reduce(0, +), parts: parts)
+            }
         }
     }
 }

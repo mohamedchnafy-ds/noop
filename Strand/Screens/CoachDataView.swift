@@ -180,6 +180,8 @@ struct CoachDataView: View {
                 onDemandRow("The history of an exercise")
                 onDemandRow("Your Journal and Lab Book")
                 onDemandRow("Your meals over several days")
+                onDemandRow("Any series of Analyses, sleep stages and macros day by day")
+                onDemandRow("Charts of your data under its answer")
                 if !coach.dataConsent {
                     Text("Off while “Use my data” is off.")
                         .font(StrandFont.footnote)

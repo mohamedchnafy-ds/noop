@@ -26,6 +26,8 @@ enum CoachTools {
         case dayHeartRate = "get_day_heart_rate"
         /// The caffeine tracker: what was logged and the estimate still active (chantier 8).
         case caffeine = "get_caffeine"
+        /// Any series of Analyses, the sleep stages or the macros, by the ids `show_chart` takes (chantier 9).
+        case series = "get_series"
     }
 
     /// The metrics `get_metric_history` can return, by the names the fiche uses.
@@ -206,6 +208,7 @@ enum CoachTools {
                  + "estimate of what is still active now. Logged by the user, an estimate, not a measurement.",
                  properties: [:], required: []),
         ]
+        tools.append(seriesDefinition)
         if labBook {
             tools.append(tool(.labBook,
                               "The user's own Lab Book markers (blood tests and the like): the latest values of "
@@ -676,6 +679,11 @@ enum CoachTools {
             return String(localized: "Today's heart rate")
         case .caffeine:
             return String(localized: "Caffeine")
+        case .series:
+            let title = CoachChartText.seriesName(text(input, "metric"))
+            let days = integer(input, "days", fallback: 30, in: seriesDayRange)
+            let shown = title.isEmpty ? String(localized: "Your data") : title
+            return String(localized: "\(shown) since \(since(days: days))")
         }
     }
 

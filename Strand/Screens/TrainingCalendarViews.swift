@@ -532,11 +532,11 @@ struct TrainingDaySection: View {
     /// what was done, or the empty-day line.
     private var rows: [Row] {
         let open = day.openItems
-        var rows: [Row] = open.compactMap { item in
+        var rows: [Row] = open.compactMap { item -> Row? in
             guard let id = item.programId else { return nil }
             return programs.first(where: { $0.id == id }).map(Row.program)
         }
-        rows += open.compactMap { item in
+        rows += open.compactMap { item -> Row? in
             if case .cardio(let sport, let minutes) = item { return .cardio(sport: sport, minutes: minutes) }
             return nil
         }

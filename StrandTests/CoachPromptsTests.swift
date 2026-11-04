@@ -13,6 +13,18 @@ final class CoachPromptsTests: XCTestCase {
         XCTAssertEqual(CoachPrompts.genericFollowUps.count, 3)
     }
 
+    /// Fork chantier 9: the empty screen's six chips. Every theme question but one is among them, so the
+    /// follow-ups still know the conversation's theme; the meal chip opens the photo picker.
+    func testTheSixChipsAskTheThemeQuestions() {
+        let chips = CoachPrompts.quickPrompts
+        XCTAssertEqual(chips.count, 6)
+        XCTAssertEqual(Set(chips.map(\.question)).count, 6)
+        XCTAssertEqual(chips.last?.question, CoachPrompts.photoMealPrompt)
+        let themed = chips.filter { CoachPrompts.theme(ofFirstQuestion: $0.question) != nil }
+        XCTAssertEqual(themed.count, 5, "only the HRV chip is outside the themes")
+        XCTAssertTrue(chips.allSatisfy { !$0.label.isEmpty })
+    }
+
     func testTheLauncherOffersEverySuggestionThemeByTheme() {
         XCTAssertEqual(CoachPrompts.suggestions, CoachPrompts.Theme.allCases.flatMap(\.prompts))
         XCTAssertEqual(Set(CoachPrompts.suggestions).count, CoachPrompts.suggestions.count,

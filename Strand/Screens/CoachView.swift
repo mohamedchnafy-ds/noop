@@ -38,6 +38,8 @@ struct CoachView: View {
     /// The id typed in the "Custom…" field.
     @State private var customModelDraft: String = ""
     @FocusState private var composerFocused: Bool
+    /// The first name the empty screen greets (fork chantier 9, « What the coach should know about you »).
+    @AppStorage(CoachGreeting.firstNameKey) private var firstName = ""
 
     /// K2: confirmation gate for the destructive "Delete conversation" menu action.
     @State private var showClearConfirm = false
@@ -401,8 +403,9 @@ struct CoachView: View {
 
     /// The header (fork chantier 7, mockup « Coach »): the 34-point title with three round Liquid Glass
     /// buttons on its right (the history, a new conversation, the ⋯ menu that holds everything else),
-    /// then one grey line: the conversation's name once it has one, otherwise when anything leaves the
-    /// phone. The name and when it was last written are also read out with the title by VoiceOver.
+    /// then, once the conversation has a name, one grey line with it. Fork chantier 9: when anything leaves
+    /// the phone is said at the top of the ⋯ menu, no longer under the title. The name and when it was
+    /// last written are also read out with the title by VoiceOver.
     private var chatHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -420,25 +423,13 @@ struct CoachView: View {
                 // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere.
                 MoreAvatarButton()
             }
-            HStack(spacing: 6) {
-                // Once the conversation has a name, the grey line shows it (Mohamed, 3 Nov.); before
-                // that it says when anything leaves the phone.
-                if let savedTitle {
-                    Image(systemName: "bubble.left")
-                        .accessibilityHidden(true)
-                    Text(verbatim: savedTitle)
-                        .lineLimit(1)
-                } else {
-                    Image(systemName: "lock")
-                        .accessibilityHidden(true)
-                    Text("Sent to \(coach.provider.displayName) only when you ask")
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            // Once the conversation has a name, the grey line shows it (Mohamed, 3 Nov.).
+            if let savedTitle {
+                Text(verbatim: savedTitle)
+                    .lineLimit(1)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
             }
-            .font(StrandFont.caption)
-            .foregroundStyle(StrandPalette.textSecondary)
-            .accessibilityElement(children: .combine)
         }
     }
 
@@ -497,6 +488,16 @@ struct CoachView: View {
     /// `disconnect()` ALSO assigns the published `messages`, which is what re-evaluates the body.
     private var optionsMenu: some View {
         let menu = Menu {
+            // Fork chantier 9: first, when anything is sent and to which model (the line left the header).
+            Section {
+                Button {
+                    toggleKeyEditor()
+                } label: {
+                    Label("Update key", systemImage: "key.fill")
+                }
+            } header: {
+                Text("Sent to \(coach.provider.displayName) only when you ask") + Text(verbatim: " · \(coach.model)")
+            }
             if let row = coach.currentConversationRow {
                 Section {
                     Button {
@@ -534,12 +535,7 @@ struct CoachView: View {
                     Label("Coach settings", systemImage: "slider.horizontal.3")
                 }
             }
-            Section("\(coach.provider.displayName) · \(coach.model)") {
-                Button {
-                    toggleKeyEditor()
-                } label: {
-                    Label("Update key", systemImage: "key.fill")
-                }
+            Section {
                 Button(role: .destructive) {
                     coach.disconnect()
                     keyDraft = ""
@@ -572,6 +568,10 @@ struct CoachView: View {
                 errorBanner(error)
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
+            if isEmptyConversation {
+                CoachQuickPrompts { ask($0) }
+                    .padding(.bottom, 4)
+            }
             composer
             // K12: the estimate, now only when it is worth a warning.
             if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -591,19 +591,31 @@ struct CoachView: View {
         }
     }
 
-    private var transcript: some View {
+    /// The empty conversation (fork chantier 9): the greeting and the brief in the middle of the screen,
+    /// no scroll view; the six chips sit above the composer (`bottomPanel`).
+    private var isEmptyConversation: Bool { coach.messages.isEmpty && !coach.sending }
+
+    @ViewBuilder private var transcript: some View {
+        if isEmptyConversation {
+            VStack {
+                Spacer(minLength: 0)
+                CoachEmptyState(briefAvailable: coach.dataConsent, firstName: firstName,
+                                onBrief: { coach.beginBriefIfNeeded() },
+                                onShowData: { showCoachData = true })
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            conversationScroll
+        }
+    }
+
+    private var conversationScroll: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 // Lazy so off-screen bubbles aren't all resident/laid-out at once; with the
                 // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    if coach.messages.isEmpty && !coach.sending {
-                        CoachEmptyState(briefAvailable: coach.dataConsent,
-                                        providerName: coach.provider.displayName,
-                                        onBrief: { coach.beginBriefIfNeeded() },
-                                        onAsk: { ask($0) },
-                                        onShowData: { showCoachData = true })
-                    }
                     ForEach(coach.messages) { message in
                         bubble(message).id(message.id)
                     }
@@ -674,8 +686,8 @@ struct CoachView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("You said: \(question.body)")
         case .assistant:
-            // Personal fork (Coach mockup 2): the answer reads full width, with no card around it, under
-            // a small "Coach" mark, and its actions sit in a row underneath. LLM replies arrive as
+            // Personal fork (Coach mockup 2): the answer reads full width, with no card around it, and its
+            // actions sit in a row underneath. LLM replies arrive as
             // Markdown (bold, lists, headings, tables), rendered with the chat-sized Strand theme; user
             // bubbles stay verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
             // The words and the stored extras (`CoachReplyMeta`) are read apart: the block is never
@@ -688,14 +700,8 @@ struct CoachView: View {
             let action = reply.meta?.action
             let menu = reply.meta?.menu
             if !reply.body.isEmpty || session != nil || meal != nil || action != nil || menu != nil {
+                // Fork chantier 9: no "Coach" mark above the answer; the words, then its cards.
                 VStack(alignment: .leading, spacing: 6) {
-                    Label {
-                        Text("Coach").font(StrandFont.overline)
-                    } icon: {
-                        Image(systemName: "sparkles").font(StrandFont.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .accessibilityHidden(true)
                     if !reply.body.isEmpty {
                         Markdown(reply.body)
                             .markdownTheme(.strand)
@@ -815,20 +821,21 @@ struct CoachView: View {
     }
     #endif
 
-    /// What the coach looked at with its tools, under the reply ("What the coach reads": it goes and
-    /// fetches the detail itself, then shows it under its answer).
+    /// What the coach looked at with its tools, under the reply (it goes and fetches the detail itself,
+    /// then shows it under its answer). Fork chantier 9: an eye and the list, small and grey.
     private func consultedLine(_ consulted: [String]) -> some View {
         let list = consulted.joined(separator: " · ")
         return Label {
-            Text("Looked at: \(list)")
+            Text(verbatim: list)
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: "eye")
         }
         .font(StrandFont.caption)
         .foregroundStyle(StrandPalette.textSecondary)
         .padding(.top, 2)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Looked at: \(list)"))
     }
 
     /// Copy, save to the Journal, redo (the last answer to a question only) and share. `text` is the

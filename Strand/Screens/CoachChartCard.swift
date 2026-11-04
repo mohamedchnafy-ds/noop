@@ -4,7 +4,7 @@ import StrandDesign
 
 /// Titles and figures of a Coach chart, worded through the catalogue (fork chantier 9).
 enum CoachChartText {
-    /// "Heart Rate Variability · 30 days", "HRV & Asleep Time · 30 days", "Heart rate · 3 Nov".
+    /// "HRV · 30 days", "HRV & Asleep Time · 30 days", "Heart rate · 3 Nov".
     static func title(_ spec: CoachChartSpec) -> String {
         switch spec.kind {
         case .day:
@@ -13,11 +13,24 @@ enum CoachChartText {
             let what = spec.series == .stress ? String(localized: "Stress") : String(localized: "Heart rate")
             return what + " · " + date
         case .line, .bars:
-            return (CoachChart.descriptor(spec.metric)?.title ?? "") + " · " + period(spec.days ?? 30)
+            return name(CoachChart.descriptor(spec.metric)) + " · " + period(spec.days ?? 30)
         case .pair:
-            let first = CoachChart.descriptor(spec.metric)?.title ?? ""
-            let second = CoachChart.descriptor(spec.second)?.title ?? ""
-            return first + " & " + second + " · " + period(spec.days ?? 30)
+            return name(CoachChart.descriptor(spec.metric)) + " & " + name(CoachChart.descriptor(spec.second))
+                + " · " + period(spec.days ?? 30)
+        }
+    }
+
+    /// A metric's name on the card: the short form the app already uses for the heart metrics, whose
+    /// catalogue titles do not fit one line in French (« Variabilité de la fréquence cardiaque »), else
+    /// the catalogue title.
+    static func name(_ descriptor: MetricDescriptor?) -> String {
+        guard let descriptor else { return "" }
+        switch descriptor.key {
+        case "hrv": return String(localized: "HRV")
+        case "rhr": return String(localized: "Resting HR")
+        case "avg_hr": return String(localized: "Avg HR")
+        case "max_hr": return String(localized: "Max HR")
+        default: return descriptor.title
         }
     }
 
@@ -33,6 +46,9 @@ enum CoachChartText {
 /// mean. The points are read by the screen (`AICoachEngine.chartPoints`), never written by the model.
 struct CoachChartCard: View {
     let spec: CoachChartSpec
+    /// Whether the data can be read ("Use my data"). Off, the card says so rather than "nothing measured":
+    /// a conversation read again after the switch went off still holds its charts.
+    let dataAvailable: Bool
     /// Reads the points: the metric's (or the day's), and a pair's second metric's.
     let load: () async -> (first: [CoachChartPoint], second: [CoachChartPoint])
 
@@ -45,8 +61,10 @@ struct CoachChartCard: View {
     @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
 
-    init(spec: CoachChartSpec, load: @escaping () async -> (first: [CoachChartPoint], second: [CoachChartPoint])) {
+    init(spec: CoachChartSpec, dataAvailable: Bool,
+         load: @escaping () async -> (first: [CoachChartPoint], second: [CoachChartPoint])) {
         self.spec = spec
+        self.dataAvailable = dataAvailable
         self.load = load
     }
 
@@ -68,7 +86,12 @@ struct CoachChartCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            if !loaded {
+            if !dataAvailable {
+                Text("Turn on “Use my data” first")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+            } else if !loaded {
                 Color.clear.frame(height: 130)
             } else if first.isEmpty {
                 Text("Nothing measured in this period.")
@@ -78,6 +101,7 @@ struct CoachChartCard: View {
             } else {
                 readout
                 chart.frame(height: 130)
+                dateRow
                 legend
             }
         }
@@ -85,7 +109,8 @@ struct CoachChartCard: View {
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
-        .task(id: spec) {
+        .task(id: TaskKey(spec: spec, dataAvailable: dataAvailable)) {
+            guard dataAvailable else { return }
             let points = await load()
             first = points.first
             second = points.second
@@ -153,8 +178,6 @@ struct CoachChartCard: View {
         let stats = CoachChart.stats(first.map(\.value))
         let pairFirst = spec.kind == .pair ? CoachChart.normalized(first) : first
         let pairSecond = spec.kind == .pair ? CoachChart.normalized(second) : []
-        let axisFormat: Date.FormatStyle = spec.kind == .day ? .dateTime.hour().minute()
-            : .dateTime.day().month(.abbreviated)
         return Chart {
             if spec.kind == .line, let stats, let start = first.first?.date, let end = first.last?.date, start < end {
                 RectangleMark(xStart: .value("Start", start), xEnd: .value("End", end),
@@ -194,12 +217,8 @@ struct CoachChartCard: View {
             }
         }
         .chartYAxis(.hidden)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                AxisValueLabel(format: axisFormat)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-        }
+        // The dates are written under the chart (`dateRow`), as in the mockup: the first, middle and last.
+        .chartXAxis(.hidden)
         .chartOverlay { proxy in
             GeometryReader { geo in
                 let plot = proxy.plotRectCompat(in: geo)
@@ -221,6 +240,31 @@ struct CoachChartCard: View {
         .accessibilityValue(Text(verbatim: accessibilitySummary(stats)))
     }
 
+    /// The first, middle and last dates of the points, spread under the chart (one date for one point).
+    private var dateRow: some View {
+        HStack {
+            ForEach(Array(edgeDates.enumerated()), id: \.offset) { index, date in
+                if index > 0 { Spacer(minLength: 4) }
+                Text(verbatim: axisText(date))
+            }
+        }
+        .font(StrandFont.caption)
+        .foregroundStyle(StrandPalette.textSecondary)
+        .lineLimit(1)
+        .accessibilityHidden(true)
+    }
+
+    private var edgeDates: [Date] {
+        guard let start = first.first?.date, let end = first.last?.date else { return [] }
+        guard start < end else { return [start] }
+        return [start, start.addingTimeInterval(end.timeIntervalSince(start) / 2), end]
+    }
+
+    private func axisText(_ date: Date) -> String {
+        spec.kind == .day ? AppClock.hourMinuteFormatter().string(from: date)
+            : date.formatted(.dateTime.day().month(.abbreviated))
+    }
+
     // MARK: Legend
 
     @ViewBuilder private var legend: some View {
@@ -238,8 +282,8 @@ struct CoachChartCard: View {
             case .bars:
                 if let stats { Text("– – mean \(format(stats.mean, descriptor, unit: false))") }
             case .pair:
-                legendDot(tint, descriptor?.title ?? "")
-                legendDot(secondTint, secondDescriptor?.title ?? "")
+                legendDot(tint, CoachChartText.name(descriptor))
+                legendDot(secondTint, CoachChartText.name(secondDescriptor))
             case .day:
                 if let stats {
                     Text("mean \(format(stats.mean, descriptor, unit: false)) · peak \(format(stats.highest, descriptor, unit: false))")
@@ -279,6 +323,12 @@ struct CoachChartCard: View {
     private func dateText(_ date: Date) -> String {
         spec.kind == .day ? AppClock.hourMinuteFormatter().string(from: date)
             : date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    }
+
+    /// What reloads the points: the chart, and the switch coming back on.
+    private struct TaskKey: Equatable {
+        let spec: CoachChartSpec
+        let dataAvailable: Bool
     }
 
     private func accessibilitySummary(_ stats: CoachChart.Stats?) -> String {

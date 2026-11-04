@@ -569,7 +569,7 @@ struct CoachView: View {
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
             if isEmptyConversation {
-                CoachQuickPrompts { ask($0) }
+                CoachQuickPrompts(photosAvailable: photosAvailable) { ask($0) }
                     .padding(.bottom, 4)
             }
             composer
@@ -713,7 +713,7 @@ struct CoachView: View {
                     }
                     // Fork chantier 9: the charts the coach asked for, drawn from the app's own data.
                     ForEach(Array(charts.enumerated()), id: \.offset) { _, spec in
-                        CoachChartCard(spec: spec) { await coach.chartPoints(spec) }
+                        CoachChartCard(spec: spec, dataAvailable: coach.dataConsent) { await coach.chartPoints(spec) }
                             .frame(maxWidth: 520, alignment: .leading)
                             .padding(.top, 2)
                     }

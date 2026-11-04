@@ -77,6 +77,25 @@ final class CoachChartTests: XCTestCase {
         XCTAssertTrue(CoachChart.wireText(spec).contains("last 30 days to 2026-11-04"))
     }
 
+    /// The reply and the card must give one number for one day: Effort goes to the model on the scale the
+    /// card writes it on.
+    func testEffortIsSentOnTheScaleTheCardShows() {
+        let spec = CoachChartSpec(kind: .bars, metric: "my-whoop:strain", days: 7, day: "2026-11-04")
+        let point = CoachChartPoint(date: Date(timeIntervalSince1970: 0), value: 50)
+        let whoop = CoachChart.shownResult(spec, first: [point], second: [], effortScale: .whoop)
+        XCTAssertTrue(whoop.contains("mean 10.5"), whoop)
+        XCTAssertTrue(whoop.contains("(/21)"), whoop)
+        let hundred = CoachChart.shownResult(spec, first: [point], second: [])
+        XCTAssertTrue(hundred.contains("mean 50"), hundred)
+    }
+
+    /// The heart metrics take the app's short names on the card, so the title fits one line.
+    func testTheCardUsesTheShortHeartNames() {
+        XCTAssertEqual(CoachChartText.name(CoachChart.descriptor("my-whoop:hrv")), String(localized: "HRV"))
+        let sleep = CoachChart.descriptor("my-whoop:sleep_total_min")
+        XCTAssertEqual(CoachChartText.name(sleep), sleep?.title)
+    }
+
     func testTheChartsAreStoredWithTheReply() throws {
         let spec = CoachChartSpec(kind: .day, day: "2026-11-03", series: .stress)
         let text = CoachReplyMeta.join(body: "Calme.", meta: CoachReplyMeta(charts: [spec]))

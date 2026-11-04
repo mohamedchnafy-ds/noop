@@ -50,6 +50,8 @@ APPLE_HOME_FILES = {
     "Strand/Screens/TodayCustomizationMetadata.swift",
     "Packages/StrandDesign/Sources/StrandDesign/DayNavBar.swift",
     "StrandiOS/System/HomeScreenQuickActions.swift",
+    # Personal fork: the « Start » sheet Today's + button opens.
+    "Strand/Screens/StartSheet.swift",
     "Strand/Screens/AutoWorkoutCard.swift",
     "Strand/Screens/JournalReminderCard.swift",
     "Strand/Screens/SkinTempCardsView.swift",
@@ -58,10 +60,11 @@ APPLE_HOME_FILES = {
 APPLE_SHELL_FILE = "StrandiOS/App/RootTabView.swift"
 
 # RootTabView also owns the unrelated More tab.  Limit its Home contract to the
-# Today tab label, the sheet opened from Today's + button, and that sheet's close
-# affordance instead of treating every future RootTabView string as Home copy.
+# Today tab label and the close affordance of the screens Today's + button opens,
+# instead of treating every future RootTabView string as Home copy. (Personal fork:
+# the + opens StartSheet.swift, scanned with the Home files above.)
 APPLE_HOME_SHELL_CATALOG_KEYS = {
-    "Today", "Done", "QUICK ACTIONS", "Live HR", "Start workout", "Log journal", "Breathe",
+    "Today", "Done",
 }
 
 # These helpers return display strings through variables, which scan_android cannot

@@ -245,13 +245,15 @@ final class CoachMealTests: XCTestCase {
                 .init(time: "08:00", name: "Avoine", nutrients: MealNutrients(kcal: 300, proteinG: 10, carbsG: 50, fatG: 6))]),
             CoachTools.MealDay(day: "2026-11-01", meals: [
                 .init(time: "07:40", name: "Skyr", nutrients: MealNutrients(kcal: 95, proteinG: 17, carbsG: 6, fatG: 0.3)),
-                .init(time: "12:30", name: "Riz", nutrients: MealNutrients(kcal: 310, proteinG: 6.6, carbsG: 66.4, fatG: 1.4))]),
+                .init(time: "12:30", name: "Riz", nutrients: MealNutrients(kcal: 310, proteinG: 6.6, carbsG: 66.4, fatG: 1.4),
+                      slot: "lunch", fromCoachMenu: true)]),
             CoachTools.MealDay(day: "2026-10-30", meals: []),
         ]
         let text = CoachTools.meals(days, from: "2026-10-30", to: "2026-11-01")
         let lines = text.split(separator: "\n").map(String.init)
         XCTAssertEqual(lines[1], "2026-11-01: 405 kcal, P 23.6, C 72.4, F 1.7 · 2 meals")
         XCTAssertEqual(lines[2], "  07:40 Skyr: 95 kcal, P 17, C 6, F 0.3")
+        XCTAssertEqual(lines[3], "  12:30 lunch Riz (from your menu): 310 kcal, P 6.6, C 66.4, F 1.4")
         XCTAssertEqual(lines[4], "2026-10-31: 300 kcal, P 10, C 50, F 6 · 1 meal")
         XCTAssertFalse(text.contains("2026-10-30:"))
         XCTAssertTrue(CoachTools.meals([], from: "a", to: "b").hasPrefix("No meal logged"))

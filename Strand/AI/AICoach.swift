@@ -1299,7 +1299,7 @@ final class AICoachEngine: ObservableObject {
                         }
                         continue
                     }
-                    // The menu card (chantier 8): the meals of a day, added to the journal as planned on a tap only.
+                    // The menu card (chantier 8): the meals of a day, added to the journal as Coach meals on a tap only.
                     if call.name == CoachMenuProposal.toolName {
                         let parsed = CoachMenuProposal.fromMenuInput(input, now: Date(), food: CiqualTable.food(code:))
                         if let proposal = parsed.proposal {

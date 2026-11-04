@@ -49,20 +49,18 @@ enum MealJournal {
     }
 
     /// Save a meal eaten at `eatenAt` with its lines, in that order. Pass the `id` of an existing meal
-    /// to edit it: it keeps its first save time, everything else is replaced. `planned` (chantier 8): true
-    /// for a menu not eaten yet; nil keeps what an edited meal already was, and makes a new one eaten.
+    /// to edit it: it keeps its first save time, everything else is replaced. `slot` (fork chantier 9):
+    /// the moment of the day it goes to; nil files it by its time (`mealSlotForTime`). Every saved meal
+    /// counts (fork chantier 9: no planned meal any more; the flag of a menu added before is cleared on edit).
     @discardableResult
     static func saveMealEntry(_ store: WhoopStore, id: String? = nil, name: String, origin: MealOrigin,
-                              eatenAt: Date, favorite: Bool = false, planned: Bool? = nil, lines: [MealItemRow],
+                              eatenAt: Date, favorite: Bool = false, slot: MealSlot? = nil, lines: [MealItemRow],
                               now: Date = Date()) async throws -> MealEntry {
         let stamp = Int(now.timeIntervalSince1970)
-        var isPlanned = planned ?? false
-        if planned == nil, let id {
-            isPlanned = (try await store.mealEntry(id: id))?.meal.planned ?? false
-        }
         let meal = MealRow(id: id ?? UUID().uuidString, day: mealDayKey(eatenAt),
                            eatenAt: Int(eatenAt.timeIntervalSince1970), name: name, origin: origin,
-                           favorite: favorite, createdAt: stamp, updatedAt: stamp, planned: isPlanned)
+                           favorite: favorite, createdAt: stamp, updatedAt: stamp, planned: false,
+                           slot: slot ?? mealSlotForTime(eatenAt))
         try await store.saveMeal(meal, items: lines)
         await NutritionSeries.rebuildNutritionSeries(store)
         await bumpMealRevision()
@@ -75,41 +73,54 @@ enum MealJournal {
         return MealEntry(meal: meal, items: saved)
     }
 
-    /// A recent meal added again at `eatenAt`: the same lines under new ids, as a new entry.
+    /// A recent meal added again at `eatenAt`, in `slot` (nil = by its time): the same lines under new
+    /// ids, as a new entry.
     @discardableResult
-    static func addMealAgain(_ store: WhoopStore, _ entry: MealEntry, eatenAt: Date = Date()) async throws -> MealEntry {
+    static func addMealAgain(_ store: WhoopStore, _ entry: MealEntry, eatenAt: Date = Date(),
+                             slot: MealSlot? = nil) async throws -> MealEntry {
         let lines = entry.items.map { line -> MealItemRow in
             var copy = line
             copy.id = UUID().uuidString
             return copy
         }
         return try await saveMealEntry(store, name: entry.meal.name, origin: entry.meal.origin,
-                                       eatenAt: eatenAt, planned: false, lines: lines)
+                                       eatenAt: eatenAt, slot: slot, lines: lines)
     }
 
-    /// The meals EATEN on one local day, in the order eaten. A planned meal is left out: every figure
-    /// (rings, balance, widget, series, Coach) reads the day through here, so a menu counts nowhere until
-    /// it is marked eaten.
+    /// The meals of one local day, in the order eaten. Fork chantier 9: every meal counts, the menus the
+    /// Coach planned before then included (they show as Coach meals; the wearer deletes what was not eaten).
     static func mealJournalDay(_ store: WhoopStore, day: String) async throws -> [MealEntry] {
-        try await store.mealEntries(fromDay: day, toDay: day).filter { !$0.meal.planned }
+        try await store.mealEntries(fromDay: day, toDay: day)
     }
 
-    /// The meals eaten from `fromDay` to `toDay`, both included, in the order eaten (planned ones left out).
+    /// The meals from `fromDay` to `toDay`, both included, in the order eaten.
     static func mealJournalRange(_ store: WhoopStore, fromDay: String, toDay: String) async throws -> [MealEntry] {
-        try await store.mealEntries(fromDay: fromDay, toDay: toDay).filter { !$0.meal.planned }
+        try await store.mealEntries(fromDay: fromDay, toDay: toDay)
     }
 
-    /// The meals PLANNED for one local day (a menu, not eaten yet), in the order planned. Shown greyed in
-    /// the journal, counted nowhere.
-    static func plannedMealsOfDay(_ store: WhoopStore, day: String) async throws -> [MealEntry] {
-        try await store.mealEntries(fromDay: day, toDay: day).filter(\.meal.planned)
+    // MARK: Moments of the day (fork chantier 9)
+
+    /// The hours the moments start at (the owner's choice, 4 Nov 2026): 04:00 breakfast, 11:00 lunch,
+    /// 15:00 snack, 18:00 dinner, which runs until 03:59. Fixed: they do not follow the day cycle setting.
+    static let mealSlotStartHours = (breakfast: 4, lunch: 11, snack: 15, dinner: 18)
+
+    /// The moment a time falls in (`mealSlotStartHours`): the default of a new meal, and the moment of a
+    /// meal saved without one.
+    static func mealSlotForTime(_ date: Date, calendar: Calendar = .current) -> MealSlot {
+        let hour = calendar.component(.hour, from: date)
+        let starts = mealSlotStartHours
+        switch hour {
+        case starts.breakfast..<starts.lunch: return .breakfast
+        case starts.lunch..<starts.snack: return .lunch
+        case starts.snack..<starts.dinner: return .snack
+        default: return .dinner
+        }
     }
 
-    /// A planned meal eaten: it keeps its time and lines, and from now on counts like any meal.
-    static func markMealEaten(_ store: WhoopStore, id: String, now: Date = Date()) async throws {
-        try await store.setMealPlanned(id: id, planned: false, updatedAt: Int(now.timeIntervalSince1970))
-        await NutritionSeries.rebuildNutritionSeries(store)
-        await bumpMealRevision()
+    /// The moment a meal is shown in: the one saved with it, else the one its time falls in. The one rule
+    /// Nutrition, the Coach and the widget file a meal by.
+    static func mealSlot(of meal: MealRow, calendar: Calendar = .current) -> MealSlot {
+        meal.slot ?? mealSlotForTime(Date(timeIntervalSince1970: TimeInterval(meal.eatenAt)), calendar: calendar)
     }
 
     /// One meal with its lines, or nil.
@@ -139,4 +150,11 @@ enum MealJournal {
 extension MealEntry {
     /// The meal's energy and macros: the sum of its lines (`MealMath.totals`).
     var mealTotals: MealNutrients { MealMath.totals(items.map(\.nutrients)) }
+
+    /// The moment it is shown in (`MealJournal.mealSlot`).
+    var mealSlot: MealSlot { MealJournal.mealSlot(of: meal) }
+
+    /// A meal of a menu the Coach proposed: added from the card (origin `coach`), or planned before
+    /// fork chantier 9 turned menus into normal meals. Labelled "Coach" in the journal.
+    var isCoachMenuMeal: Bool { meal.origin == .coach || meal.planned }
 }

@@ -1280,6 +1280,16 @@ extension WhoopStore {
                 t.add(column: "planned", .integer).notNull().defaults(to: 0)
             }
         }
+        // v53-meal-slot (personal fork, chantier 9): the moment of the day a meal was added to
+        // (`breakfast` | `lunch` | `snack` | `dinner`, `MealSlot`). Twin of the Android `MIGRATION_44_45`:
+        // one nullable TEXT column appended at the end of `meal`, no default, so every existing meal keeps
+        // NULL (the app files it by its time) and the column order matches Room's entity field order;
+        // pinned in schema_oracle.json as `both`.
+        migrator.registerMigration("v53-meal-slot") { db in
+            try db.alter(table: "meal") { t in
+                t.add(column: "slot", .text)
+            }
+        }
         return migrator
     }
 }

@@ -153,6 +153,18 @@ enum NutritionFormat {
     }
 }
 
+/// The moments of the day (fork chantier 9), as Nutrition names them.
+enum NutritionSlot {
+    static func slotTitle(_ slot: MealSlot) -> String {
+        switch slot {
+        case .breakfast: return String(localized: "Breakfast")
+        case .lunch: return String(localized: "Lunch")
+        case .snack: return String(localized: "Snack")
+        case .dinner: return String(localized: "Dinner")
+        }
+    }
+}
+
 /// Where a meal came from: its icon and what VoiceOver says.
 enum NutritionOrigin {
     static func symbol(_ origin: MealOrigin) -> String {
@@ -161,6 +173,7 @@ enum NutritionOrigin {
         case .barcode: return "barcode"
         case .photo: return "camera"
         case .voice: return "mic"
+        case .coach: return "sparkles"
         }
     }
 
@@ -170,6 +183,7 @@ enum NutritionOrigin {
         case .barcode: return String(localized: "barcode")
         case .photo: return String(localized: "estimated from a photo")
         case .voice: return String(localized: "dictated to the Coach")
+        case .coach: return String(localized: "from the Coach's menu")
         }
     }
 }

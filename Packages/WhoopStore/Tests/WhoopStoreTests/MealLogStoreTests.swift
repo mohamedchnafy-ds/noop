@@ -22,20 +22,19 @@ final class MealLogStoreTests: XCTestCase {
 
     // MARK: - Migration v51
 
-    func testV51CreatesBothTablesAndV52IsTheLastMigration() async throws {
+    func testV51CreatesBothTablesAndV53IsTheLastMigration() async throws {
         let store = try await WhoopStore.inMemory()
         let tables = try await store.tableNames()
         XCTAssertTrue(tables.contains("meal"))
         XCTAssertTrue(tables.contains("mealItem"))
-        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v52-meal-planned")
+        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v53-meal-slot")
     }
 
     // MARK: - Migration v52 (personal fork, chantier 8)
 
-    /// Meals written before v52 stay eaten; a planned meal is stored apart, is never offered among the
-    /// recent meals, and becomes eaten in place (same id, time and lines). Kotlin twin:
-    /// `MealPlannedMigrationTest`.
-    func testAPlannedMealIsKeptApartAndCanBeMarkedEaten() async throws {
+    /// Meals written before v52 stay eaten; a planned meal keeps its flag and is never offered among the
+    /// recent meals. Kotlin twin: `MealPlannedMigrationTest`.
+    func testAPlannedMealKeepsItsFlagAndIsNotOfferedAgain() async throws {
         let dbQueue = try DatabaseQueue()
         try WhoopStore.makeMigrator().migrate(dbQueue, upTo: "v51-meal-log")
         try await dbQueue.write { db in
@@ -60,12 +59,39 @@ final class MealLogStoreTests: XCTestCase {
         XCTAssertEqual(day.map(\.meal.planned), [false, true])
         let recent = try await store.recentMeals(limit: 10)
         XCTAssertEqual(recent.map(\.meal.id), ["eaten"], "a planned meal was never eaten: not offered again")
+    }
 
-        try await store.setMealPlanned(id: "menu", planned: false, updatedAt: 6_000)
-        let marked = try await store.mealEntry(id: "menu")
-        XCTAssertEqual(marked?.meal.planned, false)
-        XCTAssertEqual(marked?.meal.eatenAt, 5_000)
-        XCTAssertEqual(marked?.items.map(\.id), ["p"])
+    // MARK: - Migration v53 (personal fork, chantier 9)
+
+    /// A meal written before v53 has no slot; a meal keeps the slot it is saved with, an edit can change
+    /// it, and an unknown stored value reads as none. Kotlin twin: `MealSlotMigrationTest`.
+    func testAMealKeepsItsSlotAndOlderMealsHaveNone() async throws {
+        let dbQueue = try DatabaseQueue()
+        try WhoopStore.makeMigrator().migrate(dbQueue, upTo: "v52-meal-planned")
+        try await dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt, planned)
+                VALUES ('old', '2026-11-01', 1, 'Old', 'manual', 0, 1, 1, 0)
+                """)
+        }
+        try WhoopStore.makeMigrator().migrate(dbQueue)
+        let old = try await dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM meal").map(MealRow.decode)
+        }
+        XCTAssertEqual(old.map(\.slot), [nil], "a meal written before v53 has no slot")
+
+        let store = try await WhoopStore.inMemory()
+        var snack = meal("s", day: "2026-11-04", at: 4_000, name: "Skyr", origin: .coach)
+        snack.slot = .snack
+        try await store.saveMeal(snack, items: [line("l", "Skyr", kcal: 95, p: 16, c: 6, f: 0.3)])
+        var saved = try await store.mealEntry(id: "s")
+        XCTAssertEqual(saved?.meal.slot, .snack)
+        XCTAssertEqual(saved?.meal.origin, .coach)
+        snack.slot = .dinner
+        try await store.saveMeal(snack, items: [line("l", "Skyr", kcal: 95, p: 16, c: 6, f: 0.3)])
+        saved = try await store.mealEntry(id: "s")
+        XCTAssertEqual(saved?.meal.slot, .dinner)
+        XCTAssertEqual(MealSlot.allCases.map(\.rawValue), ["breakfast", "lunch", "snack", "dinner"])
     }
 
     func testV51IsAdditiveOverAnExistingDatabase() throws {

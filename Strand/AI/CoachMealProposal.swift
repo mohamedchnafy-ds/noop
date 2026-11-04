@@ -36,6 +36,9 @@ struct CoachMealProposal: Codable, Equatable {
     var mealId: String?
     /// A product read from its label: its barcode, when the question carried one.
     var barcode: String? = nil
+    /// Fork chantier 9: the moment of the day a menu's meal goes to, when the Coach named one; nil files
+    /// it by its time (`MealJournal.mealSlotForTime`).
+    var slot: MealSlot? = nil
 
     static let logToolName = "log_meal"
     static let searchToolName = "search_foods"

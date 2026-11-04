@@ -108,9 +108,16 @@ public enum MealMath {
 
 // MARK: - Rows
 
-/// How a meal entered the journal.
+/// How a meal entered the journal. `coach` (fork chantier 9): a meal of a menu the Coach proposed, added
+/// as a normal meal from its card. Stored as its raw value; Android reads the column as a plain string.
 public enum MealOrigin: String, Codable, Sendable, CaseIterable {
-    case manual, photo, voice, barcode
+    case manual, photo, voice, barcode, coach
+}
+
+/// v53 (fork chantier 9): the moment of the day a meal belongs to, chosen when it is added. Stored as its
+/// raw value; a meal written before v53 has none and the app files it by its time.
+public enum MealSlot: String, Codable, Sendable, CaseIterable {
+    case breakfast, lunch, snack, dinner
 }
 
 /// One entry of the journal. Its nutrients are the sum of its lines (`MealMath.totals`).
@@ -128,12 +135,15 @@ public struct MealRow: Equatable, Codable, Sendable {
     public var createdAt: Int
     /// Unix seconds.
     public var updatedAt: Int
-    /// v52: a meal planned (a menu), not eaten yet. It counts nowhere until it is marked eaten; for a
-    /// planned meal `eatenAt` is the time it is planned for.
+    /// v52: a meal planned (a menu), not eaten yet. Since fork chantier 9 a menu is added as normal meals
+    /// and the app counts every meal, so this only marks the menus added before then (shown as Coach meals).
     public var planned: Bool
+    /// v53: the moment of the day it was added to; nil for a meal written before v53.
+    public var slot: MealSlot?
 
     public init(id: String, day: String, eatenAt: Int, name: String, origin: MealOrigin,
-                favorite: Bool = false, createdAt: Int, updatedAt: Int, planned: Bool = false) {
+                favorite: Bool = false, createdAt: Int, updatedAt: Int, planned: Bool = false,
+                slot: MealSlot? = nil) {
         self.id = id
         self.day = day
         self.eatenAt = eatenAt
@@ -143,6 +153,7 @@ public struct MealRow: Equatable, Codable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.planned = planned
+        self.slot = slot
     }
 
     static func decode(_ row: Row) -> MealRow {
@@ -150,7 +161,8 @@ public struct MealRow: Equatable, Codable, Sendable {
                 origin: MealOrigin(rawValue: row["origin"] ?? "") ?? .manual,
                 favorite: (row["favorite"] as Int) != 0,
                 createdAt: row["createdAt"], updatedAt: row["updatedAt"],
-                planned: ((row["planned"] as Int?) ?? 0) != 0)
+                planned: ((row["planned"] as Int?) ?? 0) != 0,
+                slot: (row["slot"] as String?).flatMap(MealSlot.init(rawValue:)))
     }
 }
 
@@ -222,14 +234,15 @@ extension WhoopStore {
     public func saveMeal(_ meal: MealRow, items: [MealItemRow]) async throws {
         try syncWrite { db in
             try db.execute(sql: """
-                INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt, planned)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO meal (id, day, eatenAt, name, origin, favorite, createdAt, updatedAt, planned, slot)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     day = excluded.day, eatenAt = excluded.eatenAt, name = excluded.name,
                     origin = excluded.origin, favorite = excluded.favorite, updatedAt = excluded.updatedAt,
-                    planned = excluded.planned
+                    planned = excluded.planned, slot = excluded.slot
                 """, arguments: [meal.id, meal.day, meal.eatenAt, meal.name, meal.origin.rawValue,
-                                 meal.favorite ? 1 : 0, meal.createdAt, meal.updatedAt, meal.planned ? 1 : 0])
+                                 meal.favorite ? 1 : 0, meal.createdAt, meal.updatedAt, meal.planned ? 1 : 0,
+                                 meal.slot?.rawValue])
             try db.execute(sql: "DELETE FROM mealItem WHERE mealId = ?", arguments: [meal.id])
             for (index, item) in items.enumerated() {
                 try db.execute(sql: """
@@ -279,14 +292,6 @@ extension WhoopStore {
                 LIMIT ?
                 """, arguments: [max(limit, 0)]).map(MealRow.decode)
             return try Self.attachItems(to: meals, in: db)
-        }
-    }
-
-    /// Mark a planned meal as eaten (or back to planned), keeping its time and lines.
-    public func setMealPlanned(id: String, planned: Bool, updatedAt: Int) async throws {
-        try syncWrite { db in
-            try db.execute(sql: "UPDATE meal SET planned = ?, updatedAt = ? WHERE id = ?",
-                           arguments: [planned ? 1 : 0, updatedAt, id])
         }
     }
 

@@ -1199,12 +1199,12 @@ struct CoachView: View {
         }
     }
 
-    /// The menu card's two actions: add its meals as planned, or remove them again.
+    /// The menu card's two actions: add its meals to the journal, or remove them again.
     private func runMenu(messageId: UUID, undo: Bool) {
         guard menuBusy == nil else { return }
         menuBusy = messageId
         Task {
-            if undo { await coach.undoMenu(messageId: messageId) } else { await coach.addMenuAsPlanned(messageId: messageId) }
+            if undo { await coach.undoMenu(messageId: messageId) } else { await coach.addMenuToJournal(messageId: messageId) }
             menuBusy = nil
         }
     }

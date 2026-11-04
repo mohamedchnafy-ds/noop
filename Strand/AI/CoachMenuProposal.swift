@@ -4,16 +4,17 @@ import WhoopStore
 // MARK: - The Coach's menu card (personal fork, chantier 8, lot 3)
 //
 // `plan_menu`: the Coach proposes the meals of one day (today or a day ahead) as a card. Nothing is saved
-// until "Add as planned": each meal then goes to the journal as PLANNED (`MealRow.planned`), greyed in
-// Nutrition and counted nowhere until it is marked eaten. "Undo" removes the meals the card added. Every
-// food is a Ciqual code and a quantity, as on the meal card: the app computes the values.
+// until "Add to journal": each meal then goes to the journal as a normal meal (fork chantier 9: origin
+// `coach`, labelled Coach in Nutrition, in its moment of the day), counted at once; the wearer deletes the
+// ones not eaten. "Undo" removes the meals the card added. Every food is a Ciqual code and a quantity, as
+// on the meal card: the app computes the values.
 
 struct CoachMenuProposal: Codable, Equatable {
     /// The day planned, "yyyy-MM-dd".
     var day: String
     /// The meals, in the order planned; each one's `eatenAt` is the time it is planned for.
     var meals: [CoachMealProposal]
-    /// The journal meals the card added, once "Add as planned" was tapped; empty before (and after Undo).
+    /// The journal meals the card added, once "Add to journal" was tapped; empty before (and after Undo).
     var mealIds: [String] = []
 
     static let toolName = "plan_menu"
@@ -46,15 +47,17 @@ struct CoachMenuProposal: Codable, Equatable {
             "properties": [
                 "name": ["type": "string", "description": "The meal's name (\"Déjeuner : poulet, riz\")."],
                 "time": ["type": "string", "description": "HH:MM, when it is planned."],
+                "slot": ["type": "string", "enum": MealSlot.allCases.map(\.rawValue),
+                         "description": "The moment of the day it belongs to; leave out to file it by its time."],
                 "items": ["type": "array", "items": item, "minItems": 1, "maxItems": CoachMealProposal.maxLines],
             ] as [String: Any],
             "required": ["name", "time", "items"],
         ]
         return [
             "name": toolName,
-            "description": "Propose a menu, the meals of one day, as a card with “Add as planned”. Only when the user "
+            "description": "Propose a menu, the meals of one day, as a card with “Add to journal”. Only when the user "
                 + "asks for a menu or a meal plan. Nothing is saved until they tap; the meals then go to their "
-                + "journal as planned (greyed, counted nowhere until they mark one eaten). Give every food by its "
+                + "journal as normal meals, counted at once (they delete the ones they do not eat). Give every food by its "
                 + "Ciqual code from search_foods and its quantity in grams: the app computes the calories and "
                 + "macros, so never state them yourself.",
             "input_schema": [
@@ -70,7 +73,7 @@ struct CoachMenuProposal: Codable, Equatable {
 
     /// What the model is told once the card is shown.
     static func shownResult(unknownCodes: [Int]) -> String {
-        var text = "Shown to the user as a menu card with “Add as planned”. Nothing is saved until they tap. The "
+        var text = "Shown to the user as a menu card with “Add to journal”. Nothing is saved until they tap. The "
             + "app computed the values from Ciqual: do not repeat them and add nothing after the card."
         if !unknownCodes.isEmpty {
             text += " Left out, not in the table: " + unknownCodes.map(String.init).joined(separator: ", ") + "."
@@ -89,10 +92,11 @@ struct CoachMenuProposal: Codable, Equatable {
             var mealInput = raw
             mealInput["time"] = nil
             mealInput["date"] = nil
-            let parsed = CoachMealProposal.fromToolInput(mealInput, origin: .manual, now: now, calendar: calendar, food: food)
+            let parsed = CoachMealProposal.fromToolInput(mealInput, origin: .coach, now: now, calendar: calendar, food: food)
             unknown += parsed.unknownCodes
             guard var meal = parsed.proposal else { continue }
             meal.eatenAt = Int(menuTime(CoachTools.text(raw, "time"), on: day, calendar: calendar).timeIntervalSince1970)
+            meal.slot = CoachTools.text(raw, "slot").flatMap(MealSlot.init(rawValue:))
             meals.append(meal)
         }
         guard !meals.isEmpty else { return (nil, unknown) }
@@ -127,7 +131,7 @@ struct CoachMenuProposal: Codable, Equatable {
     /// The card as the model reads it back in a later turn, so "swap the rice" refers to it.
     func wireText() -> String {
         var out = ["[Menu for \(day) shown to the user as a card"
-                   + (isAdded ? ", added to their journal as planned" : ", not saved yet") + "]"]
+                   + (isAdded ? ", added to their journal" : ", not saved yet") + "]"]
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"

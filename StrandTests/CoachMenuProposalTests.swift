@@ -3,7 +3,7 @@ import XCTest
 import WhoopStore
 
 /// The Coach's menu card (personal fork, chantier 8, lot 3): `plan_menu` → the meals of one day, at their
-/// planned times, values from Ciqual; then "Add as planned" writes them planned, counted nowhere.
+/// planned times, values from Ciqual; then "Add to journal" writes them as Coach meals (fork chantier 9).
 @MainActor
 final class CoachMenuProposalTests: XCTestCase {
 
@@ -25,7 +25,7 @@ final class CoachMenuProposalTests: XCTestCase {
     private func input(date: String?) -> [String: Any] {
         var input: [String: Any] = [
             "meals": [
-                ["name": "Dîner", "time": "19:30",
+                ["name": "Dîner", "time": "19:30", "slot": "dinner",
                  "items": [["ciqual_code": 36032, "grams": 150], ["ciqual_code": 9104, "grams": 200]]],
                 ["name": "Déjeuner", "time": "12:30",
                  "items": [["ciqual_code": 9104, "grams": 180], ["ciqual_code": 99999, "grams": 50]]],
@@ -47,6 +47,8 @@ final class CoachMenuProposalTests: XCTestCase {
         XCTAssertEqual([parts.day, parts.hour, parts.minute], [4, 12, 30], "a planned time may be after now")
         XCTAssertEqual(menu.totals, MealMath.totals(menu.meals.flatMap { $0.itemRows.map(\.nutrients) }))
         XCTAssertFalse(menu.isAdded)
+        XCTAssertEqual(menu.meals.map(\.slot), [nil, .dinner], "a named moment is kept, else filed by time")
+        XCTAssertEqual(menu.meals.map(\.origin), [.coach, .coach])
     }
 
     func testTheDayStaysWithinTodayAndAWeekAhead() {

@@ -39,8 +39,6 @@ struct NutritionView: View {
     @State private var captureRequested: NutritionCaptureMode?
     @State private var capture: NutritionCaptureMode?
     @State private var capturedDraft: MealEntry?
-    // Personal fork, chantier 8: the day's planned meals (a menu), greyed under the eaten ones.
-    @State private var planned: (dayKey: String, meals: [MealEntry]) = ("", [])
     // Personal fork, chantier 8: the history under the journal, 7 or 30 complete days before today.
     @State private var historyRange: NutritionHistoryRange = .week
     @State private var history: LoadedNutritionHistory?
@@ -145,29 +143,6 @@ struct NutritionView: View {
                     .nutritionListRow()
             }
 
-            if planned.dayKey == dayKey, !planned.meals.isEmpty {
-                NutritionPlannedHeader()
-                    .nutritionListRow()
-                ForEach(Array(planned.meals.enumerated()), id: \.element.meal.id) { index, entry in
-                    Button {
-                        editor = .edit(entry)
-                    } label: {
-                        NutritionMealRow(entry: entry, isFirst: index == 0, isLast: index == planned.meals.count - 1,
-                                         onEaten: { markEaten(entry) })
-                    }
-                    .buttonStyle(.plain)
-                    .nutritionListRow(vertical: 0)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            pendingDelete = entry
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                        .tint(StrandPalette.statusCritical)
-                    }
-                }
-            }
-
             NutritionHistoryCard(model: NutritionHistoryModel(days: history?.days ?? [], plan: plan),
                                  range: historyRange, onRange: { historyRange = $0 },
                                  loading: history?.range != historyRange)
@@ -195,9 +170,6 @@ struct NutritionView: View {
             await NutritionSeries.backfillNutritionSeriesIfNeeded(repo)
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
             if read.dayKey == dayKey { self.summary = read }
-            let key = dayKey
-            let menu = await NutritionDayReader.plannedOfDay(repo, dayKey: key)
-            if key == dayKey { planned = (key, menu) }
         }
         .sheet(item: $editor, onDismiss: openRequestedScanner) { target in
             NutritionMealEditor(target: target, day: day,
@@ -400,14 +372,6 @@ struct NutritionView: View {
         case .manual?: editor = .add
         case .coach?: router.openCoach()
         case nil: break
-        }
-    }
-
-    /// A planned meal eaten: it keeps its time and lines and now counts (`MealJournal.markMealEaten`).
-    private func markEaten(_ entry: MealEntry) {
-        Task {
-            guard let store = await repo.storeHandle() else { return }
-            try? await MealJournal.markMealEaten(store, id: entry.meal.id)
         }
     }
 
@@ -650,37 +614,27 @@ struct NutritionBalanceBar: View {
     }
 }
 
-/// One meal in the day's list: its origin icon (grey, alone), name, time and macros, its energy in SF
-/// Rounded and a chevron. Consecutive rows read as one flat card: the first is rounded at the top, the last
-/// at the bottom, a hairline between them.
+/// One meal in the day's list: its origin icon (grey, alone), name (with "Coach" for a meal of a Coach
+/// menu), time and macros, its energy in SF Rounded and a chevron. Consecutive rows read as one flat card:
+/// the first is rounded at the top, the last at the bottom, a hairline between them.
 struct NutritionMealRow: View {
     let entry: MealEntry
     let isFirst: Bool
     let isLast: Bool
-    /// Chantier 8: set for a PLANNED meal, which is drawn greyed with an "Eaten" button instead of the chevron.
-    var onEaten: (() -> Void)?
-
-    init(entry: MealEntry, isFirst: Bool, isLast: Bool, onEaten: (() -> Void)? = nil) {
-        self.entry = entry
-        self.isFirst = isFirst
-        self.isLast = isLast
-        self.onEaten = onEaten
-    }
 
     private static let radius = NoopMetrics.cardRadius
-
-    /// A planned meal is greyed: it counts nowhere yet.
-    private var dimming: Double { onEaten == nil ? 1 : 0.55 }
 
     var body: some View {
         HStack(spacing: 12) {
             NutritionOriginIcon(origin: entry.meal.origin)
-                .opacity(dimming)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: NutritionFormat.mealTitle(entry))
-                    .font(StrandFont.body.weight(.medium))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(verbatim: NutritionFormat.mealTitle(entry))
+                        .font(StrandFont.body.weight(.medium))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .lineLimit(1)
+                    if entry.isCoachMenuMeal { NutritionCoachTag() }
+                }
                 Text(verbatim: NutritionFormat.mealDetail(entry))
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -689,30 +643,14 @@ struct NutritionMealRow: View {
                     .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(dimming)
             Text(verbatim: NutritionFormat.mealKcal(entry))
                 .font(StrandFont.rounded(17, weight: .semibold))
                 .foregroundStyle(StrandPalette.textPrimary)
                 .monospacedDigit()
-                .opacity(dimming)
-            if let onEaten {
-                Button(action: onEaten) {
-                    Text("Eaten")
-                        .font(StrandFont.footnote.weight(.semibold))
-                        .foregroundStyle(StrandPalette.surfaceBase)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(StrandPalette.intakeColor))
-                }
-                // The plain style, like the row's own button: the inner tap wins and the PNG render draws it.
-                .buttonStyle(.plain)
-                .accessibilityHint(Text("Counts this planned meal as eaten"))
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .accessibilityHidden(true)
-            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(StrandPalette.textTertiary)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 18)
         .padding(.top, isFirst ? 16 : 12)
@@ -740,20 +678,18 @@ struct NutritionMealRow: View {
     }
 }
 
-/// The title over the day's planned meals: they count nowhere until they are marked eaten.
-struct NutritionPlannedHeader: View {
+/// "Coach" after the name of a meal from a Coach menu (fork chantier 9), in the purple of mockup 4.
+struct NutritionCoachTag: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Planned")
-                .font(StrandFont.sectionTitle)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-            Text("Not counted until you tap Eaten.")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textSecondary)
-        }
-        .padding(.top, 14)
-        .padding(.horizontal, 2)
+        Text("Coach")
+            .font(StrandFont.caption.weight(.bold))
+            .foregroundStyle(StrandPalette.macroProtein)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(StrandPalette.macroProtein.opacity(0.18),
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .fixedSize()
+            .accessibilityLabel(Text("from the Coach's menu"))
     }
 }
 

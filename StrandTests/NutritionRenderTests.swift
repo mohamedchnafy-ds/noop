@@ -176,22 +176,20 @@ final class NutritionRenderTests: XCTestCase {
         XCTAssertEqual(plan.intakeKcal, 2_560)
     }
 
-    /// Chantier 8, lot 3: a planned meal under the eaten ones, greyed, with "Eaten".
-    func testRendersPlannedMeals() throws {
+    /// Fork chantier 9: a meal of a Coach menu, a normal meal labelled "Coach".
+    func testRendersACoachMenuMeal() throws {
         let menu = MealEntry(meal: MealRow(id: "menu", day: "2026-11-01", eatenAt: at(19, 30), name: "Saumon, patate douce",
-                                           origin: .manual, createdAt: 0, updatedAt: 0, planned: true),
+                                           origin: .coach, createdAt: 0, updatedAt: 0, slot: .dinner),
                              items: [MealItemRow(id: "menu-0", mealId: "menu", ord: 0, name: "Saumon, patate douce",
                                                  grams: nil, nutrients: MealNutrients(kcal: 640, proteinG: 42, carbsG: 55, fatG: 24))])
         let view = VStack(alignment: .leading, spacing: 0) {
-            NutritionMealRow(entry: meals[3], isFirst: true, isLast: true)
-            NutritionPlannedHeader()
-                .padding(.bottom, 12)
-            NutritionMealRow(entry: menu, isFirst: true, isLast: true, onEaten: {})
+            NutritionMealRow(entry: meals[3], isFirst: true, isLast: false)
+            NutritionMealRow(entry: menu, isFirst: false, isLast: true)
         }
-        try render(AnyView(view), name: "17-repas-prevu")
+        try render(AnyView(view), name: "17-repas-coach")
     }
 
-    /// Chantier 8, lot 3: the Coach's menu card, before and after "Add as planned".
+    /// Chantier 8, lot 3: the Coach's menu card, before and after "Add to journal".
     func testRendersTheMenuCard() throws {
         let rice = MealPer100(kcal: 155, proteinG: 3.3, carbsG: 33.2, fatG: 0.7)
         let chicken = MealPer100(kcal: 189, proteinG: 29.8, carbsG: 0, fatG: 7.8)

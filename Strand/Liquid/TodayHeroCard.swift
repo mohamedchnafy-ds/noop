@@ -437,7 +437,7 @@ struct TodayHeroCard: View {
         [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity),
          TodayRing(fraction: fraction(model.charge), tint: chargeTint),
          TodayRing(fraction: fraction(model.effort), tint: StrandPalette.effortColor, band: effortBand),
-         TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restColor)]
+         TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restRing)]
     }
 
     // MARK: Lines
@@ -492,8 +492,10 @@ struct TodayHeroCard: View {
             HStack(alignment: .center, spacing: 14) {
                 TodayConcentricRings(rings: rings)
                 VStack(alignment: .leading, spacing: 0) {
+                    // Fork chantier 9: « Activity », the calories burnt in activity against the activity goal
+                    // (the calories eaten live in Nutrition, in green).
                     line(TodayRingRow(symbol: "flame.fill", tint: StrandPalette.caloriesActivity,
-                                      label: String(localized: "Calories"), value: caloriesValue,
+                                      label: String(localized: "Activity"), value: caloriesValue,
                                       caption: caloriesCaption),
                          route: model.caloriesRoute, guide: nil)
                     hairline
@@ -501,7 +503,7 @@ struct TodayHeroCard: View {
                     hairline
                     ringLine(model.effort, symbol: "bolt.fill", tint: StrandPalette.effortColor)
                     hairline
-                    ringLine(model.rest, symbol: "moon.fill", tint: StrandPalette.restColor)
+                    ringLine(model.rest, symbol: "moon.fill", tint: StrandPalette.restRing)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

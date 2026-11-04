@@ -4,6 +4,7 @@ import AppKit
 @testable import Strand
 import StrandDesign
 import WhoopStore
+import StrandAnalytics
 
 /// Renders the redesigned Today screen to PNG at iPhone width, in dark mode — the visual check against
 /// the mockups (canvas "NOOP – Écran Aujourd'hui", final version) before an .ipa is built (personal fork).
@@ -50,7 +51,7 @@ final class TodayScreenRenderTests: XCTestCase {
             effort: .init(label: String(localized: "Effort"), score: 0, tint: StrandPalette.effortColor,
                           maxValue: 21, decimals: 1, caption: String(localized: "target \(12)–\(14)"),
                           targetRange: 12...14, route: nil, guide: .effort),
-            rest: .init(label: String(localized: "Rest"), score: 66, tint: StrandPalette.restColor,
+            rest: .init(label: String(localized: "Rest"), score: 66, tint: StrandPalette.restRing,
                         caption: SleepDurationText.format(221), route: nil, guide: .rest),
             calories: (TodayEnergy.Split(restingKcal: 760, activityKcal: 185), 480),
             restingHR: .init(value: 62, low: 57, high: 66, normal: 58...64),
@@ -212,14 +213,16 @@ final class TodayScreenRenderTests: XCTestCase {
 
     private func dayCard() -> some View {
         let day = dayInput
+        let chart = TodayHRCardLogic.dayChart(day, zone: .current)
         return hrCard(mode: .day) {
             TodayHRCardBody(
                 tint: StrandPalette.liquidHeart, bpm: 75,
                 subtitle: String(localized: "5-minute average · since midnight"),
-                chart: TodayHRCardLogic.dayChart(day, zone: .current), lineWidth: 2, emptyText: "",
+                chart: chart, lineWidth: 2, emptyText: "",
                 caption: [.init(text: String(localized: "your usual day"), swatch: .usualDay),
-                          .init(text: String(localized: "sleep"), swatch: .sleep),
-                          .init(text: String(localized: "rest \(62)"))],
+                          .init(text: String(localized: "sleep"), swatch: .sleep)]
+                    + TodayHRCardLogic.dayZoneCaption(chart, habitual: true)
+                    + [.init(text: String(localized: "rest \(62)"))],
                 stats: (day.bucketBpm.min(), day.bucketBpm.reduce(0, +) / Double(day.bucketBpm.count),
                         day.bucketBpm.max()))
         }
@@ -238,41 +241,68 @@ final class TodayScreenRenderTests: XCTestCase {
         return TodaySynthesisCard(rows: rows)
     }
 
-    private func keyMetrics() -> some View {
+    /// Fitness Age and Vitality as they come back under the Metrics (« Put back on the page »).
+    private func yourCards() -> some View {
+        VStack(spacing: 8) {
+            LiquidCardRow(title: DashboardCard.fitnessAge.title, sub: DashboardCard.fitnessAge.subtitle,
+                          value: LiquidTodayView.noValueDash, tint: StrandPalette.chargeColor, frac: 0.5)
+            LiquidCardRow(title: DashboardCard.vitality.title, sub: DashboardCard.vitality.subtitle,
+                          value: "44", tint: StrandPalette.metricPurple, frac: 0.44)
+        }
+    }
+
+    /// Fork chantier 9: the stress morning of the mockup — calm early, climbing to High around 11:00, a
+    /// walk masked at 08:00–09:00, Moderate at 13:30.
+    private var stressResult: DaytimeStress.Result {
+        let levels: [Double?] = [0.4, 0.5, 0.7, 0.8, nil, nil, 1.1, 1.5, 2.2, 2.4, 2.1, 1.7, 1.5, 1.4, 1.4]
+        var timeline: [DaytimeStress.HourPoint] = []
+        for (i, level) in levels.enumerated() {
+            let start = dayStart + 6 * 3600 + i * 1800
+            timeline.append(.init(hour: 6 + i / 2, startTs: start, level: level, meanHR: nil, rmssd: nil,
+                                  maskedForActivity: level == nil))
+        }
+        let peak = timeline[9]
+        return DaytimeStress.Result(hours: timeline.filter { ($0.startTs - dayStart) % 3600 == 0 },
+                                    sustainedHigh: false, sustainedRun: 0, dayMean: 1.1, peak: peak,
+                                    activityMaskedHours: 1, highStressMinutes: 60, timeline: timeline)
+    }
+
+    private func stressCard() -> some View {
+        TodayStressCard(
+            model: TodayStressLogic.model(result: stressResult, dayStart: dayStart,
+                                          now: dayStart + 14 * 3600, isToday: true),
+            titleRoute: nil)
+    }
+
+    private func stressEmptyCard() -> some View {
+        TodayStressCard(model: TodayStressLogic.model(result: .empty, dayStart: dayStart,
+                                                      now: dayStart + 7 * 3600, isToday: true),
+                        titleRoute: nil)
+    }
+
+    /// The Metrics grid of the new page: the tiles with a value, the « All » link and the footnote.
+    private func keyMetricsV3() -> some View {
         VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Metrics").font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
                 Spacer()
-                Text("Edit").font(StrandFont.body.weight(.medium)).foregroundStyle(StrandPalette.accent)
+                Text("Show all tiles").font(StrandFont.body.weight(.medium)).foregroundStyle(StrandPalette.accent)
             }
             .padding(.horizontal, 2)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NoopMetrics.gap), count: 2),
                       spacing: NoopMetrics.gap) {
                 LiquidKeyMetricTile(label: String(localized: "Respiratory"), icon: "lungs.fill", value: "17,8",
                                     unit: "rpm", tint: StrandPalette.metricCyan, frac: 17.8 / 24)
-                LiquidKeyMetricTile(label: String(localized: "Blood Oxygen"), icon: "drop.fill",
-                                    value: LiquidTodayView.noValueDash, unit: "%", tint: StrandPalette.accent, frac: nil)
-                LiquidKeyMetricTile(label: String(localized: "Steps"), icon: "figure.walk",
-                                    value: LiquidTodayView.noValueDash, unit: "", tint: StrandPalette.chargeColor, frac: nil)
+                LiquidKeyMetricTile(label: String(localized: "Steps"), icon: "figure.walk", value: "4 210",
+                                    unit: "", tint: StrandPalette.chargeColor, frac: 0.42)
             }
+            Text("A tile without a value today is not shown: it stays under « All ».")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
             LiquidFullWidthNavigationAction("Show all metrics")
-        }
-    }
-
-    private func yourCards() -> some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("Your cards").font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
-                Spacer()
-                Text("Edit").font(StrandFont.body.weight(.medium)).foregroundStyle(StrandPalette.accent)
-            }
-            .padding(.horizontal, 2)
-            LiquidCardRow(title: DashboardCard.stress.title, sub: DashboardCard.stress.subtitle,
-                          value: String(localized: "Calibrating"), tint: StrandPalette.accent, frac: nil)
-            LiquidCardRow(title: DashboardCard.fitnessAge.title, sub: DashboardCard.fitnessAge.subtitle,
-                          value: LiquidTodayView.noValueDash, tint: StrandPalette.chargeColor, frac: 0.5)
-            LiquidCardRow(title: DashboardCard.vitality.title, sub: DashboardCard.vitality.subtitle,
-                          value: "44", tint: StrandPalette.metricPurple, frac: 0.44)
+            LiquidFullWidthNavigationAction("Customize Today")
         }
     }
 
@@ -289,25 +319,34 @@ final class TodayScreenRenderTests: XCTestCase {
     // MARK: Renders
 
     func testRendersTheTodayScreen() throws {
-        // The first screen: header, the rings and their cells, heart rate (live), the start of the synthesis.
+        // Fork chantier 9, the whole page in order: rings, Synthesis, heart rate (live), stress, Metrics.
         try render(VStack(alignment: .leading, spacing: 12) {
             header()
             hero()
-            liveCard()
             synthesis()
+            liveCard()
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.top, 60), height: 844, clipped: true, name: "1-premier-ecran")
 
-        // The rest of the scroll: synthesis, start session, key metrics, your cards.
+        // The rest of the scroll: the stress card, then the Metrics with a value and Customize.
         try render(VStack(alignment: .leading, spacing: 12) {
-            synthesis()
-            LiquidSessionStartRow()
-            keyMetrics()
-            yourCards()
+            liveCard()
+            stressCard()
+            keyMetricsV3()
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.vertical, 24), height: nil, clipped: false, name: "2-suite")
+
+        // The stress card with no scored hour yet (early morning), and the blocks that left the page,
+        // drawn as they come back under the Metrics when switched on.
+        try render(VStack(alignment: .leading, spacing: 12) {
+            stressEmptyCard()
+            yourCards()
+            LiquidSessionStartRow()
+        }
+        .padding(.horizontal, NoopMetrics.screenHPadding)
+        .padding(.vertical, 24), height: nil, clipped: false, name: "6-stress-vide-et-blocs-remis")
 
         // The heart-rate card on its Day tab, then past its threshold while still.
         try render(dayCard()

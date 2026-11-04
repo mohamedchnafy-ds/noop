@@ -47,10 +47,17 @@ struct TodayHRChartModel: Equatable {
     var habitual: [Point] = []
     /// Day: sleep, as 0…1 ranges across the plot.
     var sleep: [ClosedRange<Double>] = []
-    /// The threshold crossed while still: the curve beyond it takes the side's colour.
+    /// The threshold crossed while still (the subtitle's alert); the curve itself is coloured by zone.
     var threshold: Double? = nil
-    /// Which side of `threshold` is coloured: orange above the high one, green below the low one.
+    /// Which side of `threshold` the alert is on.
     var alertSide: TodayHRAlert.Side? = nil
+    /// Fork chantier 9: the two thresholds as polylines across the plot (flat when live, following the
+    /// usual day in the whole-day view). The curve is red above `zoneHigh`, green below `zoneLow`, pink
+    /// between; each threshold is a dashed line of its zone's colour.
+    var zoneHigh: [Point] = []
+    var zoneLow: [Point] = []
+    /// Ranges (0…1) the zones do not colour: sleep, where a low rate is expected.
+    var zoneExclude: [ClosedRange<Double>] = []
     /// The halo on the last point: the curve reaches "now".
     var endDot: Bool = true
     var axis: [AxisLabel] = []
@@ -97,14 +104,27 @@ struct TodayHRChartModel: Equatable {
         return points.indices.min { abs(g.x(points[$0].x) - x) < abs(g.x(points[$1].x) - x) }
     }
 
-    func isBeyond(_ bpm: Double) -> Bool {
-        guard let threshold, let alertSide else { return false }
-        return alertSide == .high ? bpm > threshold : bpm < threshold
+    /// A threshold polyline's value at `x`, interpolated inside the run that spans it; nil outside.
+    static func zoneValue(of line: [Point], at x: Double) -> Double? {
+        for (a, b) in zip(line, line.dropFirst()) where a.run == b.run && a.x <= x && x <= b.x {
+            guard b.x > a.x else { return a.bpm }
+            return a.bpm + (b.bpm - a.bpm) * (x - a.x) / (b.x - a.x)
+        }
+        return line.count == 1 && line[0].x == x ? line[0].bpm : nil
     }
 
-    /// The colour of a side: orange above the high threshold, green below the low one.
+    /// The zone a point of the curve sits in, nil between the thresholds or where zones do not apply.
+    func zone(of p: Point) -> TodayHRAlert.Side? {
+        guard !zoneExclude.contains(where: { $0.contains(p.x) }) else { return nil }
+        if let high = Self.zoneValue(of: zoneHigh, at: p.x), p.bpm > high { return .high }
+        if let low = Self.zoneValue(of: zoneLow, at: p.x), p.bpm < low { return .low }
+        return nil
+    }
+
+    /// The colour of a side: bright red above the high threshold, green below the low one (one style for
+    /// every heart-rate curve with thresholds, `StrandPalette.hrZone*`).
     static func sideColor(_ side: TodayHRAlert.Side) -> Color {
-        side == .high ? StrandPalette.statusWarning : StrandPalette.statusPositive
+        side == .high ? StrandPalette.hrZoneHigh : StrandPalette.hrZoneLow
     }
 }
 
@@ -141,7 +161,6 @@ struct TodayHRChart: View {
     var body: some View {
         Canvas { ctx, size in
             let g = model.geometry(in: size)
-            let beyondColor = model.alertSide.map(TodayHRChartModel.sideColor) ?? tint
 
             for range in model.sleep {
                 let r = CGRect(x: g.x(range.lowerBound), y: g.rect.minY,
@@ -155,13 +174,18 @@ struct TodayHRChart: View {
                 area.closeSubpath()
                 ctx.fill(area, with: .color(StrandPalette.textPrimary.opacity(0.07)))
             }
-            // Fork chantier 7: the live range reads from its two threshold lines alone (no filled band).
-            for (value, side) in [(model.highLine, TodayHRAlert.Side.high), (model.lowLine, .low)] {
-                guard let value else { continue }
-                var line = Path()
-                line.move(to: CGPoint(x: g.rect.minX, y: g.y(value)))
-                line.addLine(to: CGPoint(x: g.rect.maxX, y: g.y(value)))
-                ctx.stroke(line, with: .color(TodayHRChartModel.sideColor(side).opacity(0.5)), lineWidth: 1)
+            // Fork chantier 9: each threshold is a dashed line of its zone's colour (no filled band), kept
+            // inside the plot even where the usual day plus the margin climbs above it.
+            var plot = ctx
+            plot.clip(to: Path(g.rect.insetBy(dx: 0, dy: -2)))
+            for (line, side) in [(model.zoneHigh, TodayHRAlert.Side.high), (model.zoneLow, .low)] {
+                var dashed = Path()
+                for run in runs(line) where run.count >= 2 {
+                    dashed.move(to: CGPoint(x: g.x(run[0].x), y: g.y(run[0].bpm)))
+                    for p in run.dropFirst() { dashed.addLine(to: CGPoint(x: g.x(p.x), y: g.y(p.bpm))) }
+                }
+                plot.stroke(dashed, with: .color(TodayHRChartModel.sideColor(side).opacity(0.85)),
+                            style: StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
             }
 
             var curve = Path()
@@ -170,20 +194,33 @@ struct TodayHRChart: View {
             }
             let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
             ctx.stroke(curve, with: .color(tint), style: style)
-            if let threshold = model.threshold, let side = model.alertSide {
-                var clipped = ctx
-                let ty = g.y(threshold)
-                let region = side == .high
-                    ? CGRect(x: 0, y: 0, width: size.width, height: ty)
-                    : CGRect(x: 0, y: ty, width: size.width, height: size.height - ty)
-                clipped.clip(to: Path(region))
-                clipped.stroke(curve, with: .color(beyondColor), style: style)
+            // The curve over each zone, redrawn in the zone's colour: clipped to the region beyond the
+            // threshold, and away from the excluded ranges (sleep).
+            var outside = Path(CGRect(origin: .zero, size: size))
+            for r in model.zoneExclude {
+                outside.addRect(CGRect(x: g.x(r.lowerBound), y: 0,
+                                       width: max(0, g.x(r.upperBound) - g.x(r.lowerBound)), height: size.height))
+            }
+            for (line, side) in [(model.zoneHigh, TodayHRAlert.Side.high), (model.zoneLow, .low)] {
+                var region = Path()
+                for run in runs(line) where run.count >= 2 {
+                    let edgeY: CGFloat = side == .high ? 0 : size.height
+                    region.move(to: CGPoint(x: g.x(run[0].x), y: edgeY))
+                    for p in run { region.addLine(to: CGPoint(x: g.x(p.x), y: g.y(p.bpm))) }
+                    region.addLine(to: CGPoint(x: g.x(run[run.count - 1].x), y: edgeY))
+                    region.closeSubpath()
+                }
+                guard !region.isEmpty else { continue }
+                var zoned = ctx
+                zoned.clip(to: outside, style: FillStyle(eoFill: true))
+                zoned.clip(to: region)
+                zoned.stroke(curve, with: .color(TodayHRChartModel.sideColor(side)), style: style)
             }
 
-            // The retained design marks "now" with one solid dot at the end of the curve.
+            // The retained design marks "now" with one solid dot at the end of the curve, in its zone's colour.
             if model.endDot, let last = model.points.last {
                 let c = CGPoint(x: g.x(last.x), y: g.y(last.bpm))
-                let color = model.isBeyond(last.bpm) ? beyondColor : tint
+                let color = model.zone(of: last).map(TodayHRChartModel.sideColor) ?? tint
                 ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)), with: .color(color))
             }
 
@@ -237,7 +274,7 @@ struct TodayHRCardBody: View {
                 if let bpm {
                     Text("\(bpm)")
                         .font(StrandFont.rounded(36))
-                        .foregroundStyle(subtitleSide == nil ? StrandPalette.textPrimary : tint)
+                        .foregroundStyle(subtitleSide.map(TodayHRChartModel.sideColor) ?? StrandPalette.textPrimary)
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .animation(.easeOut(duration: 0.25), value: bpm)
@@ -291,16 +328,22 @@ struct TodayHRCardBody: View {
         bpm == nil ? subtitle : [String(localized: "bpm"), subtitle].joined(separator: " \u{00B7} ")
     }
 
+    /// The caption in rows of three at most (fork chantier 9: the whole day adds its two thresholds).
     private var captionLine: some View {
-        HStack(spacing: NoopMetrics.space3) {
-            ForEach(caption) { item in
-                HStack(spacing: 6) {
-                    if let swatch = item.swatch { captionSwatch(swatch) }
-                    Text(verbatim: item.text)
-                        .foregroundStyle(item.crossed.map(TodayHRChartModel.sideColor) ?? StrandPalette.textSecondary)
+        let rows = stride(from: 0, to: caption.count, by: 3).map { Array(caption[$0..<min($0 + 3, caption.count)]) }
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(rows.indices, id: \.self) { r in
+                HStack(spacing: NoopMetrics.space3) {
+                    ForEach(rows[r]) { item in
+                        HStack(spacing: 6) {
+                            if let swatch = item.swatch { captionSwatch(swatch) }
+                            Text(verbatim: item.text)
+                                .foregroundStyle(item.crossed.map(TodayHRChartModel.sideColor) ?? StrandPalette.textSecondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
             }
-            Spacer(minLength: 0)
         }
         .font(StrandFont.caption)
         .lineLimit(1)
@@ -318,10 +361,14 @@ struct TodayHRCardBody: View {
                 .frame(width: 14, height: 10)
                 .accessibilityHidden(true)
         case .highLine, .lowLine:
-            Capsule()
-                .fill(TodayHRChartModel.sideColor(swatch == .highLine ? .high : .low).opacity(0.8))
-                .frame(width: 14, height: 2)
-                .accessibilityHidden(true)
+            Path { p in
+                p.move(to: CGPoint(x: 0, y: 1))
+                p.addLine(to: CGPoint(x: 14, y: 1))
+            }
+            .stroke(TodayHRChartModel.sideColor(swatch == .highLine ? .high : .low),
+                    style: StrokeStyle(lineWidth: 2, dash: [3, 2]))
+            .frame(width: 14, height: 2)
+            .accessibilityHidden(true)
         }
     }
 
@@ -437,8 +484,33 @@ enum TodayHRCardLogic {
             let a = fx(max(r.lowerBound, day.dayStart)), b = fx(min(r.upperBound, day.domainEnd))
             return b > a ? a...b : nil
         }
+        let (zoneHigh, zoneLow) = dayZones(day, zone: zone, fx: fx)
         return TodayHRChartModel(points: points, habitual: habitual, sleep: sleep,
+                                 zoneHigh: zoneHigh, zoneLow: zoneLow, zoneExclude: sleep,
                                  endDot: day.isToday, axis: axisLabels(day))
+    }
+
+    /// The whole-day thresholds (fork chantier 9): at each 5-minute step, the SAME rule the live card
+    /// applies now (`TodayHRAlert.thresholds`: the usual rate at that time plus the margin, the awake
+    /// floor), so the dashed high line follows the usual day. A step with no usual rate breaks the run.
+    static func dayZones(_ day: TodayHRDayInput, zone: TimeZone,
+                         fx: (Int) -> Double) -> (high: [TodayHRChartModel.Point], low: [TodayHRChartModel.Point]) {
+        var high: [TodayHRChartModel.Point] = [], low: [TodayHRChartModel.Point] = []
+        var highRun = 0, lowRun = 0
+        var highOpen = false, lowOpen = false
+        var ts = day.dayStart
+        while ts <= day.domainEnd {
+            let usual = HabitualHR.usual(at: ts, profile: day.habitual, zone: zone)
+            let t = TodayHRAlert.thresholds(usualNow: usual, awakeFloor: day.awakeFloor, restingHR: day.restingHR)
+            if let h = t.high {
+                high.append(.init(x: fx(ts), bpm: h, run: highRun)); highOpen = true
+            } else if highOpen { highRun += 1; highOpen = false }
+            if let l = t.low {
+                low.append(.init(x: fx(ts), bpm: l, run: lowRun)); lowOpen = true
+            } else if lowOpen { lowRun += 1; lowOpen = false }
+            ts += HabitualHR.bucketSeconds
+        }
+        return (high, low)
     }
 
     /// Three to five round-hour labels from midnight, never the far end.
@@ -463,9 +535,29 @@ enum TodayHRCardLogic {
         let points = samples.enumerated().map { i, s in
             TodayHRChartModel.Point(x: n > 1 ? Double(i) / Double(n - 1) : 1, bpm: s.bpm, run: 0)
         }
+        let flat: (Double?) -> [TodayHRChartModel.Point] = { v in
+            v.map { [.init(x: 0, bpm: $0, run: 0), .init(x: 1, bpm: $0, run: 0)] } ?? []
+        }
         return TodayHRChartModel(points: points, band: band(thresholds), highLine: thresholds.high,
                                  lowLine: thresholds.low, threshold: alert?.threshold,
-                                 alertSide: alert?.side, endDot: true)
+                                 alertSide: alert?.side, zoneHigh: flat(thresholds.high),
+                                 zoneLow: flat(thresholds.low), endDot: true)
+    }
+
+    /// The whole-day caption's two dashed thresholds (fork chantier 9): the high one follows the usual day
+    /// (« high: usual + 20 »), or sits flat over the resting rate while calibrating; the low one is flat.
+    static func dayZoneCaption(_ chart: TodayHRChartModel, habitual: Bool) -> [TodayHRCaptionItem] {
+        var items: [TodayHRCaptionItem] = []
+        if let high = chart.zoneHigh.first {
+            let text = habitual
+                ? String(localized: "high: usual + \(Int(TodayHRAlert.highMarginBpm))")
+                : String(localized: "high \(Int(high.bpm.rounded()))")
+            items.append(.init(text: text, swatch: .highLine))
+        }
+        if let low = chart.zoneLow.first {
+            items.append(.init(text: String(localized: "low \(Int(low.bpm.rounded()))"), swatch: .lowLine))
+        }
+        return items
     }
 
     /// The live band: the range between the two thresholds, when both are known.
@@ -622,7 +714,7 @@ struct TodayHeartRateSection: View {
         let caption = TodayHRCardLogic.liveCaption(thresholds, crossed: alert?.side)
         let values = samples.map(\.bpm)
         return TodayHRCardBody(
-            tint: alert.map { TodayHRChartModel.sideColor($0.side) } ?? tint,
+            tint: tint,
             bpm: bigBpm, beat: beat, showsBeat: true,
             subtitle: liveSubtitle(alert: alert),
             subtitleSide: alert?.side,
@@ -638,6 +730,7 @@ struct TodayHeartRateSection: View {
         var caption: [TodayHRCaptionItem] = []
         if !chart.habitual.isEmpty { caption.append(.init(text: String(localized: "your usual day"), swatch: .usualDay)) }
         if !chart.sleep.isEmpty { caption.append(.init(text: String(localized: "sleep"), swatch: .sleep)) }
+        caption += TodayHRCardLogic.dayZoneCaption(chart, habitual: !day.habitual.isEmpty)
         if let rest = day.restingHR { caption.append(.init(text: String(localized: "rest \(Int(rest.rounded()))"))) }
         let values = day.bucketBpm
         return TodayHRCardBody(

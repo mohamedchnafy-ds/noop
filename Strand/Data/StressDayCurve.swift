@@ -41,6 +41,8 @@ enum StressDayCurve {
     /// says. Today re-asks on a timer, so the trailing-history read the fingerprint gate exists to avoid
     /// was being paid on essentially every tick. Keyed by lens, each surface keeps its own gate.
     @MainActor private static var memos: [Bool: Memo] = [:]
+    /// The same, for a past day the Today card shows (chantier 9), so it never evicts today's slot.
+    @MainActor private static var pastMemos: [Bool: Memo] = [:]
 
     /// Today's curve and the local day number it belongs to, or nil when it could not be scored.
     ///
@@ -56,6 +58,33 @@ enum StressDayCurve {
     static func today(repo: Repository, now: Date = Date(),
                       calendar: Calendar = .current,
                       personalBaseline: Bool = false) async -> (result: DaytimeStress.Result, day: Int)? {
+        await scoreDay(repo: repo, end: now, calendar: calendar, personalBaseline: personalBaseline,
+                       past: false)
+    }
+
+    /// The curve of the day that starts at `dayStart` (local midnight), for the Today stress card, which
+    /// can show any past day (personal fork, chantier 9). Today reads up to `now`; a past day reads to its
+    /// end. Same scoring and same gate as `today`, in a slot of its own so a past day never evicts the
+    /// one the widget publisher and today's card reuse.
+    @MainActor
+    static func day(repo: Repository, dayStart: Date, now: Date = Date(),
+                    calendar: Calendar = .current,
+                    personalBaseline: Bool = false) async -> (result: DaytimeStress.Result, day: Int)? {
+        if calendar.isDate(dayStart, inSameDayAs: now) {
+            return await today(repo: repo, now: now, calendar: calendar, personalBaseline: personalBaseline)
+        }
+        let start = calendar.startOfDay(for: dayStart)
+        let next = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        return await scoreDay(repo: repo, end: next.addingTimeInterval(-1), calendar: calendar,
+                              personalBaseline: personalBaseline,
+                              past: true)
+    }
+
+    /// Scores the local day holding `end`, from its midnight to `end`, behind the heart-rate gate.
+    @MainActor
+    private static func scoreDay(repo: Repository, end now: Date, calendar: Calendar,
+                                 personalBaseline: Bool,
+                                 past: Bool) async -> (result: DaytimeStress.Result, day: Int)? {
         let startOfDay = calendar.startOfDay(for: now)
         let from = Int(startOfDay.timeIntervalSince1970)
         let to = Int(now.timeIntervalSince1970)
@@ -75,7 +104,7 @@ enum StressDayCurve {
         // serve yesterday's curve as today's.
         // Foreground Today and the widget publisher can call in either order. Include the requested
         // lens so an unchanged HR fingerprint can never replay one surface's result into the other.
-        if let memo = memos[personalBaseline], memo.day == day, memo.fingerprint == fingerprint {
+        if let memo = past ? pastMemos[personalBaseline] : memos[personalBaseline], memo.day == day, memo.fingerprint == fingerprint {
             return (memo.result, day)
         }
 
@@ -119,8 +148,8 @@ enum StressDayCurve {
         }
         // Too little signal leaves an EMPTY result, which is a real answer about today rather than a
         // refusal: a reader should drop yesterday's line rather than keep drawing it.
-        memos[personalBaseline] = Memo(fingerprint: fingerprint, day: day,
-                                       personalBaseline: personalBaseline, result: scored)
+        let memo = Memo(fingerprint: fingerprint, day: day, personalBaseline: personalBaseline, result: scored)
+        if past { pastMemos[personalBaseline] = memo } else { memos[personalBaseline] = memo }
         return (scored, day)
     }
 
@@ -143,7 +172,10 @@ enum StressDayCurve {
                                        to: calendar.startOfDay(for: date)).day ?? 0
     }
 
-    /// Drops both memo slots so a test starts from a known state.
+    /// Drops every memo slot so a test starts from a known state.
     @MainActor
-    static func resetForTest() { memos.removeAll() }
+    static func resetForTest() {
+        memos.removeAll()
+        pastMemos.removeAll()
+    }
 }

@@ -37,6 +37,9 @@ enum TodaySection: String, CaseIterable, Identifiable {
     /// selection in order; empty (and effectively invisible) until the user adds a card in Customise.
     /// Appended LAST so `decodeOrder`'s back-fill lands it predictably for existing saved orders.
     case addedCards
+    /// The hour-by-hour stress card the Liquid Today draws under the heart-rate card (personal fork,
+    /// chantier 9). Appended LAST like `addedCards`; the Kotlin twin keeps the token and draws nothing.
+    case stress
 
     var id: String { rawValue }
 
@@ -54,6 +57,7 @@ enum TodaySection: String, CaseIterable, Identifiable {
         case .menstrualCycle: return String(localized: "Menstrual Cycle")
         case .journal:        return String(localized: "Journal")
         case .addedCards:     return String(localized: "Added Cards")
+        case .stress:         return String(localized: "Stress")
         }
     }
 
@@ -61,7 +65,7 @@ enum TodaySection: String, CaseIterable, Identifiable {
     /// widget (#656) is last by default, where it was first added, above the data-sources card.
     static let defaultOrder: [TodaySection] = [
         .hero, .liveSession, .synthesis, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards,
-        .menstrualCycle, .journal, .addedCards,
+        .menstrualCycle, .journal, .addedCards, .stress,
     ]
 }
 
@@ -148,8 +152,10 @@ extension TodayLayoutPrefs {
     /// Set once the saved order has been moved to the v2 layout, so a later rearrangement is never undone.
     static let liquidLayoutV2Key = "today.liquidLayoutV2"
 
-    /// Sections the Liquid Today no longer draws. Kept in the enum and in the stored order for parity.
-    static let liquidRemovedSections: Set<TodaySection> = [.recoveryVitals]
+    /// Sections the Liquid Today no longer draws in the saved order. Kept in the enum and in the stored
+    /// order for parity. Start session and Last workouts left the page in chantier 9: they come back
+    /// through `TodayRestoredBlock`, under the Metrics, rather than at a place in the order.
+    static let liquidRemovedSections: Set<TodaySection> = [.recoveryVitals, .liveSession, .workouts]
 
     /// `raw` with Heart Rate then Synthesis moved directly under the hero, every other section keeping its
     /// relative place (an empty order starts from the default one).
@@ -167,10 +173,81 @@ extension TodayLayoutPrefs {
     }
 }
 
-/// The Key-Metrics tiles and Your-Cards cards the Liquid Today hides because the hero now shows the same
-/// number (personal fork). Hidden at display and in its editors only: the stored selections are untouched,
-/// so Android and the classic Today keep them.
+// MARK: - Liquid Today, layout v3 (personal fork, chantier 9)
+//
+// The page reads rings → Synthesis → heart rate → stress → Metrics. The move is applied to the saved order
+// once, like v2; a later rearrangement is the wearer's own and is never undone.
+
+extension TodayLayoutPrefs {
+    /// Set once the saved order has been moved to the v3 layout.
+    static let liquidLayoutV3Key = "today.liquidLayoutV3"
+
+    /// The head of the v3 page, in this order.
+    static let liquidV3Head: [TodaySection] = [.hero, .synthesis, .heartRate, .stress, .keyMetrics]
+
+    /// `raw` with the v3 head first, every other section keeping its relative place after it.
+    static func liquidV3Order(_ raw: String) -> String {
+        let rest = decodeOrder(raw).filter { !liquidV3Head.contains($0) }
+        return encode(liquidV3Head + rest)
+    }
+}
+
+/// The blocks that left the Liquid Today in chantier 9, each still at its new home, and which the wearer
+/// can put back under the Metrics from « Customize Today ». Off by default. iPhone display preference only:
+/// stored on the device under `storageKey`, outside the `.noopbak` whitelist, with no Android twin.
+enum TodayRestoredBlock: String, CaseIterable, Identifiable {
+    case fitnessAge
+    case vitality
+    case liveSession
+    case workouts
+    case dataSources
+    case emptyTiles
+
+    var id: String { rawValue }
+
+    /// UserDefaults key: a comma-joined list of the blocks switched back on.
+    static let storageKey = "today.restoredBlocks"
+
+    var title: String {
+        switch self {
+        case .fitnessAge:  return String(localized: "Fitness Age")
+        case .vitality:    return String(localized: "Vitality")
+        case .liveSession: return String(localized: "Start session")
+        case .workouts:    return String(localized: "Last workouts")
+        case .dataSources: return String(localized: "Data sources")
+        case .emptyTiles:  return String(localized: "Tiles without a value")
+        }
+    }
+
+    /// Where the block lives now.
+    var home: String {
+        switch self {
+        case .fitnessAge, .vitality: return String(localized: "More → Health and recovery")
+        case .liveSession:           return String(localized: "Training → Other activities")
+        case .workouts:              return String(localized: "Training")
+        case .dataSources:           return String(localized: "More → Data")
+        case .emptyTiles:            return String(localized: "Metrics → All")
+        }
+    }
+
+    /// Decode the stored list. Unknown tokens are dropped, duplicates collapsed; empty means all off.
+    static func decode(_ raw: String) -> Set<TodayRestoredBlock> {
+        Set(raw.split(separator: ",").compactMap {
+            TodayRestoredBlock(rawValue: $0.trimmingCharacters(in: .whitespaces))
+        })
+    }
+
+    /// Encode in the stable `allCases` order.
+    static func encode(_ blocks: Set<TodayRestoredBlock>) -> String {
+        allCases.filter { blocks.contains($0) }.map(\.rawValue).joined(separator: ",")
+    }
+}
+
+/// The Key-Metrics tiles and Your-Cards cards the Liquid Today hides (personal fork): the hero shows the
+/// same number, or (chantier 9) the card has its own place — the stress card replaces the Stress row, and
+/// Fitness Age and Vitality come back only through `TodayRestoredBlock`. Hidden at display and in its
+/// editors only: the stored selections are untouched, so Android and the classic Today keep them.
 enum LiquidTodayDuplicates {
     static let keyMetrics: Set<KeyMetric> = [.charge, .effort, .rest, .hrv, .restingHr, .calories]
-    static let cards: Set<DashboardCard> = [.hrv, .restingHr, .calories]
+    static let cards: Set<DashboardCard> = [.hrv, .restingHr, .calories, .stress, .fitnessAge, .vitality]
 }

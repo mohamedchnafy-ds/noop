@@ -53,6 +53,10 @@ struct LiftLogView: View {
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    /// Live Sessions (silent guardian, beta): the Settings switch, and the session screen (fork chantier 9:
+    /// its start row moved here from Today).
+    @AppStorage(LiveSessionPrefs.betaKey) private var liveSessionsBeta = true
+    @State private var showLiveSession = false
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -215,6 +219,14 @@ struct LiftLogView: View {
                                              symbol: "waveform.path.ecg", tint: StrandPalette.liquidHeart)
                 }
                 .buttonStyle(.plain)
+                if liveSessionsBeta {
+                    Button { showLiveSession = true } label: {
+                        TrainingActivityRowLabel(title: "Start session (Beta)",
+                                                 detail: "Silent strap coaching against today's Charge.",
+                                                 symbol: "shield.lefthalf.filled", tint: StrandPalette.metricCyan)
+                    }
+                    .buttonStyle(.plain)
+                }
                 NavigationLink {
                     WorkoutsView()
                 } label: {
@@ -228,6 +240,7 @@ struct LiftLogView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(NoopPanelSurface())
         }
+        .liveSessionCover(isPresented: $showLiveSession)
     }
 
     // MARK: - Navigation in time

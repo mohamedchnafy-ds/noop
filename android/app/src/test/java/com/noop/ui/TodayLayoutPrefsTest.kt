@@ -24,11 +24,11 @@ class TodayLayoutPrefsTest {
             TodaySection.HEART_RATE, TodaySection.HERO, TodaySection.YOUR_CARDS,
             TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS, TodaySection.KEY_METRICS,
             TodaySection.WORKOUTS, TodaySection.RECOVERY_VITALS, TodaySection.JOURNAL,
-            TodaySection.MENSTRUAL_CYCLE, TodaySection.ADDED_CARDS,
+            TodaySection.MENSTRUAL_CYCLE, TodaySection.ADDED_CARDS, TodaySection.STRESS,
         )
         val encoded = TodayLayoutPrefs.encode(reordered)
         assertEquals(
-            "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards",
+            "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards,stress",
             encoded,
         )
         assertEquals(reordered, TodayLayoutPrefs.decodeOrder(encoded))
@@ -45,7 +45,7 @@ class TodayLayoutPrefsTest {
                 TodaySection.HERO, TodaySection.LIVE_SESSION,
                 TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.WORKOUTS,
                 TodaySection.HEART_RATE, TodaySection.RECOVERY_VITALS, TodaySection.YOUR_CARDS,
-                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
+                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS, TodaySection.STRESS,
             ),
             TodayLayoutPrefs.decodeOrder(firstCut),
         )
@@ -66,7 +66,7 @@ class TodayLayoutPrefsTest {
                 TodaySection.HEART_RATE, TodaySection.SYNTHESIS, TodaySection.KEY_METRICS,
                 TodaySection.RECOVERY_VITALS,
                 TodaySection.YOUR_CARDS, TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL,
-                TodaySection.ADDED_CARDS,
+                TodaySection.ADDED_CARDS, TodaySection.STRESS,
             ),
             decoded,
         )
@@ -84,7 +84,7 @@ class TodayLayoutPrefsTest {
                 TodaySection.HERO, TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS,
                 TodaySection.KEY_METRICS, TodaySection.WORKOUTS, TodaySection.RECOVERY_VITALS,
                 TodaySection.YOUR_CARDS, TodaySection.HEART_RATE,
-                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
+                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS, TodaySection.STRESS,
             ),
             decoded,
         )
@@ -109,7 +109,7 @@ class TodayLayoutPrefsTest {
             listOf(
                 TodaySection.HEART_RATE, TodaySection.YOUR_CARDS, TodaySection.LIVE_SESSION,
                 TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.RECOVERY_VITALS,
-                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
+                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS, TodaySection.STRESS,
             ),
             TodayLayoutPrefs.visibleOrder(order, "hero,workouts"),
         )
@@ -142,9 +142,16 @@ class TodayLayoutPrefsTest {
             listOf(
                 "hero", "liveSession", "synthesis", "keyMetrics",
                 "workouts", "heartRate", "recoveryVitals", "yourCards", "menstrualCycle", "journal",
-                "addedCards",
+                "addedCards", "stress",
             ),
             raws,
         )
+    }
+
+    /** The stress card is the iPhone's alone: Android keeps the token but never draws or edits it. */
+    @Test
+    fun stressSection_isPlatformOnly() {
+        assertEquals(setOf(TodaySection.STRESS), TodaySection.platformOnly)
+        assertEquals(TodaySection.STRESS, TodaySection.defaultOrder.last())
     }
 }

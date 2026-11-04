@@ -20,12 +20,17 @@ struct TodayCustomizationExclusions {
     var sections: Set<TodaySection> = []
     var keyMetrics: Set<KeyMetric> = []
     var cards: Set<DashboardCard> = []
+    /// The section order « Reset This Layout » goes back to; nil means `TodaySection.defaultOrder`.
+    var resetOrder: [TodaySection]? = nil
 
     static let none = TodayCustomizationExclusions()
+    /// The classic Today does not draw the Liquid Today's stress card (personal fork, chantier 9).
+    static let classic = TodayCustomizationExclusions(sections: [.stress])
     static let liquid = TodayCustomizationExclusions(
         sections: TodayLayoutPrefs.liquidRemovedSections,
         keyMetrics: LiquidTodayDuplicates.keyMetrics,
-        cards: LiquidTodayDuplicates.cards
+        cards: LiquidTodayDuplicates.cards,
+        resetOrder: TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV3Order(""))
     )
 }
 
@@ -58,8 +63,12 @@ struct TodayCustomizationSheet: View {
     @Binding private var keyMetricsWindowDays: Int
     @Binding private var dashboardCardsRaw: String
     @Binding private var hostedCardsRaw: String
+    /// The Liquid Today's « Put back on the page » switches (fork chantier 9); nil hides the section.
+    private let restoredBlocksRaw: Binding<String>?
+    private let initialRestored: Set<TodayRestoredBlock>
 
     @State private var path: [Route]
+    @State private var restored: Set<TodayRestoredBlock>
     @State private var sectionDraft: EditableLayoutDraft<TodaySection>
     @State private var keyMetricDraft: EditableLayoutDraft<KeyMetric>
     @State private var dashboardDraft: EditableLayoutDraft<DashboardCard>
@@ -83,6 +92,7 @@ struct TodayCustomizationSheet: View {
             || hostedDraft != initialHostedDraft
             || detailed != initialDetailed
             || windowDays != initialWindowDays
+            || restored != initialRestored
     }
 
     init(
@@ -94,8 +104,13 @@ struct TodayCustomizationSheet: View {
         keyMetricsWindowDays: Binding<Int>,
         dashboardCardsRaw: Binding<String>,
         hostedCardsRaw: Binding<String>,
+        restoredBlocksRaw: Binding<String>? = nil,
         exclusions: TodayCustomizationExclusions = .none
     ) {
+        self.restoredBlocksRaw = restoredBlocksRaw
+        let restoredNow = TodayRestoredBlock.decode(restoredBlocksRaw?.wrappedValue ?? "")
+        initialRestored = restoredNow
+        _restored = State(initialValue: restoredNow)
         _sectionOrderRaw = sectionOrderRaw
         _hiddenSectionsRaw = hiddenSectionsRaw
         _keyMetricsRaw = keyMetricsRaw
@@ -167,7 +182,8 @@ struct TodayCustomizationSheet: View {
                 dashboardCardCount: dashboardDraft.visible.count,
                 hostedCardCount: hostedDraft.visible.count,
                 onConfigure: openConfiguration,
-                onReset: resetCurrentLayout
+                onReset: resetCurrentLayout,
+                restored: restoredBlocksRaw == nil ? nil : $restored
             )
             .toolbar {
                 customizationToolbar(showCancel: true)
@@ -229,8 +245,10 @@ struct TodayCustomizationSheet: View {
     private func resetCurrentLayout() {
         switch currentDestination {
         case .today:
-            let sections = TodaySection.defaultOrder.filter { !exclusions.sections.contains($0) }
+            let sections = (exclusions.resetOrder ?? TodaySection.defaultOrder)
+                .filter { !exclusions.sections.contains($0) }
             sectionDraft = EditableLayoutDraft(visible: sections, allItems: sections)
+            restored = []
         case .keyMetrics:
             let metrics = KeyMetric.defaultOrder.filter { !exclusions.keyMetrics.contains($0) }
             keyMetricDraft = EditableLayoutDraft(visible: metrics, allItems: metrics)
@@ -261,6 +279,7 @@ struct TodayCustomizationSheet: View {
         keyMetricsWindowDays = windowDays
         dashboardCardsRaw = DashboardCardPrefs.encode(dashboardDraft.visible + keptCards)
         hostedCardsRaw = HostedCardPrefs.encode(hostedDraft.visible)
+        if let restoredBlocksRaw { restoredBlocksRaw.wrappedValue = TodayRestoredBlock.encode(restored) }
         dismiss()
     }
 
@@ -286,6 +305,8 @@ private struct TodaySectionsCustomizationPage: View {
     let hostedCardCount: Int
     let onConfigure: (TodaySection) -> Void
     let onReset: () -> Void
+    /// The « Put back on the page » switches, or nil when this Today has none.
+    var restored: Binding<Set<TodayRestoredBlock>>? = nil
 
     var body: some View {
         EditableLayoutList(
@@ -298,7 +319,8 @@ private struct TodaySectionsCustomizationPage: View {
             tint: \.customizationTint,
             configurationLabel: configurationLabel,
             onConfigure: onConfigure,
-            onReset: onReset
+            onReset: onReset,
+            bottom: restored.map { AnyView(TodayRestoredBlocksSection(restored: $0)) }
         ) {
             EmptyView()
         }
@@ -331,6 +353,42 @@ private struct TodaySectionsCustomizationPage: View {
             return String(localized: "Edit")
         default:
             return nil
+        }
+    }
+}
+
+/// « Put back on the page » (fork chantier 9): one switch per block that left the Liquid Today, off by
+/// default. Switched on, the block is drawn under the Metrics; it also stays at its new home.
+private struct TodayRestoredBlocksSection: View {
+    @Binding var restored: Set<TodayRestoredBlock>
+
+    var body: some View {
+        Section {
+            ForEach(TodayRestoredBlock.allCases) { block in
+                Toggle(isOn: Binding(
+                    get: { restored.contains(block) },
+                    set: { on in
+                        if on { restored.insert(block) } else { restored.remove(block) }
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(block.title)
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text(block.home)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                }
+                .tint(StrandPalette.switchOn)
+            }
+        } header: {
+            Text("Put back on the page")
+                .strandOverline()
+        } footer: {
+            Text("Off by default. Switched on, the block appears under the Metrics; it also stays at its usual place.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
         }
     }
 }

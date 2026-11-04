@@ -14,10 +14,10 @@ final class TodayLayoutPrefsTests: XCTestCase {
     func testEncodeDecodeRoundTripsAReorderedList() {
         let reordered: [TodaySection] = [
             .heartRate, .hero, .yourCards, .liveSession, .synthesis, .keyMetrics, .workouts, .recoveryVitals,
-            .journal, .menstrualCycle, .addedCards,
+            .journal, .menstrualCycle, .addedCards, .stress,
         ]
         let encoded = TodayLayoutPrefs.encode(reordered)
-        XCTAssertEqual(encoded, "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards")
+        XCTAssertEqual(encoded, "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards,stress")
         XCTAssertEqual(TodayLayoutPrefs.decodeOrder(encoded), reordered)
     }
 
@@ -29,7 +29,7 @@ final class TodayLayoutPrefsTests: XCTestCase {
         XCTAssertEqual(
             TodayLayoutPrefs.decodeOrder(firstCut),
             // journal(8) follows everything saved → appended; addedCards(10) is last, appended after it.
-            [.hero, .liveSession, .synthesis, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards, .menstrualCycle, .journal, .addedCards]
+            [.hero, .liveSession, .synthesis, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards, .menstrualCycle, .journal, .addedCards, .stress]
         )
     }
 
@@ -37,7 +37,7 @@ final class TodayLayoutPrefsTests: XCTestCase {
         let partial = "heartRate,synthesis,keyMetrics,recoveryVitals"
         XCTAssertEqual(
             TodayLayoutPrefs.decodeOrder(partial),
-            [.hero, .liveSession, .workouts, .heartRate, .synthesis, .keyMetrics, .recoveryVitals, .yourCards, .menstrualCycle, .journal, .addedCards]
+            [.hero, .liveSession, .workouts, .heartRate, .synthesis, .keyMetrics, .recoveryVitals, .yourCards, .menstrualCycle, .journal, .addedCards, .stress]
         )
     }
 
@@ -45,7 +45,7 @@ final class TodayLayoutPrefsTests: XCTestCase {
         let messy = "yourCards,BOGUS,yourCards,heartRate, ,heartRate"
         XCTAssertEqual(
             TodayLayoutPrefs.decodeOrder(messy),
-            [.hero, .liveSession, .synthesis, .keyMetrics, .workouts, .recoveryVitals, .yourCards, .heartRate, .menstrualCycle, .journal, .addedCards]
+            [.hero, .liveSession, .synthesis, .keyMetrics, .workouts, .recoveryVitals, .yourCards, .heartRate, .menstrualCycle, .journal, .addedCards, .stress]
         )
     }
 
@@ -63,11 +63,11 @@ final class TodayLayoutPrefsTests: XCTestCase {
         let order = "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal"
         XCTAssertEqual(
             TodayLayoutPrefs.visibleOrder(orderRaw: order, hiddenRaw: "hero,workouts"),
-            [.heartRate, .yourCards, .liveSession, .synthesis, .keyMetrics, .recoveryVitals, .menstrualCycle, .journal, .addedCards]
+            [.heartRate, .yourCards, .liveSession, .synthesis, .keyMetrics, .recoveryVitals, .menstrualCycle, .journal, .addedCards, .stress]
         )
         XCTAssertEqual(TodayLayoutPrefs.decodeOrder(order), [
             .heartRate, .hero, .yourCards, .liveSession, .synthesis, .keyMetrics, .workouts,
-            .recoveryVitals, .menstrualCycle, .journal, .addedCards,
+            .recoveryVitals, .menstrualCycle, .journal, .addedCards, .stress,
         ])
     }
 
@@ -93,7 +93,7 @@ final class TodayLayoutPrefsTests: XCTestCase {
         // Pin the exact wire strings — they must match the Android TodaySection byte-for-byte.
         XCTAssertEqual(
             raws,
-            ["hero", "liveSession", "synthesis", "keyMetrics", "workouts", "heartRate", "recoveryVitals", "yourCards", "menstrualCycle", "journal", "addedCards"]
+            ["hero", "liveSession", "synthesis", "keyMetrics", "workouts", "heartRate", "recoveryVitals", "yourCards", "menstrualCycle", "journal", "addedCards", "stress"]
         )
     }
 
@@ -111,6 +111,36 @@ final class TodayLayoutPrefsTests: XCTestCase {
         XCTAssertEqual(draft.visible.last, .workouts)
         XCTAssertTrue(draft.hidden.isEmpty)
         XCTAssertEqual(Set(draft.visible), Set(TodaySection.defaultOrder))
+    }
+
+    // MARK: Chantier 9 (personal fork)
+
+    func testLayoutV3PutsTheFivePageSectionsFirstAndKeepsEveryToken() {
+        let moved = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV3Order(""))
+        XCTAssertEqual(Array(moved.prefix(5)), [.hero, .synthesis, .heartRate, .stress, .keyMetrics])
+        // A v2 order (heart rate then synthesis under the hero) keeps the rest in its relative order.
+        let v2 = "hero,heartRate,synthesis,liveSession,keyMetrics,workouts,recoveryVitals,yourCards,journal"
+        let movedV2 = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV3Order(v2))
+        XCTAssertEqual(movedV2, [.hero, .synthesis, .heartRate, .stress, .keyMetrics, .liveSession, .workouts,
+                                 .recoveryVitals, .yourCards, .menstrualCycle, .journal, .addedCards])
+        XCTAssertEqual(Set(movedV2), Set(TodaySection.allCases))
+    }
+
+    func testLiquidOrderLeavesTheMovedSectionsOutButKeepsThemStored() {
+        let raw = TodayLayoutPrefs.liquidV3Order("")
+        XCTAssertTrue(raw.contains("liveSession") && raw.contains("workouts"))
+        let visible = TodayLayoutPrefs.liquidVisibleOrder(orderRaw: raw, hiddenRaw: "")
+        XCTAssertFalse(visible.contains(.liveSession) || visible.contains(.workouts) || visible.contains(.recoveryVitals))
+        XCTAssertEqual(Array(visible.prefix(5)), [.hero, .synthesis, .heartRate, .stress, .keyMetrics])
+    }
+
+    func testRestoredBlocksAreOffByDefaultAndRoundTrip() {
+        XCTAssertTrue(TodayRestoredBlock.decode("").isEmpty)
+        let set = TodayRestoredBlock.decode("workouts,BOGUS,fitnessAge,workouts")
+        XCTAssertEqual(set, [.workouts, .fitnessAge])
+        XCTAssertEqual(TodayRestoredBlock.encode(set), "fitnessAge,workouts")
+        XCTAssertEqual(TodayRestoredBlock.allCases.map(\.rawValue),
+                       ["fitnessAge", "vitality", "liveSession", "workouts", "dataSources", "emptyTiles"])
     }
 
     func testEditableLayoutKeepsAtLeastOneItemVisible() {

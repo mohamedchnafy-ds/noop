@@ -67,10 +67,18 @@ final class LiftProgramMuscleRenderTests: XCTestCase {
         try render(selected: .neck, name: "2-aucun-exercice")
     }
 
-    private func render(selected: LiftMuscle?, name: String) throws {
+    /// Supersets et blocs: the Superset mode with two exercises ticked, A1 and A2.
+    func testRendersTheSupersetModeWithTwoTicks() throws {
+        let picks = Array(vocabulary.prefix(2))
+        try render(selected: .chest, name: "3-superset", supersetMode: true, picks: picks)
+    }
+
+    private func render(selected: LiftMuscle?, name: String, supersetMode: Bool = false,
+                        picks: [LiftExerciseRow] = []) throws {
         let screen = LiftProgramMuscleFilter(
             vocabulary: vocabulary, programExercises: program,
-            selected: .constant(selected), onAdd: { _ in }, onNew: { _ in })
+            selected: .constant(selected), supersetMode: .constant(supersetMode), picks: .constant(picks),
+            onAdd: { _ in }, onNew: { _ in })
             .padding(.horizontal, NoopMetrics.screenPadding)
             .padding(.vertical, 24)
             .frame(width: width, alignment: .top)

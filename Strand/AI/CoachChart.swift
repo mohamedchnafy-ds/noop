@@ -23,6 +23,16 @@ struct CoachChartSpec: Codable, Equatable, Hashable {
         case pair
         /// One day, hour by hour: the heart rate (5-minute averages) or the daytime stress.
         case day
+        /// A bar per day split into its parts (PR C): the sleep stages of each night, or the macros of each day.
+        case stacked
+    }
+
+    /// What a stacked chart (and `get_series`) splits into parts, by an id beside the catalogue's.
+    enum Stack: String, Codable, CaseIterable {
+        /// Deep, REM and light minutes of each night, as « Your nights » on the Sleep screen reads them.
+        case sleepStages = "sleep:stages"
+        /// Protein, carbs and fat grams of each day, as the meal journal adds them up.
+        case macros = "nutrition:macros"
     }
 
     /// What a one-day chart shows.
@@ -32,7 +42,7 @@ struct CoachChartSpec: Codable, Equatable, Hashable {
     }
 
     var kind: Kind
-    /// The metric's catalogue id ("my-whoop:hrv"); nil for a one-day chart.
+    /// The metric's catalogue id ("my-whoop:hrv"), or a `Stack` id for a stacked chart; nil for a one-day chart.
     var metric: String?
     /// The second metric of a pair.
     var second: String?
@@ -47,7 +57,10 @@ struct CoachChartSpec: Codable, Equatable, Hashable {
 /// One point of a chart: a day (local midnight) or an instant of a one-day chart.
 struct CoachChartPoint: Equatable {
     var date: Date
+    /// The value; for a stacked chart, the sum of its parts.
     var value: Double
+    /// A stacked chart's parts, bottom to top (deep, REM, light; protein, carbs, fat); empty otherwise.
+    var parts: [Double] = []
 }
 
 enum CoachChart {
@@ -63,6 +76,14 @@ enum CoachChart {
     static var metricIds: [String] {
         var seen: Set<String> = []
         return MetricCatalog.all.map(\.id).filter { seen.insert($0).inserted }
+    }
+
+    /// Every id `get_series` and a stacked chart accept: the catalogue's, then the stacks'.
+    static var seriesIds: [String] { metricIds + CoachChartSpec.Stack.allCases.map(\.rawValue) }
+
+    /// The stack of an id, nil for a catalogue id.
+    static func stack(_ id: String?) -> CoachChartSpec.Stack? {
+        id.flatMap(CoachChartSpec.Stack.init(rawValue:))
     }
 
     /// The catalogue entry of an id.
@@ -86,16 +107,20 @@ enum CoachChart {
          "description": "Show the user a chart under your reply, drawn by the app from its own data (the same "
             + "series as Analyses), so you never write the numbers it shows. kind: line or bars = one metric over "
             + "the period; pair = two metrics over the same period, each on its own scale; day = one day hour by "
-            + "hour (series heart_rate or stress). At most \(maxPerReply) charts in a reply. The result gives the "
-            + "figures the chart shows: comment on them in one or two sentences, do not list them.",
+            + "hour (series heart_rate or stress); stacked = a bar per day split into its parts, metric "
+            + "\(CoachChartSpec.Stack.sleepStages.rawValue) (deep, REM and light minutes of each night) or "
+            + "\(CoachChartSpec.Stack.macros.rawValue) (protein, carbs and fat grams of each day). At most "
+            + "\(maxPerReply) charts in a reply. The result gives the figures the chart shows: comment on them in "
+            + "one or two sentences, do not list them.",
          "input_schema": [
             "type": "object",
             "properties": [
                 "kind": ["type": "string", "enum": CoachChartSpec.Kind.allValues],
-                "metric": ["type": "string", "enum": metricIds,
-                           "description": "The metric's id (source:key), for line, bars and pair."],
+                "metric": ["type": "string", "enum": seriesIds,
+                           "description": "The metric's id (source:key) for line, bars and pair; a stack id for stacked."],
                 "second_metric": ["type": "string", "enum": metricIds, "description": "The second metric of a pair."],
-                "days": ["type": "integer", "enum": periods, "description": "The period, for line, bars and pair."],
+                "days": ["type": "integer", "enum": periods,
+                         "description": "The period, for line, bars, pair and stacked."],
                 "series": ["type": "string", "enum": CoachChartSpec.DaySeries.allValues, "description": "For kind day."],
                 "date": ["type": "string",
                          "description": "YYYY-MM-DD, for kind day: at most \(dayLookback) days ago; today when left out."],
@@ -109,7 +134,7 @@ enum CoachChart {
     static func fromToolInput(_ input: [String: Any], today: String,
                               daysBack: (String) -> Int?) -> (spec: CoachChartSpec?, problem: String?) {
         guard let kind = CoachTools.text(input, "kind").flatMap(CoachChartSpec.Kind.init(rawValue:)) else {
-            return (nil, "Give kind: line, bars, pair or day.")
+            return (nil, "Give kind: line, bars, pair, day or stacked.")
         }
         if kind == .day {
             let series = CoachTools.text(input, "series").flatMap(CoachChartSpec.DaySeries.init(rawValue:)) ?? .heartRate
@@ -119,10 +144,20 @@ enum CoachChart {
             guard back <= dayLookback else { return (nil, "That day is more than \(dayLookback) days ago.") }
             return (CoachChartSpec(kind: .day, day: day, series: series), nil)
         }
+        let days = nearestPeriod(CoachTools.integer(input, "days", fallback: 30, in: 1...3650))
+        if kind == .stacked {
+            guard let id = CoachTools.text(input, "metric"), stack(id) != nil else {
+                return (nil, "A stacked chart needs metric \(CoachChartSpec.Stack.sleepStages.rawValue) or "
+                        + "\(CoachChartSpec.Stack.macros.rawValue).")
+            }
+            return (CoachChartSpec(kind: .stacked, metric: id, days: days, day: today), nil)
+        }
         guard let metric = CoachTools.text(input, "metric"), descriptor(metric) != nil else {
+            if stack(CoachTools.text(input, "metric")) != nil {
+                return (nil, "That id is drawn as kind stacked.")
+            }
             return (nil, "Give metric: one of the ids listed in the tool.")
         }
-        let days = nearestPeriod(CoachTools.integer(input, "days", fallback: 30, in: 1...3650))
         var spec = CoachChartSpec(kind: kind, metric: metric, days: days, day: today)
         if kind == .pair {
             guard let second = CoachTools.text(input, "second_metric"), descriptor(second) != nil, second != metric else {
@@ -151,6 +186,8 @@ enum CoachChart {
         case .day:
             let what = spec.series == .stress ? "Stress (0-3, hour by hour)" : "Heart rate (bpm, 5-minute averages)"
             return head + " " + line("\(what) on \(spec.day)", first)
+        case .stacked:
+            return head + " " + stackedSummary(spec, first)
         case .line, .bars, .pair:
             let period = "last \(spec.days ?? 30) days to \(spec.day)"
             var text = head + " " + line("\(wireName(spec.metric, effortScale: effortScale)) (\(period))",
@@ -162,8 +199,37 @@ enum CoachChart {
         }
     }
 
+    /// A stacked series as the model reads it: what each day or night holds, part by part, with the means.
+    /// Shared by `show_chart` and `get_series`, so both say the same of one period.
+    static func stackedSummary(_ spec: CoachChartSpec, _ points: [CoachChartPoint]) -> String {
+        let which = Self.stack(spec.metric) ?? .sleepStages
+        let names = stackPartNames(which)
+        let what = "\(wireName(spec.metric)), last \(spec.days ?? 30) days to \(spec.day)"
+        guard !points.isEmpty else { return "\(what): no value in that period." }
+        let means = names.indices.map { index -> String in
+            let values = points.compactMap { index < $0.parts.count ? $0.parts[index] : nil }
+            return "\(names[index]) \(number(values.reduce(0, +) / Double(max(values.count, 1))))"
+        }
+        let unit = which == .sleepStages ? "nights" : "days logged"
+        return "\(what): \(points.count) \(unit); mean " + means.joined(separator: ", ") + "."
+    }
+
+    /// The parts of a stack, bottom to top, as the model reads them.
+    static func stackPartNames(_ stack: CoachChartSpec.Stack) -> [String] {
+        switch stack {
+        case .sleepStages: return ["deep", "REM", "light"]
+        case .macros: return ["protein", "carbs", "fat"]
+        }
+    }
+
     /// A metric as the model reads it: "Heart Rate Variability (ms)"; Effort with the scale the user reads it on.
     static func wireName(_ id: String?, effortScale: EffortScale = .hundred) -> String {
+        switch stack(id) {
+        case .sleepStages: return "Sleep stages (minutes asleep per night, the Sleep screen's nights)"
+        case .macros: return "Macros (grams eaten per day, from the meal journal; a day without a meal logged is "
+            + "not a day without food)"
+        case nil: break
+        }
         guard let descriptor = descriptor(id) else { return id ?? "?" }
         let unit = descriptor.displayUnit(effortScale: effortScale)
         return unit.isEmpty ? descriptor.title : "\(descriptor.title) (\(unit))"
@@ -174,14 +240,15 @@ enum CoachChart {
         switch spec.kind {
         case .day:
             return "[Chart shown: \(spec.series == .stress ? "stress" : "heart rate") on \(spec.day)]"
-        case .line, .bars:
+        case .line, .bars, .stacked:
             return "[Chart shown: \(wireName(spec.metric)), last \(spec.days ?? 30) days to \(spec.day)]"
         case .pair:
             return "[Chart shown: \(wireName(spec.metric)) and \(wireName(spec.second)), last \(spec.days ?? 30) days to \(spec.day)]"
         }
     }
 
-    private static func number(_ value: Double) -> String {
+    /// A figure as the model reads it: whole when it is, else one decimal.
+    static func number(_ value: Double) -> String {
         abs(value - value.rounded()) < 0.05 ? String(Int(value.rounded())) : String(format: "%.1f", value)
     }
 

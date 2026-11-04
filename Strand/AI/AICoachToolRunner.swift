@@ -177,6 +177,15 @@ extension AICoachEngine {
         case .caffeine:
             let store = CaffeineLogStore.shared
             return CoachTools.caffeine(store.intakes, estimate: store.estimate(), now: now, timeZone: .current)
+
+        case .series:
+            // Read through the charts' reader (chantier 9), so a series read here and shown by show_chart agree.
+            let calendar = Calendar.current
+            guard let spec = CoachTools.seriesSpec(input, today: CoachChart.dayKey(now, calendar: calendar)) else {
+                return "Unknown series. Use one of the ids listed in the tool."
+            }
+            let points = await chartPoints(spec, now: now)
+            return CoachTools.seriesResult(spec, points: points.first, calendar: calendar)
         }
     }
 

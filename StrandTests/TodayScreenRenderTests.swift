@@ -213,14 +213,16 @@ final class TodayScreenRenderTests: XCTestCase {
 
     private func dayCard() -> some View {
         let day = dayInput
+        let chart = TodayHRCardLogic.dayChart(day, zone: .current)
         return hrCard(mode: .day) {
             TodayHRCardBody(
                 tint: StrandPalette.liquidHeart, bpm: 75,
                 subtitle: String(localized: "5-minute average · since midnight"),
-                chart: TodayHRCardLogic.dayChart(day, zone: .current), lineWidth: 2, emptyText: "",
+                chart: chart, lineWidth: 2, emptyText: "",
                 caption: [.init(text: String(localized: "your usual day"), swatch: .usualDay),
-                          .init(text: String(localized: "sleep"), swatch: .sleep),
-                          .init(text: String(localized: "rest \(62)"))],
+                          .init(text: String(localized: "sleep"), swatch: .sleep)]
+                    + TodayHRCardLogic.dayZoneCaption(chart, habitual: true)
+                    + [.init(text: String(localized: "rest \(62)"))],
                 stats: (day.bucketBpm.min(), day.bucketBpm.reduce(0, +) / Double(day.bucketBpm.count),
                         day.bucketBpm.max()))
         }

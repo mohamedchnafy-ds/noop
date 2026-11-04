@@ -93,8 +93,8 @@ final class DayWidgetsRenderTests: XCTestCase {
         let meals = [meal("1", 8, MealNutrients(kcal: 420, proteinG: 28, carbsG: 52, fatG: 12)),
                      meal("2", 13, MealNutrients(kcal: 650, proteinG: 40, carbsG: 80, fatG: 18)),
                      meal("3", 17, MealNutrients(kcal: 425, proteinG: 30, carbsG: 30, fatG: 22))]
-        let plan = NutritionGoals.intakePlan(weightKg: 80, proteinTenths: 20, fatTenths: 10, goalPercent: 10,
-                                             reference: NutritionGoals.Reference(kcal: 2_330, days: 14))
+        let plan = NutritionGoals.intakePlan(body: NutritionGoals.Body(sex: "male", weightKg: 80, heightCm: 178, age: 30),
+                                             settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 2_560))
         return DayWidgetsContent.nutritionSection(
             NutritionDaySummary(dayKey: "2026-11-04", meals: meals,
                                 spent: TodayEnergy.Split(restingKcal: 1_580, activityKcal: 520)),

@@ -211,25 +211,27 @@ final class CoachMealTests: XCTestCase {
     // MARK: The fiche
 
     func testTheNutritionBlockStatesTodayTheGoalsAndTheWeek() {
-        let plan = NutritionGoals.intakePlan(weightKg: 80, proteinTenths: 20, fatTenths: 10, goalPercent: 10,
-                                             reference: NutritionGoals.Reference(kcal: 2_330, days: 14))
+        // Fork chantier 9: basal × activity × (1 + %), the strap's measurement for information only.
+        let body = NutritionGoals.Body(sex: "male", weightKg: 112, heightCm: 172, age: 31)
+        let plan = NutritionGoals.intakePlan(body: body, settings: NutritionGoals.Settings(activity: .light, goalPercent: -20))
         let block = CoachFiche.nutritionBlock(CoachFiche.Nutrition(
             eaten: MealNutrients(kcal: 1_495, proteinG: 111.3, carbsG: 182, fatG: 34.3), meals: 4,
             spentKcal: 2_100, balanceKcal: -605, plan: plan,
-            reference: NutritionGoals.Reference(kcal: 2_330, days: 14), goalPercent: 10,
-            proteinTenths: 20, fatTenths: 10, weekDaysLogged: 5, weekMeanKcal: 2_210, weekMeanProteinG: 142))
+            reference: NutritionGoals.Reference(kcal: 1_744, days: 4),
+            weekDaysLogged: 5, weekMeanKcal: 2_210, weekMeanProteinG: 142))
         XCTAssertTrue(block.hasPrefix("NUTRITION ("))
         XCTAssertTrue(block.contains("today so far: eaten 1495 kcal (protein 111 g, carbs 182 g, fat 34 g) in 4 meals; spent 2100 kcal; balance -605 kcal"))
-        XCTAssertTrue(block.contains("intake 2560 kcal/day = mean expenditure 2330 kcal over 14 days × 1.10; protein 160 g (2.0 g/kg); fat 80 g (1.0 g/kg); carbs 300 g (the rest)"))
+        XCTAssertTrue(block.contains("intake 2460 kcal/day = basal 2238 kcal (revised Harris-Benedict) × 1.375 (activity level: light) = 3078 kcal/day × 0.80; protein 224 g (2.0 g/kg); fat 112 g (1.0 g/kg); carbs 139 g (the rest)"), block)
+        XCTAssertTrue(block.contains("measured by the strap: mean 1744 kcal/day over 4 complete days (for information only"))
         XCTAssertTrue(block.contains("the 7 days before today: 5 days logged, mean eaten 2210 kcal, protein 142 g"))
 
+        let typed = NutritionGoals.intakePlan(body: body, settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 2_000))
         let empty = CoachFiche.nutritionBlock(CoachFiche.Nutrition(
             eaten: MealNutrients(kcal: 0, proteinG: 0, carbsG: 0, fatG: 0), meals: 0, spentKcal: nil, balanceKcal: nil,
-            plan: NutritionGoals.intakePlan(weightKg: 80, proteinTenths: 20, fatTenths: 10, goalPercent: 0, reference: nil),
-            reference: nil, goalPercent: 0, proteinTenths: 20, fatTenths: 10,
-            weekDaysLogged: 0, weekMeanKcal: nil, weekMeanProteinG: nil))
+            plan: typed, reference: nil, weekDaysLogged: 0, weekMeanKcal: nil, weekMeanProteinG: nil))
         XCTAssertTrue(empty.contains("today so far: no meal logged"))
-        XCTAssertTrue(empty.contains("intake not known yet (needs 3 complete days measured by the strap)"))
+        XCTAssertTrue(empty.contains("intake 2000 kcal/day, typed by the user (estimated expenditure: basal 2238 kcal (revised Harris-Benedict) × 1.375 (activity level: light) = 3078 kcal/day) (below the basal rate)"), empty)
+        XCTAssertFalse(empty.contains("measured by the strap"))
         XCTAssertTrue(empty.contains("the 7 days before today: no meal logged"))
     }
 

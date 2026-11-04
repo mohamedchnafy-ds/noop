@@ -87,11 +87,10 @@ enum CoachFiche {
         var meals: Int
         var spentKcal: Int?
         var balanceKcal: Int?
+        /// The goals, with the settings they come from (`NutritionDayReader.currentPlan`).
         var plan: NutritionGoals.Plan
+        /// What the strap measured, for information only: it never enters the goal.
         var reference: NutritionGoals.Reference?
-        var goalPercent: Int
-        var proteinTenths: Int
-        var fatTenths: Int
         /// The 7 days before today: how many have a meal, and their mean energy and protein.
         var weekDaysLogged: Int
         var weekMeanKcal: Int?
@@ -236,16 +235,26 @@ enum CoachFiche {
         } else {
             lines.append("  today so far: no meal logged")
         }
+        let plan = n.plan
+        let factor = String(format: "%.3f", plan.settings.activity.factor)
+        let estimate = "basal \(plan.basalKcal) kcal (revised Harris-Benedict) × \(factor) "
+            + "(activity level: \(plan.settings.activity.rawValue)) = \(plan.expenditureKcal) kcal/day"
         var goals = "  goals (the Nutrition screen's): "
-        if let intake = n.plan.intakeKcal, let reference = n.reference {
-            goals += "intake \(intake) kcal/day = mean expenditure \(Int(reference.kcal.rounded())) kcal over "
-                + "\(reference.days) days × " + String(format: "%.2f", 1 + Double(n.goalPercent) / 100)
+        if plan.isTyped {
+            goals += "intake \(plan.intakeKcal) kcal/day, typed by the user (estimated expenditure: \(estimate))"
         } else {
-            goals += "intake not known yet (needs \(NutritionGoals.referenceMinDays) complete days measured by the strap)"
+            goals += "intake \(plan.intakeKcal) kcal/day = \(estimate) × "
+                + String(format: "%.2f", 1 + Double(plan.settings.goalPercent) / 100)
         }
-        goals += "; protein \(n.plan.proteinG) g (\(perKg(n.proteinTenths))); fat \(n.plan.fatG) g (\(perKg(n.fatTenths)))"
-        if let carbs = n.plan.carbsG { goals += "; carbs \(carbs) g (the rest)" }
+        if plan.isBelowBasal { goals += " (below the basal rate)" }
+        goals += "; protein \(plan.proteinG) g (\(perKg(plan.settings.proteinTenths))); "
+            + "fat \(plan.fatG) g (\(perKg(plan.settings.fatTenths))); carbs \(plan.carbsG) g (the rest)"
         lines.append(goals)
+        if let reference = n.reference {
+            lines.append("  measured by the strap: mean \(Int(reference.kcal.rounded())) kcal/day over \(reference.days) "
+                         + "complete days (for information only, not used for the goal: it under-counts when the "
+                         + "strap is not worn all day)")
+        }
         if n.weekDaysLogged > 0, let kcal = n.weekMeanKcal {
             var week = "  the 7 days before today: \(n.weekDaysLogged) day\(n.weekDaysLogged == 1 ? "" : "s") logged, "
                 + "mean eaten \(kcal) kcal"

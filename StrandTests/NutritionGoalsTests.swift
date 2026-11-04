@@ -60,45 +60,86 @@ final class NutritionGoalsTests: XCTestCase {
         XCTAssertNil(NutritionGoals.referenceExpenditure(totals: totals, fromDay: "2026-10-18", beforeDay: "2026-11-01"))
     }
 
-    // MARK: Goals
+    // MARK: Goals (fork chantier 9: basal × activity level, then % or typed kcal)
 
-    func testIntakeGoalOfTheMockup() {
-        // 2 330 × 1.10 = 2 563 → 2 560
-        XCTAssertEqual(NutritionGoals.intakeKcal(reference: 2_330, goalPercent: 10), 2_560)
-        XCTAssertEqual(NutritionGoals.intakeKcal(reference: 2_330, goalPercent: 0), 2_330)
-        // 2 334 × 0.90 = 2 100.6 → 2 100; 2 345 × 0.90 = 2 110.5 → 2 110
-        XCTAssertEqual(NutritionGoals.intakeKcal(reference: 2_334, goalPercent: -10), 2_100)
-        XCTAssertEqual(NutritionGoals.intakeKcal(reference: 2_345, goalPercent: -10), 2_110)
+    /// The mockup's profile: homme, 31 ans, 172 cm, 112 kg.
+    private let mockupBody = NutritionGoals.Body(sex: "male", weightKg: 112, heightCm: 172, age: 31)
+
+    func testActivityFactorsAreTheClassicOnes() {
+        XCTAssertEqual(NutritionGoals.ActivityLevel.allCases.map(\.factor), [1.2, 1.375, 1.55, 1.725, 1.9])
+        XCTAssertEqual(NutritionGoals.ActivityLevel.defaultLevel, .light)
     }
 
+    func testIntakeGoalRoundsTheExpenditureTimesThePercentageToTen() {
+        // 2 330 × 1.10 = 2 563 → 2 560; 2 334 × 0.90 = 2 100.6 → 2 100; 2 345 × 0.90 = 2 110.5 → 2 110
+        XCTAssertEqual(NutritionGoals.intakeKcal(expenditure: 2_330, goalPercent: 10), 2_560)
+        XCTAssertEqual(NutritionGoals.intakeKcal(expenditure: 2_330, goalPercent: 0), 2_330)
+        XCTAssertEqual(NutritionGoals.intakeKcal(expenditure: 2_334, goalPercent: -10), 2_100)
+        XCTAssertEqual(NutritionGoals.intakeKcal(expenditure: 2_345, goalPercent: -10), 2_110)
+    }
+
+    /// Mockup 4, screen 3: 2 238 × 1,375 = 3 078 · −20 % → 2 460.
     func testPlanOfTheMockup() {
-        let plan = NutritionGoals.intakePlan(weightKg: 80, proteinTenths: 20, fatTenths: 10, goalPercent: 10,
-                                             reference: NutritionGoals.Reference(kcal: 2_330, days: 14))
-        XCTAssertEqual(plan.intakeKcal, 2_560)
-        XCTAssertEqual(plan.proteinG, 160)
-        XCTAssertEqual(plan.fatG, 80)
-        XCTAssertEqual(plan.carbsG, 300)            // (2 560 − 640 − 720) ÷ 4
-        XCTAssertEqual(plan.proteinKcal, 640)
-        XCTAssertEqual(plan.fatKcal, 720)
-        XCTAssertEqual(plan.carbsKcal, 1_200)
-        XCTAssertEqual(plan.shareOfIntake(plan.proteinKcal), 25)
-        XCTAssertEqual(plan.shareOfIntake(plan.fatKcal), 28)
-        XCTAssertEqual(plan.shareOfIntake(1_200), 47)
+        let plan = NutritionGoals.intakePlan(body: mockupBody,
+                                             settings: NutritionGoals.Settings(activity: .light, goalPercent: -20))
+        XCTAssertEqual(plan.basalKcal, 2_238)        // 88.362 + 13.397 × 112 + 4.799 × 172 − 5.677 × 31 = 2 238.267
+        XCTAssertEqual(plan.expenditureKcal, 3_078)  // 2 238.267 × 1.375 = 3 077.6
+        XCTAssertEqual(plan.intakeKcal, 2_460)       // 3 077.6 × 0.80 = 2 462.1
+        XCTAssertFalse(plan.isBelowBasal)
+        XCTAssertFalse(plan.isTyped)
+        XCTAssertEqual(plan.proteinG, 224)
+        XCTAssertEqual(plan.fatG, 112)
+        XCTAssertEqual(plan.carbsG, 139)             // (2 460 − 896 − 1 008) ÷ 4
+        XCTAssertEqual(plan.proteinKcal, 896)
+        XCTAssertEqual(plan.fatKcal, 1_008)
+        XCTAssertEqual(plan.carbsKcal, 556)
+        XCTAssertEqual(plan.shareOfIntake(plan.proteinKcal), 36)
     }
 
-    func testPlanWithoutReferenceKeepsProteinAndFat() {
-        let plan = NutritionGoals.intakePlan(weightKg: 73.4, proteinTenths: 21, fatTenths: 9, goalPercent: 0, reference: nil)
-        XCTAssertNil(plan.intakeKcal)
-        XCTAssertNil(plan.carbsG)
-        XCTAssertEqual(plan.proteinG, 154)          // 2.1 × 73.4 = 154.14
-        XCTAssertEqual(plan.fatG, 66)               // 0.9 × 73.4 = 66.06
-        XCTAssertNil(plan.shareOfIntake(100))
+    func testEveryLevelMultipliesTheBasalRate() {
+        let expected = [(NutritionGoals.ActivityLevel.sedentary, 2_686), (.light, 3_078), (.moderate, 3_469),
+                        (.active, 3_861), (.extreme, 4_253)]
+        for (level, kcal) in expected {
+            let plan = NutritionGoals.intakePlan(body: mockupBody, settings: NutritionGoals.Settings(activity: level))
+            XCTAssertEqual(plan.expenditureKcal, kcal, level.rawValue)
+            XCTAssertEqual(plan.intakeKcal, Int((Double(kcal) / 10).rounded()) * 10, level.rawValue)
+        }
+    }
+
+    /// The strap's measured expenditure never enters the goal: the plan has no input for it.
+    func testTheTypedGoalStandsWhateverTheBodyOrTheLevel() {
+        let settings = NutritionGoals.Settings(activity: .extreme, mode: .kcal, goalPercent: -30, manualKcal: 2_400)
+        let heavy = NutritionGoals.intakePlan(body: mockupBody, settings: settings)
+        let light = NutritionGoals.intakePlan(body: NutritionGoals.Body(sex: "female", weightKg: 55, heightCm: 160, age: 50),
+                                              settings: settings)
+        XCTAssertEqual(heavy.intakeKcal, 2_400)
+        XCTAssertEqual(light.intakeKcal, 2_400)
+        XCTAssertTrue(heavy.isTyped)
+        XCTAssertFalse(heavy.isBelowBasal)
+        XCTAssertEqual(heavy.expenditureKcal, 4_253, "the expenditure is still estimated beside the typed goal")
+    }
+
+    func testKcalModeWithoutATypedGoalFallsBackOnThePercentage() {
+        let plan = NutritionGoals.intakePlan(body: mockupBody,
+                                             settings: NutritionGoals.Settings(mode: .kcal, goalPercent: -20, manualKcal: 0))
+        XCTAssertFalse(plan.isTyped)
+        XCTAssertEqual(plan.intakeKcal, 2_460)
+    }
+
+    func testAGoalUnderTheBasalRateIsFlagged() {
+        let lowPercent = NutritionGoals.intakePlan(body: mockupBody,
+                                                   settings: NutritionGoals.Settings(activity: .sedentary, goalPercent: -30))
+        XCTAssertEqual(lowPercent.intakeKcal, 1_880)  // 2 238.267 × 1.2 × 0.70 = 1 880.1
+        XCTAssertTrue(lowPercent.isBelowBasal)
+        let typed = NutritionGoals.intakePlan(body: mockupBody, settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 2_250))
+        XCTAssertFalse(typed.isBelowBasal, "2 250 is over 2 238.267")
     }
 
     func testCarbsNeverGoNegative() {
-        let plan = NutritionGoals.intakePlan(weightKg: 100, proteinTenths: 30, fatTenths: 20, goalPercent: -25,
-                                             reference: NutritionGoals.Reference(kcal: 1_800, days: 14))
-        XCTAssertEqual(plan.intakeKcal, 1_350)
+        let plan = NutritionGoals.intakePlan(body: NutritionGoals.Body(sex: "male", weightKg: 100, heightCm: 180, age: 30),
+                                             settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 1_000,
+                                                                               proteinTenths: 30, fatTenths: 20))
+        XCTAssertEqual(plan.intakeKcal, 1_000)
         XCTAssertEqual(plan.carbsG, 0)
     }
 
@@ -107,8 +148,32 @@ final class NutritionGoalsTests: XCTestCase {
         XCTAssertEqual(NutritionGoals.clampedTenths(45, range: NutritionGoals.proteinTenthsRange, fallback: 20), 30)
         XCTAssertEqual(NutritionGoals.clampedTenths(2, range: NutritionGoals.fatTenthsRange, fallback: 10), 5)
         XCTAssertEqual(NutritionGoals.clampedPercent(12), 10)
-        XCTAssertEqual(NutritionGoals.clampedPercent(-40), -25)
+        XCTAssertEqual(NutritionGoals.clampedPercent(-30), -30)
+        XCTAssertEqual(NutritionGoals.clampedPercent(-40), -30)
+        XCTAssertEqual(NutritionGoals.clampedPercent(40), 25)
         XCTAssertEqual(NutritionGoals.clampedPercent(0), 0)
+        XCTAssertEqual(NutritionGoals.clampedManualKcal(0), 0)
+        XCTAssertEqual(NutritionGoals.clampedManualKcal(2_462), 2_450)
+        XCTAssertEqual(NutritionGoals.clampedManualKcal(2_475), 2_500)
+        XCTAssertEqual(NutritionGoals.clampedManualKcal(300), 1_000)
+        XCTAssertEqual(NutritionGoals.clampedManualKcal(9_000), 6_000)
+        let unset = NutritionGoals.Settings.settingsFromStored(activity: nil, mode: "nonsense", goalPercent: 0, manualKcal: 0,
+                                                               proteinTenths: 0, fatTenths: 0)
+        XCTAssertEqual(unset, NutritionGoals.Settings())
+        XCTAssertEqual(unset.activity, .light)
+        XCTAssertEqual(unset.mode, .percent)
+    }
+
+    func testStoredSettingsAreReadFromTheDefaults() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "NutritionGoalsTests-\(UUID().uuidString)"))
+        defaults.set("active", forKey: NutritionGoals.activityLevelKey)
+        defaults.set("kcal", forKey: NutritionGoals.goalModeKey)
+        defaults.set(2_412, forKey: NutritionGoals.manualKcalKey)
+        defaults.set(-35, forKey: NutritionGoals.goalPercentKey)
+        defaults.set(22, forKey: NutritionGoals.proteinTenthsKey)
+        let settings = NutritionGoals.Settings.storedGoalSettings(defaults)
+        XCTAssertEqual(settings, NutritionGoals.Settings(activity: .active, mode: .kcal, goalPercent: -30, manualKcal: 2_400,
+                                                         proteinTenths: 22, fatTenths: 10))
     }
 
     // MARK: The day

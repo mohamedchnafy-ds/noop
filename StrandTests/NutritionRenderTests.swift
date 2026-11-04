@@ -45,9 +45,11 @@ final class NutritionRenderTests: XCTestCase {
         ]
     }
 
+    /// The mockups' goals (2 560 kcal, 160 g protein, 80 g fat, 300 g carbs), typed so the day's figures
+    /// stay the mockups' whatever the activity level.
     private var plan: NutritionGoals.Plan {
-        NutritionGoals.intakePlan(weightKg: 80, proteinTenths: 20, fatTenths: 10, goalPercent: 10,
-                                  reference: NutritionGoals.Reference(kcal: 2_330, days: 14))
+        NutritionGoals.intakePlan(body: NutritionGoals.Body(sex: "male", weightKg: 80, heightCm: 178, age: 30),
+                                  settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 2_560))
     }
 
     private var summary: NutritionDaySummary {
@@ -81,17 +83,20 @@ final class NutritionRenderTests: XCTestCase {
         }
         try render(AnyView(emptyJournal), name: "2-journal-vide")
 
+        // Fork chantier 9, mockup 4 screen 3: the profile of the mockup (homme, 31 ans, 172 cm, 112 kg),
+        // lightly active, −20 %, the strap's 1 744 kcal beside it; then a typed goal under the basal rate.
+        let wearer = NutritionGoals.Body(sex: "male", weightKg: 112, heightCm: 172, age: 31)
         let goals = NutritionGoalsContent(
-            wearer: NutritionGoals.Body(sex: "male", weightKg: 80, heightCm: 178, age: 30), age: 30, weightKg: 80,
-            reference: NutritionGoals.Reference(kcal: 2_330, days: 14),
-            proteinTenthsRaw: .constant(20), fatTenthsRaw: .constant(10), goalPercentRaw: .constant(10))
+            wearer: wearer, age: 31, reference: NutritionGoals.Reference(kcal: 1_744, days: 4),
+            activityRaw: .constant("light"), goalModeRaw: .constant("percent"), goalPercentRaw: .constant(-20),
+            manualKcalRaw: .constant(0), proteinTenthsRaw: .constant(20), fatTenthsRaw: .constant(10))
         try render(AnyView(goals), name: "3-objectifs")
 
-        let noReference = NutritionGoalsContent(
-            wearer: NutritionGoals.Body(sex: "male", weightKg: 80, heightCm: 178, age: 30), age: 30, weightKg: 80,
-            reference: nil,
-            proteinTenthsRaw: .constant(20), fatTenthsRaw: .constant(10), goalPercentRaw: .constant(0))
-        try render(AnyView(noReference), name: "4-objectifs-sans-depense")
+        let typed = NutritionGoalsContent(
+            wearer: wearer, age: 31, reference: nil,
+            activityRaw: .constant("moderate"), goalModeRaw: .constant("kcal"), goalPercentRaw: .constant(0),
+            manualKcalRaw: .constant(2_000), proteinTenthsRaw: .constant(20), fatTenthsRaw: .constant(10))
+        try render(AnyView(typed), name: "4-objectifs-kcal-sous-la-base")
 
         let line = TodayNutritionLine.Model(eatenKcal: day.eaten.kcal, balanceKcal: day.balanceKcal,
                                             proteinG: Int(day.eaten.proteinG.rounded()), proteinGoalG: plan.proteinG)

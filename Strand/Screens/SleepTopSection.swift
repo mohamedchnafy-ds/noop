@@ -309,7 +309,8 @@ struct SleepTopSection: View {
             }
             .padding(.horizontal, NoopMetrics.space3)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(StrandPalette.surfaceRaised,
+            // The curve switches' fill, so the four totals read as buttons on the card.
+            .background(NoopVisualStyle.control.opacity(0.6),
                         in: RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
                 .strokeBorder(tint.opacity(picked ? 1 : 0), lineWidth: 1))

@@ -45,7 +45,7 @@ struct CoachEmptyState: View {
                 .foregroundStyle(StrandPalette.textPrimary)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
-            Text("Ask me anything about your data.")
+            Text("Ask me anything about your data. I can also show it as a chart.")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .multilineTextAlignment(.center)

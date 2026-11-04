@@ -1,9 +1,10 @@
 import Foundation
 
 /// What a Coach message carries besides its text (personal fork). On a reply: what the coach looked at
-/// with its read tools, shown under the reply, the session it proposed as a card (`create_program`) and
-/// the meal it proposed as a card (`log_meal`, `read_label`). On a question: the photos sent with it,
-/// whether it was dictated, and the barcode of a product whose label it sends.
+/// with its read tools, shown under the reply, the session it proposed as a card (`create_program`), the
+/// meal it proposed as a card (`log_meal`, `read_label`) and the charts it showed (`show_chart`). On a
+/// question: the photos sent with it, whether it was dictated, and the barcode of a product whose label it
+/// sends.
 ///
 /// Stored at the very end of the message text, as one fenced block (`noop-coach`) holding JSON. The
 /// conversation table therefore needs no new column, and a build that does not know the block shows
@@ -27,10 +28,13 @@ struct CoachReplyMeta: Codable, Equatable {
     var action: CoachActionProposal?
     /// The menu card (chantier 8, `plan_menu`), with the planned journal meals it added.
     var menu: CoachMenuProposal?
+    /// The charts shown under the reply (chantier 9, `show_chart`, at most `CoachChart.maxPerReply`): only
+    /// what to draw; the app reads the values when it draws them.
+    var charts: [CoachChartSpec] = []
 
     init(consulted: [String] = [], session: CoachSessionProposal? = nil, meal: CoachMealProposal? = nil,
          photos: [String] = [], dictated: Bool = false, barcode: String? = nil, action: CoachActionProposal? = nil,
-         menu: CoachMenuProposal? = nil) {
+         menu: CoachMenuProposal? = nil, charts: [CoachChartSpec] = []) {
         self.consulted = consulted
         self.session = session
         self.meal = meal
@@ -39,10 +43,11 @@ struct CoachReplyMeta: Codable, Equatable {
         self.barcode = barcode
         self.action = action
         self.menu = menu
+        self.charts = charts
     }
 
     private enum CodingKeys: String, CodingKey {
-        case consulted, session, meal, photos, dictated, barcode, action, menu
+        case consulted, session, meal, photos, dictated, barcode, action, menu, charts
     }
 
     /// Every field optional on the way in, so a block written before a field existed still reads.
@@ -56,6 +61,7 @@ struct CoachReplyMeta: Codable, Equatable {
         barcode = try container.decodeIfPresent(String.self, forKey: .barcode)
         action = try container.decodeIfPresent(CoachActionProposal.self, forKey: .action)
         menu = try container.decodeIfPresent(CoachMenuProposal.self, forKey: .menu)
+        charts = try container.decodeIfPresent([CoachChartSpec].self, forKey: .charts) ?? []
     }
 
     /// Only what is set is written, so a reply's block stays as short as it was before photos.
@@ -69,11 +75,12 @@ struct CoachReplyMeta: Codable, Equatable {
         try container.encodeIfPresent(barcode, forKey: .barcode)
         try container.encodeIfPresent(action, forKey: .action)
         try container.encodeIfPresent(menu, forKey: .menu)
+        if !charts.isEmpty { try container.encode(charts, forKey: .charts) }
     }
 
     var isEmpty: Bool {
         consulted.isEmpty && session == nil && meal == nil && photos.isEmpty && !dictated && barcode == nil
-            && action == nil && menu == nil
+            && action == nil && menu == nil && charts.isEmpty
     }
 
     static let fenceOpen = "\n\n```noop-coach\n"
@@ -99,7 +106,8 @@ struct CoachReplyMeta: Codable, Equatable {
     /// refers to.
     static func forModel(_ text: String, system: UnitSystem) -> String {
         let (body, meta) = split(text)
-        guard meta?.session != nil || meta?.meal != nil || meta?.action != nil || meta?.menu != nil else { return body }
+        guard meta?.session != nil || meta?.meal != nil || meta?.action != nil || meta?.menu != nil
+                || !(meta?.charts.isEmpty ?? true) else { return body }
         var parts: [String] = []
         let words = body.trimmingCharacters(in: .whitespacesAndNewlines)
         if !words.isEmpty { parts.append(words) }
@@ -107,6 +115,7 @@ struct CoachReplyMeta: Codable, Equatable {
         if let meal = meta?.meal { parts.append(meal.wireText()) }
         if let action = meta?.action { parts.append(action.wireText()) }
         if let menu = meta?.menu { parts.append(menu.wireText()) }
+        if let charts = meta?.charts, !charts.isEmpty { parts.append(charts.map(CoachChart.wireText).joined(separator: "\n")) }
         return parts.joined(separator: "\n\n")
     }
 

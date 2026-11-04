@@ -12,11 +12,32 @@ enum CoachChartText {
                 .map { $0.formatted(.dateTime.day().month(.abbreviated)) } ?? spec.day
             let what = spec.series == .stress ? String(localized: "Stress") : String(localized: "Heart rate")
             return what + " · " + date
-        case .line, .bars:
-            return name(CoachChart.descriptor(spec.metric)) + " · " + period(spec.days ?? 30)
+        case .line, .bars, .stacked:
+            return seriesName(spec.metric) + " · " + period(spec.days ?? 30)
         case .pair:
             return name(CoachChart.descriptor(spec.metric)) + " & " + name(CoachChart.descriptor(spec.second))
                 + " · " + period(spec.days ?? 30)
+        }
+    }
+
+    /// The name of any id `get_series` and the charts accept: a stack's, or the catalogue metric's.
+    static func seriesName(_ id: String?) -> String {
+        switch CoachChart.stack(id) {
+        case .sleepStages: return String(localized: "Sleep stages")
+        case .macros: return String(localized: "Macros")
+        case nil: return name(CoachChart.descriptor(id))
+        }
+    }
+
+    /// The parts of a stack on the card, bottom to top, with their colours (the Sleep and Nutrition ones).
+    static func parts(_ stack: CoachChartSpec.Stack) -> [(name: String, color: Color)] {
+        switch stack {
+        case .sleepStages:
+            return [SleepStage.deep, .rem, .light].map { (name: $0.label, color: StrandPalette.sleepStageColor($0)) }
+        case .macros:
+            return [(name: String(localized: "Protein"), color: StrandPalette.macroProtein),
+                    (name: String(localized: "Carbs"), color: StrandPalette.macroCarbs),
+                    (name: String(localized: "Fat"), color: StrandPalette.macroFat)]
         }
     }
 
@@ -69,11 +90,18 @@ struct CoachChartCard: View {
     }
 
     private var descriptor: MetricDescriptor? { CoachChart.descriptor(spec.metric) }
+    /// The stack of a stacked chart, nil otherwise.
+    private var stack: CoachChartSpec.Stack? { spec.kind == .stacked ? CoachChart.stack(spec.metric) : nil }
     private var secondDescriptor: MetricDescriptor? { CoachChart.descriptor(spec.second) }
 
     private var tint: Color {
         if spec.kind == .day {
             return spec.series == .stress ? StrandPalette.stressModerate : StrandPalette.liquidHeart
+        }
+        switch stack {
+        case .sleepStages: return StrandPalette.restRing
+        case .macros: return StrandPalette.macroProtein
+        case nil: break
         }
         return descriptor.map(metricAccent) ?? StrandPalette.accent
     }
@@ -144,10 +172,26 @@ struct CoachChartCard: View {
         }
     }
 
-    /// The touched point's value and date, or the last value with the mean.
+    /// The touched point's value and date, or the last value with the mean. A stacked chart writes the
+    /// day's parts in their colours instead, with that day's date.
     @ViewBuilder private var readout: some View {
         let point = selected.flatMap { CoachChart.nearest(first, to: $0) } ?? first.last
-        if let point {
+        if let point, let stack {
+            let parts = CoachChartText.parts(stack)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                    Text(verbatim: partText(index < point.parts.count ? point.parts[index] : 0, stack))
+                        .font(StrandFont.number(20, weight: .bold))
+                        .foregroundStyle(part.color)
+                }
+                Text(verbatim: dateText(point.date))
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+        } else if let point {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(verbatim: format(point.value, descriptor))
                     .font(StrandFont.number(28, weight: .bold))
@@ -176,7 +220,9 @@ struct CoachChartCard: View {
 
     private var chart: some View {
         let stats = CoachChart.stats(first.map(\.value))
-        let pairFirst = spec.kind == .pair ? CoachChart.normalized(first) : first
+        // A stacked chart draws its parts above, so its points are not drawn again as a line.
+        let pairFirst = spec.kind == .pair ? CoachChart.normalized(first) : (spec.kind == .stacked ? [] : first)
+        let selectable = spec.kind == .stacked ? first : pairFirst
         let pairSecond = spec.kind == .pair ? CoachChart.normalized(second) : []
         return Chart {
             if spec.kind == .line, let stats, let start = first.first?.date, let end = first.last?.date, start < end {
@@ -188,6 +234,15 @@ struct CoachChartCard: View {
                 RuleMark(y: .value("Mean", stats.mean))
                     .foregroundStyle(StrandPalette.textSecondary)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            }
+            if let stack {
+                let colors = CoachChartText.parts(stack).map(\.color)
+                ForEach(Array(first.enumerated()), id: \.offset) { _, point in
+                    ForEach(Array(point.parts.enumerated()), id: \.offset) { index, part in
+                        BarMark(x: .value("Day", point.date, unit: .day), y: .value("Value", part))
+                            .foregroundStyle(index < colors.count ? colors[index] : StrandPalette.textTertiary)
+                    }
+                }
             }
             ForEach(Array(pairFirst.enumerated()), id: \.offset) { _, point in
                 if spec.kind == .bars {
@@ -208,7 +263,7 @@ struct CoachChartCard: View {
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.monotone)
             }
-            if let selected, let point = CoachChart.nearest(pairFirst, to: selected) {
+            if let selected, let point = CoachChart.nearest(selectable, to: selected) {
                 RuleMark(x: .value("Selected", point.date))
                     .foregroundStyle(StrandPalette.hairline)
                 PointMark(x: .value("Selected", point.date), y: .value("Value", point.value))
@@ -284,6 +339,12 @@ struct CoachChartCard: View {
             case .pair:
                 legendDot(tint, CoachChartText.name(descriptor))
                 legendDot(secondTint, CoachChartText.name(secondDescriptor))
+            case .stacked:
+                if let stack {
+                    ForEach(Array(CoachChartText.parts(stack).enumerated()), id: \.offset) { _, part in
+                        legendDot(part.color, part.name)
+                    }
+                }
             case .day:
                 if let stats {
                     Text("mean \(format(stats.mean, descriptor, unit: false)) · peak \(format(stats.highest, descriptor, unit: false))")
@@ -320,6 +381,14 @@ struct CoachChartCard: View {
         return text.split(separator: " ").first.map(String.init) ?? text
     }
 
+    /// A part of a stacked day: the sleep screen's « 1h 20m », or the Nutrition screen's « 150 g ».
+    private func partText(_ value: Double, _ stack: CoachChartSpec.Stack) -> String {
+        switch stack {
+        case .sleepStages: return SleepDurationText.format(value)
+        case .macros: return NutritionFormat.gramsUnit(Int(value.rounded()))
+        }
+    }
+
     private func dateText(_ date: Date) -> String {
         spec.kind == .day ? AppClock.hourMinuteFormatter().string(from: date)
             : date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
@@ -332,6 +401,12 @@ struct CoachChartCard: View {
     }
 
     private func accessibilitySummary(_ stats: CoachChart.Stats?) -> String {
+        if let stack, let point = first.last {
+            let parts = CoachChartText.parts(stack)
+            return parts.indices.map { index in
+                parts[index].name + " " + partText(index < point.parts.count ? point.parts[index] : 0, stack)
+            }.joined(separator: ", ")
+        }
         guard let stats else { return "" }
         return String(localized: "last \(format(stats.last, descriptor)), mean \(format(stats.mean, descriptor))")
     }

@@ -56,6 +56,10 @@ struct LiftSessionView: View {
     @State private var lastRows: [String: [LiftSetRow]] = [:]
     /// Personal fork: program lines whose rest this session changed, read with the set counts.
     @State private var restChanges: [LiftSessionController.RestChange] = []
+    /// Supersets et blocs: the sheet shows the blocks alone, with arrows to change today's order.
+    @State private var reordering = false
+    /// Supersets et blocs: the blocks were run in another order than the program's, read with the set counts.
+    @State private var orderChanged = false
 
     private enum UnfinishedChoice: Hashable { case complete, discard }
     private enum ProgramChoice: Hashable { case update, keep }
@@ -234,6 +238,9 @@ struct LiftSessionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                     header(engine)
+                    if reordering {
+                        reorderList(engine)
+                    } else {
                     // One card per BLOCK: a superset is one card with its sets in the order they are
                     // done; every other line keeps its own card.
                     ForEach(engine.blocks, id: \.lowerBound) { block in
@@ -244,6 +251,7 @@ struct LiftSessionView: View {
                         }
                     }
                     addExerciseRow(engine)
+                    }
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, NoopMetrics.screenPadding)
@@ -299,15 +307,107 @@ struct LiftSessionView: View {
     }
 
     private func header(_ engine: LiftSessionEngine) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(session.programName ?? String(localized: "Session"))
-                .font(StrandFont.title1)
-                .foregroundStyle(StrandPalette.textPrimary)
-            Text(String(localized: "\(engine.completedWorkingSets) of \(engine.plannedWorkingSets) sets done"))
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textSecondary)
+        HStack(alignment: .bottom, spacing: NoopMetrics.gap) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.programName ?? String(localized: "Session"))
+                    .font(StrandFont.title1)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(String(localized: "\(engine.completedWorkingSets) of \(engine.plannedWorkingSets) sets done"))
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Supersets et blocs: today's order, block by block.
+            if engine.blocks.count > 1, engine.stage != .finished {
+                Button {
+                    withAnimation(StrandMotion.fade) { reordering.toggle() }
+                } label: {
+                    Group {
+                        if reordering {
+                            Text("Done")
+                        } else {
+                            Text("Change the order")
+                        }
+                    }
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(reordering ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 36)
+                    .background(reordering ? StrandPalette.textPrimary : StrandPalette.surfaceRaised, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Supersets et blocs: the blocks alone, each with arrows while it has not begun. For today only;
+    /// finishing asks whether the program keeps the new order.
+    private func reorderList(_ engine: LiftSessionEngine) -> some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            Text("For today only. At the end, NOOP asks whether the program keeps this order. A block you have started stays where it is.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(engine.blocks, id: \.lowerBound) { block in
+                reorderCard(engine, block: block)
+            }
+        }
+    }
+
+    private func reorderCard(_ engine: LiftSessionEngine, block: Range<Int>) -> some View {
+        let started = engine.hasBlockStarted(block)
+        let names = block.compactMap { engine.plan.indices.contains($0) ? engine.plan[$0].exercise : nil }
+        let done = engine.sets.filter { block.contains($0.exerciseIndex) && !$0.isWarmup }.count
+        let planned = block.reduce(0) { $0 + (engine.plan.indices.contains($1) ? engine.plan[$1].targetSets : 0) }
+        return NoopCard {
+            HStack(alignment: .center, spacing: NoopMetrics.gap) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Group {
+                        if block.count > 1, let letter = engine.supersetLetter(of: block.lowerBound) {
+                            Text(String(localized: "Superset \(letter)"))
+                                .foregroundStyle(StrandPalette.effortColor)
+                        } else {
+                            Text("Exercise")
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                    }
+                    .font(StrandFont.caption.weight(.semibold))
+                    Text(verbatim: names.joined(separator: " + "))
+                        .font(StrandFont.headline)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(String(localized: "\(done) of \(planned) sets done"))
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !started {
+                    VStack(spacing: NoopMetrics.rowSpacing) {
+                        reorderArrow("chevron.up", enabled: engine.canMoveSessionBlock(containing: block.lowerBound, by: -1)) {
+                            session.moveBlock(containing: block.lowerBound, by: -1)
+                        }
+                        .accessibilityLabel("Move up")
+                        reorderArrow("chevron.down", enabled: engine.canMoveSessionBlock(containing: block.lowerBound, by: 1)) {
+                            session.moveBlock(containing: block.lowerBound, by: 1)
+                        }
+                        .accessibilityLabel("Move down")
+                    }
+                }
+            }
+        }
+        .opacity(started ? 0.55 : 1)
+    }
+
+    private func reorderArrow(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(enabled ? StrandPalette.textPrimary : StrandPalette.textTertiary)
+                .frame(width: 36, height: 36)
+                .background(StrandPalette.surfaceRaised, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 
     // MARK: - One exercise, with all its sets
@@ -991,6 +1091,8 @@ struct LiftSessionView: View {
         programChoice = nil
         setCountChanges = []
         restChanges = []
+        orderChanged = false
+        reordering = false
         showingFinish = true
     }
 
@@ -1062,6 +1164,7 @@ struct LiftSessionView: View {
     private var finishSheet: some View {
         let unfinished = session.unfinishedSlots.count
         let asksAboutProgram = !setCountChanges.isEmpty || !addedExercises.isEmpty || !restChanges.isEmpty
+            || orderChanged
         let answered = (unfinished == 0 || unfinishedChoice != nil)
             && (!asksAboutProgram || programChoice != nil)
         return ScreenScaffold(title: "Finish session",
@@ -1197,7 +1300,7 @@ struct LiftSessionView: View {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                 Text("Program").strandOverline()
                 Text(programQuestion(countsChanged: !setCountChanges.isEmpty, exercisesAdded: !added.isEmpty,
-                                     restsChanged: !restChanges.isEmpty))
+                                     restsChanged: !restChanges.isEmpty, orderChanged: orderChanged))
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1216,6 +1319,11 @@ struct LiftSessionView: View {
                         .font(StrandFont.bodyNumber)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
+                if orderChanged {
+                    Text("New order: the blocks as you did them today")
+                        .font(StrandFont.bodyNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
                 Picker("Program", selection: $programChoice) {
                     Text("Update program").tag(ProgramChoice?.some(.update))
                     Text("Keep as it was").tag(ProgramChoice?.some(.keep))
@@ -1228,7 +1336,13 @@ struct LiftSessionView: View {
 
     /// The program question, worded for what actually changed.
     private func programQuestion(countsChanged: Bool, exercisesAdded: Bool,
-                                 restsChanged: Bool) -> LocalizedStringKey {
+                                 restsChanged: Bool, orderChanged: Bool = false) -> LocalizedStringKey {
+        // Supersets et blocs: the blocks were moved for the day.
+        if orderChanged {
+            return countsChanged || exercisesAdded || restsChanged
+                ? "You changed this session's plan. Keep these changes in the program for next time?"
+                : "You did the blocks in a new order. Keep this order in the program?"
+        }
         // Personal fork: a rest changed on a superset's ready screen.
         if restsChanged {
             return countsChanged || exercisesAdded
@@ -1373,6 +1487,7 @@ struct LiftSessionView: View {
               let rows = try? await store.liftProgramItems(programId: programId) else { return }
         setCountChanges = LiftSessionController.setCountChanges(plan: plan, program: rows)
         restChanges = LiftSessionController.restChanges(plan: plan, program: rows)
+        orderChanged = LiftSessionController.sessionOrderChanged(plan: plan, program: rows)
     }
 
     /// Carry this session onto its program (`LiftSessionController.programAfterSession`): each line's

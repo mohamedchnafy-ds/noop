@@ -127,8 +127,6 @@ struct SettingsView: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguageRaw = AppLanguage.system.rawValue
     // Chart colour style: Titanium (brand) or Classic (throwback red→green). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
-    // Sleep tab stage-CHART shape: Classic per-stage rows, or the WHOOP-style stepped hypnogram Filled/Ribbon.
-    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
     // "Reduce motion in NOOP" (default OFF): pose every looping animation still and stop the decorative
     // tilt sensor, without needing system Low Power Mode or system Reduce Motion. Apple-only so far —
     // Android has no such toggle yet and its gate reads two signals, not three (#941).
@@ -1022,21 +1020,8 @@ struct SettingsView: View {
                     .accessibilityLabel("Chart colours")
                 }
                 rowDivider
-                FormRow(label: "Sleep chart") {
-                    // Classic = the per-stage timeline rows (default). Filled/Ribbon = the WHOOP-style
-                    // single stepped hypnogram, filled to the baseline or as a slim band. Display-only —
-                    // same stages either way; falls back to Classic on a night with no timestamped segments.
-                    Picker("Sleep chart", selection: $sleepChartStyleRaw) {
-                        ForEach(SleepChartStyle.allCases) { style in
-                            Text(style.label).tag(style.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .tint(StrandPalette.textSecondary)
-                    .accessibilityLabel("Sleep chart")
-                }
-                rowDivider
+                // Fork chantier 9: the « Sleep chart » row is gone. The sleep stages use the one violets ramp
+                // everywhere (one colour = one meaning); the stored `sleep.chart.style` is left untouched.
                 // Trend chart style (line vs bar). Display-only: flips the Trends tab's charts between the
                 // gradient line + area and value-ramp bars. The plotted data is identical either way.
                 FormRow(label: "Trend charts") {

@@ -7,6 +7,9 @@ import StrandDesign
 /// `TodayCustomizationSheet` (Sleep has no nested editors), driven by the SAME generic `EditableLayoutList`
 /// so the reorder/hide UX is byte-for-byte Today's. Persists via `SleepLayoutPrefs`; the render side
 /// (`SleepView`) reads the same `@AppStorage` keys and re-lays-out on save.
+///
+/// Fork chantier 9: under the lists, « Put back on the page » (one switch per `SleepRestoredBlock`, off by
+/// default) and the « Add a nap » action, which left the page with « Tonight ».
 struct SleepCustomizationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -14,20 +17,31 @@ struct SleepCustomizationSheet: View {
 
     @Binding private var sectionOrderRaw: String
     @Binding private var hiddenSectionsRaw: String
+    @Binding private var restoredBlocksRaw: String
+    private let initialRestored: Set<SleepRestoredBlock>
+    /// Saves, closes the sheet and asks the Sleep tab to open the nap editor once it is gone; nil hides it.
+    private let onAddNap: (() -> Void)?
 
     @State private var draft: EditableLayoutDraft<SleepSection>
+    @State private var restored: Set<SleepRestoredBlock>
     /// The folded sections that were hidden when the sheet opened, so saving keeps them hidden.
     private let foldedHidden: [SleepSection]
 
-    /// Personal fork: on the Sleep tab the 30-day hours trend is the "30 days" view of the debt card, so
-    /// its own card is not offered here. Its stored slot and hidden flag are kept as they were.
-    static let foldedSections: Set<SleepSection> = [.asleepDuration]
+    /// The sections the iPhone page no longer draws from the order are not offered here. Their stored
+    /// slot and hidden flag are kept as they were.
+    static let foldedSections: Set<SleepSection> = SleepLayoutPrefs.pageFoldedSections
 
-    private var isDirty: Bool { draft != initialDraft }
+    private var isDirty: Bool { draft != initialDraft || restored != initialRestored }
 
-    init(sectionOrderRaw: Binding<String>, hiddenSectionsRaw: Binding<String>) {
+    init(sectionOrderRaw: Binding<String>, hiddenSectionsRaw: Binding<String>,
+         restoredBlocksRaw: Binding<String>, onAddNap: (() -> Void)? = nil) {
         _sectionOrderRaw = sectionOrderRaw
         _hiddenSectionsRaw = hiddenSectionsRaw
+        _restoredBlocksRaw = restoredBlocksRaw
+        self.onAddNap = onAddNap
+        let restoredNow = SleepRestoredBlock.decodeRestored(restoredBlocksRaw.wrappedValue)
+        initialRestored = restoredNow
+        _restored = State(initialValue: restoredNow)
 
         let fullOrder = SleepLayoutPrefs.decodeOrder(sectionOrderRaw.wrappedValue)
             .filter { !Self.foldedSections.contains($0) }
@@ -57,7 +71,9 @@ struct SleepCustomizationSheet: View {
                 onReset: {
                     let offered = SleepSection.defaultOrder.filter { !Self.foldedSections.contains($0) }
                     draft = EditableLayoutDraft(visible: offered, allItems: offered)
-                }
+                    restored = []
+                },
+                bottom: AnyView(SleepRestoredBlocksSection(restored: $restored, onAddNap: addNapAction))
             ) {
                 EmptyView()
             }
@@ -84,13 +100,73 @@ struct SleepCustomizationSheet: View {
         #endif
     }
 
+    /// « Add a nap »: keep what was changed here, close, then let the Sleep tab open the nap editor.
+    private var addNapAction: (() -> Void)? {
+        guard let onAddNap else { return nil }
+        return {
+            save()
+            onAddNap()
+        }
+    }
+
     private func save() {
         // Store the FULL order (shown ++ hidden, so a hidden card keeps a stable slot) + the hidden set,
-        // matching SleepLayoutPrefs and the Android SleepArrangeSheet.
-        let folded = SleepSection.defaultOrder.filter { Self.foldedSections.contains($0) }
+        // matching SleepLayoutPrefs and the Android SleepArrangeSheet. Folded sections keep their slot.
+        let folded = SleepLayoutPrefs.decodeOrder(sectionOrderRaw).filter { Self.foldedSections.contains($0) }
         sectionOrderRaw = SleepLayoutPrefs.encode(draft.visible + draft.hidden + folded)
         hiddenSectionsRaw = SleepLayoutPrefs.encodeHidden(draft.hidden + foldedHidden)
+        restoredBlocksRaw = SleepRestoredBlock.encodeRestored(restored)
         dismiss()
+    }
+}
+
+/// « Put back on the page » (fork chantier 9): one switch per block that left the Sleep page, off by
+/// default, then the « Add a nap » action.
+private struct SleepRestoredBlocksSection: View {
+    @Binding var restored: Set<SleepRestoredBlock>
+    let onAddNap: (() -> Void)?
+
+    var body: some View {
+        Section {
+            ForEach(SleepRestoredBlock.allCases) { block in
+                Toggle(isOn: Binding(
+                    get: { restored.contains(block) },
+                    set: { on in
+                        if on { restored.insert(block) } else { restored.remove(block) }
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(block.title)
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text(block.detail)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                }
+                .tint(StrandPalette.switchOn)
+            }
+        } header: {
+            Text("Put back on the page")
+                .strandOverline()
+        } footer: {
+            Text("Off by default. Switched on, the block appears under Your nights.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        if let onAddNap {
+            Section {
+                Button(action: onAddNap) {
+                    Label("Add a nap", systemImage: "plus.circle")
+                        .font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.accent)
+                }
+            } footer: {
+                Text("Saves your changes, then opens the nap editor.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
     }
 }
 

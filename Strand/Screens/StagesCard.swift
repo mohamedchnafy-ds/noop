@@ -31,7 +31,6 @@ struct StageDetailView: View {
     @State private var nightHR: [HRBucket] = []
     @State private var nightHRV: [TrendPoint] = []
     @State private var nightSkinTemp: [TrendPoint] = []
-    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
     @AppStorage(SleepCurvePrefs.hrKey) private var showHR = true
     @AppStorage(SleepCurvePrefs.hrvKey) private var showHRV = false
     @AppStorage(SleepCurvePrefs.skinTempKey) private var showSkinTemp = false
@@ -62,7 +61,7 @@ struct StageDetailView: View {
             source: night.spanLabel,
             intervals: Hypnogram.displaySmoothed(intervals.sorted { $0.start < $1.start }, minDuration: 300),
             nightStart: night.onsetDate,
-            palette: SleepChartStyle.resolve(sleepChartStyleRaw).stagePalette,
+            palette: .noop, // the one violets ramp (fork chantier 9)
             stages: [SleepStage.awake, .rem, .light, .deep].map {
                 SleepPhasesCard.StageLine(stage: $0, minutes: minutes($0), percent: percent($0), typicalMinutes: nil)
             },

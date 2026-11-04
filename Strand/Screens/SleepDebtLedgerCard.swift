@@ -7,27 +7,47 @@ import WhoopStore
 //
 // The Sleep tab's debt card, a standalone view so the Today tab can host it too. Both surfaces render
 // THIS view from the SAME `SleepModel`, so the recency-weighted estimate can never differ between them
-// (the parity contract). Nothing is recomputed here: the ledger and the 30-day series come from
-// `SleepModel.build`.
+// (the parity contract). Nothing is recomputed here: the ledger, the 30-day series and the per-night
+// stages come from `SleepModel.build` (its daily rows).
 //
-// Personal fork: the ledger and the 30-day hours trend are one card. The headline is the debt with one
-// plain sentence on how it is counted (a share of each shortfall carries to the next night), then the
-// hours of each night as bars against the need, over 14 nights or 30 days.
+// Personal fork, chantier 9: the head is the average time asleep over the span shown, with the debt on
+// the right (ⓘ says how it is counted). One stacked bar per night: deep at the bottom, then REM, then
+// light, the bar as tall as the time asleep, against the need's dashed line; awake time stays outside the
+// bar. A night without stages is one grey bar. Touching a bar puts that night in the head (date, asleep,
+// each stage, awake) with « See this night », which shows it in the night card; touching it again goes
+// back to the average. 14 nights or 30 days.
 
 struct SleepDebtLedgerCard: View {
     let model: SleepModel
+    /// Shows the night of a day key in the night card; nil (the Today host) hides « See this night ».
+    var onOpenNight: ((String) -> Void)? = nil
+    /// Whether a day has a night the night card can show; « See this night » shows only for those.
+    var canOpenNight: (String) -> Bool = { _ in true }
 
     var body: some View {
-        SleepNightsCard(data: SleepNightsData(ledger: model.sleepDebtLedger, month: model.trendPoints))
+        SleepNightsCard(data: SleepNightsData(ledger: model.sleepDebtLedger, month: model.trendPoints,
+                                              splits: SleepNightsData.nightStageSplits(days: model.days)),
+                        onOpenNight: onOpenNight, canOpenNight: canOpenNight)
     }
 }
 
-/// What the card draws, built from the ledger and the 30-day series without new arithmetic beyond
-/// lining nights up by day.
+/// What the card draws, built from the ledger, the 30-day series and the daily stage minutes, without new
+/// arithmetic beyond lining nights up by day.
 struct SleepNightsData {
     struct Night: Equatable {
         let day: String
         let minutes: Double
+    }
+
+    /// One night's stages, in minutes, as the daily row stores them. Awake is derived from the stored
+    /// efficiency (asleep ÷ in bed) when there is one, else nil.
+    struct Split: Equatable {
+        let deep: Double
+        let rem: Double
+        let light: Double
+        let awake: Double?
+
+        var asleep: Double { deep + rem + light }
     }
 
     var debtMinutes: Double
@@ -37,25 +57,47 @@ struct SleepNightsData {
     var lastShortfallMinutes: Double?
     var recent: [Night]
     var month: [Night]
+    /// The stages of each night by day key; a night missing here is drawn as one grey bar.
+    var splits: [String: Split]
 
     init(debtMinutes: Double, isDebt: Bool, needMinutes: Double, lastShortfallMinutes: Double?,
-         recent: [Night], month: [Night]) {
+         recent: [Night], month: [Night], splits: [String: Split] = [:]) {
         self.debtMinutes = debtMinutes
         self.isDebt = isDebt
         self.needMinutes = needMinutes
         self.lastShortfallMinutes = lastShortfallMinutes
         self.recent = recent
         self.month = month
+        self.splits = splits
     }
 
-    init(ledger: SleepDebtLedger, month: [TrendPoint]) {
+    init(ledger: SleepDebtLedger, month: [TrendPoint], splits: [String: Split] = [:]) {
         let last = ledger.nights.last
         self.init(debtMinutes: ledger.magnitudeMin,
                   isDebt: ledger.isDebt && ledger.magnitudeMin >= SleepDebt.onTargetBandMin,
                   needMinutes: ledger.needMin,
                   lastShortfallMinutes: last.flatMap { $0.deltaMin < 0 ? -$0.deltaMin : nil },
                   recent: ledger.nights.map { Night(day: $0.day, minutes: $0.sleptMin) },
-                  month: month.map { Night(day: SleepNightsData.dayKey($0.date), minutes: $0.value * 60) })
+                  month: month.map { Night(day: SleepNightsData.dayKey($0.date), minutes: $0.value * 60) },
+                  splits: splits)
+    }
+
+    /// The stages of every daily row that has them (deep + REM + light above zero), by day. Awake = time
+    /// in bed − asleep, time in bed being asleep ÷ efficiency (stored as a fraction or a percent, the same
+    /// reading as `SleepModel.efficiencySeries`).
+    static func nightStageSplits(days: [DailyMetric]) -> [String: Split] {
+        var out: [String: Split] = [:]
+        for d in days {
+            let deep = d.deepMin ?? 0, rem = d.remMin ?? 0, light = d.lightMin ?? 0
+            guard deep + rem + light > 0 else { continue }
+            var awake: Double?
+            if let e = d.efficiency, let total = d.totalSleepMin, total > 0 {
+                let fraction = e <= 1.0 ? e : e / 100
+                if fraction > 0, fraction <= 1 { awake = max(0, total / fraction - total) }
+            }
+            out[d.day] = Split(deep: deep, rem: rem, light: light, awake: awake)
+        }
+        return out
     }
 
     var nightCount: Int { recent.count }
@@ -89,11 +131,38 @@ struct SleepNightsData {
     }()
 }
 
+/// One bar of « Your nights »: the night's minutes asleep (bar height) and its stages, when known.
+struct SleepNightBar: Equatable {
+    let day: String
+    let minutes: Double?
+    let split: SleepNightsData.Split?
+
+    /// The stacked segments bottom to top (deep, REM, light, then any minutes the stages do not cover,
+    /// e.g. a nap, as `nil`), summing to `minutes`. Stages that add up to more than the bar are scaled
+    /// down to it. No stages: one `nil` segment, the grey bar.
+    var segments: [(stage: SleepStage?, minutes: Double)] {
+        guard let minutes, minutes > 0 else { return [] }
+        guard let split, split.asleep > 0 else { return [(nil, minutes)] }
+        let k = min(1, minutes / split.asleep)
+        var out: [(stage: SleepStage?, minutes: Double)] = [
+            (.deep, split.deep * k), (.rem, split.rem * k), (.light, split.light * k),
+        ]
+        let rest = minutes - split.asleep * k
+        if rest >= 1 { out.append((nil, rest)) }
+        return out
+    }
+}
+
 struct SleepNightsCard: View {
     enum Span: Hashable { case nights14, days30 }
 
     let data: SleepNightsData
+    var onOpenNight: ((String) -> Void)? = nil
+    var canOpenNight: (String) -> Bool = { _ in true }
     @State var range: Span = .nights14
+    /// The night touched on the bars (its day key), or nil for the average.
+    @State var picked: String? = nil
+    @State var showsDebtInfo = false
 
     private var carryPercent: Int { Int((SleepDebt.debtCarryFactor * 100).rounded()) }
 
@@ -101,7 +170,10 @@ struct SleepNightsCard: View {
         NoopCard(tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
                 HStack(spacing: NoopMetrics.space2) {
-                    Text("Your nights").strandOverline()
+                    Text("Your nights")
+                        .font(StrandFont.headline)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: NoopMetrics.space2)
                     SegmentedPillControl([Span.nights14, Span.days30], selection: $range) {
                         $0 == .nights14 ? String(localized: "14 nights") : String(localized: "30 days")
@@ -114,51 +186,132 @@ struct SleepNightsCard: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    headline
                     let n = range == .nights14 ? 14 : 30
-                    let slots = data.slots(n, from: range == .nights14 ? data.recent : data.month)
-                    SleepNightsBars(slots: slots.map { $0.minutes }, needMinutes: data.needMinutes)
-                        .frame(height: 132)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(Text(barsSummary(slots.compactMap { $0.minutes }, of: n)))
-                    dateRow(slots.map { $0.day })
-                    stats(slots.compactMap { $0.minutes }, of: n)
+                    let bars = data.slots(n, from: range == .nights14 ? data.recent : data.month).map {
+                        SleepNightBar(day: $0.day, minutes: $0.minutes, split: data.splits[$0.day])
+                    }
+                    let shownPick = bars.first { $0.day == picked && ($0.minutes ?? 0) > 0 }
+                    head(bars, picked: shownPick)
+                    SleepNightsBars(bars: bars, needMinutes: data.needMinutes, picked: shownPick?.day, onPick: { day in
+                        withAnimation(StrandMotion.fade) { picked = picked == day ? nil : day }
+                    })
+                    .frame(height: 132)
+                    dateRow(bars.map(\.day))
+                    legend
+                }
+            }
+        }
+        .onChange(of: range) { _ in picked = nil }
+    }
+
+    // MARK: Parts
+
+    /// The average and the debt, or the touched night with its stages.
+    @ViewBuilder
+    private func head(_ bars: [SleepNightBar], picked: SleepNightBar?) -> some View {
+        if let picked, let minutes = picked.minutes {
+            VStack(alignment: .leading, spacing: NoopMetrics.space1) {
+                HStack(alignment: .lastTextBaseline) {
+                    figure(label: String(localized: "\(SleepModel.shortDayLabel(picked.day)) · asleep"),
+                           value: SleepDurationText.format(minutes))
+                    Spacer(minLength: NoopMetrics.space2)
+                    if let split = picked.split {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text([SleepStage.deep, .rem, .light].map(\.label).joined(separator: " · "))
+                                .font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                            Text([split.deep, split.rem, split.light].map(SleepDurationText.format)
+                                .joined(separator: " · "))
+                                .font(StrandFont.subhead.weight(.semibold))
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+                HStack {
+                    if let awake = picked.split?.awake {
+                        Text("Awake \(SleepDurationText.format(awake)) (outside the bars)")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    Spacer(minLength: NoopMetrics.space2)
+                    if let onOpenNight, canOpenNight(picked.day) {
+                        Button { onOpenNight(picked.day) } label: {
+                            Text("See this night ›")
+                                .font(StrandFont.footnote.weight(.semibold))
+                                .foregroundStyle(StrandPalette.accent)
+                                .frame(minHeight: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        } else {
+            let values = bars.compactMap { $0.minutes }.filter { $0 > 0 }
+            let mean = values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+            HStack(alignment: .lastTextBaseline) {
+                figure(label: String(localized: "Average asleep"), value: mean.map(SleepDurationText.format) ?? "—")
+                Spacer(minLength: NoopMetrics.space2)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Button { showsDebtInfo = true } label: {
+                        HStack(spacing: 4) {
+                            Text("Sleep debt")
+                            Image(systemName: "info.circle").accessibilityHidden(true)
+                        }
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .frame(minHeight: 24)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(Text("How the sleep debt is counted"))
+                    .popover(isPresented: $showsDebtInfo, arrowEdge: .top) {
+                        debtInfo.sleepGuidePopoverAdaptation()
+                    }
+                    if data.isDebt {
+                        Text(approximately(data.debtMinutes))
+                            .font(StrandFont.rounded(17, weight: .semibold))
+                            .foregroundStyle(StrandPalette.restColor)
+                    } else {
+                        Text("No debt")
+                            .font(StrandFont.rounded(17, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
                 }
             }
         }
     }
 
-    // MARK: Parts
+    private func figure(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(value)
+                .font(StrandFont.rounded(26, weight: .bold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .combine)
+    }
 
-    @ViewBuilder
-    private var headline: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if data.isDebt {
-                (Text("Sleep debt").foregroundColor(StrandPalette.textPrimary)
-                 + Text(verbatim: " ").foregroundColor(StrandPalette.textPrimary)
-                 + Text(approximately(data.debtMinutes)).foregroundColor(StrandPalette.restBright))
-                    .font(StrandFont.rounded(20, weight: .semibold))
-                if let short = data.lastShortfallMinutes {
-                    Text("You were \(SleepDurationText.format(short)) short of \(SleepDurationText.format(data.needMinutes)) on the last night. \(carryPercent)% of a shortfall carries over to the next night: that is your debt.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("\(carryPercent)% of a shortfall carries over to the next night. Sleeping your need plus the debt clears it.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+    /// ⓘ beside the debt: how it is counted (the sentence that used to sit under the headline).
+    private var debtInfo: some View {
+        Group {
+            if data.isDebt, let short = data.lastShortfallMinutes {
+                Text("You were \(SleepDurationText.format(short)) short of \(SleepDurationText.format(data.needMinutes)) on the last night. \(carryPercent)% of a shortfall carries over to the next night: that is your debt.")
+            } else if data.isDebt {
+                Text("\(carryPercent)% of a shortfall carries over to the next night. Sleeping your need plus the debt clears it.")
             } else {
-                Text("No sleep debt")
-                    .font(StrandFont.rounded(20, weight: .semibold))
-                    .foregroundStyle(StrandPalette.textPrimary)
                 Text("Your recent nights covered your \(SleepDurationText.format(data.needMinutes)) of need.")
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .font(StrandFont.footnote)
+        .foregroundStyle(StrandPalette.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(NoopMetrics.cardInnerPadding)
+        .frame(width: 280, alignment: .leading)
     }
 
     /// "≈ 2h 23m": the debt is an estimate, and says so.
@@ -179,82 +332,98 @@ struct SleepNightsCard: View {
         .accessibilityHidden(true)
     }
 
-    private func stats(_ values: [Double], of n: Int) -> some View {
-        let mean = values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
-        return VStack(spacing: NoopMetrics.space3) {
-            Divider().overlay(StrandPalette.hairline)
-            HStack(alignment: .top) {
-                stat(String(localized: "Average"), mean.map(SleepDurationText.format) ?? "—")
-                stat(String(localized: "Need"), SleepDurationText.format(data.needMinutes))
-                stat(String(localized: "Nights"), String(localized: "\(values.count) / \(n)"))
+    private var legend: some View {
+        HStack(spacing: NoopMetrics.space3) {
+            ForEach([SleepStage.deep, .rem, .light], id: \.self) { stage in
+                HStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(StrandPalette.sleepStageColor(stage))
+                        .frame(width: 10, height: 10)
+                    Text(stage.label)
+                }
             }
         }
-    }
-
-    private func stat(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textSecondary)
-            Text(value)
-                .font(StrandFont.number(15))
-                .foregroundStyle(StrandPalette.textPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func barsSummary(_ values: [Double], of n: Int) -> String {
-        let mean = values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
-        return String(localized: "Hours asleep per night: \(values.count) of \(n) nights recorded, average \(SleepDurationText.format(mean)), need \(SleepDurationText.format(data.needMinutes))")
+        .font(StrandFont.caption)
+        .foregroundStyle(StrandPalette.textSecondary)
+        .accessibilityHidden(true)
     }
 }
 
-/// The bars: one slot per day, the minutes asleep as a bar, the need as a dashed line, the part of the
-/// need a night did not cover as a dashed outline, an empty day as a dot.
+/// The bars: one slot per day, the minutes asleep as a stacked bar (deep, REM, light from the bottom),
+/// the need as a dashed line, an empty day as a dot. Each night with a bar is a button.
 struct SleepNightsBars: View {
-    let slots: [Double?]
+    let bars: [SleepNightBar]
     let needMinutes: Double
+    var picked: String? = nil
+    /// The colour of a bar without stages: grey on « Your nights »; the plain hours trend passes its own.
+    var plainColor: Color? = nil
+    var onPick: ((String) -> Void)? = nil
 
     var body: some View {
         Canvas { ctx, size in
-            guard !slots.isEmpty else { return }
+            guard !bars.isEmpty else { return }
             let top: CGFloat = 18
-            let maxMin = max(needMinutes * 1.12, (slots.compactMap { $0 }.max() ?? 0) * 1.08, 60)
+            let maxMin = max(needMinutes * 1.12, (bars.compactMap { $0.minutes }.max() ?? 0) * 1.08, 60)
             func y(_ m: Double) -> CGFloat { size.height - CGFloat(m / maxMin) * (size.height - top) }
-            let slot = size.width / CGFloat(slots.count)
-            let barW = min(14, slot * 0.6)
+            let slot = size.width / CGFloat(bars.count)
+            let barW = max(3, slot - (bars.count > 20 ? 3 : 6))
 
             var base = Path()
             base.move(to: CGPoint(x: 0, y: size.height - 0.5))
             base.addLine(to: CGPoint(x: size.width, y: size.height - 0.5))
             ctx.stroke(base, with: .color(StrandPalette.hairline), lineWidth: 1)
 
-            let needY = y(needMinutes)
-            var needLine = Path()
-            needLine.move(to: CGPoint(x: 0, y: needY))
-            needLine.addLine(to: CGPoint(x: size.width, y: needY))
-            ctx.stroke(needLine, with: .color(StrandPalette.textSecondary.opacity(0.7)),
-                       style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            let needText = ctx.resolve(Text("need \(SleepDurationText.format(needMinutes))")
-                .font(StrandFont.caption).foregroundColor(StrandPalette.textSecondary))
-            ctx.draw(needText, at: CGPoint(x: 0, y: needY - 3), anchor: .bottomLeading)
-
-            for (i, value) in slots.enumerated() {
+            for (i, bar) in bars.enumerated() {
                 let cx = slot * (CGFloat(i) + 0.5)
-                guard let value, value > 0 else {
+                let segments = bar.segments
+                guard let value = bar.minutes, value > 0, !segments.isEmpty else {
                     ctx.fill(Path(ellipseIn: CGRect(x: cx - 2, y: size.height - 6, width: 4, height: 4)),
                              with: .color(StrandPalette.hairlineStrong))
                     continue
                 }
-                if value < needMinutes {
-                    let gap = CGRect(x: cx - barW / 2, y: needY, width: barW, height: max(0, y(value) - needY))
-                    ctx.stroke(Path(roundedRect: gap, cornerRadius: 3), with: .color(StrandPalette.textSecondary.opacity(0.8)),
-                               style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                let rect = CGRect(x: cx - barW / 2, y: y(value), width: barW, height: size.height - y(value))
+                ctx.drawLayer { layer in
+                    layer.opacity = picked == nil || picked == bar.day ? 1 : 0.35
+                    layer.clip(to: Path(roundedRect: rect, cornerRadius: min(4, barW / 2)))
+                    var bottom = size.height
+                    for segment in segments {
+                        let h = CGFloat(segment.minutes / maxMin) * (size.height - top)
+                        let color = segment.stage.map { StrandPalette.sleepStageColor($0) }
+                            ?? plainColor ?? StrandPalette.textTertiary
+                        layer.fill(Path(CGRect(x: rect.minX, y: bottom - h, width: barW, height: h)),
+                                   with: .color(color))
+                        bottom -= h
+                    }
                 }
-                let bar = CGRect(x: cx - barW / 2, y: y(value), width: barW, height: size.height - y(value))
-                ctx.fill(Path(roundedRect: bar, cornerRadius: 3), with: .color(StrandPalette.restBright))
+            }
+
+            let needY = y(needMinutes)
+            var needLine = Path()
+            needLine.move(to: CGPoint(x: 0, y: needY))
+            needLine.addLine(to: CGPoint(x: size.width, y: needY))
+            ctx.stroke(needLine, with: .color(StrandPalette.textSecondary.opacity(0.8)),
+                       style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            let needText = ctx.resolve(Text("need \(SleepDurationText.format(needMinutes))")
+                .font(StrandFont.caption2).foregroundColor(StrandPalette.textSecondary))
+            ctx.draw(needText, at: CGPoint(x: size.width, y: needY - 3), anchor: .bottomTrailing)
+        }
+        .overlay {
+            HStack(spacing: 0) {
+                ForEach(bars, id: \.day) { bar in
+                    Button { onPick?(bar.day) } label: {
+                        Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(onPick == nil || (bar.minutes ?? 0) <= 0)
+                    .accessibilityLabel(Text(barLabel(bar)))
+                    .accessibilityAddTraits(picked == bar.day ? .isSelected : [])
+                    .accessibilityHidden((bar.minutes ?? 0) <= 0)
+                }
             }
         }
+    }
+
+    private func barLabel(_ bar: SleepNightBar) -> String {
+        String(localized: "\(SleepModel.shortDayLabel(bar.day)), \(SleepDurationText.format(bar.minutes ?? 0)) asleep")
     }
 }

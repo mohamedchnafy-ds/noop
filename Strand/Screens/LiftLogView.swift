@@ -293,127 +293,37 @@ struct LiftLogView: View {
 
     // MARK: - Start a session
 
-    /// Flatten a program into the plan the session runs. The plan is SNAPSHOT at start: editing or
-    /// deleting the program mid-session cannot change what is being tapped through.
+    /// Starts a program through the start the « Start » sheet shares (`beginProgramSession`).
     private func start(_ program: LiftProgramRow) async {
-        guard let store = await repo.storeHandle() else { return }
-        let items = (try? await store.liftProgramItems(programId: program.id)) ?? []
-        guard !items.isEmpty else { return }
-        let vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
-
-        let plan = items.map { item -> LiftPlanItem in
-            // The classification comes from the exercise vocabulary, which is the one place that owns
-            // it — the program line deliberately stores no muscle of its own to drift from.
-            let known = vocabulary.first { $0.name == item.exercise }
-            return LiftPlanItem(exercise: item.exercise,
-                                primaryMuscle: known?.primaryMuscle,
-                                secondaryMuscles: known?.secondaryMuscles ?? [],
-                                targetSets: item.targetSets,
-                                restSec: item.restSec,
-                                targetRepsLow: item.targetRepsLow,
-                                targetRepsHigh: item.targetRepsHigh,
-                                targetRpe: item.targetRpe,
-                                targetWeightKg: item.targetWeightKg,
-                                note: item.note,
-                                // Carried so a set added or dropped mid-session can be written back
-                                // onto the line it came from, and be there next time.
-                                programItemId: item.id,
-                                supersetGroup: item.supersetGroup)
-        }
-        // Refuse to start a second session over a running one: two live sessions would both claim
-        // the strap gesture and both write the in-flight snapshot.
-        guard !session.isActive else {
-            session.isPresented = true
-            return
-        }
-        session.start(plan: plan, programId: program.id, programName: program.name)
+        await session.beginProgramSession(programId: program.id, programName: program.name, repo: repo)
     }
 
     // MARK: - Load
 
+    /// The store read the « Start » sheet shares (`TrainingSnapshot.loadTrainingSnapshot`), then the
+    /// Progression data and the loads to raise, which only this screen shows.
     private func load() async {
-        guard let store = await repo.storeHandle() else { return }
-        let owner = repo.deviceId
-        let rows = (try? await store.liftPrograms(deviceId: owner)) ?? []
-        var itemsByProgram: [String: [LiftProgramItemRow]] = [:]
-        for program in rows {
-            itemsByProgram[program.id] = (try? await store.liftProgramItems(programId: program.id)) ?? []
-        }
-
-        // Sessions done: finished, with at least one working set (the rotation's rule).
-        let now = Int(Date().timeIntervalSince1970)
-        let sessions = (try? await store.liftSessions(deviceId: owner,
-                                                      fromTs: now - Self.historyDays * 86_400,
-                                                      toTs: now + 86_400)) ?? []
-        var done: [(row: LiftSessionRow, working: Int)] = []
-        for row in sessions where row.endTs != nil {
-            let sets = (try? await store.liftSets(sessionId: row.id)) ?? []
-            let working = sets.filter(LiftRotation.isWorking).count
-            if working > 0 { done.append((row, working)) }
-        }
-
-        // Every workout but the sessions' own rows, so a Lift Log session is never counted twice.
-        let workouts = await repo.workoutRows(days: Self.historyDays + 1)
-        let split = TrainingDays.splitLiftWorkouts(workouts, liftStarts: done.map { $0.row.startTs })
-        let scale = effortScale
-        // A session's length is its own workout row's, pauses left out (`TrainingDays.liftSessionSeconds`).
-        func length(_ row: LiftSessionRow, end: Int) -> Int {
-            TrainingDays.liftSessionSeconds(startTs: row.startTs, endTs: end, workout: split.lift[row.startTs])
-        }
-        lifts = done.map { entry in
-            let end = entry.row.endTs ?? entry.row.startTs
-            return TrainingLiftDone(sessionId: entry.row.id, programId: entry.row.programId,
-                                    name: entry.row.programName ?? String(localized: "Session"),
-                                    startTs: entry.row.startTs, endTs: end,
-                                    workingSets: entry.working,
-                                    effort: split.lift[entry.row.startTs]?.strain.map { UnitFormatter.effortDisplay($0, scale: scale) },
-                                    activeSeconds: length(entry.row, end: end))
-        }
-        activities = split.others.map { row in
-            TrainingActivityDone(sport: row.sport,
-                                 source: Self.trainingSourceLabel(row.source),
-                                 startTs: row.startTs, endTs: row.endTs,
-                                 kcal: row.energyKcal.map { Int($0.rounded()) })
-        }
-        sessionsById = Dictionary(done.map { ($0.row.id, $0.row) }, uniquingKeysWith: { first, _ in first })
-
-        let built: [TrainingProgramSummary] = rows.map { program in
-            let finished = done.filter { $0.row.programId == program.id }
-                .compactMap { entry in
-                    entry.row.endTs.map { (startTs: entry.row.startTs,
-                                           endTs: entry.row.startTs + length(entry.row, end: $0)) }
-                }
-            return TrainingDays.programSummary(id: program.id, name: program.name,
-                                               items: itemsByProgram[program.id] ?? [], finished: finished)
-        }
-        programs = rows
-        // A deleted program frees its day.
-        plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(rows.map(\.id)))
+        guard let read = await TrainingSnapshot.loadTrainingSnapshot(repo: repo, historyDays: Self.historyDays,
+                                                                     effortScale: effortScale) else { return }
+        lifts = read.lifts
+        activities = read.activities
+        sessionsById = read.sessionsById
+        programs = read.programs
+        plan = read.plan
 
         let step = unitSystem == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg
-        let read = await LiftProgressData.load(repo: repo, stepKg: step)
-        if let read { progress = read }
+        let progressRead = await LiftProgressData.load(repo: repo, stepKg: step)
+        if let progressRead { progress = progressRead }
         // The loads to raise, judged as the session sheet will judge them when the program starts.
-        let judged = read ?? progress
-        summaries = built.map { summary in
+        let judged = progressRead ?? progress
+        summaries = read.summaries.map { summary in
             var raised = summary
-            raised.raises = TrainingDays.programRaises(items: itemsByProgram[summary.id] ?? [],
+            raised.raises = TrainingDays.programRaises(items: read.itemsByProgram[summary.id] ?? [],
                                                        lastSets: { judged.exercise(named: $0)?.points.last?.sets },
                                                        stepKg: step)
             return raised
         }
         loaded = true
-    }
-
-    /// Where another activity comes from, in a word.
-    static func trainingSourceLabel(_ source: String) -> String {
-        switch WorkoutSource.classify(source) {
-        case .detected: return String(localized: "detected")
-        case .manual: return String(localized: "recorded")
-        case .apple: return String(localized: "Apple Health")
-        case .whoop: return "WHOOP"
-        case .lifting, .activityFile: return String(localized: "imported")
-        }
     }
 }
 
@@ -448,11 +358,19 @@ private struct TrainingStartActivityRow: View {
 
 /// Starts the live workout of planned cardio from the day card (fork chantier 9): the sport is already
 /// chosen, so the sport picker is skipped. A workout already running is opened instead. Its own view so only
-/// it observes `AppModel`, like `TrainingStartActivityRow`.
-private struct TrainingCardioLauncher: View {
+/// it observes `AppModel`, like `TrainingStartActivityRow`. The « Start » sheet uses it too, and closes
+/// itself once the live workout is closed (`onClosed`).
+struct TrainingCardioLauncher: View {
     @EnvironmentObject var model: AppModel
     @Binding var request: String?
+    var onClosed: () -> Void
     @State private var showLiveWorkout = false
+
+    // Explicit, since the private state makes the memberwise one private to this file.
+    init(request: Binding<String?>, onClosed: @escaping () -> Void = {}) {
+        _request = request
+        self.onClosed = onClosed
+    }
 
     var body: some View {
         Color.clear
@@ -464,7 +382,7 @@ private struct TrainingCardioLauncher: View {
                 if model.activeWorkout == nil { model.startWorkout(sport: sport) }
                 showLiveWorkout = true
             }
-            .sheet(isPresented: $showLiveWorkout) {
+            .sheet(isPresented: $showLiveWorkout, onDismiss: onClosed) {
                 LiveWorkoutView(onClose: { showLiveWorkout = false })
                     .environmentObject(model.live)
             }

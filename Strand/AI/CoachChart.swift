@@ -91,12 +91,12 @@ enum CoachChart {
          "input_schema": [
             "type": "object",
             "properties": [
-                "kind": ["type": "string", "enum": Kind.allValues],
+                "kind": ["type": "string", "enum": CoachChartSpec.Kind.allValues],
                 "metric": ["type": "string", "enum": metricIds,
                            "description": "The metric's id (source:key), for line, bars and pair."],
                 "second_metric": ["type": "string", "enum": metricIds, "description": "The second metric of a pair."],
                 "days": ["type": "integer", "enum": periods, "description": "The period, for line, bars and pair."],
-                "series": ["type": "string", "enum": DaySeries.allValues, "description": "For kind day."],
+                "series": ["type": "string", "enum": CoachChartSpec.DaySeries.allValues, "description": "For kind day."],
                 "date": ["type": "string",
                          "description": "YYYY-MM-DD, for kind day: at most \(dayLookback) days ago; today when left out."],
             ] as [String: Any],
@@ -108,11 +108,11 @@ enum CoachChart {
     /// ("yyyy-MM-dd"); `daysBack` says how many days before today a "yyyy-MM-dd" is (nil when unreadable).
     static func fromToolInput(_ input: [String: Any], today: String,
                               daysBack: (String) -> Int?) -> (spec: CoachChartSpec?, problem: String?) {
-        guard let kind = CoachTools.text(input, "kind").flatMap(Kind.init(rawValue:)) else {
+        guard let kind = CoachTools.text(input, "kind").flatMap(CoachChartSpec.Kind.init(rawValue:)) else {
             return (nil, "Give kind: line, bars, pair or day.")
         }
         if kind == .day {
-            let series = CoachTools.text(input, "series").flatMap(DaySeries.init(rawValue:)) ?? .heartRate
+            let series = CoachTools.text(input, "series").flatMap(CoachChartSpec.DaySeries.init(rawValue:)) ?? .heartRate
             let day = CoachTools.text(input, "date") ?? today
             guard let back = daysBack(day) else { return (nil, "Give the day as YYYY-MM-DD.") }
             guard back >= 0 else { return (nil, "That day has not happened yet.") }

@@ -2494,7 +2494,9 @@ private struct LiquidBatteryButton: View {
     }
 }
 
-private extension View {
+/// Internal (not `private`) since fork chantier 9: the More avatar of every tab root (`TabShell.swift`)
+/// wears the same chrome as the Today header buttons.
+extension View {
     /// The edge-to-edge photo is overlaid after the native button style so it can fill the face. Finish
     /// the composed control with interactive system glass as the topmost visual layer; otherwise the
     /// opaque photo would conceal the button style's refraction and highlight. macOS keeps the photo
@@ -2515,7 +2517,9 @@ private extension View {
                 .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: 0.8))
         }
     }
+}
 
+private extension View {
     /// Exact-bounds glass for the charge-to-sync morph. The same Capsule stretches only while its label
     /// expands. Not `nativeLiquidGlassButtonChrome(capsule:)`: `.buttonBorderShape(.capsule)` applies the
     /// system's capsule metrics, which pad wider than tall and render the compact 36-point state as a

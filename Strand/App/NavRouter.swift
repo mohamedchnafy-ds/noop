@@ -102,6 +102,10 @@ final class NavRouter: ObservableObject {
     /// Open the screen a day widget summarises.
     func openWidgetRoute(_ route: TabRoute) { widgetRoute = route }
 
+    /// A "Start" of the session widget (widgets v2): the program or the cardio to launch. The iOS shell
+    /// starts it, then clears it.
+    @Published var widgetStart: DayWidgetsSnapshot.Start?
+
     /// A journal day-offset (daysBack; -1 = Tomorrow) the Today journal widget deep-linked to, so tapping
     /// a SPECIFIC day's bar opens the journal at THAT day instead of always today (#656). InsightsView
     /// consumes it on appear and clears it back to nil. nil = open at today (the default).

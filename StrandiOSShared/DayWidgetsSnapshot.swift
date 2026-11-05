@@ -19,6 +19,14 @@ struct DayWidgetsSnapshot: Codable, Equatable {
     var nutrition: Nutrition?
     var sleep: Sleep?
     var labels: Labels?
+    /// Widgets v2 (5 Nov.): Today's four rings, the heart-rate thresholds of the day and the stress curve, as
+    /// the Today cards draw them.
+    var rings: Rings?
+    var heart: Heart?
+    var stress: Stress?
+    /// The other words the widgets need, keyed by their English text (`word(_:)`); a missing one reads in
+    /// English.
+    var words: [String: String]?
 
     /// A day of the week strip: outlined blue = lift planned, filled blue = lift done, grey outline = missed,
     /// orange = cardio — the Training calendar's marks, one per day.
@@ -39,6 +47,23 @@ struct DayWidgetsSnapshot: Codable, Equatable {
         var before: String
         var value: String
         var after: String
+    }
+
+    /// One line of the medium "Today's session" widget (widgets v2): a program or planned cardio, done or to
+    /// start, or the rest day.
+    struct SessionRow: Codable, Equatable {
+        enum Kind: String, Codable {
+            case lift, cardio, rest
+        }
+
+        var kind: Kind
+        /// "Full body A", "Walking", "Rest".
+        var name: String
+        /// "3 supersets + 1 exercise · ≈ 55 min", "Target: 30 min", "done · 52 min", "Next: Full body B · Monday".
+        var detail: String?
+        var isDone: Bool
+        /// What its Start button launches (`Start.url`); nil when there is nothing to start.
+        var start: String?
     }
 
     /// "Today's session": the Synthèse's session (`TodaySessionResolver`) and this week's strip.
@@ -62,6 +87,12 @@ struct DayWidgetsSnapshot: Codable, Equatable {
         var tally: String?
         /// "This week 0/3".
         var weekLine: String?
+        /// Widgets v2: today's planned items (at most two), else the resolver's session alone.
+        var rows: [SessionRow]?
+        /// "Thu 5 Nov", in the app's language.
+        var dayLine: String?
+        /// "This week · **0 / 2** sessions done". Nil without a plan.
+        var weekDone: Emphasis?
     }
 
     /// One macronutrient: eaten against its goal.
@@ -92,6 +123,10 @@ struct DayWidgetsSnapshot: Codable, Equatable {
         var protein: Macro
         var carbs: Macro
         var fat: Macro
+        /// Widgets v2, the Nutrition card's figures: "660" left of the goal, "2 100" spent, "−860" net.
+        var left: String?
+        var spent: String?
+        var net: String?
     }
 
     /// One stretch of the night's hypnogram.
@@ -116,6 +151,111 @@ struct DayWidgetsSnapshot: Codable, Equatable {
         var start: String?
         var end: String?
         var phases: [Phase]?
+        /// Widgets v2: each stage's total over the night, deep first: its name and its length.
+        var stages: [StageTotal]?
+    }
+
+    /// One stage's total in the sleep widget's legend.
+    struct StageTotal: Codable, Equatable {
+        /// "deep", "rem", "light" or "wake", as in `Phase`.
+        var stage: String
+        /// "Deep".
+        var name: String
+        /// "56 min", "1h 08m".
+        var length: String
+    }
+
+    /// One of Today's four rings (widgets v2), worded as the hero card words it.
+    struct Ring: Codable, Equatable {
+        /// "Activity", "Charge", "Effort", "Rest".
+        var label: String
+        /// "420", "19", "3,9"; nil reads as a dash.
+        var value: String?
+        /// "/ 600 kcal", "target 8–14", "6h 48m".
+        var caption: String?
+        /// The ring's fill, 0…1 (beyond 1 is a full ring).
+        var fraction: Double
+        /// The Effort ring's target band, as fractions of the ring.
+        var bandFrom: Double?
+        var bandTo: Double?
+        /// The Charge score its tint follows (red / yellow / green, `StrandPalette.chargeTint`).
+        var score: Double?
+    }
+
+    /// Today's hero rings, outside to inside.
+    struct Rings: Codable, Equatable {
+        var activity: Ring
+        var charge: Ring
+        var effort: Ring
+        var rest: Ring
+    }
+
+    /// The heart-rate card's two thresholds over the day (widgets v2): at each 5-minute slot after local
+    /// midnight, the rule Today's card applies (`TodayHRAlert.thresholds`), rounded; 0 where there is none.
+    struct Heart: Codable, Equatable {
+        static let slotSeconds = 300
+
+        var high: [Int]
+        var low: [Int]
+        /// A side still comes from the resting-rate fallback (too little history).
+        var provisional: Bool
+        /// The day's sleep, `[start, end]` in unix seconds: the curve is not coloured there, as on Today.
+        var sleep: [[Int]]
+        /// « high … » / « low … », the figure left out (`value` is a stand-in the widget replaces).
+        var highLabel: Emphasis?
+        var lowLabel: Emphasis?
+
+        /// The slot of `ts` in the local day of `zone`.
+        static func slot(_ ts: Int, zone: TimeZone = .current) -> Int {
+            let local = ts + zone.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(ts)))
+            let day = 86_400
+            return ((local % day) + day) % day / slotSeconds
+        }
+
+        /// The high and low thresholds at `ts`, nil where there is none.
+        func thresholds(at ts: Int, zone: TimeZone = .current) -> (high: Int?, low: Int?) {
+            let i = Self.slot(ts, zone: zone)
+            let h = high.indices.contains(i) ? high[i] : 0
+            let l = low.indices.contains(i) ? low[i] : 0
+            return (h > 0 ? h : nil, l > 0 ? l : nil)
+        }
+
+        /// True while `ts` is inside the day's sleep.
+        func isAsleep(_ ts: Int) -> Bool {
+            sleep.contains { $0.count == 2 && $0[0] <= ts && ts <= $0[1] }
+        }
+    }
+
+    /// The stress card of Today (widgets v2): its points and moving spans on the 06:00–22:00 axis, the level
+    /// of the latest scored hour and the day's figures, all worded by the app.
+    struct Stress: Codable, Equatable {
+        /// A scored point: x on the axis (0…1), level 0…3, and its run (a gap starts a new one).
+        struct Dot: Codable, Equatable {
+            var x: Double
+            var level: Double
+            var run: Int
+        }
+
+        var points: [Dot]
+        /// Hours masked for movement, `[from, to]` on the axis.
+        var moving: [[Double]]
+        var latestLevel: Double?
+        /// "Moderate".
+        var latestName: String?
+        /// "1,4 of 3".
+        var latestValue: String?
+        /// "at 15:00", shown once the latest hour is no longer the current one.
+        var latestAt: String?
+        /// Until when the latest hour reads as "this hour" (unix seconds).
+        var freshUntil: Int?
+        /// "45 min" in the High band, "2,3" on average, "15:00" at the peak.
+        var high: String?
+        var mean: String?
+        var peak: String?
+        /// The axis' hour labels, 06:00 to 22:00.
+        var axis: [String]
+        /// Local midnight of the day scored (unix seconds): another day's curve is not drawn.
+        var dayStart: Int?
     }
 
     /// The words the widgets need beyond the figures, worded by the app. Missing ones read in English.
@@ -197,10 +337,58 @@ struct DayWidgetsSnapshot: Codable, Equatable {
         }
     }
 
+    /// Where a "Start" button of the session widget leads (widgets v2): `noop://widget/start?program=…&name=…`
+    /// starts that program's Lift Log session, `noop://widget/start?sport=…` the live workout of that sport.
+    enum Start: Equatable {
+        case program(id: String, name: String)
+        case cardio(sport: String)
+
+        static let path = "/start"
+
+        var url: URL {
+            var parts = URLComponents()
+            parts.scheme = "noop"
+            parts.host = Link.host
+            parts.path = Self.path
+            switch self {
+            case .program(let id, let name):
+                parts.queryItems = [URLQueryItem(name: "program", value: id), URLQueryItem(name: "name", value: name)]
+            case .cardio(let sport):
+                parts.queryItems = [URLQueryItem(name: "sport", value: sport)]
+            }
+            return parts.url ?? URL(fileURLWithPath: "/")
+        }
+
+        /// The start a tapped button opened the app with; nil for any other URL.
+        init?(url: URL) {
+            guard url.scheme == "noop", url.host == Link.host, url.path == Self.path,
+                  let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
+            func value(_ name: String) -> String? {
+                items.first(where: { $0.name == name })?.value.flatMap { $0.isEmpty ? nil : $0 }
+            }
+            if let id = value("program") {
+                self = .program(id: id, name: value("name") ?? "")
+            } else if let sport = value("sport") {
+                self = .cardio(sport: sport)
+            } else {
+                return nil
+            }
+        }
+    }
+
+    /// A word of `words`, or its English text when the app has not written it.
+    func word(_ english: String) -> String {
+        words?[english] ?? english
+    }
+
     /// The widget kinds, one per section.
     static let sessionKind = "NOOPSessionWidget"
     static let nutritionKind = "NOOPNutritionWidget"
     static let sleepKind = "NOOPSleepWidget"
+    /// Widgets v2: the rings, heart-rate and stress widgets also read this snapshot.
+    static let ringsKind = "NOOPWidget"
+    static let heartKind = "HeartRateWidget"
+    static let stressKind = "StressWidget"
 
     /// App Group key, apart from `WidgetSnapshot.storageKey`.
     static let storageKey = "noop.widget.day"
@@ -211,19 +399,25 @@ struct DayWidgetsSnapshot: Codable, Equatable {
         return now < validUntil
     }
 
-    /// The kinds whose section changed since `previous`: only those widgets are reloaded. The labels change
-    /// all three (the app's language).
+    /// The kinds whose section changed since `previous`: only those widgets are reloaded. The labels and the
+    /// words change all of them (the app's language).
     func changedWidgetKinds(from previous: DayWidgetsSnapshot?) -> [String] {
         guard let previous, previous.dayKey == dayKey, previous.validUntil == validUntil,
-              previous.labels == labels else {
-            return [Self.sessionKind, Self.nutritionKind, Self.sleepKind]
+              previous.labels == labels, previous.words == words else {
+            return Self.allKinds
         }
         var kinds: [String] = []
         if previous.session != session { kinds.append(Self.sessionKind) }
         if previous.nutrition != nutrition { kinds.append(Self.nutritionKind) }
         if previous.sleep != sleep { kinds.append(Self.sleepKind) }
+        if previous.rings != rings { kinds.append(Self.ringsKind) }
+        if previous.heart != heart { kinds.append(Self.heartKind) }
+        if previous.stress != stress { kinds.append(Self.stressKind) }
         return kinds
     }
+
+    /// Every widget that reads this snapshot.
+    static let allKinds = [sessionKind, nutritionKind, sleepKind, ringsKind, heartKind, stressKind]
 
     /// Decode a stored snapshot; nil for anything unreadable.
     static func decodeDayWidgets(_ data: Data) -> DayWidgetsSnapshot? {
@@ -254,13 +448,20 @@ struct DayWidgetsSnapshot: Codable, Equatable {
                 lineMedium: "5 supersets · ≈ 55 min · planned",
                 blocks: ["A1 Squat · A2 Row", "B1 Bench press · B2 Lunge"],
                 week: zip(letters, marks).enumerated().map { WeekDay(letter: $1.0, mark: $1.1, isToday: $0 == 0) },
-                tally: "0/3", weekLine: "This week 0/3"),
+                tally: "0/3", weekLine: "This week 0/3",
+                rows: [SessionRow(kind: .lift, name: "Full body A", detail: "5 supersets · ≈ 55 min", isDone: false,
+                                  start: Start.program(id: "", name: "Full body A").url.absoluteString),
+                       SessionRow(kind: .cardio, name: "Walking", detail: "Target: 30 min", isDone: false,
+                                  start: Start.cardio(sport: "Walking").url.absoluteString)],
+                dayLine: "Thu 5 Nov",
+                weekDone: Emphasis(before: "This week · ", value: "0 / 3", after: " sessions done")),
             nutrition: Nutrition(
                 eaten: "1,495", goalShort: "/ 2,560 kcal", goalLong: "/ 2,560 kcal eaten", fraction: 0.58,
                 balance: Emphasis(before: "balance ", value: "−605", after: ""), meals: "3 meals",
                 protein: Macro(eaten: "98", rest: "/ 160 g", fraction: 0.61),
                 carbs: Macro(eaten: "162", rest: "/ 318 g", fraction: 0.51),
-                fat: Macro(eaten: "52", rest: "/ 80 g", fraction: 0.65)),
+                fat: Macro(eaten: "52", rest: "/ 80 g", fraction: 0.65),
+                left: "1,065", spent: "2,100", net: "−605"),
             sleep: Sleep(
                 night: "6h 48m", debt: Emphasis(before: "debt ", value: "1h 12m", after: ""),
                 bedtime: Emphasis(before: "Suggested bedtime ", value: "23:10", after: ""),
@@ -269,7 +470,17 @@ struct DayWidgetsSnapshot: Codable, Equatable {
                          Phase(stage: "light", minutes: 42), Phase(stage: "rem", minutes: 21),
                          Phase(stage: "wake", minutes: 6), Phase(stage: "light", minutes: 48),
                          Phase(stage: "deep", minutes: 18), Phase(stage: "rem", minutes: 30),
-                         Phase(stage: "wake", minutes: 9), Phase(stage: "light", minutes: 45)]),
-            labels: .english)
+                         Phase(stage: "wake", minutes: 9), Phase(stage: "light", minutes: 45)],
+                stages: [StageTotal(stage: "deep", name: "Deep", length: "45 min"),
+                         StageTotal(stage: "rem", name: "REM", length: "51 min"),
+                         StageTotal(stage: "light", name: "Light", length: "3h 9m"),
+                         StageTotal(stage: "wake", name: "Awake", length: "15 min")]),
+            labels: .english,
+            rings: Rings(
+                activity: Ring(label: "Activity", value: "420", caption: "/600 kcal", fraction: 0.7),
+                charge: Ring(label: "Charge", value: "68", caption: nil, fraction: 0.68, score: 68),
+                effort: Ring(label: "Effort", value: "38", caption: "target 59–75", fraction: 0.38,
+                             bandFrom: 0.59, bandTo: 0.75),
+                rest: Ring(label: "Rest", value: "76", caption: "6h 48m", fraction: 0.76)))
     }
 }

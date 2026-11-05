@@ -333,6 +333,9 @@ struct StrandiOSApp: App {
                 .onOpenURL { url in
                     if url.host == "import-health" {
                         model.handleHealthImportURL(url)
+                    } else if let start = DayWidgetsSnapshot.Start(url: url) {
+                        // A Start of the session widget (personal fork, widgets v2): launch it.
+                        router.widgetStart = start
                     } else if let link = DayWidgetsSnapshot.Link(url: url) {
                         // A day widget's tap (personal fork): the screen it summarises.
                         router.openWidgetRoute(DayWidgetsContent.widgetRoute(link))

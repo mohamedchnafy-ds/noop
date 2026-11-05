@@ -11,7 +11,7 @@ struct NOOPWidgetBundle: WidgetBundle {
     var body: some Widget {
         NOOPWidget()
         NOOPLiveActivity()
-        CoachBriefWidget()
+        // Widgets v2 (personal fork, 5 Nov.): the Coach brief widget left the gallery at Mohamed's request.
         HeartRateWidget()
         StressWidget()
         LiftLiveActivity()

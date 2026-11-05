@@ -17,6 +17,8 @@ import WidgetKit
 struct StressEntry: TimelineEntry {
     let date: Date
     let snap: WidgetSnapshot?
+    /// Widgets v2: the day snapshot, whose stress card the widget draws.
+    var day: DayWidgetsSnapshot? = nil
 }
 
 struct StressProvider: TimelineProvider {
@@ -25,11 +27,13 @@ struct StressProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (StressEntry) -> Void) {
-        completion(StressEntry(date: Date(), snap: WidgetSnapshot.load()))
+        completion(StressEntry(date: Date(), snap: WidgetSnapshot.load(),
+                               day: DayWidgetsSnapshot.loadDayWidgets(suiteName: WidgetSnapshot.suiteName)))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<StressEntry>) -> Void) {
-        let entry = StressEntry(date: Date(), snap: WidgetSnapshot.load())
+        let entry = StressEntry(date: Date(), snap: WidgetSnapshot.load(),
+                                day: DayWidgetsSnapshot.loadDayWidgets(suiteName: WidgetSnapshot.suiteName))
         // Half an hour, where the heart-rate widget takes fifteen minutes. This curve gains at most one
         // point an hour, so a tighter net would spend budget on entries identical to the one before it.
         // The app reloads timelines when it scores an hour, so this is only the safety net for when it
@@ -306,19 +310,29 @@ private struct StressTimeAxis: View {
     }
 }
 
+/// Widgets v2 (personal fork, 5 Nov.): Today's stress card in small, from the day snapshot, while it holds
+/// today's curve; the earlier drawing otherwise (an app that has not published it yet).
+struct StressWidgetV2View: View {
+    let entry: StressEntry
+
+    var body: some View {
+        if let day = entry.day, day.isCurrent(at: entry.date), let stress = day.stress,
+           let dayStart = stress.dayStart,
+           Calendar.current.isDate(Date(timeIntervalSince1970: TimeInterval(dayStart)), inSameDayAs: entry.date) {
+            DayStressWidgetFace(day: day, now: Int(entry.date.timeIntervalSince1970))
+        } else {
+            StressWidgetView(entry: entry)
+        }
+    }
+}
+
 struct StressWidget: Widget {
     static let kind = "StressWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: Self.kind, provider: StressProvider()) { entry in
-            if #available(iOS 17.0, *) {
-                StressWidgetView(entry: entry)
-                    .containerBackground(StrandPalette.surfaceBase, for: .widget)
-            } else {
-                StressWidgetView(entry: entry)
-                    .padding()
-                    .background(StrandPalette.surfaceBase)
-            }
+            StressWidgetV2View(entry: entry)
+                .containerBackground(StrandPalette.surfaceRaised, for: .widget)
         }
         .configurationDisplayName("Stress")
         .description("Today's stress as an hour-by-hour curve.")

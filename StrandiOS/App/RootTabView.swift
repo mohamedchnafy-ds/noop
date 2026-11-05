@@ -51,6 +51,8 @@ struct RootTabView: View {
     @State private var selectedTab: Int = TabTag.today
     /// The More sheet (fork chantier 9), opened by the profile picture of any tab root, and its own path.
     @State private var showMore = false
+    /// The cardio a session widget's Start asked for (widgets v2), until its live workout opens.
+    @State private var widgetCardio: String?
     @State private var morePath = NavigationPath()
 
     /// The tab tags, which also index `tabPaths` and `scrollTop`. Literal, so Coach switched off removes
@@ -327,6 +329,12 @@ struct RootTabView: View {
         .onChange(of: router.widgetRoute) { _, route in
             openWidgetRoute(route)
         }
+        // A Start of the session widget (widgets v2), on a cold launch through onAppear too.
+        .onAppear { startFromWidget(router.widgetStart) }
+        .onChange(of: router.widgetStart) { _, start in
+            startFromWidget(start)
+        }
+        .background(TrainingCardioLauncher(request: $widgetCardio))
         .onChange(of: homeScreenQuickActions.pendingAction) { _, _ in
             presentPendingHomeScreenQuickActionIfPossible()
         }
@@ -352,6 +360,31 @@ struct RootTabView: View {
         // thrown in the user's face; they open it when they want it.
         .sheet(isPresented: $liftSession.isPresented) {
             LiftSessionView { }
+        }
+    }
+
+    /// Launches what a session widget's Start asked for, over any sheet the shell had up, on the Training
+    /// tab: the program's Lift Log session (its sheet, as the Start sheet opens it), or the live workout of
+    /// the cardio's sport.
+    private func startFromWidget(_ start: DayWidgetsSnapshot.Start?) {
+        guard let start else { return }
+        router.widgetStart = nil
+        showDevices = false
+        routedPillar = nil
+        quickAction = nil
+        showMore = false
+        if let tag = Self.tabTag(for: .liftLog) { selectedTab = tag }
+        let session = liftSession
+        let store = repo
+        Task { @MainActor in
+            // The sheets being closed must be gone before the session's own sheet can be presented.
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            switch start {
+            case .program(let id, let name):
+                await session.beginProgramSession(programId: id, programName: name, repo: store)
+            case .cardio(let sport):
+                widgetCardio = sport
+            }
         }
     }
 

@@ -15,6 +15,8 @@ import WidgetKit
 struct HeartRateEntry: TimelineEntry {
     let date: Date
     let snap: WidgetSnapshot?
+    /// Widgets v2: the day snapshot, for the thresholds of the day and the words.
+    var day: DayWidgetsSnapshot? = nil
 }
 
 struct HeartRateProvider: TimelineProvider {
@@ -23,11 +25,13 @@ struct HeartRateProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HeartRateEntry) -> Void) {
-        completion(HeartRateEntry(date: Date(), snap: WidgetSnapshot.load()))
+        completion(HeartRateEntry(date: Date(), snap: WidgetSnapshot.load(),
+                                  day: DayWidgetsSnapshot.loadDayWidgets(suiteName: WidgetSnapshot.suiteName)))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HeartRateEntry>) -> Void) {
-        let entry = HeartRateEntry(date: Date(), snap: WidgetSnapshot.load())
+        let entry = HeartRateEntry(date: Date(), snap: WidgetSnapshot.load(),
+                                   day: DayWidgetsSnapshot.loadDayWidgets(suiteName: WidgetSnapshot.suiteName))
         // The app reloads timelines when the heart rate moves, so this is only the safety net for when
         // it is not running. Fifteen minutes rather than the trace's one-minute bucket: a widget cannot
         // outrun its publisher, and asking more often spends budget WidgetKit would decline anyway.
@@ -244,19 +248,35 @@ private struct HrTimeAxis: View {
     }
 }
 
+/// Widgets v2 (personal fork, 5 Nov.): the last three hours drawn as Today's heart-rate card draws them —
+/// pink, red above the day's high threshold, green under its low one, both dashed and named — from the
+/// trace this widget always read and the thresholds of the day snapshot.
+struct HeartRateWidgetV2View: View {
+    let entry: HeartRateEntry
+
+    var body: some View {
+        let now = Int64(entry.date.timeIntervalSince1970)
+        let series = HrTrace.prune(entry.snap?.hrSeries ?? [], nowSec: now)
+        let shown = HrDisplay.resolve(bpm: entry.snap?.bpm, newestPointTs: series.last?.ts, now: entry.date)
+        let window = Int(HrTrace.windowSec)
+        let end = Int(now)
+        let axis = [end - window, end - window / 2, end].map {
+            Date(timeIntervalSince1970: TimeInterval($0)).formatted(.dateTime.hour().minute())
+        }
+        let day = entry.day.flatMap { $0.isCurrent(at: entry.date) ? $0 : nil }
+        DayHeartWidgetFace(points: series.map { DayHeartPoint(ts: Int($0.ts), bpm: $0.bpm) },
+                           bpm: shown.bpm, stale: shown.stale, windowEnd: end, windowSec: window,
+                           day: day, axis: axis, gapSec: Int(HrTrace.gapSec))
+    }
+}
+
 struct HeartRateWidget: Widget {
     static let kind = "HeartRateWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: Self.kind, provider: HeartRateProvider()) { entry in
-            if #available(iOS 17.0, *) {
-                HeartRateWidgetView(entry: entry)
-                    .containerBackground(StrandPalette.surfaceBase, for: .widget)
-            } else {
-                HeartRateWidgetView(entry: entry)
-                    .padding()
-                    .background(StrandPalette.surfaceBase)
-            }
+            HeartRateWidgetV2View(entry: entry)
+                .containerBackground(StrandPalette.surfaceRaised, for: .widget)
         }
         .configurationDisplayName("Heart Rate")
         .description("Live heart rate with the last three hours as a trace.")

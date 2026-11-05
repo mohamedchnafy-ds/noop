@@ -116,11 +116,16 @@ extension WidgetSnapshot {
             stressSeries: stressPoints ?? storedStress?.stressSeries,
             stressDay: stress?.day ?? storedStress?.stressDay
         )
+        // Widgets v2 (personal fork): the rings and the stress widget read the day snapshot, so a moved score
+        // or a new stress hour republishes it at once rather than after its two-minute spacing.
+        let before = storedStress ?? load()
+        let scoresMoved = before?.recovery != snap.recovery || before?.effort != snap.effort
+            || before?.rest != snap.rest || before?.stressSeries != snap.stressSeries
         saveAndReloadIfChanged(snap)
         // The day widgets (personal fork, chantier 6) ride every full publish, spaced by their own gate.
         // Not awaited: the callers that wait on this publish (the post-offload Health write-back) do not
         // wait on the day's heart-rate read the calories need.
-        Task { await DayWidgetsSnapshot.publishDayWidgets(from: model) }
+        Task { await DayWidgetsSnapshot.publishDayWidgets(from: model, force: scoresMoved) }
     }
 
     /// Publish fields that come directly from the live BLE state without re-reading the Rest metric

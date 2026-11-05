@@ -43,7 +43,7 @@ final class DayWidgetsTests: XCTestCase {
         let data = try JSONEncoder().encode(snap)
         XCTAssertEqual(DayWidgetsSnapshot.decodeDayWidgets(data), snap)
 
-        XCTAssertEqual(snap.changedWidgetKinds(from: nil).count, 3)
+        XCTAssertEqual(snap.changedWidgetKinds(from: nil), DayWidgetsSnapshot.allKinds)
         XCTAssertEqual(snap.changedWidgetKinds(from: snap), [])
         var meal = snap
         meal.nutrition?.eaten = "1,800"
@@ -53,7 +53,10 @@ final class DayWidgetsTests: XCTestCase {
         XCTAssertEqual(night.changedWidgetKinds(from: snap), [DayWidgetsSnapshot.sleepKind])
         var nextDay = snap
         nextDay.validUntil = date(4)
-        XCTAssertEqual(nextDay.changedWidgetKinds(from: snap).count, 3, "a new day reloads all three")
+        XCTAssertEqual(nextDay.changedWidgetKinds(from: snap), DayWidgetsSnapshot.allKinds, "a new day reloads them all")
+        var rings = snap
+        rings.rings?.charge.value = "70"
+        XCTAssertEqual(rings.changedWidgetKinds(from: snap), [DayWidgetsSnapshot.ringsKind])
     }
 
     func testTheDayEndsAtTheAppsRollover() {
@@ -186,5 +189,127 @@ final class DayWidgetsTests: XCTestCase {
         XCTAssertEqual(DayWidgetsContent.widgetRoute(.sleep), .sleep)
         XCTAssertNil(DayWidgetsSnapshot.Link(url: URL(string: "noop://import-health?v=1") ?? URL(fileURLWithPath: "/")))
         XCTAssertNil(DayWidgetsSnapshot.Link(url: URL(string: "noop://widget/other") ?? URL(fileURLWithPath: "/")))
+    }
+
+    // MARK: Widgets v2
+
+    private func program(_ ord: Int, group: String) -> LiftProgramItemRow {
+        LiftProgramItemRow(id: "\(ord)", deviceId: "d", programId: "a", ord: ord, exercise: "E\(ord)",
+                           targetSets: 3, targetRepsLow: 8, targetRepsHigh: 10, targetRpe: nil,
+                           targetWeightKg: 60, restSec: 90, note: nil, supersetGroup: group)
+    }
+
+    /// Wednesday 4 November with Full body A and 30 minutes of walking planned.
+    private func plannedResolution(liftDone: Bool) -> TodaySessionResolution {
+        let start = Int(date(4, 7).timeIntervalSince1970)
+        let row = LiftSessionRow(id: "w", deviceId: "d", startTs: start, endTs: start + 3_120, sport: "lift",
+                                 programId: "a", programName: "Full body A", sessionRpe: nil, note: nil)
+        let session = liftDone
+            ? TodaySynthesisLogic.Session(name: "Walking", state: .next, supersets: 0, singles: 0, typicalMinutes: nil,
+                                          cardioMinutes: 30)
+            : TodaySynthesisLogic.Session(name: "Full body A", state: .next, supersets: 2, singles: 1,
+                                          typicalMinutes: 55, alsoPlanned: ["Walking · 30 min"])
+        return TodaySessionResolution(
+            session: session, programId: liftDone ? nil : "a",
+            programItems: liftDone ? [] : [program(0, group: "A"), program(1, group: "A"), program(2, group: "")],
+            hasPrograms: true, performed: liftDone ? [(row: row, workingSets: 12)] : [], liftWorkouts: [:],
+            otherWorkouts: [],
+            plan: TrainingWeekPlan(days: ["3": [.program("a"), .cardio(sport: "Walking", minutes: 30)]],
+                                   since: "2026-10-26"),
+            programNames: ["a": "Full body A"])
+    }
+
+    func testTheSessionWidgetGivesEachPlannedItemItsLineAndItsStart() {
+        let section = DayWidgetsContent.sessionSection(plannedResolution(liftDone: false), today: date(4),
+                                                       calendar: calendar)
+        let rows = section.rows ?? []
+        XCTAssertEqual(rows.map(\.kind), [.lift, .cardio])
+        XCTAssertEqual(rows.first?.name, "Full body A")
+        XCTAssertEqual(rows.first?.start, DayWidgetsSnapshot.Start.program(id: "a", name: "Full body A").url.absoluteString)
+        XCTAssertEqual(rows.first?.detail, DayWidgetsContent.liftDetail(plannedResolution(liftDone: false).session!),
+                       "the Synthèse's line, without the cardio it lists after it")
+        XCTAssertEqual(rows.last?.start, DayWidgetsSnapshot.Start.cardio(sport: "Walking").url.absoluteString)
+        XCTAssertEqual(rows.map(\.isDone), [false, false])
+        XCTAssertEqual(section.weekDone?.value, "0 / 2")
+
+        let done = DayWidgetsContent.sessionSection(plannedResolution(liftDone: true), today: date(4),
+                                                    calendar: calendar)
+        XCTAssertEqual(done.rows?.map(\.isDone), [true, false], "the lift done keeps its line, the walk is still to do")
+        XCTAssertNil(done.rows?.first?.start, "nothing to start once it is done")
+        XCTAssertNotNil(done.rows?.last?.start)
+        XCTAssertEqual(done.weekDone?.value, "1 / 2")
+    }
+
+    func testTheStartLinksRoundTrip() throws {
+        let lift = DayWidgetsSnapshot.Start.program(id: "a b/c", name: "Full body A")
+        let walk = DayWidgetsSnapshot.Start.cardio(sport: "Walking")
+        XCTAssertEqual(DayWidgetsSnapshot.Start(url: lift.url), lift)
+        XCTAssertEqual(DayWidgetsSnapshot.Start(url: walk.url), walk)
+        XCTAssertNil(DayWidgetsSnapshot.Link(url: lift.url), "a Start is not a screen link")
+        XCTAssertNil(DayWidgetsSnapshot.Start(url: DayWidgetsSnapshot.Link.session.url))
+        XCTAssertNil(DayWidgetsSnapshot.Start(url: try XCTUnwrap(URL(string: "noop://widget/start"))))
+    }
+
+    func testTheHeartThresholdsFollowTheTodayRule() throws {
+        let heart = try XCTUnwrap(DayWidgetsContent.heartSection(habitual: [100: 80], awakeFloor: 55, restingHR: 50,
+                                                                 sleep: [10...20]))
+        XCTAssertEqual(heart.high.count, 288)
+        XCTAssertEqual(heart.high[100], 100, "the usual rate plus 20")
+        XCTAssertEqual(heart.low[100], 55, "the awake floor")
+        XCTAssertEqual(heart.high[0], 80, "no usual rate yet: the resting rate plus 30")
+        XCTAssertTrue(heart.provisional)
+        let utc = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        XCTAssertEqual(heart.thresholds(at: 100 * 300 + 120, zone: utc).high, 100)
+        XCTAssertTrue(heart.isAsleep(15))
+        XCTAssertFalse(heart.isAsleep(25))
+        XCTAssertNil(DayWidgetsContent.heartSection(habitual: [:], awakeFloor: nil, restingHR: nil, sleep: []),
+                     "nothing to draw without any threshold")
+    }
+
+    func testTheSleepLegendListsEachStagesTotalDeepFirst() {
+        let phases = [DayWidgetsSnapshot.Phase(stage: "light", minutes: 54), .init(stage: "deep", minutes: 27),
+                      .init(stage: "light", minutes: 42), .init(stage: "wake", minutes: 6),
+                      .init(stage: "deep", minutes: 18)]
+        let stages = DayWidgetsContent.stageTotals(phases)
+        XCTAssertEqual(stages.map(\.stage), ["deep", "light", "wake"], "a stage the night did not have is left out")
+        XCTAssertEqual(stages.first?.length, String(localized: "\(45) min"))
+        XCTAssertEqual(stages[1].length, SleepDurationText.format(96))
+    }
+
+    func testTheRingsAreTodaysHeroCard() {
+        let rings = DayWidgetsContent.ringsSection(
+            activity: TodayEnergy.Split(restingKcal: 1_500, activityKcal: 420), activityGoal: 600, charge: 68,
+            effortStored: 38, effortScale: .hundred, rest: 76, nightMinutes: 408)
+        XCTAssertEqual(rings.activity.fraction, 0.7, accuracy: 0.001)
+        XCTAssertEqual(rings.charge.score, 68)
+        XCTAssertEqual(rings.charge.fraction, 0.68, accuracy: 0.001)
+        XCTAssertEqual(rings.effort.fraction, 0.38, accuracy: 0.001)
+        let band = TodayHeroFigures.heroEffortTarget(recovery: 68, scale: .hundred)
+        XCTAssertEqual(rings.effort.bandFrom, band.map { $0.lowerBound / 100 })
+        XCTAssertEqual(rings.effort.caption, TodayHeroFigures.heroEffortCaption(band), "the hero's own target line")
+        XCTAssertEqual(rings.rest.caption, SleepDurationText.format(408))
+
+        let whoop = DayWidgetsContent.ringsSection(activity: nil, activityGoal: nil, charge: nil, effortStored: 38,
+                                                   effortScale: .whoop, rest: nil, nightMinutes: nil)
+        XCTAssertEqual(whoop.effort.fraction, UnitFormatter.effortValue(38, scale: .whoop) / 21, accuracy: 0.001)
+        XCTAssertNil(whoop.charge.value)
+        XCTAssertEqual(whoop.activity.fraction, 0)
+    }
+
+    func testTheStressCardIsWordedForTheWidget() {
+        let dayStart = Int(date(4).timeIntervalSince1970)
+        let latest = dayStart + 15 * 3_600
+        let model = TodayStressModel(
+            points: [.init(x: 0.1, level: 1.2, run: 0), .init(x: 0.5, level: 2.6, run: 1)],
+            moving: [0.2...0.3], latestLevel: 2.6, latestStartTs: latest, latestIsNow: true, highMinutes: 45,
+            mean: 1.9, peakStartTs: latest, dayStart: dayStart)
+        let stress = DayWidgetsContent.stressSection(model, dayStart: dayStart)
+        XCTAssertEqual(stress.points.map(\.run), [0, 1])
+        XCTAssertEqual(stress.moving, [[0.2, 0.3]])
+        XCTAssertEqual(stress.latestName, TodayStressLogic.bandName(.high))
+        XCTAssertEqual(stress.freshUntil, latest + 3_600 + 1_800, "the hour, then one step of grace, as on Today")
+        XCTAssertEqual(stress.high, TodayStressLogic.minutesText(45))
+        XCTAssertEqual(stress.axis.count, 5)
+        XCTAssertEqual(stress.dayStart, dayStart)
     }
 }

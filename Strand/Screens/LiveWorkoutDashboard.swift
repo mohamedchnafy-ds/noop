@@ -10,6 +10,9 @@ import StrandDesign
 struct LiveWorkoutDashboard: View {
     let figures: LiveWorkoutFigures
     var distanceSystem: UnitSystem = .metric
+    /// Fork chantier 12, effect C: the heart beats at the live rhythm and figures roll; false draws a still
+    /// frame (renders).
+    var animated: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -90,15 +93,30 @@ struct LiveWorkoutDashboard: View {
     private var heartRateTile: some View {
         tile(title: "Heart rate", tint: StrandPalette.metricRose,
              value: figures.bpm.map { "\($0)" } ?? "—", unit: "bpm") {
-            Group {
-                if figures.zone >= 1 {
-                    Text("Zone \(figures.zone) · \(LiveWorkoutDashboard.zoneName(figures.zone))")
-                } else {
-                    Text("Below Zone 1")
+            VStack(alignment: .leading, spacing: 5) {
+                Group {
+                    if figures.zone >= 1 {
+                        Text("Zone \(figures.zone) · \(LiveWorkoutDashboard.zoneName(figures.zone))")
+                    } else {
+                        Text("Below Zone 1")
+                    }
                 }
+                .foregroundStyle(zoneTint)
+                // Fork chantier 12, effect C: the five zones, the active one lit.
+                NoopZoneStrip(zone: figures.zone, colors: (1...5).map { StrandPalette.hrZoneColor($0) })
             }
-            .foregroundStyle(zoneTint)
         }
+        // The heart at the live rhythm, and the tile's outline in the zone's colour.
+        .overlay(alignment: .topTrailing) {
+            NoopHeartbeat(bpm: figures.bpm, tint: StrandPalette.metricRose, size: 18,
+                          beating: animated && !figures.isPaused)
+                .padding(14)
+        }
+        .overlay(RoundedRectangle(cornerRadius: NoopVisualStyle.cardRadius, style: .continuous)
+            .strokeBorder(zoneTint.opacity(figures.zone >= 1 ? 0.6 : 0), lineWidth: 1.5))
+        .animation(animated ? .easeOut(duration: 0.35) : nil, value: figures.zone)
+        // Entering zone 4 or 5 is felt as well as seen.
+        .strandHaptic(.light, trigger: figures.zone, when: { $0 >= 4 })
     }
 
     private var effortTile: some View {
@@ -154,6 +172,8 @@ struct LiveWorkoutDashboard: View {
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
+                    .contentTransition(.numericText())
+                    .animation(animated ? NoopMotion.value : nil, value: value)
                 if let unit {
                     unit
                         .font(StrandFont.subhead.weight(.semibold))
@@ -187,6 +207,7 @@ struct LiveWorkoutDashboard: View {
             if !figures.splits.isEmpty {
                 VStack(spacing: 6) {
                     ForEach(Array(figures.splits.enumerated()), id: \.offset) { index, seconds in
+                        // Fork chantier 12: a kilometre just done slides in.
                         HStack {
                             Group {
                                 if distanceSystem == .imperial { Text("Mile \(index + 1)") } else { Text("Kilometre \(index + 1)") }
@@ -198,8 +219,10 @@ struct LiveWorkoutDashboard: View {
                                 .foregroundStyle(StrandPalette.textPrimary)
                         }
                         .font(StrandFont.subhead)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
+                .animation(animated ? NoopMotion.card : nil, value: figures.splits.count)
             }
         }
         .padding(14)

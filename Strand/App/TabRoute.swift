@@ -46,38 +46,64 @@ extension View {
     /// `NavigationStack` that hosts a tab-root view (the iOS tab shell's stacks; the macOS
     /// Today detail pane and TrendsView's own macOS wrap).
     func tabRouteDestinations() -> some View {
-        navigationDestination(for: TabRoute.self) { route in
-            switch route {
-            case .fullDayChart: FullDayChartView()
-            case .metric(let key):
-                // Every caller passes a catalog key, so the fallback is theoretical; Health is the
-                // catch-all vitals surface. (Pre-#198 Trends fell back to the Explorer instead —
-                // unified here rather than carrying two never-taken branches.)
-                if let m = MetricCatalog.all.first(where: { $0.key == key }) {
-                    MetricDetailView(metric: m)
+        modifier(TabRouteDestinations())
+    }
+}
+
+/// The pushes of a tab's stack, and (fork chantier 12) the zoom of the heart-rate and stress cards into
+/// their screens: the namespace lives here, handed to the cards through the environment.
+private struct TabRouteDestinations: ViewModifier {
+    @Namespace private var zoom
+
+    /// The routes that open out of a card marked with `noopZoomSource` (the others push as before).
+    private static func zoomsFromCard(_ route: TabRoute) -> Bool {
+        route == .fullDayChart || route == .stress
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.noopZoomNamespace, zoom)
+            .navigationDestination(for: TabRoute.self) { route in
+                if Self.zoomsFromCard(route) {
+                    Self.screen(route).noopZoomDestination(route, in: zoom)
                 } else {
-                    HealthView()
+                    Self.screen(route)
                 }
-            case .metricSourced(let key, let source):
-                // Exact (key, source) resolution, order-independent. Fall back to the bare-key entry,
-                // then Health, so a stale route can never dead-end.
-                if let m = MetricCatalog.metric(key: key, source: source)
-                    ?? MetricCatalog.all.first(where: { $0.key == key }) {
-                    MetricDetailView(metric: m)
-                } else {
-                    HealthView()
-                }
-            case .metricExplorer: MetricExplorerView()
-            case .workouts: WorkoutsView()
-            case .dataSources: DataSourcesView()
-            case .stress: StressView()
-            case .sleep: SleepView()
-            case .health: HealthView()
-            case .hydration: HydrationView()
-            case .coupled: CoupledView()
-            case .liftLog: LiftLogView()
-            case .nutrition: NutritionView()
             }
+    }
+
+    @ViewBuilder
+    private static func screen(_ route: TabRoute) -> some View {
+        switch route {
+        case .fullDayChart: FullDayChartView()
+        case .metric(let key):
+            // Every caller passes a catalog key, so the fallback is theoretical; Health is the
+            // catch-all vitals surface. (Pre-#198 Trends fell back to the Explorer instead —
+            // unified here rather than carrying two never-taken branches.)
+            if let m = MetricCatalog.all.first(where: { $0.key == key }) {
+                MetricDetailView(metric: m)
+            } else {
+                HealthView()
+            }
+        case .metricSourced(let key, let source):
+            // Exact (key, source) resolution, order-independent. Fall back to the bare-key entry,
+            // then Health, so a stale route can never dead-end.
+            if let m = MetricCatalog.metric(key: key, source: source)
+                ?? MetricCatalog.all.first(where: { $0.key == key }) {
+                MetricDetailView(metric: m)
+            } else {
+                HealthView()
+            }
+        case .metricExplorer: MetricExplorerView()
+        case .workouts: WorkoutsView()
+        case .dataSources: DataSourcesView()
+        case .stress: StressView()
+        case .sleep: SleepView()
+        case .health: HealthView()
+        case .hydration: HydrationView()
+        case .coupled: CoupledView()
+        case .liftLog: LiftLogView()
+        case .nutrition: NutritionView()
         }
     }
 }

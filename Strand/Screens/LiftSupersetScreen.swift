@@ -711,12 +711,18 @@ struct LiftRestRing: View {
     /// The running pause's start: the ring stands still at this instant (personal fork).
     var pausedAt: Int? = nil
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var still: Bool { motion.poseStill(reduceMotion) }
+
     var body: some View {
         TimelineView(.periodic(from: Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970)), by: 1)) {
             context in
             let now = min(Int(context.date.timeIntervalSince1970), pausedAt ?? .max)
             let total = max(1, endsAt - startedAt)
             let left = max(0, endsAt - now)
+            // Fork chantier 12: the last three seconds glow and tick, the end of the rest taps harder.
+            let closing = left > 0 && left <= 3 && pausedAt == nil
             ZStack {
                 Circle()
                     .stroke(StrandPalette.hairline, lineWidth: 12)
@@ -724,14 +730,19 @@ struct LiftRestRing: View {
                     .trim(from: 0, to: CGFloat(left) / CGFloat(total))
                     .stroke(StrandPalette.metricAmber, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: left)
+                    .shadow(color: StrandPalette.metricAmber.opacity(closing && !still ? 0.8 : 0), radius: 10)
+                    .animation(still ? nil : .linear(duration: 1), value: left)
                 VStack(spacing: 4) {
                     Text(ActiveWorkoutClock.clock(left))
                         .font(StrandFont.rounded(68, weight: .heavy))
                         .tracking(-2)
-                        .foregroundStyle(StrandPalette.textPrimary)
+                        .foregroundStyle(closing ? StrandPalette.metricAmber : StrandPalette.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+                        .scaleEffect(closing && !still ? 1.06 : 1)
+                        .animation(still ? nil : .easeOut(duration: 0.3), value: left)
                     Text(String(localized: "out of \(LiftFormat.duration(total))"))
                         .font(StrandFont.rounded(13, weight: .regular))
                         .foregroundStyle(StrandPalette.textSecondary)
@@ -739,6 +750,8 @@ struct LiftRestRing: View {
                 .padding(.horizontal, 24)
             }
             .padding(6)
+            .strandHaptic(.selection, trigger: left, when: { $0 > 0 && $0 <= 3 })
+            .strandHaptic(.medium, trigger: left, when: { $0 == 0 })
         }
         .accessibilityElement(children: .combine)
     }

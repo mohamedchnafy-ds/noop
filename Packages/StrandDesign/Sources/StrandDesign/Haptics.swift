@@ -18,6 +18,8 @@ public enum StrandHaptic {
     case commit      // a primary action succeeded (save workout, finish interval)
     case success     // a meaningful milestone (bond success, breathe session done)
     case warning     // a soft "not allowed / invalid"
+    case medium      // the end of a rest (fork chantier 12)
+    case heavy       // a record, the « Go » of a countdown (fork chantier 12)
 
     #if os(watchOS)
     // watchOS has no UIKit feedback generators; the Taptic engine is driven through WatchKit's
@@ -31,6 +33,8 @@ public enum StrandHaptic {
         case .commit:    device.play(.success)
         case .success:   device.play(.success)
         case .warning:   device.play(.failure)
+        case .medium:    device.play(.directionUp)
+        case .heavy:     device.play(.success)
         }
     }
     #elseif canImport(UIKit)
@@ -43,6 +47,8 @@ public enum StrandHaptic {
         case .commit:    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
         case .success:   UINotificationFeedbackGenerator().notificationOccurred(.success)
         case .warning:   UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        case .medium:    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        case .heavy:     UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         }
     }
     #endif
@@ -73,6 +79,23 @@ public extension View {
     }
 }
 
+public extension View {
+    /// Declarative haptic fired when `trigger` changes TO a value `condition` accepts (iOS 17+
+    /// `.sensoryFeedback`; no-op below / on macOS). For a countdown: a tick on each of the last three
+    /// seconds, a stronger tap at zero (fork chantier 12).
+    @ViewBuilder
+    func strandHaptic<V: Equatable>(_ haptic: StrandHaptic, trigger: V,
+                                    when condition: @escaping (V) -> Bool) -> some View {
+        #if os(iOS)
+        if #available(iOS 17.0, *) {
+            self.sensoryFeedback(trigger: trigger) { _, newValue in condition(newValue) ? haptic.sensory : nil }
+        } else { self }
+        #else
+        self
+        #endif
+    }
+}
+
 #if os(iOS)
 @available(iOS 17.0, *)
 private extension StrandHaptic {
@@ -83,6 +106,8 @@ private extension StrandHaptic {
         case .commit:    return .impact(weight: .heavy)
         case .success:   return .success
         case .warning:   return .warning
+        case .medium:    return .impact(weight: .medium)
+        case .heavy:     return .impact(weight: .heavy)
         }
     }
 }

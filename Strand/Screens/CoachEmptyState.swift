@@ -34,11 +34,16 @@ struct CoachEmptyState: View {
     let onBrief: () -> Void
     let onShowData: () -> Void
 
+    /// Fork chantier 12: the sparkles bounce once as the empty screen appears.
+    @State private var greeted = false
+
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "sparkles")
                 .font(.system(size: 40, weight: .semibold))
                 .foregroundStyle(StrandPalette.macroProtein)
+                .noopSymbolBounce(greeted)
+                .onAppear { greeted = true }
                 .accessibilityHidden(true)
             greeting
                 .font(StrandFont.title2.weight(.bold))

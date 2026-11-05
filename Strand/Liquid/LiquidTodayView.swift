@@ -190,6 +190,9 @@ struct LiquidTodayView: View {
     /// Flips true once the first load() completes. Until then the hero gauges + sky render STATIC so the
     /// launch data-churn (refresh publish + BLE/HR notifies) isn't fighting 4 live canvases + CoreMotion.
     @State private var dataLoaded = false
+    /// Fork chantier 12: the blocks cascade in on the first Today of this launch only.
+    @State private var cascadeEntrance = !NoopLaunchOnce.hasPlayed(LiquidTodayView.cascadeKey)
+    static let cascadeKey = "today.cascade"
 
     // Custom liquid pull-to-refresh: a vessel that FILLS as you drag, releases into a refresh (replaces
     // the system spinner). Driven by the scroll's top overscroll offset.
@@ -383,6 +386,7 @@ struct LiquidTodayView: View {
                     // byte-identical "today.sectionOrder" key Android uses. A gated-off Start-session renders
                     // nothing and keeps its slot in the saved order.
                     ForEach(sectionOrder) { section in
+                        Group {
                         switch section {
                         case .hero:
                             heroCard
@@ -411,6 +415,10 @@ struct LiquidTodayView: View {
                         // Today-only, matching Android's addedCards section gate + the classic TodayView.
                         case .addedCards: if selectedDayOffset == 0 { hostedCardsSection }
                         }
+                        }
+                        // Fork chantier 12: the blocks rise in one after the other, once per launch.
+                        .staggeredAppear(index: sectionOrder.firstIndex(of: section) ?? 0,
+                                         isVisible: cascadeEntrance)
                     }
                     // Opt-in "looks like a workout?" suggestion, dropped in the liquid Home rewrite. Its
                     // Settings toggle (PuffinExperiment.autoDetectWorkoutsKey) had no visible effect on the
@@ -710,7 +718,8 @@ struct LiquidTodayView: View {
             hrv: hrvGauge,
             sourceLabel: heroSourceLabel,
             nutrition: nutritionLine,
-            caloriesRoute: .metricSourced(key: caloriesDetailKey, source: caloriesDetailSource))
+            caloriesRoute: .metricSourced(key: caloriesDetailKey, source: caloriesDetailSource),
+            goalDayKey: selectedDayOffset == 0 ? selectedDayKey : nil)
     }
 
     /// The Nutrition line under the half-gauges: the selected day's meals against the calories the gauge
@@ -727,6 +736,9 @@ struct LiquidTodayView: View {
 
     private var heroCard: some View {
         TodayHeroCard(model: heroModel, animated: dataLoaded, surfaceOpacity: cardOpacity) { guideSection = $0 }
+            // Fork chantier 12: another day slides in from its side while the rings and numbers move.
+            .noopDaySlide(selectedDayOffset)
+            .onAppear { NoopLaunchOnce.markPlayed(Self.cascadeKey) }
             // The meals alone, so a meal logged elsewhere refreshes the Nutrition line without a full reload.
             .task(id: "\(selectedDayKey)-\(mealRevision)-\(repo.refreshSeq)") { await loadDayMeals() }
     }
@@ -757,7 +769,7 @@ struct LiquidTodayView: View {
     // MARK: - Stress (fork chantier 9)
 
     private var stressSection: some View {
-        TodayStressCard(model: stressModel, isToday: selectedDayOffset == 0)
+        TodayStressCard(model: stressModel, isToday: selectedDayOffset == 0, animated: dataLoaded)
             .background {
                 // The card is a chart too: a horizontal drag on it must not change the day.
                 GeometryReader { geometry in
@@ -1287,7 +1299,11 @@ struct LiquidTodayView: View {
                 spacing: NoopMetrics.gap
             ) {
                 ForEach(shown) { spec in
+                    // Fork chantier 12: the tiles « All » brings back rise in one after the other.
                     ktile(spec)
+                        .softCardTransition()
+                        .staggeredAppear(index: shown.firstIndex(where: { $0.id == spec.id }) ?? 0,
+                                         isVisible: showsAllTiles && Self.isNoValue(spec.value))
                 }
             }
             if hiddenCount > 0, !keepsEmpty {

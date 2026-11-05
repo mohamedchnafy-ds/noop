@@ -41,5 +41,8 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - **Chantier 8** : code terminé, fiche `docs/fork/chantier-8-design.md` (choix de Mohamed et décisions prises pendant le chantier). Fusionnés : lots 1, 2a, 2b, 3 (#46 à #54), 4 (#55 planning, #57 écran de séance en cours), 5 (#58 corps cliquable), #59 virgule décimale. IPA unique construite : `build/chantier-8` = `main` ca02e9a. Reste : l'installer et valider sur le téléphone (liste « À tester » de la feuille de route).
 - Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 
+## Chantier suivant (préparé le 5 nov.)
+- **Chantier 12 — animations** : maquettes validées, fiche `docs/fork/chantier-12-animations.md` (choix, règles du mouvement, plan en 3 PR, prompt de démarrage). Se code dans une nouvelle conversation, avant Élan ; une seule IPA à la fin.
+
 ## Feuille de route (chargée à chaque session)
 @../../docs/fork/feuille-de-route.md

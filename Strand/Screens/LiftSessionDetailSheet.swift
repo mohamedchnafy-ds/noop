@@ -35,6 +35,9 @@ struct LiftSessionDetailSheet: View {
     @State private var editing = false
     /// Session RPE as stored now. The edit sheet can correct it, and the session load must follow.
     @State private var sessionRpe: Double?
+    /// Fork chantier 12, effect D: the bests before this session, from the one resolver (`LiftRecordBook`),
+    /// so a set that was a record says so here as it did in the session.
+    @State private var recordBook = LiftRecordBook.empty
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
@@ -286,6 +289,11 @@ struct LiftSessionDetailSheet: View {
 
             Spacer(minLength: 0)
 
+            if recordBook.liftRecordCheck(exercise: row.exercise, weightKg: row.weightKg, reps: row.reps,
+                                          isWarmup: row.isWarmup) {
+                NoopRecordBadge(label: Text("Record badge"), tint: StrandPalette.statusPositive, armed: false,
+                                launchKey: "lift.detail.record.\(row.id)")
+            }
             if let rpe = row.rpe {
                 Text(String(localized: "RPE \(LiftFormat.trim(rpe))"))
                     .font(StrandFont.caption)
@@ -433,6 +441,7 @@ struct LiftSessionDetailSheet: View {
     private func load() async {
         guard let store = await repo.storeHandle() else { sessionRpe = session.sessionRpe; loaded = true; return }
         sets = (try? await store.liftSets(sessionId: session.id)) ?? []
+        recordBook = await LiftRecordBook.loadLiftRecordBook(repo: repo, before: session.startTs)
         // Re-read rather than trusting the row this sheet was opened with: the edit sheet can change it.
         let stored = try? await store.liftSessions(deviceId: session.deviceId,
                                                    fromTs: session.startTs, toTs: session.startTs)

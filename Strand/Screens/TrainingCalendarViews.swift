@@ -372,6 +372,11 @@ struct TrainingWeekStrip: View {
 
     private static let radius = NoopVisualStyle.compactRadius
 
+    /// Fork chantier 12: the white pill of the chosen day slides to the next one picked.
+    @Namespace private var pill
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
     var body: some View {
         HStack(spacing: 6) {
             ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
@@ -390,8 +395,17 @@ struct TrainingWeekStrip: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 70)
-                    .background(selected ? StrandPalette.textPrimary : StrandPalette.surfaceRaised,
-                                in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+                    .background {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                                .fill(StrandPalette.surfaceRaised)
+                            if selected {
+                                RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                                    .fill(StrandPalette.textPrimary)
+                                    .matchedGeometryEffect(id: "chosen-day", in: pill)
+                            }
+                        }
+                    }
                     .overlay {
                         if day.isToday && !selected {
                             RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
@@ -403,6 +417,7 @@ struct TrainingWeekStrip: View {
                 .buttonStyle(.plain)
             }
         }
+        .animation(NoopMotion.gated(NoopMotion.card, reduced: motion.poseStill(reduceMotion)), value: selectedKey)
     }
 
     private func weekdayLabel(_ index: Int) -> String {

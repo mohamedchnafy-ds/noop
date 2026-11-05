@@ -25,6 +25,9 @@ struct TodaySynthesisCard: View {
     var rows: [TodaySynthesisRow]
     var surfaceOpacity: Double = 1
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
     var body: some View {
         // Fork chantier 7: one list card, no section head (as in the retained design).
         VStack(spacing: 0) {
@@ -80,11 +83,15 @@ struct TodaySynthesisCard: View {
                     .foregroundStyle(StrandPalette.accent)
                     .lineLimit(1)
             } else {
+                // Fork chantier 12: a debt or a bedtime that changes rolls its digits.
                 Text(row.value)
                     .font(StrandFont.rounded(17, weight: .semibold))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    .contentTransition(.numericText())
+                    .animation(NoopMotion.gated(NoopMotion.valueChange, reduced: motion.poseStill(reduceMotion)),
+                               value: row.value)
             }
             if linked && row.action == nil {
                 Image(systemName: "chevron.right")

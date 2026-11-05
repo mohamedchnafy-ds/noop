@@ -96,6 +96,8 @@ struct LiveView: View {
     /// Live workout mode (#238) — presents the full in-exercise screen while a manual workout is
     /// active. Auto-opens when a workout begins; closing just hides it (the workout keeps recording).
     @State private var showLiveWorkout = false
+    /// The sport picked, started by the live workout at the « Go » of its countdown (fork chantier 12).
+    @State private var pendingSport: String?
     @State private var showStartSport = false
     @State private var confirmingEndWorkout = false
 
@@ -171,14 +173,18 @@ struct LiveView: View {
         // Live workout mode (#238): open the in-exercise screen the moment a workout starts.
         .onChangeCompat(of: model.activeWorkout != nil) { active in if active { showLiveWorkout = true } }
         .sheet(isPresented: $showLiveWorkout) {
-            LiveWorkoutView(onClose: { showLiveWorkout = false })
+            LiveWorkoutView(onClose: { showLiveWorkout = false }, startingSport: pendingSport)
                 .environmentObject(model)
                 .environmentObject(live)
         }
         // Pick a named sport before starting (#519) — the live workout view then opens
         // off the activeWorkout change above, so no extra navigation is needed here.
         .workoutSelectionCover(isPresented: $showStartSport) {
-            StartWorkoutSheet { name in model.startWorkout(sport: name) }
+            // Fork chantier 12: the live workout starts it at the « Go » of its countdown.
+            StartWorkoutSheet { name in
+                pendingSport = name
+                showLiveWorkout = true
+            }
         }
         // Manual HRV snapshot (#127) — a still, seated 60s R-R reading.
         .sheet(isPresented: $showHRVSnapshot) {

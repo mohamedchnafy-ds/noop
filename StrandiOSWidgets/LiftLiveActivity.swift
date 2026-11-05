@@ -234,7 +234,9 @@ struct LiftLiveActivity: Widget {
                 // was first reported.
                 VStack(alignment: .trailing, spacing: 2) {
                     Label {
-                        Text(state.bpm.map(String.init) ?? "—").monospacedDigit()
+                        Text(state.bpm.map(String.init) ?? "—")
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
                     } icon: {
                         Image(systemName: "heart.fill")
                     }
@@ -254,12 +256,30 @@ struct LiftLiveActivity: Widget {
                         }
                 }
             }
+            // Fork chantier 12: the rest as a bar that empties by itself, from the same dates as the clock.
+            restBar(state)
             // Done / skip, +30 s, pause — or resume (personal fork). Below the words, so they keep the width.
             buttonRow(state, compact: false)
         }
         .padding(.vertical, 14)
         .padding(.leading, 10)
         .padding(.trailing, 12)
+    }
+
+    /// Fork chantier 12: a running rest as a bar emptying by itself, `ProgressView(timerInterval:)` over the
+    /// clock's own dates (a Live Activity cannot animate on a clock of its own). Nothing outside a rest, nor
+    /// while paused or once the rest is over: the clock then says it.
+    @ViewBuilder
+    private func restBar(_ state: LiftActivityAttributes.ContentState) -> some View {
+        if let ends = state.restEndsAt, ends > state.stageStartedAt, state.pausedAt == nil {
+            ProgressView(timerInterval: state.stageStartedAt...ends, countsDown: true) {
+                EmptyView()
+            } currentValueLabel: {
+                EmptyView()
+            }
+            .progressViewStyle(.linear)
+            .tint(StrandPalette.metricAmber)
+        }
     }
 
     /// Counts DOWN through a rest (the number you act on) and UP through a set, both self-ticking.

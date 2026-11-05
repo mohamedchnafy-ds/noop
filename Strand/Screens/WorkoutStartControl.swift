@@ -18,6 +18,8 @@ struct WorkoutStartControl: View {
     @EnvironmentObject var model: AppModel
     @State private var showLiveWorkout = false
     @State private var showStartSport = false
+    /// The sport picked, started by the live workout at the « Go » of its countdown (fork chantier 12).
+    @State private var pendingSport: String?
 
     var body: some View {
         NoopButton(model.activeWorkout == nil ? "Start workout" : "View active workout",
@@ -33,7 +35,7 @@ struct WorkoutStartControl: View {
         // #459: the in-exercise view, presented when Start Workout is tapped here (same screen LiveView
         // shows). activeWorkout is global on AppModel, so ending it from either surface stays in sync.
         .sheet(isPresented: $showLiveWorkout) {
-            LiveWorkoutView(onClose: { showLiveWorkout = false })
+            LiveWorkoutView(onClose: { showLiveWorkout = false }, startingSport: pendingSport)
                 // Inject the shared live snapshot so the in-exercise sensor readout (speed/cadence/power)
                 // resolves here too, matching how LiveView presents the same screen.
                 .environmentObject(model.live)
@@ -42,7 +44,7 @@ struct WorkoutStartControl: View {
         // (same direct present as the button's already-active path — no cross-view auto-present race).
         .workoutSelectionCover(isPresented: $showStartSport) {
             StartWorkoutSheet { name in
-                model.startWorkout(sport: name)
+                pendingSport = name
                 showLiveWorkout = true
             }
         }

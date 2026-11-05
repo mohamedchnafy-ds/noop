@@ -88,12 +88,15 @@ final class NutritionGoalsTests: XCTestCase {
         XCTAssertFalse(plan.isBelowBasal)
         XCTAssertFalse(plan.isTyped)
         XCTAssertEqual(plan.proteinG, 224)
-        XCTAssertEqual(plan.fatG, 112)
-        XCTAssertEqual(plan.carbsG, 139)             // (2 460 − 896 − 1 008) ÷ 4
+        // 896 + 1 008 kcal would leave carbohydrates 23 % (< 25 %): the fat comes down to (1 845 − 896) ÷ 9.
+        XCTAssertEqual(plan.fatG, 105)
+        XCTAssertEqual(plan.carbsG, 155)             // (2 460 − 896 − 945) ÷ 4 = 154.75
         XCTAssertEqual(plan.proteinKcal, 896)
-        XCTAssertEqual(plan.fatKcal, 1_008)
-        XCTAssertEqual(plan.carbsKcal, 556)
+        XCTAssertEqual(plan.fatKcal, 945)
+        XCTAssertEqual(plan.carbsKcal, 620)
         XCTAssertEqual(plan.shareOfIntake(plan.proteinKcal), 36)
+        XCTAssertFalse(plan.proteinCapped)
+        XCTAssertTrue(plan.fatLowered)
     }
 
     func testEveryLevelMultipliesTheBasalRate() {
@@ -135,12 +138,32 @@ final class NutritionGoalsTests: XCTestCase {
         XCTAssertFalse(typed.isBelowBasal, "2 250 is over 2 238.267")
     }
 
-    func testCarbsNeverGoNegative() {
+    func testCarbsKeepAQuarterOfTheGoal() {
         let plan = NutritionGoals.intakePlan(body: NutritionGoals.Body(sex: "male", weightKg: 100, heightCm: 180, age: 30),
                                              settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 1_000,
                                                                                proteinTenths: 30, fatTenths: 20))
         XCTAssertEqual(plan.intakeKcal, 1_000)
-        XCTAssertEqual(plan.carbsG, 0)
+        XCTAssertEqual(plan.proteinG, 100)           // 40 % of 1 000 ÷ 4, not 300
+        XCTAssertEqual(plan.fatG, 38)                // (750 − 400) ÷ 9, not 200
+        XCTAssertEqual(plan.carbsG, 65)              // (1 000 − 400 − 342) ÷ 4 = 64.5
+        XCTAssertTrue(plan.proteinCapped)
+        XCTAssertTrue(plan.fatLowered)
+    }
+
+    /// 5 Nov.: 112 kg, 1 900 kcal, 2.0 and 1.0 g/kg read « Carbohydrates 117/0 g ».
+    func testAHeavyBodyOnALowGoalStillGetsCarbs() {
+        let plan = NutritionGoals.intakePlan(body: mockupBody,
+                                             settings: NutritionGoals.Settings(mode: .kcal, manualKcal: 1_900))
+        XCTAssertEqual(plan.proteinG, 190)           // 760 kcal, 40 %
+        XCTAssertEqual(plan.fatG, 73)                // (1 425 − 760) ÷ 9
+        XCTAssertEqual(plan.carbsG, 121)             // (1 900 − 760 − 657) ÷ 4 = 120.75
+        XCTAssertGreaterThanOrEqual(plan.carbsKcal * 4, plan.intakeKcal - 4)
+        // A plan well inside the bounds is the grams per kilogram as asked.
+        let easy = NutritionGoals.macroSplit(intakeKcal: 2_000, proteinG: 140, fatG: 70)
+        XCTAssertEqual(easy.proteinG, 140)
+        XCTAssertEqual(easy.fatG, 70)
+        XCTAssertEqual(easy.carbsG, 203)
+        XCTAssertFalse(easy.proteinCapped || easy.fatLowered)
     }
 
     func testStoredSettingsAreBroughtBackIntoRange() {

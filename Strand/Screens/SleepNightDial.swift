@@ -72,8 +72,9 @@ struct SleepNightDial: View {
     let asleepMinutes: Double
     /// Kept for the call sites; the night photo is gone (fork chantier 7), the ring always sits on a card.
     var onScene: Bool = false
-    /// The ring's own size on the 260-point design; the hour labels add a margin around it.
-    var diameter: CGFloat = 260
+    /// The ring's own size on the 260-point design; the hour labels add a margin around it. 250 by default
+    /// so the ring and its clock labels still fit a 375-point-wide phone's card.
+    var diameter: CGFloat = 250
     /// The stage picked on the ring, its legend or the phases chart below (one shared selection): only
     /// that stage stays lit and the centre shows its total.
     var selected: SleepStage? = nil
@@ -86,8 +87,8 @@ struct SleepNightDial: View {
     /// Track radii on the 260-point design, outermost (awake) first.
     private let trackRadii: [CGFloat] = [114, 100, 86, 72]
     private let lineWidth: CGFloat = 10
-    /// Room around the ring for the hour ticks and labels.
-    private let labelMargin: CGFloat = 22
+    /// Room around the ring for the hour ticks and their clock labels (« 03:00 »).
+    private let labelMargin: CGFloat = 30
     private var scale: CGFloat { diameter / 260 }
     private var frameSide: CGFloat { diameter + labelMargin * 2 }
 
@@ -160,12 +161,13 @@ struct SleepNightDial: View {
         }
     }
 
-    /// Every whole hour of the night as a tick outside the ring, with its label (« 3h ») unless the hour
-    /// falls right by the bedtime or wake-time badge, whose exact times are labelled instead.
+    /// Every whole hour of the night as a tick outside the ring, labelled with its clock time (« 03:00 »)
+    /// unless the hour falls right by the bedtime or wake-time badge (5 Nov.: « 3h » read as a duration).
+    /// The exact bed and wake times are written once, in the row under the ring, not under the badges.
     private func drawHours(_ ctx: GraphicsContext, center c: CGPoint, hours: [(hour: Int, seconds: TimeInterval)],
                            night: TimeInterval) {
         let outer = trackRadii[0] * scale + lineWidth * scale / 2
-        let labelRadius = outer + 13
+        let f = AppClock.hourMinuteFormatter()
         for mark in hours {
             let a = SleepNightRingMath.angle(seconds: mark.seconds, night: night)
             var tick = Path()
@@ -174,19 +176,15 @@ struct SleepNightDial: View {
             ctx.stroke(tick, with: .color(StrandPalette.textSecondary.opacity(0.8)), lineWidth: 1.5)
             let nearBadge = mark.seconds < night * 0.06 || mark.seconds > night * 0.94
             if !nearBadge {
-                let text = ctx.resolve(Text(String(localized: "\(mark.hour)h"))
+                let text = ctx.resolve(Text(f.string(from: onset.addingTimeInterval(mark.seconds)))
                     .font(StrandFont.caption2.weight(.medium)).foregroundColor(StrandPalette.textSecondary))
-                ctx.draw(text, at: point(c, labelRadius, a), anchor: .center)
+                // Pushed out by half the label's own extent along the radius, so the tick never touches it
+                // (it read as a minus sign: « -5h »).
+                let size = text.measure(in: CGSize(width: 200, height: 50))
+                let radians = a * .pi / 180
+                let along = CGFloat(abs(sin(radians))) * size.width / 2 + CGFloat(abs(cos(radians))) * size.height / 2
+                ctx.draw(text, at: point(c, outer + 9 + along, a), anchor: .center)
             }
-        }
-        let f = AppClock.hourMinuteFormatter()
-        for (seconds, date) in [(TimeInterval(0), onset), (night, onset.addingTimeInterval(night))] {
-            let a = SleepNightRingMath.angle(seconds: seconds, night: night)
-            let text = ctx.resolve(Text(f.string(from: date))
-                .font(StrandFont.rounded(17, weight: .bold)).foregroundColor(StrandPalette.textPrimary))
-            // Written right under its badge, so each time stays attached to its own end of the night.
-            let badge = point(c, trackRadii[0] * scale, a)
-            ctx.draw(text, at: CGPoint(x: badge.x, y: badge.y + 16 + 10 * scale), anchor: .top)
         }
     }
 

@@ -30,7 +30,7 @@ struct TodayCustomizationExclusions {
         sections: TodayLayoutPrefs.liquidRemovedSections,
         keyMetrics: LiquidTodayDuplicates.keyMetrics,
         cards: LiquidTodayDuplicates.cards,
-        resetOrder: TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV3Order(""))
+        resetOrder: TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidDefaultOrderRaw)
     )
 }
 

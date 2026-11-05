@@ -192,7 +192,8 @@ struct TodayEnergyBar: View {
 }
 
 /// A nightly vital's bar: the personal normal band (translucent) and a dot where last night sits, between
-/// the lowest and highest of the last 30 nights.
+/// the lowest and highest of the last 30 nights. The dot takes the tile's colour inside the normal band and
+/// the warning colour outside it, the same rule for resting HR and HRV (5 Nov.).
 struct TodayRangeBar: View {
     var gauge: TodayVitalRange.Gauge?
     var tint: Color
@@ -218,7 +219,7 @@ struct TodayRangeBar: View {
             }
             if let dotX {
                 Circle()
-                    .fill(tint)
+                    .fill(gauge?.isOutsideNormal == true ? StrandPalette.statusWarning : tint)
                     .frame(width: 10, height: 10)
                     .offset(x: min(max(0, dotX - 5), max(0, width - 10)))
             }

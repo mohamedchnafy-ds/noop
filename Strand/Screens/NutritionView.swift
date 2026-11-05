@@ -242,22 +242,21 @@ struct NutritionView: View {
                 }
                 MoreAvatarButton()
             }
-            HStack(spacing: 8) {
-                journalHeaderButton(symbol: "chevron.left", label: "Previous day", enabled: dayOffset < Self.maxDaysBack) {
-                    dayOffset += 1
-                }
-                Text(verbatim: dayLabel)
-                    .font(StrandFont.subhead.weight(.semibold))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity)
-                journalHeaderButton(symbol: "chevron.right", label: "Next day", enabled: dayOffset > 0) {
-                    dayOffset -= 1
-                }
-            }
+            // The same day picker as Sleep's night picker (5 Nov.).
+            DayPickerRow(caption: dayCaption, title: NutritionFormat.longDay(day),
+                         canGoBack: dayOffset < Self.maxDaysBack, canGoForward: dayOffset > 0,
+                         onBack: { dayOffset += 1 }, onForward: { dayOffset -= 1 })
         }
         .padding(.top, 8)
+    }
+
+    /// « Today » / « Yesterday » over the date in the day picker; nil further back.
+    private var dayCaption: String? {
+        switch dayOffset {
+        case 0: return String(localized: "Today")
+        case 1: return String(localized: "Yesterday")
+        default: return nil
+        }
     }
 
     /// Fork chantier 7: the day in 13 semibold grey capitals over the title in 34 bold; ‹ › and the goals
@@ -590,21 +589,30 @@ struct NutritionBalanceCard: View {
         let left = model.goalKcal.map { NutritionFormat.whole(max(0, $0 - model.eaten.kcal)) }
         let spent = model.spentKcal.map(NutritionFormat.whole)
         let net = model.balanceKcal.map(NutritionFormat.signedKcal)
-        return HStack(spacing: 12) {
+        // Each figure under its name, like the macros above, so « Spent 2 713 » is never cut (5 Nov.).
+        return HStack(alignment: .top, spacing: 12) {
             figure("Left", value: left, tint: StrandPalette.intakeColor)
             figure("Spent", value: spent, tint: StrandPalette.caloriesActivity)
             figure("Net", value: net, tint: StrandPalette.textPrimary)
         }
-        .font(StrandFont.footnote)
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
     }
 
     private func figure(_ title: LocalizedStringKey, value: String?, tint: Color) -> some View {
-        (Text(title).foregroundColor(StrandPalette.textSecondary)
-            + Text(verbatim: " ")
-            + Text(verbatim: value ?? "\u{2014}").fontWeight(.bold).foregroundColor(value == nil ? StrandPalette.textSecondary : tint))
-            .monospacedDigit()
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(verbatim: value ?? "\u{2014}")
+                .font(StrandFont.footnote.weight(.bold))
+                .foregroundStyle(value == nil ? StrandPalette.textSecondary : tint)
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 

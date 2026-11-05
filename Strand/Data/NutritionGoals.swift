@@ -13,6 +13,10 @@ import Foundation
 // - Intake goal: the daily expenditure × (1 + the goal percentage), rounded to 10 kcal, or the kcal the
 //   wearer typed (in steps of 50), which then no longer moves with the weight or the activity.
 // - Protein and fat: grams per kilogram of body weight; carbohydrates: the energy that is left, ÷ 4.
+//   Grams per kilogram of TOTAL weight overshoot on a heavy body: at 112 kg and 1 900 kcal, 2.0 g/kg of
+//   protein and 1.0 g/kg of fat filled the whole goal and left « 0 g » of carbohydrates (5 Nov.). So the
+//   protein is held to `proteinMaxShare` of the goal, and when protein and fat still leave carbohydrates
+//   less than `carbsMinShare`, the fat comes down first, never under `fatMinShare` (then the protein).
 //
 // `NutritionDayReader.currentPlan` is the one resolver every reader goes through (Nutrition, its rings,
 // the history, the widget, the Coach); the Goals screen calls `intakePlan` with the same settings.
@@ -45,6 +49,11 @@ enum NutritionGoals {
     /// The starting percentage of each preset: Lose, Maintain, Gain.
     static let losePresetPercent = -20
     static let gainPresetPercent = 10
+    /// The shares of the intake goal (in kcal) that bound the split: protein at most 40 %, carbohydrates
+    /// at least 25 %, fat lowered for them but never under 20 %.
+    static let proteinMaxShare = 0.40
+    static let carbsMinShare = 0.25
+    static let fatMinShare = 0.20
     /// The typed goal moves by this much, within this range.
     static let manualKcalStep = 50
     static let manualKcalRange = 1_000...6_000
@@ -217,6 +226,10 @@ enum NutritionGoals {
         let fatG: Int
         /// The energy left after protein and fat, ÷ 4; never below 0.
         let carbsG: Int
+        /// The protein was held to `proteinMaxShare` of the goal, under its grams per kilogram.
+        var proteinCapped: Bool = false
+        /// The fat was lowered under its grams per kilogram so the carbohydrates keep `carbsMinShare`.
+        var fatLowered: Bool = false
 
         var proteinKcal: Int { 4 * proteinG }
         var fatKcal: Int { 9 * fatG }
@@ -249,12 +262,38 @@ enum NutritionGoals {
         let expenditure = basal * settings.activity.factor
         let typed = settings.mode == .kcal && settings.manualKcal > 0
         let intake = typed ? settings.manualKcal : intakeKcal(expenditure: expenditure, goalPercent: settings.goalPercent)
-        let protein = gramsFromTenths(tenthsPerKg: settings.proteinTenths, weightKg: body.weightKg)
-        let fat = gramsFromTenths(tenthsPerKg: settings.fatTenths, weightKg: body.weightKg)
-        let carbs = max(0, Int((Double(intake - 4 * protein - 9 * fat) / 4).rounded()))
+        let split = macroSplit(intakeKcal: intake,
+                               proteinG: gramsFromTenths(tenthsPerKg: settings.proteinTenths, weightKg: body.weightKg),
+                               fatG: gramsFromTenths(tenthsPerKg: settings.fatTenths, weightKg: body.weightKg))
         return Plan(settings: settings, basalKcal: Int(basal.rounded()), expenditureKcal: Int(expenditure.rounded()),
                     intakeKcal: intake, isBelowBasal: Double(intake) < basal,
-                    proteinG: protein, fatG: fat, carbsG: carbs)
+                    proteinG: split.proteinG, fatG: split.fatG, carbsG: split.carbsG,
+                    proteinCapped: split.proteinCapped, fatLowered: split.fatLowered)
+    }
+
+    /// The grams of each macro for an intake goal, from the grams per kilogram asked: protein held to
+    /// `proteinMaxShare`, then fat lowered (down to `fatMinShare`, then protein) until the carbohydrates
+    /// keep `carbsMinShare`. Grams are rounded down when bounded, so a bound is never overshot.
+    static func macroSplit(intakeKcal: Int, proteinG asked: Int, fatG askedFat: Int)
+        -> (proteinG: Int, fatG: Int, carbsG: Int, proteinCapped: Bool, fatLowered: Bool) {
+        let intake = Double(max(intakeKcal, 0))
+        var protein = asked
+        var fat = askedFat
+        let proteinMax = Int(intake * proteinMaxShare / 4)
+        let proteinCapped = protein > proteinMax
+        if proteinCapped { protein = proteinMax }
+        let budget = intake * (1 - carbsMinShare)
+        var fatLowered = false
+        if Double(4 * protein + 9 * fat) > budget {
+            let fatFloor = min(fat, Int(intake * fatMinShare / 9))
+            fat = max(fatFloor, Int((budget - Double(4 * protein)) / 9))
+            fatLowered = fat < askedFat
+            if Double(4 * protein + 9 * fat) > budget {
+                protein = max(0, Int((budget - Double(9 * fat)) / 4))
+            }
+        }
+        let carbs = max(0, Int(((intake - Double(4 * protein + 9 * fat)) / 4).rounded()))
+        return (protein, fat, carbs, proteinCapped || protein < asked, fatLowered)
     }
 
     /// A stored setting brought back into its range (an unset key reads 0, which means the default).

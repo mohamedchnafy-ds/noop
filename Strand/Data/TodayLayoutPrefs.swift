@@ -192,6 +192,29 @@ extension TodayLayoutPrefs {
     }
 }
 
+// MARK: - Liquid Today, layout v4 (personal fork, 5 Nov.)
+//
+// Heart rate moves above Synthesis: rings → heart rate → Synthesis → stress → Metrics. Applied once on top of
+// v3, and it moves heart rate only, so any other rearrangement the wearer made is kept.
+
+extension TodayLayoutPrefs {
+    /// Set once the saved order has been moved to the v4 layout.
+    static let liquidLayoutV4Key = "today.liquidLayoutV4"
+
+    /// `raw` with Heart Rate directly above Synthesis (under the hero when Synthesis is absent), every other
+    /// section keeping its place.
+    static func liquidV4Order(_ raw: String) -> String {
+        var order = decodeOrder(raw)
+        order.removeAll { $0 == .heartRate }
+        let at = order.firstIndex(of: .synthesis) ?? order.firstIndex(of: .hero).map { $0 + 1 } ?? 0
+        order.insert(.heartRate, at: at)
+        return encode(order)
+    }
+
+    /// The order a wearer who never rearranged Today sees, and what « Reset » in Customize Today restores.
+    static var liquidDefaultOrderRaw: String { liquidV4Order(liquidV3Order("")) }
+}
+
 /// The blocks that left the Liquid Today in chantier 9, each still at its new home, and which the wearer
 /// can put back under the Metrics from « Customize Today ». Off by default. iPhone display preference only:
 /// stored on the device under `storageKey`, outside the `.noopbak` whitelist, with no Android twin.

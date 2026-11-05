@@ -134,6 +134,19 @@ final class TodayLayoutPrefsTests: XCTestCase {
         XCTAssertEqual(Array(visible.prefix(5)), [.hero, .synthesis, .heartRate, .stress, .keyMetrics])
     }
 
+    func testLayoutV4PutsHeartRateAboveSynthesisAndKeepsTheRest() {
+        let fresh = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidDefaultOrderRaw)
+        XCTAssertEqual(Array(fresh.prefix(5)), [.hero, .heartRate, .synthesis, .stress, .keyMetrics])
+        XCTAssertEqual(Set(fresh), Set(TodaySection.allCases))
+        // A wearer's own v3 rearrangement keeps every other section where it was.
+        let own = "hero,keyMetrics,synthesis,stress,heartRate,journal"
+        let named: Set<TodaySection> = [.hero, .keyMetrics, .synthesis, .stress, .heartRate, .journal]
+        let moved = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV4Order(own)).filter { named.contains($0) }
+        XCTAssertEqual(moved, [.hero, .keyMetrics, .heartRate, .synthesis, .stress, .journal])
+        let visible = TodayLayoutPrefs.liquidVisibleOrder(orderRaw: TodayLayoutPrefs.liquidDefaultOrderRaw, hiddenRaw: "")
+        XCTAssertEqual(Array(visible.prefix(5)), [.hero, .heartRate, .synthesis, .stress, .keyMetrics])
+    }
+
     func testRestoredBlocksAreOffByDefaultAndRoundTrip() {
         XCTAssertTrue(TodayRestoredBlock.decode("").isEmpty)
         let set = TodayRestoredBlock.decode("workouts,BOGUS,fitnessAge,workouts")

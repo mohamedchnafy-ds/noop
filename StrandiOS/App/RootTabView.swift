@@ -57,9 +57,9 @@ struct RootTabView: View {
     /// the last tab without renumbering the others.
     private enum TabTag {
         static let today = 0
-        static let training = 1
+        static let sleep = 1
         static let nutrition = 2
-        static let sleep = 3
+        static let training = 3
         static let coach = 4
     }
 
@@ -144,7 +144,7 @@ struct RootTabView: View {
                 guard selectedTab != TabTag.today else { return }
                 let dx = v.translation.width, dy = v.translation.height
                 guard abs(dx) > 60, abs(dx) > abs(dy) * 1.6 else { return }
-                let last = coachEnabled ? TabTag.coach : TabTag.sleep
+                let last = coachEnabled ? TabTag.coach : TabTag.training
                 let next = min(last, max(0, selectedTab + (dx < 0 ? 1 : -1)))
                 if next != selectedTab {
                     withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = next }
@@ -159,10 +159,11 @@ struct RootTabView: View {
         TabView(selection: nativeTabSelection) {
             tab(todayTabRoot, "Today", "square.grid.2x2", tag: TabTag.today)
             // Fork chantier 9: Training and Nutrition left the More list for tabs of their own; Trends
-            // moved the other way, to the head of More → Analysis.
-            tab(LiftLogView(), "Training", "dumbbell", tag: TabTag.training)
-            tab(NutritionView(), "Nutrition", "fork.knife", tag: TabTag.nutrition)
+            // moved the other way, to the head of More → Analysis. Order chosen on 5 Nov.: Today, Sleep,
+            // Nutrition, Training, then Coach. The tags follow the same order, so the tab swipe does too.
             tab(SleepView(), "Sleep", "bed.double", tag: TabTag.sleep)
+            tab(NutritionView(), "Nutrition", "fork.knife", tag: TabTag.nutrition)
+            tab(LiftLogView(), "Training", "dumbbell", tag: TabTag.training)
             // K3: Coach is a top-level tab. Conditional on the master switch; it is the LAST tab, so its
             // absence renumbers nothing.
             if coachEnabled {
@@ -523,6 +524,16 @@ struct RootTabView: View {
                 .environment(\.showsMoreAvatar, true)
                 .environment(\.tabRouteSwitch, routeSwitch)
                 .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                // The status bar's own backdrop (5 Nov.): with the navigation bar hidden, a scrolled page
+                // ran under the clock (the Nutrition title, the « Syncing strap history » pill). A
+                // zero-height strip at the top of the safe area whose background fills the status bar.
+                .overlay(alignment: .top) {
+                    Color.clear
+                        .frame(height: 0)
+                        .background(StrandPalette.surfaceBase, ignoresSafeAreaEdges: .top)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 .toolbar(.hidden, for: .navigationBar)
                 .tabRouteDestinations()
         }

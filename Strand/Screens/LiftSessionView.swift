@@ -54,6 +54,11 @@ struct LiftSessionView: View {
     @State private var showingList = false
     /// Personal fork: each exercise's sets from its last session, for a superset's "Last time" line.
     @State private var lastRows: [String: [LiftSetRow]] = [:]
+    /// Fork chantier 12: the bests of the finished sessions before this one (`LiftRecordBook`, the one
+    /// resolver), so a set that beats them shows « Record ».
+    @State private var recordBook = LiftRecordBook.empty
+    /// The scoreboard shown between the save and the sheet closing (fork chantier 12); nil when closed.
+    @State private var scoreboard: LiftScoreboardFigures?
     /// Personal fork: program lines whose rest this session changed, read with the set counts.
     @State private var restChanges: [LiftSessionController.RestChange] = []
     /// Supersets et blocs: the sheet shows the blocks alone, with arrows to change today's order.
@@ -124,6 +129,10 @@ struct LiftSessionView: View {
         // Re-read whenever the session's exercises change, so an exercise added mid-session that was
         // done before shows last time's numbers in grey, like every other line.
         .task(id: engine?.plan.map(\.exercise)) { await loadLastTime() }
+        .task(id: engine?.startTs) {
+            guard let start = engine?.startTs else { return }
+            recordBook = await LiftRecordBook.loadLiftRecordBook(repo: repo, before: start)
+        }
         // Release a field's draft once the user leaves it, so the row returns to the canonical
         // formatting ("45.50" typed becomes "45.5"). The single-argument form on purpose: the
         // two-argument `onChange` is macOS 14+ and this file also builds for macOS 13.
@@ -782,6 +791,11 @@ struct LiftSessionView: View {
     private func setRow(_ engine: LiftSessionEngine, slot: LiftSlot, tag: String? = nil) -> some View {
         let recorded = engine.recordedSet(for: slot)
         let isWorking = engine.stage == .working(slot)
+        let isRecord = recorded.map {
+            recordBook.liftRecordCheck(exercise: engine.planItem(for: slot)?.exercise ?? "",
+                                       weightKg: $0.weightKg, reps: $0.reps, isWarmup: $0.isWarmup)
+        } ?? false
+        let recordKey = "lift.record.\(engine.startTs).\(slot.exerciseIndex).\(slot.setIndex)"
 
         return HStack(spacing: 8) {
             // The set number IS the warm-up toggle. Warm-ups are excluded from volume and from the
@@ -828,11 +842,14 @@ struct LiftSessionView: View {
             Button {
                 if recorded == nil { session.start(slot) } else { session.start(slot) }
             } label: {
+                // Fork chantier 12: a set ticked bounces its check with a light haptic.
                 Image(systemName: recorded == nil ? "circle" : "checkmark.circle.fill")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(recorded == nil
                                      ? StrandPalette.textTertiary
                                      : StrandPalette.statusPositive)
+                    .noopSymbolBounce(recorded != nil)
+                    .strandHaptic(.light, trigger: recorded != nil, when: { $0 })
             }
             .buttonStyle(.plain)
             .frame(width: Self.tickColumnWidth)
@@ -844,6 +861,15 @@ struct LiftSessionView: View {
         .padding(.horizontal, 8)
         .background(rowBackground(isWorking: isWorking, done: recorded != nil),
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        // Fork chantier 12, effect D: a record shines across its row and pins its badge.
+        .noopRecordShine(isRecord, launchKey: recordKey)
+        .overlay(alignment: .topTrailing) {
+            if isRecord {
+                NoopRecordBadge(label: Text("Record badge"), tint: StrandPalette.statusPositive, armed: true,
+                                launchKey: recordKey)
+                    .offset(x: 2, y: -9)
+            }
+        }
     }
 
     /// Warm-up state lives in the controller, so a mark survives the sheet being minimised and
@@ -1252,6 +1278,13 @@ struct LiftSessionView: View {
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
         .task { await loadSetCountChanges() }
+        // Fork chantier 12, effect F: the saved session as a scoreboard, before the sheet closes.
+        .overlay {
+            if let scoreboard {
+                LiftScoreboardView(figures: scoreboard, system: unitSystem) { self.scoreboard = nil }
+                    .transition(.opacity)
+            }
+        }
     }
 
     /// Sets never started. One choice covers all of them, because what matters at the end of a session
@@ -1457,6 +1490,12 @@ struct LiftSessionView: View {
             distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
         await repo.saveManualWorkout(workout)
 
+        // Fork chantier 12, effect F: the figures of what was just saved, and the records the one resolver
+        // finds in it, as a scoreboard; closed by a tap, or after four seconds.
+        scoreboard = LiftScoreboardFigures.liftScoreboard(
+            title: session.programName, seconds: engine.activeSeconds(until: endTs), rows: rows, book: recordBook)
+        await waitForScoreboard()
+
         let askCoach = askCoachAfterSave
         askCoachAfterSave = false
         await finishAndDismiss()
@@ -1468,6 +1507,15 @@ struct LiftSessionView: View {
                 sessionRpe: LiftFormat.number(sessionRpeText), sets: rows, system: unitSystem)
             router.openCoach()
         }
+    }
+
+    /// Waits until the scoreboard is closed by a tap, or four seconds at most.
+    private func waitForScoreboard() async {
+        for _ in 0..<40 {
+            guard scoreboard != nil else { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        scoreboard = nil
     }
 
     /// Close the session down and leave the sheet. Shared by the normal save and the nothing-to-file

@@ -62,13 +62,22 @@ struct SleepTopSection: View {
     var canShowFullScreen: Bool
     var fullScreen: Binding<Bool>
 
+    /// Fork chantier 12: the ring traces itself (once per launch, and again for another night) and its centre
+    /// slams in; false draws everything at once (renders).
+    var animated: Bool
+
     @State private var nightView: NightView
     @State private var showsGuide = false
+    /// 0…1, rewound to 0 and run again when another night is shown.
+    @State private var retrace: Double = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
 
     init(data: Model, actions: Actions, selection: Binding<SleepStage?> = .constant(nil),
          curves: AnyView? = nil, canShowFullScreen: Bool = false, fullScreen: Binding<Bool> = .constant(false),
-         initialView: NightView = .ring) {
+         initialView: NightView = .ring, animated: Bool = false) {
         self.data = data
+        self.animated = animated
         self.actions = actions
         self.selection = selection
         self.curves = curves
@@ -114,32 +123,57 @@ struct SleepTopSection: View {
         VStack(spacing: NoopMetrics.space3) {
             cardHeader
             stageTotals
-            switch nightView {
-            case .ring:
-                SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
-                               palette: data.palette, needMinutes: data.needMinutes,
-                               score: data.score, scoreWord: data.scoreWord,
-                               asleepMinutes: data.asleepMinutes,
-                               selected: selection.wrappedValue,
-                               stageMinutes: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map { ($0, minutes($0)) }),
-                               stagePercent: data.stagePercent,
-                               onSelect: { select($0) })
-            case .curves:
-                if let curves {
-                    curves
-                } else {
-                    Text("No stage data recorded for this night.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(secondary)
-                        .frame(maxWidth: .infinity, minHeight: 80)
+            Group {
+                switch nightView {
+                case .ring:
+                    NoopFirstDraw(key: "sleep.dial", armed: animated) { phase in
+                        SleepNightDial(onset: data.onset, wake: data.wake, intervals: data.intervals,
+                                       palette: data.palette, needMinutes: data.needMinutes,
+                                       score: data.score, scoreWord: data.scoreWord,
+                                       asleepMinutes: data.asleepMinutes,
+                                       selected: selection.wrappedValue,
+                                       stageMinutes: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map { ($0, minutes($0)) }),
+                                       stagePercent: data.stagePercent,
+                                       onSelect: { select($0) },
+                                       trace: phase.drawn ? retrace : 0,
+                                       armed: animated)
+                            .animation(phase.motion(SleepNightDialMotion.trace), value: phase.drawn)
+                    }
+                    .transition(.opacity)
+                case .curves:
+                    Group {
+                        if let curves {
+                            curves
+                        } else {
+                            Text("No stage data recorded for this night.")
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(secondary)
+                                .frame(maxWidth: .infinity, minHeight: 80)
+                        }
+                    }
+                    .transition(.opacity)
                 }
             }
+            // Fork chantier 12: Ring ↔ Curves cross-fade.
+            .animation(NoopMotion.gated(NoopMotion.card, reduced: motion.poseStill(reduceMotion)), value: nightView)
+            .onChangeCompat(of: data.onset) { _ in retraceNight() }
             Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             timesRow
         }
         .padding(NoopMetrics.cardPadding)
         .frame(maxWidth: .infinity)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+    }
+
+    /// Another night (‹ ›, a bar of Your nights, « See this night »): the ring traces that night again.
+    private func retraceNight() {
+        guard animated, !motion.poseStill(reduceMotion) else { return }
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { retrace = 0 }
+        DispatchQueue.main.async {
+            withAnimation(SleepNightDialMotion.trace) { retrace = 1 }
+        }
     }
 
     // MARK: Parts
@@ -278,6 +312,9 @@ struct SleepTopSection: View {
             .foregroundStyle(primary)
             .monospacedDigit()
             .lineLimit(1)
+            .contentTransition(.numericText())
+            .animation(NoopMotion.gated(NoopMotion.valueChange, reduced: motion.poseStill(reduceMotion)),
+                       value: minutes)
         return Button { select(picked ? nil : stage) } label: {
             // The whole duration, never « 1h 2… » (5 Nov.): name and figure side by side when they fit,
             // else the figure under the name.
@@ -363,11 +400,15 @@ struct SleepTopSection: View {
             .foregroundStyle(tint)
             .frame(height: 16)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
+                // Fork chantier 12: a corrected time rolls to its new digits.
                 Text(value)
                     .font(StrandFont.rounded(22, weight: .bold))
                     .foregroundStyle(primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .contentTransition(.numericText())
+                    .animation(NoopMotion.gated(NoopMotion.valueChange, reduced: motion.poseStill(reduceMotion)),
+                               value: value)
                 if edited {
                     Image(systemName: "pencil")
                         .font(.system(size: 11, weight: .semibold))

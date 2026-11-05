@@ -49,6 +49,9 @@ struct NutritionView: View {
     @State private var scannerSlot: MealSlot?
     /// The moments unfolded to their meals (all folded at first).
     @State private var expandedSlots: Set<MealSlot> = []
+    /// Fork chantier 12: the moments unfold, meals slide in and out; still under the quiet-motion gate.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
     @State private var showHistory = false
     @State private var showCustomize = false
     /// « Customize Nutrition »: the Blood markers card back on the page (off by default; it stays in the
@@ -115,7 +118,8 @@ struct NutritionView: View {
                 header
                 NutritionSearchBar(onSearch: { openAddSheet(slot: nil, focusSearch: true) },
                                    onScan: barcodeScannerAvailable ? { scannerSlot = nil; showScanner = true } : nil)
-                NutritionBalanceCard(model: NutritionBalanceModel(summary: current, plan: plan))
+                NutritionBalanceCard(model: NutritionBalanceModel(summary: current, plan: plan),
+                                     animated: summary?.dayKey == dayKey)
             }
             .nutritionListRow()
 
@@ -171,7 +175,12 @@ struct NutritionView: View {
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             await NutritionSeries.backfillNutritionSeriesIfNeeded(repo)
             let read = await NutritionDayReader.readDay(repo, profile: profile, day: day)
-            if read.dayKey == dayKey { self.summary = read }
+            if read.dayKey == dayKey {
+                // Fork chantier 12: a meal added or deleted slides its row in or out.
+                withAnimation(NoopMotion.gated(NoopMotion.card, reduced: motion.poseStill(reduceMotion))) {
+                    self.summary = read
+                }
+            }
         }
         .sheet(item: $editor, onDismiss: openRequestedScanner) { target in
             NutritionMealEditor(target: target, day: day,
@@ -360,7 +369,9 @@ struct NutritionView: View {
     }
 
     private func toggle(_ slot: MealSlot) {
-        if expandedSlots.contains(slot) { expandedSlots.remove(slot) } else { expandedSlots.insert(slot) }
+        withAnimation(NoopMotion.gated(NoopMotion.card, reduced: motion.poseStill(reduceMotion))) {
+            if expandedSlots.contains(slot) { expandedSlots.remove(slot) } else { expandedSlots.insert(slot) }
+        }
     }
 
     /// The add sheet for a moment's "+", or for the search field (the moment the time of day falls in).
@@ -494,6 +505,19 @@ struct NutritionBalanceModel: Equatable {
 /// left · spent · balance. Every figure comes from `NutritionBalanceModel`.
 struct NutritionBalanceCard: View {
     let model: NutritionBalanceModel
+    /// Fork chantier 12: the rings trace themselves and « eaten » slams in once per launch, then follow every
+    /// meal; false draws them at once (data loading, renders).
+    var animated: Bool = false
+
+    /// A meal just added: its calories rise from « eaten » and fade (« +620 kcal »).
+    @State private var addedKcal: Int?
+    @State private var addedRise = false
+    @State private var addedRun = 0
+    @State private var lastEaten: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    private var still: Bool { motion.poseStill(reduceMotion) }
 
     /// The share of the goal eaten, full at the goal (`NutritionIntakeGauge.intakeArc`).
     private var intakeFill: Double {
@@ -508,14 +532,47 @@ struct NutritionBalanceCard: View {
         return scale > 0 && goal != nil ? eaten / scale : 0
     }
 
+    /// Fork chantier 12: past its goal, a ring goes on into a second, darker lap (the share eaten, uncapped).
+    private func overflowFill(eaten: Double, goal: Int?, capped: Double) -> Double {
+        guard let goal, goal > 0 else { return capped }
+        return min(2, eaten / Double(goal))
+    }
+
     private var rings: [TodayRing] {
-        [TodayRing(fraction: intakeFill, tint: StrandPalette.intakeColor)]
-            + NutritionMacro.allCases.map { TodayRing(fraction: macroFill($0), tint: $0.tint) }
+        [TodayRing(fraction: overflowFill(eaten: Double(model.eaten.kcal), goal: model.goalKcal, capped: intakeFill),
+                   tint: StrandPalette.intakeColor, deep: StrandPalette.intakeDeep)]
+            + NutritionMacro.allCases.map {
+                TodayRing(fraction: overflowFill(eaten: $0.grams(model.eaten), goal: model.goal($0),
+                                                 capped: macroFill($0)),
+                          tint: $0.tint, deep: $0.deepTint)
+            }
+    }
+
+    /// The calories of a meal just added rise from « eaten » (22 pt in 1.2 s) and fade; the slam of the
+    /// number gives the haptic.
+    private func showAdded(_ delta: Int) {
+        guard animated, delta > 0, !still else { return }
+        addedRun += 1
+        let run = addedRun
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            addedKcal = delta
+            addedRise = false
+        }
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 1.2)) { addedRise = true }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
+            guard run == addedRun else { return }
+            addedKcal = nil
+        }
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
-            TodayConcentricRings(rings: rings, diameter: 104, lineWidth: 9, spacing: 3)
+            TodayConcentricRings(rings: rings, diameter: 104, lineWidth: 9, spacing: 3,
+                                 animated: animated, drawKey: "nutrition.rings", allowsOverflow: true)
             VStack(alignment: .leading, spacing: 8) {
                 eatenLine
                 HStack(alignment: .top, spacing: 6) {
@@ -531,15 +588,32 @@ struct NutritionBalanceCard: View {
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        .onAppear { lastEaten = model.eaten.kcal }
+        .onChangeCompat(of: model.eaten.kcal) { newValue in
+            let before = lastEaten ?? newValue
+            lastEaten = newValue
+            showAdded(newValue - before)
+        }
     }
 
     /// "1 495 / 2 560 kcal eaten".
     private var eatenLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(verbatim: NutritionFormat.whole(model.eaten.kcal))
-                .font(StrandFont.number(26, weight: .bold))
-                .foregroundStyle(StrandPalette.intakeColor)
-                .monospacedDigit()
+            NoopRollingNumber(value: Double(model.eaten.kcal), format: { NutritionFormat.whole(Int($0.rounded())) },
+                              font: StrandFont.number(26, weight: .bold), color: StrandPalette.intakeColor,
+                              entrance: .slam, armed: animated, launchKey: "nutrition.slam.eaten")
+                .overlay(alignment: .topTrailing) {
+                    if let addedKcal {
+                        Text(verbatim: "+" + NutritionFormat.kcalUnit(addedKcal))
+                            .font(StrandFont.subhead.weight(.bold))
+                            .foregroundStyle(StrandPalette.intakeColor)
+                            .fixedSize()
+                            .offset(x: 56, y: addedRise ? -24 : -2)
+                            .opacity(addedRise ? 0 : 1)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
             Text(verbatim: model.goalKcal.map { "/ " + NutritionFormat.whole($0) + " " + String(localized: "kcal eaten") }
                 ?? String(localized: "kcal eaten"))
                 .font(StrandFont.footnote)
@@ -568,6 +642,8 @@ struct NutritionBalanceCard: View {
                 Text(verbatim: NutritionFormat.grams(eaten))
                     .font(StrandFont.number(15, weight: .bold))
                     .foregroundStyle(StrandPalette.textPrimary)
+                    .contentTransition(.numericText())
+                    .animation(NoopMotion.gated(NoopMotion.valueChange, reduced: still), value: eaten)
                 Text(verbatim: caption)
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -604,12 +680,15 @@ struct NutritionBalanceCard: View {
                 .foregroundStyle(StrandPalette.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+            // Fork chantier 12: left and balance roll to their new digits when a meal is added.
             Text(verbatim: value ?? "\u{2014}")
                 .font(StrandFont.footnote.weight(.bold))
                 .foregroundStyle(value == nil ? StrandPalette.textSecondary : tint)
                 .monospacedDigit()
                 .lineLimit(1)
                 .fixedSize()
+                .contentTransition(.numericText())
+                .animation(NoopMotion.gated(NoopMotion.valueChange, reduced: still), value: value)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

@@ -297,6 +297,23 @@ public enum StrandPalette {
     public static let macroProtein = Color(light: "#8944AB", dark: "#BF5AF2")
     public static let macroCarbs = Color(light: "#8F6A00", dark: "#FFD60A")
     public static let macroFat = Color(light: "#0071A4", dark: "#64D2FF")
+    /// The deep tones the gradient rings start from (fork chantier 12, effect A): each ring runs from its
+    /// deep tone to its vivid one. The Effort ring starts from `effortDeep`.
+    public static let caloriesActivityDeep = Color(light: "#8A2400", dark: "#B86E00")
+    public static let restRingDeep = Color(light: "#3A389A", dark: "#5753C9")
+    public static let intakeDeep = Color(light: "#17602A", dark: "#1E8E3C")
+    public static let macroProteinDeep = Color(light: "#5E2E78", dark: "#7F33A8")
+    public static let macroCarbsDeep = Color(light: "#5E4600", dark: "#B39400")
+    public static let macroFatDeep = Color(light: "#004E73", dark: "#2E8FBF")
+
+    /// The deep tone of the Charge ring for a score, in the same bands as `chargeTint`.
+    public static func chargeTintDeep(_ score: Double) -> Color {
+        switch score {
+        case ..<34: return Color(light: "#8F000E", dark: "#B3261E")
+        case ..<67: return Color(light: "#6E3200", dark: "#B39400")
+        default:    return chargeDeep
+        }
+    }
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
     //

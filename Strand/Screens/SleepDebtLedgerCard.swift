@@ -31,12 +31,14 @@ struct SleepDebtLedgerCard: View {
     var shownDay: String? = nil
     /// Shows a day's night in the night card without scrolling; nil on the Today host.
     var onShowNight: ((String) -> Void)? = nil
+    /// Fork chantier 12: the bars rise once per launch; false draws them at once (Today host, renders).
+    var animated: Bool = false
 
     var body: some View {
         SleepNightsCard(data: SleepNightsData(ledger: model.sleepDebtLedger, month: model.trendPoints,
                                               splits: model.nightStageSplits),
                         onOpenNight: onOpenNight, canOpenNight: canOpenNight,
-                        shownDay: shownDay, onShowNight: onShowNight)
+                        shownDay: shownDay, onShowNight: onShowNight, animated: animated)
     }
 }
 
@@ -171,6 +173,8 @@ struct SleepNightsCard: View {
     /// The night the night card shows, marked on its bar, and who shows a touched night there.
     var shownDay: String? = nil
     var onShowNight: ((String) -> Void)? = nil
+    /// Fork chantier 12: the bars rise one after the other, once per launch.
+    var animated: Bool = false
     @State var range: Span = .nights14
     /// The night touched on the bars (its day key), or nil for the average.
     @State var picked: String? = nil
@@ -204,11 +208,15 @@ struct SleepNightsCard: View {
                     }
                     let shownPick = bars.first { $0.day == picked && ($0.minutes ?? 0) > 0 }
                     head(bars, picked: shownPick)
-                    SleepNightsBars(bars: bars, needMinutes: data.needMinutes, picked: shownPick?.day,
-                                    marked: shownDay, onPick: { day in
-                        withAnimation(StrandMotion.fade) { picked = picked == day ? nil : day }
-                        if let onShowNight, canOpenNight(day) { onShowNight(day) }
-                    })
+                    NoopFirstDraw(key: "sleep.nights.bars", armed: animated) { phase in
+                        SleepNightsBars(bars: bars, needMinutes: data.needMinutes, picked: shownPick?.day,
+                                        marked: shownDay, onPick: { day in
+                            withAnimation(StrandMotion.fade) { picked = picked == day ? nil : day }
+                            if let onShowNight, canOpenNight(day) { onShowNight(day) }
+                        }, rise: phase.drawn ? 1 : 0)
+                        .animation(phase.motion(.linear(duration: SleepNightsBars.riseDuration(bars.count))),
+                                   value: phase.drawn)
+                    }
                     .frame(height: 132)
                     dateRow(bars.map(\.day))
                     legend
@@ -369,7 +377,7 @@ struct SleepNightsCard: View {
 
 /// The bars: one slot per day, the minutes asleep as a stacked bar (deep, REM, light from the bottom),
 /// the need as a dashed line, an empty day as a dot. Each night with a bar is a button.
-struct SleepNightsBars: View {
+struct SleepNightsBars: View, Animatable {
     let bars: [SleepNightBar]
     let needMinutes: Double
     var picked: String? = nil
@@ -378,6 +386,29 @@ struct SleepNightsBars: View {
     /// The colour of a bar without stages: grey on « Your nights »; the plain hours trend passes its own.
     var plainColor: Color? = nil
     var onPick: ((String) -> Void)? = nil
+    /// Fork chantier 12: 0…1, run linearly; each bar rises in 0.55 s, 0.045 s after the one before it.
+    var rise: Double = 1
+
+    var animatableData: Double {
+        get { rise }
+        set { rise = newValue }
+    }
+
+    static let barRise: Double = 0.55
+    static let barStagger: Double = 0.045
+
+    /// How long the whole row takes to rise, for the linear animation of `rise`.
+    static func riseDuration(_ count: Int) -> Double {
+        barRise + barStagger * Double(max(0, count - 1))
+    }
+
+    /// The height share of bar `index` at the current `rise`, with a strong ease-out of its own.
+    private func grown(_ index: Int) -> CGFloat {
+        guard rise < 1 else { return 1 }
+        let total = Self.riseDuration(bars.count)
+        let local = min(1, max(0, (rise * total - Self.barStagger * Double(index)) / Self.barRise))
+        return CGFloat(1 - pow(1 - local, 4))
+    }
 
     var body: some View {
         Canvas { ctx, size in
@@ -401,13 +432,15 @@ struct SleepNightsBars: View {
                              with: .color(StrandPalette.hairlineStrong))
                     continue
                 }
-                let rect = CGRect(x: cx - barW / 2, y: y(value), width: barW, height: size.height - y(value))
+                let share = grown(i)
+                let barTop = size.height - (size.height - y(value)) * share
+                let rect = CGRect(x: cx - barW / 2, y: barTop, width: barW, height: size.height - barTop)
                 ctx.drawLayer { layer in
                     layer.opacity = picked == nil || picked == bar.day ? 1 : 0.35
                     layer.clip(to: Path(roundedRect: rect, cornerRadius: min(4, barW / 2)))
                     var bottom = size.height
                     for segment in segments {
-                        let h = CGFloat(segment.minutes / maxMin) * (size.height - top)
+                        let h = CGFloat(segment.minutes / maxMin) * (size.height - top) * share
                         let color = segment.stage.map { StrandPalette.sleepStageColor($0) }
                             ?? plainColor ?? StrandPalette.textTertiary
                         layer.fill(Path(CGRect(x: rect.minX, y: bottom - h, width: barW, height: h)),
@@ -416,7 +449,7 @@ struct SleepNightsBars: View {
                     }
                 }
                 if bar.day == marked {
-                    ctx.fill(Path(ellipseIn: CGRect(x: cx - 3, y: y(value) - 10, width: 6, height: 6)),
+                    ctx.fill(Path(ellipseIn: CGRect(x: cx - 3, y: rect.minY - 10, width: 6, height: 6)),
                              with: .color(StrandPalette.textPrimary))
                 }
             }

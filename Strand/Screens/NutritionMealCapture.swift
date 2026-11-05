@@ -180,6 +180,8 @@ struct NutritionCaptureBody: View {
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
             }
+            // Fork chantier 12: a sweep of light while the Coach estimates.
+            .noopShimmer(true)
         case .problem(let message):
             Text(verbatim: message)
                 .font(StrandFont.subhead)

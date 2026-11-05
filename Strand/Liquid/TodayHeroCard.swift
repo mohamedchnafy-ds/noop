@@ -13,44 +13,82 @@ struct TodayRing: Equatable {
     var fraction: Double
     var tint: Color
     var band: ClosedRange<Double>? = nil
+    /// The deep tone the gradient starts from (a `StrandPalette` token, fork chantier 12); nil draws it flat.
+    var deep: Color? = nil
 }
 
 /// The four concentric flat rings, outside to inside: a track at 18 %, a translucent target band, the fill
-/// with round caps. Static (no animation loop): it redraws when its fractions change.
+/// with round caps, in a gradient from its deep tone to its vivid tip (fork chantier 12, effect A). Armed, the
+/// rings trace themselves once per launch, 0.09 s apart, then follow every change of value in 0.65 s.
 struct TodayConcentricRings: View {
     var rings: [TodayRing]
     var diameter: CGFloat = 184
     var lineWidth: CGFloat = 13
     var spacing: CGFloat = 4
+    /// False draws the rings whole at once (data still loading, or a PNG render).
+    var animated: Bool = false
+    /// Names the entrance for `NoopLaunchOnce`, one per screen.
+    var drawKey: String = "today.rings"
+    /// The soft light behind the rings (Today: the colour of the day's Charge), nil for none.
+    var halo: Color? = nil
+    /// A goal just closed, 0…1: the rings grow by 4.5 % and the ring at `pulseRing` glows.
+    var pulse: Double = 0
+    var pulseRing: Int? = nil
+    /// A fraction above 1 adds a second lap in the deep tone (Nutrition: an intake over its goal).
+    var allowsOverflow: Bool = false
 
     private func clamped(_ v: Double) -> CGFloat { CGFloat(min(1, max(0, v))) }
 
     var body: some View {
-        ZStack {
-            ForEach(rings.indices, id: \.self) { index in
-                ringView(rings[index], size: diameter - lineWidth - 2 * CGFloat(index) * (lineWidth + spacing))
+        NoopFirstDraw(key: drawKey, armed: animated) { phase in
+            ZStack {
+                if let halo {
+                    haloLight(halo, phase: phase)
+                }
+                ForEach(rings.indices, id: \.self) { index in
+                    ringView(rings[index], index: index,
+                             size: diameter - lineWidth - 2 * CGFloat(index) * (lineWidth + spacing),
+                             phase: phase)
+                }
             }
+            .scaleEffect(1 + 0.045 * pulse)
         }
         .frame(width: diameter, height: diameter)
         .accessibilityHidden(true)
     }
 
-    private func ringView(_ ring: TodayRing, size: CGFloat) -> some View {
-        ZStack {
+    /// Lit once the rings are traced, then kept at 55 %; a closed goal brightens it for a moment.
+    private func haloLight(_ tint: Color, phase: NoopDrawPhase) -> some View {
+        Circle()
+            .fill(RadialGradient(colors: [tint.opacity(0.32), tint.opacity(0)], center: .center,
+                                 startRadius: 0, endRadius: diameter * 0.64))
+            .frame(width: diameter * 1.3, height: diameter * 1.3)
+            .opacity(phase.drawn ? 0.55 + 0.45 * pulse : 0)
+            .animation(phase.motion(NoopMotion.ringDraw.delay(NoopMotion.ringDrawDuration * 0.7)),
+                       value: phase.drawn)
+            .allowsHitTesting(false)
+    }
+
+    private func ringView(_ ring: TodayRing, index: Int, size: CGFloat, phase: NoopDrawPhase) -> some View {
+        let ringDiameter = max(lineWidth, size)
+        let fill = allowsOverflow ? max(0, ring.fraction) : min(1, max(0, ring.fraction))
+        let lit = pulseRing == index ? pulse : 0
+        return ZStack {
             Circle().stroke(ring.tint.opacity(0.18), lineWidth: lineWidth)
             if let band = ring.band, band.upperBound > band.lowerBound {
                 Circle()
                     .trim(from: clamped(band.lowerBound), to: clamped(band.upperBound))
                     .stroke(ring.tint.opacity(0.35), style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
             }
-            if ring.fraction > 0.001 {
-                Circle()
-                    .trim(from: 0, to: clamped(ring.fraction))
-                    .stroke(ring.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-            }
+            NoopGradientArc(fraction: phase.drawn ? fill : 0, tint: ring.tint, deep: ring.deep ?? ring.tint,
+                            diameter: ringDiameter, lineWidth: lineWidth, litTip: ring.deep != nil)
+                .shadow(color: ring.tint.opacity(0.9 * lit), radius: 8 * lit)
+                .animation(phase.motion(NoopMotion.ringDraw.delay(Double(index) * NoopMotion.ringStagger)),
+                           value: phase.drawn)
+                .animation(phase.motion(NoopMotion.valueChange), value: fill)
         }
         .rotationEffect(.degrees(-90))
-        .frame(width: max(lineWidth, size), height: max(lineWidth, size))
+        .frame(width: ringDiameter, height: ringDiameter)
     }
 }
 
@@ -62,6 +100,17 @@ struct TodayRingRow: View {
     /// Nil draws "no data".
     var value: String?
     var caption: String?
+    /// The number behind `value`, slammed in on its first appearance and on a change (fork chantier 12,
+    /// effect B); nil draws `value` as plain text (a calibration "1/4").
+    var number: Double? = nil
+    var format: ((Double) -> String)? = nil
+    /// False shows the number at once (data loading, or a PNG render).
+    var armed: Bool = false
+    var slamKey: String? = nil
+    var slamDelay: Double = 0
+    /// The ring's goal is reached: a check after the label, bouncing each time `celebrations` changes.
+    var done: Bool = false
+    var celebrations: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
@@ -73,13 +122,25 @@ struct TodayRingRow: View {
                     .font(StrandFont.overlineScaled(12))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                if done {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .noopSymbolBounce(celebrations)
+                        .accessibilityLabel(Text("Goal reached"))
+                }
             }
             .foregroundStyle(tint)
             if let value {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(verbatim: value)
-                        .font(StrandFont.rounded(21))
-                        .foregroundStyle(StrandPalette.textPrimary)
+                    if let number, let format {
+                        NoopRollingNumber(value: number, format: format, font: StrandFont.rounded(21),
+                                          color: StrandPalette.textPrimary, glow: tint, entrance: .slam,
+                                          armed: armed, launchKey: slamKey, delay: slamDelay)
+                    } else {
+                        Text(verbatim: value)
+                            .font(StrandFont.rounded(21))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
                     if let caption {
                         Text(verbatim: caption)
                             .font(StrandFont.caption.weight(.medium))
@@ -113,6 +174,11 @@ struct TodayHeroCell<Bar: View>: View {
     var value: String?
     var unit: String
     var legend: Text?
+    /// The number behind `value`, counted up with the rings (fork chantier 12); nil draws `value` as text.
+    var number: Double? = nil
+    var format: ((Double) -> String)? = nil
+    var armed: Bool = false
+    var countKey: String? = nil
     @ViewBuilder var bar: Bar
 
     var body: some View {
@@ -131,9 +197,15 @@ struct TodayHeroCell<Bar: View>: View {
             Group {
                 if let value {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(verbatim: value)
-                            .font(StrandFont.rounded(22))
-                            .foregroundStyle(StrandPalette.textPrimary)
+                        if let number, let format {
+                            NoopRollingNumber(value: number, format: format, font: StrandFont.rounded(22),
+                                              color: StrandPalette.textPrimary, entrance: .count, armed: armed,
+                                              launchKey: countKey, delay: TodayHeroMotion.cellsDelay)
+                        } else {
+                            Text(verbatim: value)
+                                .font(StrandFont.rounded(22))
+                                .foregroundStyle(StrandPalette.textPrimary)
+                        }
                         Text(verbatim: unit)
                             .font(StrandFont.caption.weight(.medium))
                             .foregroundStyle(StrandPalette.textSecondary)
@@ -166,17 +238,24 @@ struct TodayHeroCell<Bar: View>: View {
 /// The spent-energy bar: activity (orange), a 2-point gap, then resting (brown), on a white 10 % track.
 struct TodayEnergyBar: View {
     var arc: TodayEnergy.Arc?
+    /// Armed, the bar grows from the left once per launch, with the rings (fork chantier 12).
+    var animated: Bool = false
 
     var body: some View {
         GeometryReader { geo in
-            barBody(width: geo.size.width)
-                .frame(height: geo.size.height)
+            NoopFirstDraw(key: "today.bar.energy", armed: animated) { phase in
+                barBody(width: geo.size.width, grown: phase.drawn)
+                    .animation(phase.motion(NoopMotion.ringDraw.delay(TodayHeroMotion.cellsDelay)),
+                               value: phase.drawn)
+                    .animation(phase.motion(NoopMotion.valueChange), value: arc)
+            }
+            .frame(height: geo.size.height)
         }
     }
 
-    private func barBody(width: CGFloat) -> some View {
-        let activity = CGFloat(arc?.activity ?? 0) * width
-        let resting = CGFloat(arc?.resting ?? 0) * width
+    private func barBody(width: CGFloat, grown: Bool) -> some View {
+        let activity = grown ? CGFloat(arc?.activity ?? 0) * width : 0
+        let resting = grown ? CGFloat(arc?.resting ?? 0) * width : 0
         let gap: CGFloat = activity > 0 && resting > 0 ? 2 : 0
         return ZStack(alignment: .leading) {
             Capsule().fill(StrandPalette.textPrimary.opacity(0.10))
@@ -197,18 +276,26 @@ struct TodayEnergyBar: View {
 struct TodayRangeBar: View {
     var gauge: TodayVitalRange.Gauge?
     var tint: Color
+    /// Armed, the dot slides in from the left once per launch (`drawKey`), with the rings (fork chantier 12).
+    var animated: Bool = false
+    var drawKey: String = "today.bar.vital"
 
     var body: some View {
         GeometryReader { geo in
-            barBody(width: geo.size.width)
-                .frame(height: geo.size.height)
+            NoopFirstDraw(key: drawKey, armed: animated) { phase in
+                barBody(width: geo.size.width, placed: phase.drawn)
+                    .animation(phase.motion(NoopMotion.ringDraw.delay(TodayHeroMotion.cellsDelay)),
+                               value: phase.drawn)
+                    .animation(phase.motion(NoopMotion.valueChange), value: gauge?.value)
+            }
+            .frame(height: geo.size.height)
         }
     }
 
-    private func barBody(width: CGFloat) -> some View {
+    private func barBody(width: CGFloat, placed: Bool) -> some View {
         let bandFrom = gauge.flatMap { g in g.normal.map { CGFloat(g.fraction($0.lowerBound)) * width } }
         let bandTo = gauge.flatMap { g in g.normal.map { CGFloat(g.fraction($0.upperBound)) * width } }
-        let dotX = gauge.map { CGFloat($0.fraction($0.value)) * width }
+        let dotX = gauge.map { placed ? CGFloat($0.fraction($0.value)) * width : 0 }
         return ZStack(alignment: .leading) {
             Capsule().fill(StrandPalette.textPrimary.opacity(0.10)).frame(height: 6)
             if let bandFrom, let bandTo {
@@ -232,6 +319,8 @@ struct TodayRangeBar: View {
 struct TodayCaloriesTile: View {
     var split: TodayEnergy.Split?
     var goal: Double?
+    /// Armed, the total counts up and the bar grows once per launch (fork chantier 12).
+    var animated: Bool = false
 
     private func number(_ v: Double) -> String {
         Int(v.rounded()).formatted(.number.locale(AppLanguage.activeLocale))
@@ -250,8 +339,10 @@ struct TodayCaloriesTile: View {
     var body: some View {
         TodayHeroCell(symbol: "flame.fill", tint: StrandPalette.caloriesResting,
                       title: String(localized: "Spent"),
-                      value: split.map { number($0.totalKcal) }, unit: "kcal", legend: legend) {
-            TodayEnergyBar(arc: split.map { TodayEnergy.arc($0, goal: goal) })
+                      value: split.map { number($0.totalKcal) }, unit: "kcal", legend: legend,
+                      number: split.map(\.totalKcal), format: number, armed: animated,
+                      countKey: "today.count.spent") {
+            TodayEnergyBar(arc: split.map { TodayEnergy.arc($0, goal: goal) }, animated: animated)
         }
     }
 }
@@ -263,6 +354,9 @@ struct TodayVitalTile: View {
     var title: String
     var unit: String
     var gauge: TodayVitalRange.Gauge?
+    /// Armed, the value counts up and the dot slides in once per launch, under this key (fork chantier 12).
+    var animated: Bool = false
+    var motionKey: String = "today.vital"
 
     private func whole(_ v: Double) -> String { String(Int(v.rounded())) }
 
@@ -278,8 +372,9 @@ struct TodayVitalTile: View {
 
     var body: some View {
         TodayHeroCell(symbol: symbol, tint: tint, title: title,
-                      value: gauge.map { whole($0.value) }, unit: unit, legend: legend) {
-            TodayRangeBar(gauge: gauge, tint: tint)
+                      value: gauge.map { whole($0.value) }, unit: unit, legend: legend,
+                      number: gauge?.value, format: whole, armed: animated, countKey: motionKey + ".count") {
+            TodayRangeBar(gauge: gauge, tint: tint, animated: animated, drawKey: motionKey + ".bar")
         }
     }
 }
@@ -366,6 +461,17 @@ struct TodayNutritionLine: View {
     }
 }
 
+/// The hero's own timings, from the motion table (fork chantier 12): the three cells follow the rings.
+enum TodayHeroMotion {
+    /// The cells' count-up and bars start 0.38 s after the rings.
+    static let cellsDelay: Double = 0.38
+    /// A closed goal is celebrated once the rings have landed.
+    static let goalDelay: Double = 1.0
+
+    /// Where the day a goal was last celebrated is kept (device only, outside `.noopbak`).
+    static func goalStoreKey(_ ring: String) -> String { "today.goalClosed." + ring }
+}
+
 /// Everything the hero card shows, already resolved.
 struct TodayHeroModel {
     struct Ring {
@@ -393,6 +499,9 @@ struct TodayHeroModel {
     var nutrition: TodayNutritionLine.Model? = nil
     /// Where the Calories line taps through to, or nil to keep it inert.
     var caloriesRoute: TabRoute? = nil
+    /// The logical day when the card shows today, nil for a past day: a goal closed today is celebrated once
+    /// (halo, check, success haptic), the day stored on the device (fork chantier 12).
+    var goalDayKey: String? = nil
 }
 
 /// The hero card: the four rings beside their four lines, a hairline, then the three cells.
@@ -401,6 +510,13 @@ struct TodayHeroCard: View {
     var animated: Bool
     var surfaceOpacity: Double = 1
     var onGuide: (ScoreSection) -> Void
+
+    /// A goal just closed (fork chantier 12): the pulse of the rings, the ring it lights, the check's bounce.
+    @State private var goalPulse: Double = 0
+    @State private var pulseRing: Int?
+    @State private var celebrations = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
 
     private func number(_ v: Double) -> String {
         Int(v.rounded()).formatted(.number.locale(AppLanguage.activeLocale))
@@ -434,11 +550,59 @@ struct TodayHeroCard: View {
         return StrandPalette.chargeTint(score)
     }
 
+    /// The deep tone the Charge ring starts from, in the same bands as its tint.
+    private var chargeDeep: Color {
+        guard model.charge.calibration == nil, let score = model.charge.score else {
+            return StrandPalette.chargeDeep
+        }
+        return StrandPalette.chargeTintDeep(score)
+    }
+
     private var rings: [TodayRing] {
-        [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity),
-         TodayRing(fraction: fraction(model.charge), tint: chargeTint),
-         TodayRing(fraction: fraction(model.effort), tint: StrandPalette.effortColor, band: effortBand),
-         TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restRing)]
+        [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity,
+                   deep: StrandPalette.caloriesActivityDeep),
+         TodayRing(fraction: fraction(model.charge), tint: chargeTint, deep: chargeDeep),
+         TodayRing(fraction: fraction(model.effort), tint: StrandPalette.effortColor, band: effortBand,
+                   deep: StrandPalette.effortDeep),
+         TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restRing, deep: StrandPalette.restRingDeep)]
+    }
+
+    // MARK: Goals (fork chantier 12)
+
+    /// The activity calories reached their goal.
+    private var activityGoalReached: Bool {
+        guard let split = model.calories.split, let goal = model.calories.goal, goal > 0 else { return false }
+        return split.activityKcal >= goal
+    }
+
+    /// The Effort reached the bottom of its target band.
+    private var effortGoalReached: Bool {
+        guard let band = model.effort.targetRange, let score = model.effort.score else { return false }
+        return score >= band.lowerBound
+    }
+
+    /// Celebrates the first goal closed today that was not celebrated yet: a success haptic, the rings pulse
+    /// and the ring glows, the check bounces. Once per day and per ring, the day stored on the device.
+    private func celebrateClosedGoal() {
+        guard animated, let day = model.goalDayKey else { return }
+        var reached: [(ring: Int, name: String)] = []
+        if activityGoalReached { reached.append((ring: 0, name: "activity")) }
+        if effortGoalReached { reached.append((ring: 2, name: "effort")) }
+        guard let goal = reached.first(where: {
+            UserDefaults.standard.string(forKey: TodayHeroMotion.goalStoreKey($0.name)) != day
+        }) else { return }
+        UserDefaults.standard.set(day, forKey: TodayHeroMotion.goalStoreKey(goal.name))
+        let still = motion.poseStill(reduceMotion)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (still ? 0 : TodayHeroMotion.goalDelay)) {
+            StrandHaptic.success.play()
+            celebrations += 1
+            guard !still else { return }
+            pulseRing = goal.ring
+            withAnimation(.easeOut(duration: 0.28)) { goalPulse = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                withAnimation(.easeIn(duration: 0.28)) { goalPulse = 0 }
+            }
+        }
     }
 
     // MARK: Lines
@@ -478,9 +642,24 @@ struct TodayHeroCard: View {
         }
     }
 
-    private func ringLine(_ ring: TodayHeroModel.Ring, symbol: String, tint: Color) -> some View {
+    /// The text of a score while it moves, with the ring's decimals.
+    private func scoreFormat(_ ring: TodayHeroModel.Ring) -> (Double) -> String {
+        let decimals = ring.decimals
+        return { value in
+            decimals > 0
+                ? String(format: "%.\(decimals)f", locale: AppLanguage.activeLocale, value)
+                : String(Int(value.rounded()))
+        }
+    }
+
+    private func ringLine(_ ring: TodayHeroModel.Ring, symbol: String, tint: Color, index: Int,
+                          slamKey: String, done: Bool = false) -> some View {
         line(TodayRingRow(symbol: symbol, tint: tint, label: ring.label, value: ringValue(ring),
-                          caption: ring.caption),
+                          caption: ring.caption,
+                          number: ring.calibration == nil ? ring.score : nil, format: scoreFormat(ring),
+                          armed: animated, slamKey: slamKey,
+                          slamDelay: Double(index) * NoopMotion.ringStagger,
+                          done: done, celebrations: celebrations),
              route: ring.route, guide: ring.guide)
     }
 
@@ -491,30 +670,39 @@ struct TodayHeroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.space4) {
             HStack(alignment: .center, spacing: 14) {
-                TodayConcentricRings(rings: rings)
+                TodayConcentricRings(rings: rings, animated: animated, halo: chargeTint,
+                                     pulse: goalPulse, pulseRing: pulseRing)
                 VStack(alignment: .leading, spacing: 0) {
                     // Fork chantier 9: « Activity », the calories burnt in activity against the activity goal
                     // (the calories eaten live in Nutrition, in green).
                     line(TodayRingRow(symbol: "flame.fill", tint: StrandPalette.caloriesActivity,
                                       label: String(localized: "Activity"), value: caloriesValue,
-                                      caption: caloriesCaption),
+                                      caption: caloriesCaption,
+                                      number: model.calories.split?.activityKcal, format: number,
+                                      armed: animated, slamKey: "today.slam.activity",
+                                      done: activityGoalReached, celebrations: celebrations),
                          route: model.caloriesRoute, guide: nil)
                     hairline
-                    ringLine(model.charge, symbol: "checkmark", tint: chargeTint)
+                    ringLine(model.charge, symbol: "checkmark", tint: chargeTint, index: 1,
+                             slamKey: "today.slam.charge")
                     hairline
-                    ringLine(model.effort, symbol: "bolt.fill", tint: StrandPalette.effortColor)
+                    ringLine(model.effort, symbol: "bolt.fill", tint: StrandPalette.effortColor, index: 2,
+                             slamKey: "today.slam.effort", done: effortGoalReached)
                     hairline
-                    ringLine(model.rest, symbol: "moon.fill", tint: StrandPalette.restRing)
+                    ringLine(model.rest, symbol: "moon.fill", tint: StrandPalette.restRing, index: 3,
+                             slamKey: "today.slam.rest")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             hairline
             HStack(alignment: .top, spacing: 12) {
-                TodayCaloriesTile(split: model.calories.split, goal: model.calories.goal)
+                TodayCaloriesTile(split: model.calories.split, goal: model.calories.goal, animated: animated)
                 TodayVitalTile(symbol: "heart.fill", tint: StrandPalette.liquidHeart,
-                               title: String(localized: "Rest HR"), unit: "bpm", gauge: model.restingHR)
+                               title: String(localized: "Rest HR"), unit: "bpm", gauge: model.restingHR,
+                               animated: animated, motionKey: "today.vital.rhr")
                 TodayVitalTile(symbol: "waveform.path.ecg", tint: StrandPalette.metricCyan,
-                               title: String(localized: "HRV"), unit: "ms", gauge: model.hrv)
+                               title: String(localized: "HRV"), unit: "ms", gauge: model.hrv,
+                               animated: animated, motionKey: "today.vital.hrv")
             }
             if let nutrition = model.nutrition {
                 TodayNutritionLine(model: nutrition)
@@ -523,5 +711,9 @@ struct TodayHeroCard: View {
         }
         .padding(18)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
+        .onAppear { celebrateClosedGoal() }
+        .onChangeCompat(of: animated) { _ in celebrateClosedGoal() }
+        .onChangeCompat(of: activityGoalReached) { _ in celebrateClosedGoal() }
+        .onChangeCompat(of: effortGoalReached) { _ in celebrateClosedGoal() }
     }
 }

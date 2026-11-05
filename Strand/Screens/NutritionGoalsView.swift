@@ -187,12 +187,14 @@ struct NutritionGoalsContent: View {
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textSecondary)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
+                // Fork chantier 12: the goal rolls to its new digits as the levels change.
                 Text(verbatim: NutritionFormat.whole(plan.intakeKcal))
                     .font(StrandFont.number(44, weight: .bold))
                     .foregroundStyle(StrandPalette.intakeColor)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .noopRollingDigits(Double(plan.intakeKcal))
                 Text("kcal / day")
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)

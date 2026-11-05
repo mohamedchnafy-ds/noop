@@ -59,7 +59,7 @@ enum SleepNightRingMath {
     }
 }
 
-struct SleepNightDial: View {
+struct SleepNightDial: View, Animatable {
     let onset: Date
     let wake: Date
     /// The night's stage intervals, seconds from `onset` (display-smoothed by the caller).
@@ -83,6 +83,16 @@ struct SleepNightDial: View {
     var stagePercent: [SleepStage: Int] = [:]
     /// A tap on a track picks its stage; a tap on the lit stage or the centre clears it. Nil = not tappable.
     var onSelect: ((SleepStage?) -> Void)? = nil
+    /// Fork chantier 12: the share of the night drawn, 0…1, animated from the bedtime to the wake time; a
+    /// white dot leads the line while it runs. 1 draws the whole night (renders).
+    var trace: Double = 1
+    /// False shows the centre's number at once (renders); true lets it slam in (effect B).
+    var armed: Bool = false
+
+    var animatableData: Double {
+        get { trace }
+        set { trace = newValue }
+    }
 
     /// Track radii on the 260-point design, outermost (awake) first.
     private let trackRadii: [CGFloat] = [114, 100, 86, 72]
@@ -96,6 +106,8 @@ struct SleepNightDial: View {
         let night = SleepNightRingMath.nightSeconds(intervals: intervals, span: wake.timeIntervalSince(onset))
         let arcs = SleepNightRingMath.arcs(intervals: intervals, night: night)
         let hours = hourMarks(night: night)
+        let limit = SleepNightRingMath.angle(seconds: min(1, max(0, trace)) * night, night: night)
+        let shown = tracedArcs(arcs, to: limit)
         ZStack {
             Canvas { ctx, size in
                 let c = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -104,15 +116,21 @@ struct SleepNightDial: View {
                 ctx.drawLayer { glow in
                     glow.addFilter(.blur(radius: 4 * scale))
                     glow.opacity = 0.6
-                    for arc in arcs where isLit(arc.stage) { stroke(glow, arc, center: c) }
+                    for arc in shown where isLit(arc.stage) { stroke(glow, arc, center: c) }
                 }
-                drawLinks(ctx, center: c, arcs: arcs)
-                for arc in arcs { stroke(ctx, arc, center: c) }
+                drawLinks(ctx, center: c, arcs: shown)
+                for arc in shown { stroke(ctx, arc, center: c) }
+                drawTraceHead(ctx, center: c, arcs: shown, limit: limit)
             }
+            // Fork chantier 12: a picked stage fades in, the others out (the selection is animated).
+            .id(selected)
+            .transition(.opacity)
             marker("moon.fill", tint: StrandPalette.sleepBedtime,
                    at: SleepNightRingMath.angle(seconds: 0, night: night))
             marker("sun.max.fill", tint: StrandPalette.sleepWake,
                    at: SleepNightRingMath.angle(seconds: night, night: night))
+                .opacity(trace >= 0.995 ? 1 : 0)
+                .scaleEffect(trace >= 0.995 ? 1 : 0.6)
             center
         }
         .frame(width: frameSide, height: frameSide)
@@ -141,6 +159,31 @@ struct SleepNightDial: View {
             return
         }
         onSelect(hit)
+    }
+
+    // MARK: Trace (fork chantier 12)
+
+    /// The arcs up to `limit` degrees, the last one cut there; all of them once the trace is done.
+    private func tracedArcs(_ arcs: [SleepNightRingMath.Arc], to limit: Double) -> [SleepNightRingMath.Arc] {
+        guard trace < 1 else { return arcs }
+        return arcs.compactMap { arc in
+            guard arc.start < limit else { return nil }
+            return SleepNightRingMath.Arc(stage: arc.stage, start: arc.start, end: min(arc.end, limit))
+        }
+    }
+
+    /// The white dot at the head of the line while it traces, glowing in its stage's colour.
+    private func drawTraceHead(_ ctx: GraphicsContext, center c: CGPoint, arcs: [SleepNightRingMath.Arc],
+                               limit: Double) {
+        guard trace > 0.01, trace < 0.995, let last = arcs.last else { return }
+        let head = point(c, radius(last.stage), limit)
+        let size = 7 * scale
+        let dot = Path(ellipseIn: CGRect(x: head.x - size / 2, y: head.y - size / 2, width: size, height: size))
+        ctx.drawLayer { glow in
+            glow.addFilter(.blur(radius: 3 * scale))
+            glow.fill(dot, with: .color(StrandPalette.sleepStageColor(last.stage, palette: palette)))
+        }
+        ctx.fill(dot, with: .color(StrandPalette.textPrimary))
     }
 
     // MARK: Drawing
@@ -279,9 +322,10 @@ struct SleepNightDial: View {
                 Text("Rest")
                     .font(StrandFont.subhead.weight(.semibold))
                     .foregroundStyle(StrandPalette.restRing)
-                Text("\(Int(score.rounded()))")
-                    .font(StrandFont.number(54, weight: .bold))
-                    .foregroundStyle(StrandPalette.textPrimary)
+                NoopRollingNumber(value: score, format: { String(Int($0.rounded())) },
+                                  font: StrandFont.number(54, weight: .bold), color: StrandPalette.textPrimary,
+                                  glow: StrandPalette.restRing, entrance: .slam, armed: armed,
+                                  launchKey: "sleep.slam.score", delay: SleepNightDialMotion.centreDelay)
                 if let scoreWord {
                     Text(scoreWord)
                         .font(StrandFont.footnote)
@@ -289,9 +333,10 @@ struct SleepNightDial: View {
                 }
                 asleepLine.padding(.top, 4)
             } else {
-                Text(SleepDurationText.format(asleepMinutes))
-                    .font(StrandFont.number(32, weight: .bold))
-                    .foregroundStyle(StrandPalette.textPrimary)
+                NoopRollingNumber(value: asleepMinutes, format: SleepDurationText.format,
+                                  font: StrandFont.number(32, weight: .bold), color: StrandPalette.textPrimary,
+                                  glow: StrandPalette.restRing, entrance: .slam, armed: armed,
+                                  launchKey: "sleep.slam.asleep", delay: SleepNightDialMotion.centreDelay)
                 Text("asleep")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -331,6 +376,15 @@ struct SleepNightDial: View {
 }
 
 /// The one duration format of the Sleep tab: "3h 41m", "47m", "8h". Never "8h 0m", never decimal hours.
+/// The night ring's timings (fork chantier 12): the trace from the bedtime to the wake time, and the centre's
+/// number, which lands as the line reaches the wake time.
+enum SleepNightDialMotion {
+    static let traceDuration: Double = 1.5
+    static let centreDelay: Double = 0.65
+    /// The trace: slow at both ends, like a night falling asleep and waking.
+    static var trace: Animation { .easeInOut(duration: traceDuration) }
+}
+
 enum SleepDurationText {
     static func format(_ minutes: Double) -> String {
         let m = max(0, Int(minutes.rounded()))

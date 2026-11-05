@@ -1,6 +1,6 @@
 # Élan (section motivation) — fiche du chantier (2 nov. 2026, mise à jour le 5 nov.)
 
-**État** : **maquette v2 faite le 5 nov., à valider** (style de l'app après les chantiers 7 et 9). Code : après la validation de la v2 et l'IPA du chantier 9 (un seul chantier de code à la fois). À ajouter à la feuille de route quand le chantier démarre.
+**État** : **maquette v2.1 validée par Mohamed le 5 nov.** (style de l'app après les chantiers 7 et 9). Code : après la validation de la v2 et l'IPA du chantier 9 (un seul chantier de code à la fois). À ajouter à la feuille de route quand le chantier démarre.
 
 ## Maquette v2 (5 nov.) — celle qui compte
 Canvas « NOOP – Élan · v2 » — https://claude.ai/artifact/73nKWv2DvetXnpEUtAmojx (v2.1 du 5 nov.). 11 écrans en style F (fond noir, cartes #1C1C1E, boutons blancs, liens bleus, pas de capitales) : 1 Élan en 3 onglets (interactif) · 2 Lecture du jour · 3 Mon pourquoi · 4 Rappels · 5 Feuille Plus · 6 Notifications · 7 Séance courte · 8 Feuille Démarrer · 9 Avant / maintenant · 10 Pesée (1re / 6e, interactif) · 11 Poids.
@@ -11,7 +11,7 @@ Canvas « NOOP – Élan · v2 » — https://claude.ai/artifact/73nKWv2DvetXnpE
 - **Rappels : un seul budget** pour Élan et les rappels de repas (chantier 8, `MealReminder`) : au plus 1 par jour (ou 4 / 2 par semaine), la pesée à part ; un seul écran « Rappels », ouvert depuis Élan et depuis Nutrition → Objectifs → Rappels. Priorité le même jour : séance ratée > séance prévue > repas > 3 jours sans séance.
 - **Pas de widget en v1** (le bundle est à 10 widgets, la limite).
 
-### Propositions de la v2 (à valider)
+### Décisions de la v2.1 (validées le 5 nov.)
 - **Couleurs** (règle « une couleur = un sens ») : Élan = **sable `#E0B072`** (nouveau jeton, seulement Élan : icône, « Jamais deux fois de suite », victoires, « À essayer ») ; **poids en blanc** (neutre, pas de couleur d'émotion) ; Nutrition tenue = vert Mangé ; muscu = bleu, cardio = rose (comme l'Historique) ; thèmes des lectures : Cœur rose, Sommeil violet, Nutrition vert, Entraînement bleu ; la VFC garde son cyan.
 - ~~Carte Élan dans Aujourd'hui~~ : **refusée par Mohamed (5 nov., v2.1)** : « ça enlève le charme d'Aujourd'hui ». **Aucune carte Élan dans Aujourd'hui**, ni à la place d'un bloc ni dans Personnaliser. Élan vient à lui seulement par les **notifications** ; on y entre par la **feuille Plus** (ligne en tête).
 - **Jamais deux séances proposées le même jour** : un jour de repos, la séance courte du programme manqué ; un jour prévu, la **version courte de la séance du jour**. Acceptée, elle **devient la séance du jour**, comme une séance du planning (même résolveur `TodaySessionResolver` / `planDecision` : Démarrer, Entraînement, widget) ; « Pas aujourd'hui » ou « Retirer » : plus proposée ce jour-là.
@@ -89,7 +89,6 @@ Mohamed aime avoir des sujets à lire : sommeil et santé, régime, FC, VFC, SpO
 - Heure des séances dans le planning (`training.weekPlan.v1`) : extension du JSON, compatible avec les plannings déjà enregistrés.
 
 ## Reste à trancher
-- Validation de la maquette v2 (retours de Mohamed) et de ses propositions.
 - Liste des essentiels de la v1 et des domaines autorisés ; langue des textes générés.
 - Stockage des pesées (série `weightKg` existante d'Apple Santé ou table propre + migration iOS v54 / Android MIGRATION_45_46) et du pourquoi (`.noopbak`).
 - ~~Place exacte de l'écran dans Plus~~ : en tête de la feuille Plus (5 nov.).

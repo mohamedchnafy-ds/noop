@@ -7,7 +7,7 @@ Mémoire du fork personnel `mohamedchnafy-ds/noop`, en français. Les règles de
 | `feuille-de-route.md` | État de `main`, dernière IPA, ordre des chantiers, décisions communes, pièges (parité, i18n, CI), protocole de chaque conversation. **À lire en premier.** |
 | `chantier-8-design.md` | Chantier 8 — dossier Claude Code : choix de Mohamed du 3 nov. (Coach lit les séries, actions, PDF labo, repas prévus, historique Nutrition, rappels, planning multi-séances, corps cliquable), lots et **prompt de démarrage**. **Prochain chantier.** |
 | `refonte-design.md` | Chantier 7 — refonte visuelle (style F, iOS 26), PR #34 à #41. |
-| `elan-design.md` | Élan (motivation) — maquette v2 du 5 nov. à valider, choix, poids, lectures. Après le chantier 9. |
+| `elan-design.md` | Élan (motivation) — maquette v2.1 validée le 5 nov., choix, poids, lectures. Après le chantier 9. |
 | `bannieres-widgets-design.md` | Chantier 6 — bannière de séance (pause, boutons), bannière FC, widgets du jour, App Group en sideload. |
 | `entrainement-design.md` | Chantier 5b — planning de la semaine, calendrier, Plus en 6 groupes. |
 | `nutrition-design.md` | Chantier 4 — journal, objectifs, Ciqual, code-barres, Open Food Facts. |

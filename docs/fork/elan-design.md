@@ -1,8 +1,28 @@
-# Élan (section motivation) — fiche du chantier (2 nov. 2026, ~12:50)
+# Élan (section motivation) — fiche du chantier (2 nov. 2026, mise à jour le 5 nov.)
 
-**État** : idées discutées, choix faits (2 nov., widget). **Maquette faite, à valider** (2 nov. ~12:50). Code : après la PR C des widgets (un seul chantier de code à la fois). À ajouter à la feuille de route quand le chantier démarre.
+**État** : **maquette v2 faite le 5 nov., à valider** (style de l'app après les chantiers 7 et 9). Code : après la validation de la v2 et l'IPA du chantier 9 (un seul chantier de code à la fois). À ajouter à la feuille de route quand le chantier démarre.
 
-## Maquette
+## Maquette v2 (5 nov.) — celle qui compte
+Canvas « NOOP – Élan · v2 » — https://claude.ai/artifact/73nKWv2DvetXnpEUtAmojx. 13 écrans en style F (fond noir, cartes #1C1C1E, boutons blancs, liens bleus, pas de capitales) : 1 Élan · 2 Mon pourquoi · 3 Rappels · 4 Feuille Plus · 5 Aujourd'hui (5 cas, interactif) · 6 Notifications · 7 Séance courte · 8 Feuille Démarrer · 9 Avant / maintenant · 10 Pesée (1re / 6e, interactif) · 11 Poids · 12 Lectures (interactif) · 13 Lecture du jour.
+
+### Choix de Mohamed (5 nov.)
+- **Accès** : une ligne **Élan en tête de la feuille Plus**, sous la carte profil, avec son état à droite (« 1 / 3 séances · lecture du jour prête », point bleu si nouveau). Les 5 onglets ne changent pas.
+- **v1 = tout** : raté → séance courte, Avant / maintenant, Mon pourquoi, Poids **et** Lectures.
+- **Rappels : un seul budget** pour Élan et les rappels de repas (chantier 8, `MealReminder`) : au plus 1 par jour (ou 4 / 2 par semaine), la pesée à part ; un seul écran « Rappels », ouvert depuis Élan et depuis Nutrition → Objectifs → Rappels. Priorité le même jour : séance ratée > séance prévue > repas > 3 jours sans séance.
+- **Pas de widget en v1** (le bundle est à 10 widgets, la limite).
+
+### Propositions de la v2 (à valider)
+- **Couleurs** (règle « une couleur = un sens ») : Élan = **sable `#E0B072`** (nouveau jeton, seulement Élan : icône, « Jamais deux fois de suite », victoires, « À essayer ») ; **poids en blanc** (neutre, pas de couleur d'émotion) ; Nutrition tenue = vert Mangé ; muscu = bleu, cardio = rose (comme l'Historique) ; thèmes des lectures : Cœur rose, Sommeil violet, Nutrition vert, Entraînement bleu ; la VFC garde son cyan.
+- **Aujourd'hui** : **une seule carte Élan à la fois**, juste sous les anneaux (raté > pesée > record), un bloc de « Personnaliser Aujourd'hui ». **Jamais deux séances proposées le même jour** : un jour de repos, la séance courte du programme manqué ; un jour prévu, la **version courte de la séance du jour** (« Version courte · 20 min » / « Garder »). Acceptée, elle **devient la séance du jour** (même résolveur `TodaySessionResolver` / `planDecision` : Synthèse, Démarrer, Entraînement, widget) et la carte disparaît ; « Pas aujourd'hui » ou « Retirer » : elle ne revient pas ce jour-là. Pesée : le matin jusqu'à 11:00. Record : le jour du record.
+- **Séance courte** : construite **par l'app** (pas le Coach) : les 2 premiers blocs du programme manqué, dans son ordre, séries et charges de la dernière séance ; « Démarrer maintenant » ou « Ce soir · l'ajouter à aujourd'hui » (→ « Prévu aujourd'hui » de la feuille Démarrer, étiquette « ajoutée par Élan ») ; « Ajuster avec le Coach » et « Garder au Carnet comme programme » en option.
+- **Écran Élan** : carte « Jamais deux fois de suite » → Mon pourquoi → **Cette semaine** (7 jours : faite / prévue / passée / ce soir, du planning) → Avant / maintenant → Poids → Lecture du jour → Les essentiels → Victoires → Rappels → Personnaliser Élan.
+- **Mon pourquoi** : interrupteur « **Le Coach peut le lire** » (éteint par défaut) ; dans la sauvegarde `.noopbak`.
+- **Avant / maintenant** : barres de **minutes par semaine** empilées muscu / cardio (celles de l'Historique), la période « lancé » en bande pâle ; « Ce que tu as construit » ouvre Progression.
+- **Poids** : « Analyses › » (même série qu'Analyses) ; courbe lissée sans points ; message tout prêt après une pesée plus haute (6e pesée) ; ligne « Ton corps change aussi… » (gain de force) ; interrupteur « **Le profil suit la tendance** » (poids lu par le Coach et les Objectifs, allumé).
+- **Lecture du jour** : graphique dessiné par l'app (comme `CoachChartCard`, normale en bande) en tête ; sources en liens ; « Envoyé à Anthropic seulement quand tu demandes ».
+- **Notifications** : action « Noter » / « Plus tard » sur la pesée ; bilan du dimanche ; jamais de chiffre de poids.
+
+## Maquette v1 (2 nov., ancien style)
 Canvas « NOOP – Élan » — https://claude.ai/artifact/TbB76NkVtT8wegLJmaH8oQ (slug d7531eec-7643-48ac-8d8e-04bc190f9a4f). Valeurs d'exemple. Styles repris des canvas Aujourd'hui (fond #1D1E23, cartes #2A2C34 / bord #373A44, rayon 22–26, police arrondie, titres de section 12 px espacés), Coach (carte Séance, bouton #3A7F6D, barre d'onglets) et Entraînement (titre 34 px, retour « ‹ Plus »).
 Artboards : 1 Élan · écran · 2 Mon pourquoi · écrire · 3 Rappels d'Élan · 4 Notification · lendemain d'un raté · 5 Aujourd'hui · carte Élan (3 cas) · 6 Séance courte · préparée par le Coach · 7 Avant / maintenant · 8 Pesée du matin · première fois · 9 Poids · tendance · 10 Lectures (Du jour | Les essentiels, interactif) · 11 Lecture du jour.
 
@@ -65,6 +85,7 @@ Mohamed aime avoir des sujets à lire : sommeil et santé, régime, FC, VFC, SpO
 - Heure des séances dans le planning (`training.weekPlan.v1`) : extension du JSON, compatible avec les plannings déjà enregistrés.
 
 ## Reste à trancher
-- Validation de la maquette (captures / retours de Mohamed) et des propositions ci-dessus.
+- Validation de la maquette v2 (retours de Mohamed) et de ses propositions.
 - Liste des essentiels de la v1 et des domaines autorisés ; langue des textes générés.
-- Place exacte de l'écran dans Plus (nouveau groupe ou dans Entraînement).
+- Stockage des pesées (série `weightKg` existante d'Apple Santé ou table propre + migration iOS v54 / Android MIGRATION_45_46) et du pourquoi (`.noopbak`).
+- ~~Place exacte de l'écran dans Plus~~ : en tête de la feuille Plus (5 nov.).

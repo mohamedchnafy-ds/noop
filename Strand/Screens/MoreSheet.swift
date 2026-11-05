@@ -266,15 +266,18 @@ struct MoreSheetList<Row: View>: View {
             .padding(.top, 12)
             .accessibilityValue(showsAdvanced ? Text("Hide") : Text("\(MoreSheetEntry.advanced.count) screens"))
             if showsAdvanced {
-                card(MoreSheetEntry.advanced)
+                // Fork chantier 12: the fifteen screens rise in one after the other as « Advanced » opens.
+                card(MoreSheetEntry.advanced, cascades: true)
+                    .softCardTransition()
             }
         }
     }
 
-    private func card(_ entries: [MoreSheetEntry]) -> some View {
+    private func card(_ entries: [MoreSheetEntry], cascades: Bool = false) -> some View {
         VStack(spacing: 0) {
-            ForEach(entries) { entry in
+            ForEach(Array(entries.enumerated()), id: \.element) { index, entry in
                 row(entry, entry == entries.last)
+                    .staggeredAppear(index: index, isVisible: cascades)
             }
         }
         .background(StrandPalette.surfaceRaised,

@@ -128,7 +128,10 @@ struct CoachChartCard: View {
                     .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
             } else {
                 readout
-                chart.frame(height: 130)
+                // Fork chantier 12: the curve (or the bars) traces in once per launch.
+                chart
+                    .noopRevealOnce("coach.chart.\(spec)", armed: loaded)
+                    .frame(height: 130)
                 dateRow
                 legend
             }

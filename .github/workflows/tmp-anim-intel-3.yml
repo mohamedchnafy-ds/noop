@@ -1,0 +1,62 @@
+# TEMPORARY (fork, chantier 12, never merged): the app-build checks on an Intel runner while the macOS
+# arm64 runners are saturated. Builds Strand (macOS) and runs StrandTests without the PNG render
+# classes (no GPU on Intel), builds NOOPiOS for the simulator, and runs the StrandDesign package tests.
+name: TMP app build on Intel (fork, ci/anim-intel-3)
+
+on:
+  push:
+    branches: ['ci/anim-intel-3']
+
+concurrency:
+  group: tmp-anim-intel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select the newest Xcode 26
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          test -n "$X" || { echo "::error::no Xcode 26 on this image"; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: StrandDesign package tests
+        run: cd Packages/StrandDesign && swift test 2>&1 | tee ../../sd.log; exit ${PIPESTATUS[0]}
+      - name: Build Strand (macOS)
+        run: >-
+          set -o pipefail; xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee mac.log
+      - name: StrandTests (without the PNG render classes)
+        run: >-
+          set -o pipefail; xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          -only-testing:StrandTests
+          -skip-testing:StrandTests/CoachCardsRenderTests -skip-testing:StrandTests/DayWidgetsRenderTests
+          -skip-testing:StrandTests/LabReportRenderTests -skip-testing:StrandTests/LiftProgramMuscleRenderTests
+          -skip-testing:StrandTests/LiftProgressRenderTests -skip-testing:StrandTests/LiftSupersetRenderTests
+          -skip-testing:StrandTests/LiquidVesselStillTests -skip-testing:StrandTests/LiveHRBannerRenderTests
+          -skip-testing:StrandTests/LiveWorkoutRenderTests -skip-testing:StrandTests/MoreHubRenderTests
+          -skip-testing:StrandTests/NutritionRenderTests -skip-testing:StrandTests/SleepScreenRenderTests
+          -skip-testing:StrandTests/TodayScreenRenderTests -skip-testing:StrandTests/TrainingRenderTests
+          test 2>&1 | tee test.log
+      - name: Build NOOPiOS (simulator)
+        if: always()
+        run: >-
+          set -o pipefail; xcodebuild -scheme NOOPiOS -configuration Debug -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee ios.log
+      - name: Surface errors as annotations
+        if: always()
+        run: |
+          for f in sd.log mac.log test.log ios.log; do
+            [ -f "$f" ] || continue
+            grep -E "error:|Test Case .* failed|with [0-9]+ failures" "$f" | sort -u | head -60 | while IFS= read -r line; do
+              echo "::error::$f: ${line:0:900}"
+            done
+          done

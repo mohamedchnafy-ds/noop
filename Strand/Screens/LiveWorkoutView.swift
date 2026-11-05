@@ -25,6 +25,10 @@ struct LiveWorkoutView: View {
     // hero. (`model.live` is its own ObservableObject, so the leaf's `live` is the one that sees the
     // @Published changes — exactly as the parent's direct observation did before.)
     let onClose: () -> Void
+    /// Fork chantier 12, effect E: the sport to start when the screen opens, after 3 · 2 · 1 · Go when the
+    /// countdown is on (`WorkoutCountdownPrefs`): the recording starts at the « Go ». Nil when the workout
+    /// already runs.
+    var startingSport: String? = nil
 
     /// Keep the screen awake while recording (#703). Opt-in, default off; the toggle lives in Settings.
     /// Read here so we can hold the idle timer off only while this in-exercise screen is up and release it
@@ -35,6 +39,10 @@ struct LiveWorkoutView: View {
     /// control must not end the workout instantly with no way back.
     @State private var showEndConfirm = false
     @State private var showDeleteConfirm = false
+    /// Fork chantier 12: the countdown running, and the scoreboard shown once the workout is saved.
+    @State private var countingDown = false
+    @State private var scoreboard: LiveWorkoutScoreboard?
+    @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
 
     var body: some View {
         ScrollView {
@@ -61,8 +69,23 @@ struct LiveWorkoutView: View {
         }
         // Fork chantier 7/8: the flat black base of style F, no scenic backdrop.
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
-        // If the workout ended elsewhere (process restart cleared it), close the screen.
-        .onChangeCompat(of: model.activeWorkout == nil) { gone in if gone { onClose() } }
+        // If the workout ended elsewhere (process restart cleared it), close the screen; not while the
+        // scoreboard of the workout just saved is up (fork chantier 12).
+        .onChangeCompat(of: model.activeWorkout == nil) { gone in if gone && scoreboard == nil { onClose() } }
+        .overlay {
+            if countingDown, let sport = startingSport {
+                NoopCountdown(goLabel: Text("Go"),
+                              onGo: { if model.activeWorkout == nil { model.startWorkout(sport: sport) } },
+                              onEnd: { withAnimation(.easeOut(duration: 0.25)) { countingDown = false } })
+                    .transition(.opacity)
+            }
+        }
+        .overlay {
+            if let scoreboard {
+                LiveWorkoutScoreboardView(figures: scoreboard, onClose: onClose)
+                    .transition(.opacity)
+            }
+        }
         // Arm the realtime HR stream while the in-exercise screen is up (#681). On a WHOOP 5/MG live HR
         // only flows while the puffin realtime stream is armed; previously only the Live tab armed it, so
         // starting a manual workout straight from Workouts (Live never opened) left `model.bpm == nil` —
@@ -71,6 +94,10 @@ struct LiveWorkoutView: View {
         // two balance and neither disarms the other (mirrors Android LiveWorkoutScreen's DisposableEffect
         // requestRealtimeHr/releaseRealtimeHr). Balanced: one start on appear, one stop on disappear.
         .onAppear {
+            // Fork chantier 12, effect E: the recording starts at the « Go » of the countdown, or now.
+            if let sport = startingSport, model.activeWorkout == nil {
+                if WorkoutCountdownPrefs.isOn() { countingDown = true } else { model.startWorkout(sport: sport) }
+            }
             model.startRealtimeHR()
             // Hold the display awake for the session only if the user opted in (#703).
             if keepScreenOn { ScreenIdle.keepAwake(true) }
@@ -87,8 +114,13 @@ struct LiveWorkoutView: View {
                isPresented: $showEndConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("End", role: .destructive) {
+                // Fork chantier 12, effect F: the figures as they stand, shown once the workout is saved.
+                let shown = model.activeWorkout.map {
+                    LiveWorkoutScoreboard.liveScoreboard($0, scale: UnitPrefs.resolveEffortScale(effortScaleRaw))
+                }
+                scoreboard = shown
                 model.endWorkout()
-                onClose()
+                if shown == nil { onClose() }
             }
         } message: {
             Text("This stops recording and saves what's captured so far. It can't be resumed.")
@@ -266,7 +298,7 @@ private struct LiveWorkoutLiveContent: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             if let workout = model.activeWorkout {
                 LiveWorkoutDashboard(figures: liveFigures(workout, now: context.date),
-                                     distanceSystem: distanceSystem)
+                                     distanceSystem: distanceSystem, animated: true)
             }
         }
     }

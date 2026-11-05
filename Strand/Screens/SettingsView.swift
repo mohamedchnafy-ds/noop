@@ -149,6 +149,8 @@ struct SettingsView: View {
     /// without the device dimming. The live-workout view reads this same key. The string is shared
     /// verbatim with the Android twin (SharedPreferences "workoutKeepScreenOn").
     @AppStorage("workoutKeepScreenOn") private var workoutKeepScreenOn = false
+    /// Fork chantier 12: 3 · 2 · 1 · Go before a live cardio session (on by default, device-only).
+    @AppStorage(WorkoutCountdownPrefs.enabledKey) private var workoutCountdown = true
 
     /// Opt-in "Keep screen on while syncing" (default OFF, iOS only). `SyncKeepAwake` holds the screen awake
     /// for as long as a strap history sync runs while this is on.
@@ -1438,6 +1440,21 @@ struct SettingsView: View {
                 .accessibilityHint("Stops the screen dimming while a workout is recording")
 
                 Text("Holds the screen awake while you're recording a workout, so your live heart rate stays visible without the device dimming. Only applies during a recording. The screen sleeps normally the rest of the time. Leaving it on does use a bit more battery, and means your unlocked screen stays visible for the whole workout, so flip it off if that's a concern.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                rowDivider
+
+                Toggle(isOn: $workoutCountdown) {
+                    Text("Countdown before a session")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.switchOn)
+
+                Text("3, 2, 1, Go before a live cardio session; the recording starts at Go. A tap on the countdown skips it.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

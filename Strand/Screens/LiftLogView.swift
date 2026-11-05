@@ -333,6 +333,8 @@ private struct TrainingStartActivityRow: View {
     @EnvironmentObject var model: AppModel
     @State private var showLiveWorkout = false
     @State private var showStartSport = false
+    /// The sport picked, started by the live workout at the « Go » of its countdown (fork chantier 12).
+    @State private var pendingSport: String?
 
     var body: some View {
         Button {
@@ -344,12 +346,12 @@ private struct TrainingStartActivityRow: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showLiveWorkout) {
-            LiveWorkoutView(onClose: { showLiveWorkout = false })
+            LiveWorkoutView(onClose: { showLiveWorkout = false }, startingSport: pendingSport)
                 .environmentObject(model.live)
         }
         .workoutSelectionCover(isPresented: $showStartSport) {
             StartWorkoutSheet { name in
-                model.startWorkout(sport: name)
+                pendingSport = name
                 showLiveWorkout = true
             }
         }
@@ -365,6 +367,8 @@ struct TrainingCardioLauncher: View {
     @Binding var request: String?
     var onClosed: () -> Void
     @State private var showLiveWorkout = false
+    /// The planned sport, started by the live workout at the « Go » of its countdown (fork chantier 12).
+    @State private var pendingSport: String?
 
     // Explicit, since the private state makes the memberwise one private to this file.
     init(request: Binding<String?>, onClosed: @escaping () -> Void = {}) {
@@ -379,11 +383,11 @@ struct TrainingCardioLauncher: View {
             .onChange(of: request) { sport in
                 guard let sport else { return }
                 request = nil
-                if model.activeWorkout == nil { model.startWorkout(sport: sport) }
+                pendingSport = model.activeWorkout == nil ? sport : nil
                 showLiveWorkout = true
             }
             .sheet(isPresented: $showLiveWorkout, onDismiss: onClosed) {
-                LiveWorkoutView(onClose: { showLiveWorkout = false })
+                LiveWorkoutView(onClose: { showLiveWorkout = false }, startingSport: pendingSport)
                     .environmentObject(model.live)
             }
     }

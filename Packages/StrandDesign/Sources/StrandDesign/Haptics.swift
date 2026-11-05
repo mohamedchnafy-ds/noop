@@ -79,6 +79,23 @@ public extension View {
     }
 }
 
+public extension View {
+    /// Declarative haptic fired when `trigger` changes TO a value `condition` accepts (iOS 17+
+    /// `.sensoryFeedback`; no-op below / on macOS). For a countdown: a tick on each of the last three
+    /// seconds, a stronger tap at zero (fork chantier 12).
+    @ViewBuilder
+    func strandHaptic<V: Equatable>(_ haptic: StrandHaptic, trigger: V,
+                                    when condition: @escaping (V) -> Bool) -> some View {
+        #if os(iOS)
+        if #available(iOS 17.0, *) {
+            self.sensoryFeedback(trigger: trigger) { _, newValue in condition(newValue) ? haptic.sensory : nil }
+        } else { self }
+        #else
+        self
+        #endif
+    }
+}
+
 #if os(iOS)
 @available(iOS 17.0, *)
 private extension StrandHaptic {

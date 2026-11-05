@@ -562,3 +562,475 @@ public extension View {
         modifier(NoopRollingDigits(value: value))
     }
 }
+
+// MARK: - Record (effect D)
+
+/// The « Record » badge: white, it pops in (0.4 → 1.15 → 1) while eight short rays leave it (0.65 s) and a
+/// heavy haptic lands. Plays once per `launchKey` (a set's record must not replay as its row scrolls back);
+/// unarmed, already played or under the quiet-motion gate it is simply there, the haptic kept for a new one.
+public struct NoopRecordBadge: View {
+    private let label: Text
+    private let tint: Color
+    private let armed: Bool
+    private let launchKey: String
+
+    @State private var scale: CGFloat = 1
+    @State private var rays: CGFloat = 1
+    @State private var started = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    /// - Parameters:
+    ///   - label: the badge's word (the app's catalogue: « Record »).
+    ///   - tint: the colour of the rays.
+    ///   - armed: false shows the badge at once, silently (renders, a record already seen).
+    ///   - launchKey: names this record for `NoopLaunchOnce`.
+    public init(label: Text, tint: Color, armed: Bool, launchKey: String) {
+        self.label = label
+        self.tint = tint
+        self.armed = armed
+        self.launchKey = launchKey
+    }
+
+    private var still: Bool { motion.poseStill(reduceMotion) }
+
+    private var waiting: Bool { armed && !started && !still && !NoopLaunchOnce.hasPlayed(launchKey) }
+
+    public var body: some View {
+        label
+            .font(StrandFont.caption.weight(.bold))
+            .foregroundStyle(StrandPalette.surfaceBase)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(StrandPalette.textPrimary))
+            .fixedSize()
+            .background { rayBurst }
+            .scaleEffect(waiting ? 0.4 : scale)
+            .opacity(waiting ? 0 : 1)
+            .onAppear { play() }
+    }
+
+    /// Eight short strokes around the badge, travelling out and fading as `rays` goes from 0 to 1.
+    private var rayBurst: some View {
+        ZStack {
+            ForEach(0..<8, id: \.self) { index in
+                Capsule()
+                    .fill(tint)
+                    .frame(width: 2, height: 7)
+                    .offset(y: -(14 + 16 * rays))
+                    .rotationEffect(.degrees(Double(index) * 45))
+            }
+        }
+        .opacity(rays < 1 ? Double(1 - rays) : 0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func play() {
+        guard armed, !started else { return }
+        guard NoopLaunchOnce.markPlayed(launchKey) else {
+            started = true
+            return
+        }
+        StrandHaptic.heavy.play()
+        guard !still else {
+            started = true
+            return
+        }
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            scale = 0.4
+            rays = 0
+            started = true
+        }
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.55)) { scale = 1 }
+            withAnimation(.easeOut(duration: 0.65)) { rays = 1 }
+        }
+    }
+}
+
+private struct NoopShineSweep: View {
+    @State private var travel: CGFloat = -1
+
+    var body: some View {
+        GeometryReader { geo in
+            LinearGradient(colors: [StrandPalette.textPrimary.opacity(0),
+                                    StrandPalette.textPrimary.opacity(0.22),
+                                    StrandPalette.textPrimary.opacity(0)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                .frame(width: geo.size.width * 0.5, height: geo.size.height * 2)
+                .rotationEffect(.degrees(20))
+                .offset(x: travel * geo.size.width * 1.3, y: -geo.size.height / 2)
+        }
+        .allowsHitTesting(false)
+        .onAppear { withAnimation(.easeOut(duration: 0.8)) { travel = 1.2 } }
+    }
+}
+
+private struct NoopRecordShine: ViewModifier {
+    let active: Bool
+    let launchKey: String
+
+    @State private var sweeping = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if sweeping {
+                    NoopShineSweep().mask { content }
+                }
+            }
+            .onAppear { sweep() }
+            .onChangeCompat(of: active) { _ in sweep() }
+    }
+
+    private func sweep() {
+        guard active, !motion.poseStill(reduceMotion),
+              NoopLaunchOnce.markPlayed(launchKey + ".shine") else { return }
+        sweeping = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) { sweeping = false }
+    }
+}
+
+public extension View {
+    /// A diagonal reflection crosses the view once (0.8 s) when a record lands on it (`active`), once per
+    /// `launchKey`; nothing under the quiet-motion gate.
+    func noopRecordShine(_ active: Bool, launchKey: String) -> some View {
+        modifier(NoopRecordShine(active: active, launchKey: launchKey))
+    }
+}
+
+// MARK: - Scoreboard (effect F)
+
+/// One figure of the end-of-session scoreboard.
+public struct NoopScoreboardLine: Identifiable {
+    public let id: Int
+    public let label: Text
+    public let value: String
+    public let tint: Color
+
+    public init(id: Int, label: Text, value: String, tint: Color) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.tint = tint
+    }
+}
+
+/// The end of a session as a scoreboard: an optional Effort ring in a gradient (effect A), then each figure
+/// coming in from the right, 60 pt SF Rounded, tilted by −12° and straightening, 0.22 s apart, then the
+/// record line (effect D). A tap anywhere, or the close button, ends it. Under the quiet-motion gate it is
+/// drawn at once.
+public struct NoopScoreboard: View {
+    private let title: Text
+    private let lines: [NoopScoreboardLine]
+    private let ring: (fraction: Double, tint: Color, deep: Color, value: String)?
+    private let record: Text?
+    private let recordBadge: Text
+    private let recordKey: String
+    private let closeLabel: Text
+    private let onClose: () -> Void
+
+    @State private var entered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    /// - Parameters:
+    ///   - title: the session's name.
+    ///   - lines: the figures, top to bottom.
+    ///   - ring: the Effort ring: its share of the scale, tint, deep tone and the value written inside.
+    ///   - record: the record line (« 2 records »), nil without a record.
+    ///   - recordBadge: the badge's word (« Record »).
+    ///   - recordKey: names the badge's burst for `NoopLaunchOnce`.
+    ///   - closeLabel: the close button's word.
+    ///   - onClose: called once, on a tap or the button.
+    public init(title: Text, lines: [NoopScoreboardLine],
+                ring: (fraction: Double, tint: Color, deep: Color, value: String)? = nil,
+                record: Text? = nil, recordBadge: Text, recordKey: String, closeLabel: Text,
+                onClose: @escaping () -> Void) {
+        self.title = title
+        self.lines = lines
+        self.ring = ring
+        self.record = record
+        self.recordBadge = recordBadge
+        self.recordKey = recordKey
+        self.closeLabel = closeLabel
+        self.onClose = onClose
+    }
+
+    private var still: Bool { motion.poseStill(reduceMotion) }
+    private var shown: Bool { entered || still }
+
+    public var body: some View {
+        ZStack {
+            StrandPalette.surfaceBase.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: NoopMetrics.space4) {
+                title
+                    .font(StrandFont.screenTitle)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                if let ring {
+                    ZStack {
+                        Circle().stroke(ring.tint.opacity(0.18), lineWidth: 14)
+                        NoopGradientArc(fraction: shown ? ring.fraction : 0, tint: ring.tint, deep: ring.deep,
+                                        diameter: 132, lineWidth: 14)
+                            .rotationEffect(.degrees(-90))
+                            .animation(still ? nil : NoopMotion.ringDraw, value: entered)
+                        Text(verbatim: ring.value)
+                            .font(StrandFont.rounded(36, weight: .heavy))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .monospacedDigit()
+                    }
+                    .frame(width: 132, height: 132)
+                    .frame(maxWidth: .infinity)
+                }
+                ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                    VStack(alignment: .leading, spacing: 0) {
+                        line.label
+                            .font(StrandFont.subhead.weight(.semibold))
+                            .foregroundStyle(StrandPalette.textSecondary)
+                        Text(verbatim: line.value)
+                            .font(StrandFont.rounded(60, weight: .heavy))
+                            .foregroundStyle(line.tint)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .offset(x: shown ? 0 : 80)
+                    .rotationEffect(.degrees(shown ? 0 : -12), anchor: .leading)
+                    .opacity(shown ? 1 : 0)
+                    .animation(still ? nil : NoopMotion.strongEaseOut(0.55).delay(0.2 + Double(index) * 0.22),
+                               value: entered)
+                }
+                if let record {
+                    HStack(spacing: NoopMetrics.space2) {
+                        NoopRecordBadge(label: recordBadge, tint: StrandPalette.statusPositive,
+                                        armed: shown, launchKey: recordKey)
+                        record
+                            .font(StrandFont.body.weight(.semibold))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
+                    .opacity(shown ? 1 : 0)
+                    .animation(still ? nil : .easeOut(duration: 0.3).delay(0.2 + Double(lines.count) * 0.22),
+                               value: entered)
+                }
+                Spacer(minLength: 0)
+                Button(action: onClose) {
+                    closeLabel
+                        .font(StrandFont.body.weight(.semibold))
+                        .foregroundStyle(StrandPalette.surfaceBase)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Capsule().fill(StrandPalette.textPrimary))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(NoopMetrics.space5)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onClose() }
+        .onAppear {
+            StrandHaptic.success.play()
+            entered = true
+        }
+    }
+}
+
+// MARK: - Countdown (effect E)
+
+/// 3 · 2 · 1 · Go before a cardio session: an 80 pt SF Rounded figure landing from 1.55, a ring emptying in
+/// each second, a selection tick on 3, 2 and 1, then « Go » in green with a glow and a heavy haptic. `onGo`
+/// starts the recording at the « Go »; `onEnd` hides the overlay 0.6 s later. A tap skips straight to both.
+/// Under the quiet-motion gate the figures change without moving; the haptics stay.
+public struct NoopCountdown: View {
+    private let goLabel: Text
+    private let onGo: () -> Void
+    private let onEnd: () -> Void
+
+    @State private var step = 3
+    @State private var pop: CGFloat = 1
+    @State private var ring: CGFloat = 1
+    @State private var went = false
+    @State private var ended = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    public init(goLabel: Text, onGo: @escaping () -> Void, onEnd: @escaping () -> Void) {
+        self.goLabel = goLabel
+        self.onGo = onGo
+        self.onEnd = onEnd
+    }
+
+    private var still: Bool { motion.poseStill(reduceMotion) }
+    private var tint: Color { step == 0 ? StrandPalette.statusPositive : StrandPalette.textPrimary }
+
+    public var body: some View {
+        ZStack {
+            StrandPalette.surfaceBase.opacity(0.94).ignoresSafeArea()
+            ZStack {
+                Circle().stroke(StrandPalette.hairline, lineWidth: 8)
+                Circle()
+                    .trim(from: 0, to: ring)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Group {
+                    if step > 0 {
+                        Text(verbatim: String(step))
+                    } else {
+                        goLabel
+                    }
+                }
+                .font(StrandFont.rounded(80, weight: .heavy))
+                .foregroundStyle(tint)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .shadow(color: StrandPalette.statusPositive.opacity(step == 0 ? 0.7 : 0), radius: 18)
+            }
+            .frame(width: 180, height: 180)
+            .scaleEffect(pop)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { skip() }
+        .onAppear { beat() }
+        .onDisappear { ended = true }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    /// One second of the countdown: its haptic, the figure landing, the ring emptying, then the next.
+    private func beat() {
+        guard !ended else { return }
+        if step > 0 {
+            StrandHaptic.selection.play()
+        } else {
+            StrandHaptic.heavy.play()
+            go()
+        }
+        if !still {
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) {
+                pop = 1.55
+                ring = 1
+            }
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.45)) { pop = 1 }
+                withAnimation(.linear(duration: 0.95)) { ring = step == 0 ? 1 : 0 }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (step == 0 ? 0.6 : 1.0)) {
+            guard !ended else { return }
+            if step > 0 {
+                step -= 1
+                beat()
+            } else {
+                end()
+            }
+        }
+    }
+
+    private func go() {
+        guard !went else { return }
+        went = true
+        onGo()
+    }
+
+    private func end() {
+        guard !ended else { return }
+        ended = true
+        onEnd()
+    }
+
+    private func skip() {
+        go()
+        end()
+    }
+}
+
+// MARK: - Live heart (effect C)
+
+/// A heart beating at the real rhythm (a period of 60 / bpm): a quick swell at each beat and a ring leaving
+/// it. A loop only while it serves (`beating`, a live heart rate); still under the quiet-motion gate.
+public struct NoopHeartbeat: View {
+    private let bpm: Int?
+    private let tint: Color
+    private let size: CGFloat
+    private let beating: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    public init(bpm: Int?, tint: Color, size: CGFloat = 18, beating: Bool) {
+        self.bpm = bpm
+        self.tint = tint
+        self.size = size
+        self.beating = beating
+    }
+
+    public var body: some View {
+        if beating, let bpm, bpm >= 25, !motion.poseStill(reduceMotion) {
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                let period = 60.0 / Double(bpm)
+                let phase = context.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: period) / period
+                heart(phase: phase)
+            }
+        } else {
+            heart(phase: 1)
+        }
+    }
+
+    private func heart(phase: Double) -> some View {
+        let swell = phase < 0.16 ? sin(phase / 0.16 * .pi) : 0
+        return ZStack {
+            Circle()
+                .stroke(tint, lineWidth: 1.5)
+                .frame(width: size, height: size)
+                .scaleEffect(CGFloat(1 + 1.3 * phase))
+                .opacity(phase < 1 ? 0.55 * (1 - phase) : 0)
+            Image(systemName: "heart.fill")
+                .font(.system(size: size * 0.8, weight: .semibold))
+                .foregroundStyle(tint)
+                .scaleEffect(CGFloat(1 + 0.2 * swell))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Z1 to Z5 as five short bars, the active zone lit in its colour and the others dimmed; the light moves in
+/// 0.35 s when the zone changes.
+public struct NoopZoneStrip: View {
+    private let zone: Int
+    private let colors: [Color]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    /// - Parameters:
+    ///   - zone: the active zone, 1…5; 0 lights none.
+    ///   - colors: the five zone colours (`StrandPalette.zone1…zone5`).
+    public init(zone: Int, colors: [Color]) {
+        self.zone = zone
+        self.colors = colors
+    }
+
+    public var body: some View {
+        HStack(spacing: 3) {
+            ForEach(Array(colors.prefix(5).enumerated()), id: \.offset) { index, color in
+                Capsule()
+                    .fill(color.opacity(index + 1 == zone ? 1 : 0.25))
+                    .frame(height: 5)
+                    .shadow(color: color.opacity(index + 1 == zone ? 0.7 : 0), radius: 4)
+            }
+        }
+        .animation(NoopMotion.gated(.easeOut(duration: 0.35), reduced: motion.poseStill(reduceMotion)), value: zone)
+        .accessibilityHidden(true)
+    }
+}

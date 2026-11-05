@@ -221,7 +221,7 @@ final class CoachMealTests: XCTestCase {
             weekDaysLogged: 5, weekMeanKcal: 2_210, weekMeanProteinG: 142))
         XCTAssertTrue(block.hasPrefix("NUTRITION ("))
         XCTAssertTrue(block.contains("today so far: eaten 1495 kcal (protein 111 g, carbs 182 g, fat 34 g) in 4 meals; spent 2100 kcal; balance -605 kcal"))
-        XCTAssertTrue(block.contains("intake 2460 kcal/day = basal 2238 kcal (revised Harris-Benedict) × 1.375 (activity level: light) = 3078 kcal/day × 0.80; protein 224 g (2.0 g/kg); fat 112 g (1.0 g/kg); carbs 139 g (the rest)"), block)
+        XCTAssertTrue(block.contains("intake 2460 kcal/day = basal 2238 kcal (revised Harris-Benedict) × 1.375 (activity level: light) = 3078 kcal/day × 0.80; protein 224 g (2.0 g/kg); fat 105 g (1.0 g/kg, lowered so carbs keep 25% of the intake); carbs 155 g (the rest)"), block)
         XCTAssertTrue(block.contains("measured by the strap: mean 1744 kcal/day over 4 complete days (for information only"))
         XCTAssertTrue(block.contains("the 7 days before today: 5 days logged, mean eaten 2210 kcal, protein 142 g"))
 

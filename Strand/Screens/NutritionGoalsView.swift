@@ -431,9 +431,13 @@ struct NutritionGoalsContent: View {
         let weight = NutritionFormat.editable(wearer.weightKg)
         let proteinTenths = plan.settings.proteinTenths
         let fatTenths = plan.settings.fatTenths
+        // The bounds of the split (5 Nov.), named when they changed a figure: « at most 40 % of the goal ».
+        let proteinShare = NutritionFormat.percentText(Int((NutritionGoals.proteinMaxShare * 100).rounded()))
+        let carbsShare = NutritionFormat.percentText(Int((NutritionGoals.carbsMinShare * 100).rounded()))
         return VStack(alignment: .leading, spacing: 0) {
             macroRow(.protein, grams: plan.proteinG,
-                     detail: "\(NutritionFormat.oneDecimalText(Double(proteinTenths) / 10)) × \(weight) kg · \(NutritionFormat.whole(plan.proteinKcal)) kcal") {
+                     detail: "\(NutritionFormat.oneDecimalText(Double(proteinTenths) / 10)) × \(weight) kg · \(NutritionFormat.whole(plan.proteinKcal)) kcal"
+                        + (plan.proteinCapped ? " · " + String(localized: "at most \(proteinShare) of the goal") : "")) {
                 goalsStepper(value: NutritionFormat.oneDecimalText(Double(proteinTenths) / 10), unit: "g/kg",
                         minus: "Decrease by 0.1 g per kg", plus: "Increase by 0.1 g per kg",
                         canMinus: proteinTenths > NutritionGoals.proteinTenthsRange.lowerBound,
@@ -443,7 +447,8 @@ struct NutritionGoalsContent: View {
             }
             divider
             macroRow(.fat, grams: plan.fatG,
-                     detail: "\(NutritionFormat.oneDecimalText(Double(fatTenths) / 10)) × \(weight) kg · \(NutritionFormat.whole(plan.fatKcal)) kcal") {
+                     detail: "\(NutritionFormat.oneDecimalText(Double(fatTenths) / 10)) × \(weight) kg · \(NutritionFormat.whole(plan.fatKcal)) kcal"
+                        + (plan.fatLowered ? " · " + String(localized: "lowered so carbs keep \(carbsShare)") : "")) {
                 goalsStepper(value: NutritionFormat.oneDecimalText(Double(fatTenths) / 10), unit: "g/kg",
                         minus: "Decrease by 0.1 g per kg", plus: "Increase by 0.1 g per kg",
                         canMinus: fatTenths > NutritionGoals.fatTenthsRange.lowerBound,
@@ -482,8 +487,8 @@ struct NutritionGoalsContent: View {
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             control()

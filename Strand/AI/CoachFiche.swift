@@ -247,8 +247,11 @@ enum CoachFiche {
                 + String(format: "%.2f", 1 + Double(plan.settings.goalPercent) / 100)
         }
         if plan.isBelowBasal { goals += " (below the basal rate)" }
-        goals += "; protein \(plan.proteinG) g (\(perKg(plan.settings.proteinTenths))); "
-            + "fat \(plan.fatG) g (\(perKg(plan.settings.fatTenths))); carbs \(plan.carbsG) g (the rest)"
+        // A bounded macro says so, so the Coach never multiplies the grams per kilogram back out (5 Nov.).
+        let proteinNote = plan.proteinCapped ? ", held to 40% of the intake" : ""
+        let fatNote = plan.fatLowered ? ", lowered so carbs keep 25% of the intake" : ""
+        goals += "; protein \(plan.proteinG) g (\(perKg(plan.settings.proteinTenths))\(proteinNote)); "
+            + "fat \(plan.fatG) g (\(perKg(plan.settings.fatTenths))\(fatNote)); carbs \(plan.carbsG) g (the rest)"
         lines.append(goals)
         if let reference = n.reference {
             lines.append("  measured by the strap: mean \(Int(reference.kcal.rounded())) kcal/day over \(reference.days) "

@@ -239,39 +239,13 @@ struct SleepTopSection: View {
             .accessibilityLabel(Text(label))
     }
 
+    /// The night picker: the same row as Nutrition's day picker (5 Nov.).
     private var nightPicker: some View {
-        HStack(spacing: 0) {
-            chevron("chevron.left", enabled: data.canGoBack, label: "Previous night", action: actions.previous)
-                .accessibilityHint(data.canGoBack ? Text("") : Text("No earlier night stored yet. Earlier nights sync in the morning."))
-            Spacer(minLength: NoopMetrics.space2)
-            VStack(spacing: 1) {
-                Text(data.nightLabel)
-                    .font(StrandFont.caption)
-                    .foregroundStyle(secondary)
-                Text(data.dateLabel)
-                    .font(StrandFont.subhead.weight(.semibold))
-                    .foregroundStyle(primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: NoopMetrics.space2)
-            chevron("chevron.right", enabled: data.canGoForward, label: "Next night", action: actions.next)
-        }
-    }
-
-    private func chevron(_ symbol: String, enabled: Bool, label: LocalizedStringKey,
-                         action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(secondary.opacity(enabled ? 1 : 0.35))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(LiquidPressStyle())
-        .disabled(!enabled)
-        .accessibilityLabel(Text(label))
+        DayPickerRow(caption: data.nightLabel, title: data.dateLabel,
+                     canGoBack: data.canGoBack, canGoForward: data.canGoForward,
+                     backLabel: "Previous night", forwardLabel: "Next night",
+                     backDisabledHint: Text("No earlier night stored yet. Earlier nights sync in the morning."),
+                     onBack: actions.previous, onForward: actions.next)
     }
 
     /// The four stage totals, two by two, deepest first, fixed above both views.

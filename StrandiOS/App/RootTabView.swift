@@ -524,6 +524,16 @@ struct RootTabView: View {
                 .environment(\.showsMoreAvatar, true)
                 .environment(\.tabRouteSwitch, routeSwitch)
                 .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                // The status bar's own backdrop (5 Nov.): with the navigation bar hidden, a scrolled page
+                // ran under the clock (the Nutrition title, the « Syncing strap history » pill). A
+                // zero-height strip at the top of the safe area whose background fills the status bar.
+                .overlay(alignment: .top) {
+                    Color.clear
+                        .frame(height: 0)
+                        .background(StrandPalette.surfaceBase, ignoresSafeAreaEdges: .top)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 .toolbar(.hidden, for: .navigationBar)
                 .tabRouteDestinations()
         }

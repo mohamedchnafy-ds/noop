@@ -260,6 +260,9 @@ struct TodayHRCardBody: View {
     var emptyText: String
     var caption: [TodayHRCaptionItem] = []
     var stats: (min: Double?, avg: Double?, max: Double?)
+    /// Armed, the curve traces itself left to right once per launch (fork chantier 12); false draws it
+    /// whole (render tests).
+    var animated: Bool = false
 
     @State private var scrubX: CGFloat?
     #if os(iOS)
@@ -289,6 +292,7 @@ struct TodayHRCardBody: View {
             }
             if let chart, chart.points.count >= 2 {
                 TodayHRChart(model: chart, tint: tint, lineWidth: lineWidth)
+                    .noopRevealOnce("today.hr.curve", armed: animated)
                     .frame(height: chart.axis.isEmpty ? 104 : 124)
                     .contentShape(Rectangle())
                     .overlay { scrubReadout(chart) }
@@ -722,7 +726,8 @@ struct TodayHeartRateSection: View {
             lineWidth: 2.5,
             emptyText: String(localized: "Waiting for a live heartbeat…"),
             caption: caption,
-            stats: (values.min(), values.isEmpty ? nil : values.reduce(0, +) / Double(values.count), values.max()))
+            stats: (values.min(), values.isEmpty ? nil : values.reduce(0, +) / Double(values.count), values.max()),
+            animated: true)
     }
 
     private var dayCard: some View {
@@ -743,7 +748,8 @@ struct TodayHeartRateSection: View {
             emptyText: live.connected ? String(localized: "Waiting for a live heartbeat…")
                                       : String(localized: "Connect your strap to see live heart rate"),
             caption: caption,
-            stats: (values.min(), values.isEmpty ? nil : values.reduce(0, +) / Double(values.count), values.max()))
+            stats: (values.min(), values.isEmpty ? nil : values.reduce(0, +) / Double(values.count), values.max()),
+            animated: true)
     }
 
     private func liveSubtitle(alert: TodayHRAlert.Crossing?) -> String {

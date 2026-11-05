@@ -201,6 +201,15 @@ enum NutritionMacro: CaseIterable {
         }
     }
 
+    /// The deep tone a macro's gradient ring starts from (fork chantier 12).
+    var deepTint: Color {
+        switch self {
+        case .protein: return StrandPalette.macroProteinDeep
+        case .carbs: return StrandPalette.macroCarbsDeep
+        case .fat: return StrandPalette.macroFatDeep
+        }
+    }
+
     var title: String {
         switch self {
         case .protein: return String(localized: "Protein")

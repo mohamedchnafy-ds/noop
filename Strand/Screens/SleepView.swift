@@ -421,7 +421,8 @@ struct SleepView: View {
             selection: $selectedStage,
             curves: phasesNight(model).map { AnyView(stageCard($0.night, intervals: $0.intervals)) },
             canShowFullScreen: (phasesNight(model)?.intervals.count ?? 0) >= 2,
-            fullScreen: $phasesFullScreen)
+            fullScreen: $phasesFullScreen,
+            animated: true)
         // The night's curves (1-min sleeping HR, windowed rMSSD, skin temperature), reloaded only when the
         // displayed night changes. All three are the existing reads: no new computation. Here rather than on
         // the curves view, so the lowest heart rate of the Indicators loads with the ring shown too.
@@ -688,7 +689,8 @@ struct SleepView: View {
         case .sleepDebt:
             SleepDebtLedgerCard(model: model, onOpenNight: { openNight(day: $0) },
                                 canOpenNight: { openableNightIndex(day: $0) != nil },
-                                shownDay: shownNightDay, onShowNight: { showNight(day: $0) })
+                                shownDay: shownNightDay, onShowNight: { showNight(day: $0) },
+                                animated: true)
         // Personal fork: "vs typical" only once there is a typical to compare with; before that the
         // stages card says how many nights are still needed.
         case .stagesVsTypical:

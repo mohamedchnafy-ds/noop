@@ -133,6 +133,8 @@ struct TodayStressCard: View {
     var isToday: Bool = true
     /// Opens the Stress screen from the title; nil keeps the title inert (renders, macOS previews).
     var titleRoute: TabRoute? = .stress
+    /// Armed, the curve traces itself once per launch (fork chantier 12); false draws it whole (renders).
+    var animated: Bool = false
 
     @State private var showsMethod = false
 
@@ -142,6 +144,7 @@ struct TodayStressCard: View {
             if let level = model.latestLevel {
                 levelLine(level)
                 chart
+                    .noopRevealOnce("today.stress.curve", armed: animated)
                     .frame(height: 96)
                 axis
                 legend

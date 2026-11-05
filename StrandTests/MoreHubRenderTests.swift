@@ -31,6 +31,23 @@ final class MoreHubRenderTests: XCTestCase {
         try render(AnyView(hub), name: "1-plus")
     }
 
+    /// Section 7 (mockup « Plus »): the profile card, the three sections with their values, « Advanced »
+    /// folded (personal fork).
+    func testRenderMoreSheetSections() throws {
+        let values = MoreSheetValues(vitality: 44, stress: "Modéré", labDay: "12 mars", alarm: "06:04",
+                                     backup: "hier")
+        let sheet = VStack(alignment: .leading, spacing: 12) {
+            Text("More")
+                .font(StrandFont.title1)
+                .foregroundStyle(StrandPalette.textPrimary)
+            MoreProfileCard(name: "Mohamed", avatarImageData: nil, detail: "WHOOP 4.0 · 82 % · synchro il y a 4 min")
+            MoreSheetList { entry, isLast in
+                MoreSheetRowLabel(entry: entry, value: values.value(for: entry), showsDivider: !isLast)
+            }
+        }
+        try render(AnyView(sheet), name: "2-plus-sections")
+    }
+
     private func render(_ content: AnyView, name: String) throws {
         let screen = content
             .padding(.horizontal, NoopMetrics.screenPadding)

@@ -500,7 +500,13 @@ struct SmartAlarmView: View {
     /// A strap that is merely disconnected is NOT excluded here: `armStrapAlarm` queues and arms on
     /// reconnect, so the alarm is real and the countdown to it is true.
     private var strapAlarmWillArm: Bool {
-        !(model.whoop5Detected && !PuffinExperiment.isEnabled)
+        Self.strapAlarmArms(isWhoop5: model.whoop5Detected)
+    }
+
+    /// `strapAlarmWillArm` for a strap family, so a reader outside this screen (the More sheet's
+    /// « Alarms » row, personal fork) applies the same gate.
+    static func strapAlarmArms(isWhoop5: Bool) -> Bool {
+        !(isWhoop5 && !PuffinExperiment.isEnabled)
     }
 
     /// The one moment every alarm readout on this screen is derived from, or nil when nothing will fire.
@@ -514,10 +520,17 @@ struct SmartAlarmView: View {
     /// than a `Date()` captured somewhere else.
     private func nextStrapAlarm(from now: Date = Date()) -> Date? {
         guard behavior.smartAlarmEnabled, strapAlarmWillArm else { return nil }
-        return AppModel.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
-                                           weekdays: behavior.smartAlarmWeekdays,
-                                           overrides: overrides,
-                                           from: now)
+        return Self.nextArmedStrapAlarm(enabled: true, minutes: behavior.smartAlarmMinutes,
+                                        weekdays: behavior.smartAlarmWeekdays, overrides: overrides,
+                                        isWhoop5: model.whoop5Detected, from: now)
+    }
+
+    /// The funnel above with its inputs passed in: the More sheet's « Alarms » row (personal fork) names
+    /// the same moment through it, gate included, so the two cannot disagree.
+    static func nextArmedStrapAlarm(enabled: Bool, minutes: Int, weekdays: Set<Int>, overrides: [Int: Int],
+                                    isWhoop5: Bool, from now: Date) -> Date? {
+        guard enabled, strapAlarmArms(isWhoop5: isWhoop5) else { return nil }
+        return AppModel.nextSmartAlarmDate(minutes: minutes, weekdays: weekdays, overrides: overrides, from: now)
     }
 
     /// The next alarm as a weekday, date and time: "Mon 21 Sep 10:28".

@@ -50,3 +50,4 @@ On doit comprendre un widget au premier coup d'œil. Aujourd'hui : Séance du jo
 ## CI (5 nov.)
 - 4c5b936 : macOS + StrandTests verts (rendus `widgets-4-v2`, `widgets-5-v2-seance` compris) ; build iOS annulé (runner arm64 non attribué) ; publication du rendu en conflit avec le run précédent (`ReleaseAsset.name already exists`), relancée par ce commit.
 - Piège : `StrandDesign.SleepStage` ne compile pas (le module contient un `enum StrandDesign`) ; écrire `SleepStage`.
+- IPA (5 nov., ~19:30) : bc5727e sur runner Intel (`ci/ipa-intel`, 16c7cc6 = bc5727e + workflow temporaire), première compilation iOS du chantier : réussie. À valider sur le téléphone avant la fusion de #87.

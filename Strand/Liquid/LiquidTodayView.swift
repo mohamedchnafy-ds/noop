@@ -661,17 +661,11 @@ struct LiquidTodayView: View {
     /// Today's optimal strain band (#43, the same resolver the strain-target nudge reads), on the Effort
     /// scale the hero displays. The band is defined on the 0–21 axis; a 0–100 reader sees it converted.
     private var effortTargetRange: ClosedRange<Double>? {
-        guard let band = CoupledView.optimalStrainRange(recovery: chargeDisplay.pct) else { return nil }
-        if effortScale == .whoop { return Double(band.lowerBound)...Double(band.upperBound) }
-        let lo = StrainScorer.effortValue(fromWhoopStrain: Double(band.lowerBound))
-        let hi = StrainScorer.effortValue(fromWhoopStrain: Double(band.upperBound))
-        return lo...hi
+        TodayHeroFigures.heroEffortTarget(recovery: chargeDisplay.pct, scale: effortScale)
     }
 
     private var effortTargetCaption: String? {
-        guard let band = effortTargetRange else { return nil }
-        let lo = Int(band.lowerBound.rounded()), hi = Int(band.upperBound.rounded())
-        return String(localized: "target \(lo)–\(hi)")
+        TodayHeroFigures.heroEffortCaption(effortTargetRange)
     }
 
     /// The night's sleep in the Sleep tab's format ("3h 41m"); the naps stay on the Sleep tab. On today,
@@ -1857,6 +1851,8 @@ struct LiquidTodayView: View {
             activityGoalDefault = await defaultActivityGoal(before: calendarFrom, cycleMarkers: cycleMarkers,
                                                             body: body, hrmax: hrmax)
             activityGoalDefaultDay = dayKey
+            // Widgets v2: the rings widget draws the same goal.
+            TodayHeroFigures.rememberActivityGoalDefault(activityGoalDefault, dayKey: dayKey)
         }
 
         // Sleep: the blocks and naps of the window, for the debt ledger, the sleep band and the awake floor.

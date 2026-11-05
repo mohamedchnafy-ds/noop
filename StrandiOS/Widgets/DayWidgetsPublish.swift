@@ -66,8 +66,79 @@ extension DayWidgetsSnapshot {
         let sleep = DayWidgetsContent.sleepSection(nightMinutes: night, figures: figures,
                                                    night: DayWidgetsContent.widgetNight(repo.sleeps, now: now))
 
+        // Widgets v2: Today's rings, the heart-rate thresholds of the day and the stress card.
+        let rings = await widgetRings(model: model, now: now, dayStart: dayStart, nightMinutes: night)
+        let midnight = calendar.startOfDay(for: now)
+        let heart = await DayWidgetsHeartMemo.heartThresholds(repo: repo, midnight: midnight, now: now)
+        var stress: DayWidgetsSnapshot.Stress?
+        if let scored = await StressDayCurve.today(repo: repo, now: now, calendar: calendar) {
+            let from = Int(midnight.timeIntervalSince1970)
+            let stressModel = TodayStressLogic.model(result: scored.result, dayStart: from,
+                                                     now: Int(now.timeIntervalSince1970), isToday: true)
+            stress = DayWidgetsContent.stressSection(stressModel, dayStart: from)
+        }
+
         return DayWidgetsContent.daySnapshot(dayStart: dayStart, calendar: calendar, session: session,
-                                             nutrition: nutrition, sleep: sleep)
+                                             nutrition: nutrition, sleep: sleep, rings: rings, heart: heart,
+                                             stress: stress)
+    }
+
+    /// Today's four rings: the activity of the calendar day (the funnel Today and Nutrition read) against
+    /// the activity goal Today resolved, and the Charge, Effort and Rest of the glance the app just published
+    /// (`WidgetSnapshot.publish`, on Today's own anchor day).
+    @MainActor
+    private static func widgetRings(model: AppModel, now: Date, dayStart: Date,
+                                    nightMinutes: Double?) async -> DayWidgetsSnapshot.Rings? {
+        let repo = model.repo
+        guard await repo.storeHandle() != nil else { return nil }
+        let calendar = Calendar.current
+        let activity = await NutritionDayReader.spentOnDay(repo, profile: model.profile,
+                                                           day: calendar.startOfDay(for: now), now: now)
+        let dayKey = Repository.localDayKey(dayStart)
+        let goal = TodayEnergy.goal(setting: UserDefaults.standard.integer(forKey: TodayEnergy.goalKey),
+                                    defaultGoal: TodayHeroFigures.activityGoalDefault(dayKey: dayKey))
+        let glance = WidgetSnapshot.load()
+        let scale = UnitPrefs.resolveEffortScale(UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? "")
+        let anchor = Repository.widgetAnchor(days: repo.days, now: now)
+        return DayWidgetsContent.ringsSection(activity: activity, activityGoal: goal,
+                                              charge: glance?.recovery.map(Double.init), effortStored: anchor?.strain,
+                                              effortScale: scale, rest: glance?.rest.map(Double.init),
+                                              nightMinutes: nightMinutes)
+    }
+}
+
+/// The heart-rate widget's thresholds, read once a day: the usual rate of each 5-minute slot over the
+/// fortnight before (`HabitualHR`) and the awake floor are what Today's card reads, and they do not move
+/// during the day. The day's sleep is read again on each build, so a night synced later is left uncoloured.
+@MainActor
+enum DayWidgetsHeartMemo {
+    private static var day: Int?
+    private static var habitual: [Int: Double] = [:]
+    private static var floor: Double?
+
+    static func heartThresholds(repo: Repository, midnight: Date, now: Date) async -> DayWidgetsSnapshot.Heart? {
+        let dayStart = Int(midnight.timeIntervalSince1970)
+        let nowTs = Int(now.timeIntervalSince1970)
+        let sleep = repo.sleeps
+            .map { $0.effectiveStartTs...max($0.effectiveStartTs, $0.endTs) }
+            .filter { $0.upperBound > dayStart - 86_400 && $0.lowerBound < nowTs }
+        if day != dayStart {
+            let zone = TimeZone.current
+            let history = await repo.hrBuckets(from: dayStart - HabitualHR.windowDays * 86_400, to: dayStart,
+                                               bucketSeconds: HabitualHR.bucketSeconds)
+            guard !history.isEmpty else { return nil }
+            let historySleep = repo.sleeps.map { $0.effectiveStartTs...max($0.effectiveStartTs, $0.endTs) }
+            let (profile, awake) = await Task.detached(priority: .utility) {
+                (HabitualHR.profile(buckets: history, zone: zone),
+                 TodayHRAlert.awakeFloor(buckets: history, sleep: historySleep, zone: zone))
+            }.value
+            habitual = profile
+            floor = awake
+            day = dayStart
+        }
+        let todayKey = Repository.localDayKey(midnight)
+        let resting = repo.days.last(where: { $0.day <= todayKey && $0.restingHr != nil })?.restingHr.map(Double.init)
+        return DayWidgetsContent.heartSection(habitual: habitual, awakeFloor: floor, restingHR: resting, sleep: sleep)
     }
 }
 

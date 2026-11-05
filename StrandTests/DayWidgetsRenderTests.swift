@@ -159,6 +159,103 @@ final class DayWidgetsRenderTests: XCTestCase {
         try render(empty, width: 390, name: "widgets-3-repos-sans-donnee")
     }
 
+    // MARK: Widgets v2 (mockup « NOOP – Widgets v2 », 5 Nov.)
+
+    /// Wednesday 4 November with Full body A and 30 minutes of walking planned; `liftDone` once the session is
+    /// over (then the walk is the resolver's session).
+    private func plannedResolution(liftDone: Bool) -> TodaySessionResolution {
+        let session = liftDone
+            ? TodaySynthesisLogic.Session(name: "Walking", state: .next, supersets: 0, singles: 0,
+                                          typicalMinutes: nil, cardioMinutes: 30)
+            : TodaySynthesisLogic.Session(name: "Full body A", state: .next, supersets: 5, singles: 0,
+                                          typicalMinutes: 55, alsoPlanned: ["Walking · 30 min"])
+        var r = resolution(session, doneToday: liftDone)
+        if liftDone {
+            r.programId = nil
+            r.programItems = []
+        }
+        r.plan = TrainingWeekPlan(days: ["1": [.program("a")], "3": [.program("a"), .cardio(sport: "Walking", minutes: 30)],
+                                         "5": [.program("a")]], since: "2026-10-26")
+        r.programNames = ["a": "Full body A"]
+        return r
+    }
+
+    private var heartPoints: [DayHeartPoint] {
+        let values = [82, 84, 83, 88, 92, 79, 81, 84, 88, 93, 91, 87, 85, 85, 86, 87, 86, 85, 84, 66, 64, 72, 95, 100,
+                      97, 104, 119, 127, 121, 114, 110]
+        let end = ts(date(4, 16))
+        return values.enumerated().map { DayHeartPoint(ts: end - (values.count - 1 - $0.offset) * 360, bpm: $0.element) }
+    }
+
+    private var heart: DayWidgetsSnapshot.Heart? {
+        var habitual: [Int: Double] = [:]
+        for slot in 0..<288 { habitual[slot] = 82 + 12 * sin(Double(slot) / 288 * .pi) }
+        return DayWidgetsContent.heartSection(habitual: habitual, awakeFloor: 68, restingHR: 52, sleep: [])
+    }
+
+    private var stressModel: TodayStressModel {
+        let dayStart = ts(date(4))
+        let levels: [Double?] = [2.9, 2.6, 1.9, nil, nil, 2.0, 2.2, 2.4, 2.5, 2.4, 2.6, 2.7, nil, 2.8, 2.8, 2.2, 2.4,
+                                 2.6, 3.0, 2.9]
+        var points: [TodayStressModel.Point] = []
+        var run = 0
+        for (i, level) in levels.enumerated() {
+            guard let level else {
+                if points.last?.run == run { run += 1 }
+                continue
+            }
+            points.append(.init(x: Double(i) * 0.5 / 16, level: level, run: run))
+        }
+        let latest = dayStart + 15 * 3_600 + 1_800
+        return TodayStressModel(points: points, moving: [(1.25 / 16)...(2.25 / 16), (5.75 / 16)...(6.25 / 16)],
+                                latestLevel: 2.9, latestStartTs: latest, latestIsNow: true, highMinutes: 330,
+                                mean: 2.4, peakStartTs: dayStart + 15 * 3_600, dayStart: dayStart)
+    }
+
+    private var dayV2: DayWidgetsSnapshot {
+        DayWidgetsContent.daySnapshot(
+            dayStart: date(4), calendar: calendar,
+            session: DayWidgetsContent.sessionSection(plannedResolution(liftDone: false), today: date(4),
+                                                      calendar: calendar),
+            nutrition: nutrition, sleep: sleep,
+            rings: DayWidgetsContent.ringsSection(activity: TodayEnergy.Split(restingKcal: 1_580, activityKcal: 420),
+                                                  activityGoal: 600, charge: 19, effortStored: 18.6,
+                                                  effortScale: .whoop, rest: 76, nightMinutes: 311),
+            heart: heart,
+            stress: DayWidgetsContent.stressSection(stressModel, dayStart: ts(date(4))))
+    }
+
+    func testRendersTheWidgetsV2() throws {
+        let day = dayV2
+        let labels = DayWidgetsContent.widgetLabels()
+        let end = ts(date(4, 16))
+        let axis = [end - 10_800, end - 5_400, end].map {
+            AppClock.hourMinuteFormatter().string(from: Date(timeIntervalSince1970: TimeInterval($0)))
+        }
+        let mediums = VStack(spacing: 22) {
+            widget(DayRingsWidgetFace(rings: day.rings, noData: labels.noData), size: medium)
+            widget(DayHeartWidgetFace(points: heartPoints, bpm: 110, stale: false, windowEnd: end, windowSec: 10_800,
+                                      day: day, axis: axis), size: medium)
+            widget(DayStressWidgetFace(day: day, now: end), size: medium)
+            widget(DaySleepWidgetFaceV2(sleep: day.sleep, labels: labels), size: medium)
+            widget(DaySessionWidgetFaceV2(session: day.session, day: day, labels: labels), size: medium)
+            widget(DayNutritionWidgetFaceV2(nutrition: day.nutrition, day: day, labels: labels), size: medium)
+        }
+        .padding(22)
+        try render(mediums, width: 390, name: "widgets-4-v2")
+
+        // The session widget once the lift is done, on a rest day, and before the app has published.
+        let done = DayWidgetsContent.sessionSection(plannedResolution(liftDone: true), today: date(4), calendar: calendar)
+        let sessions = VStack(spacing: 22) {
+            widget(DaySessionWidgetFaceV2(session: done, day: day, labels: labels), size: medium)
+            widget(DaySessionWidgetFaceV2(session: restSession, day: day, labels: labels), size: medium)
+            widget(DaySessionWidgetFaceV2(session: nil, day: nil, labels: labels), size: medium)
+            widget(DayStressWidgetFace(day: nil, now: end), size: medium)
+        }
+        .padding(22)
+        try render(sessions, width: 390, name: "widgets-5-v2-seance")
+    }
+
     /// A widget as the Home Screen draws it: the raised surface, its corner, and the system's content margin.
     private func widget<Face: View>(_ face: Face, size: CGSize) -> some View {
         face

@@ -310,3 +310,41 @@ enum HabitualWake {
         return ((raw % 1440) + 1440) % 1440
     }
 }
+
+/// The hero's Effort target and activity goal, read by Today and by the rings widget (widgets v2), so the
+/// Home Screen draws the band and the goal Today draws.
+enum TodayHeroFigures {
+    /// Today's optimal strain band (#43, `CoupledView.optimalStrainRange`) on the Effort scale shown: the
+    /// band is defined on the 0–21 axis, a 0–100 reader sees it converted.
+    static func heroEffortTarget(recovery: Double?, scale: EffortScale) -> ClosedRange<Double>? {
+        guard let band = CoupledView.optimalStrainRange(recovery: recovery) else { return nil }
+        if scale == .whoop { return Double(band.lowerBound)...Double(band.upperBound) }
+        let lo = StrainScorer.effortValue(fromWhoopStrain: Double(band.lowerBound))
+        let hi = StrainScorer.effortValue(fromWhoopStrain: Double(band.upperBound))
+        return lo...hi
+    }
+
+    /// « target 8–14 ».
+    static func heroEffortCaption(_ band: ClosedRange<Double>?) -> String? {
+        guard let band else { return nil }
+        let lo = Int(band.lowerBound.rounded()), hi = Int(band.upperBound.rounded())
+        return String(localized: "target \(lo)–\(hi)")
+    }
+
+    /// The default activity goal Today resolved for a day (the mean of the last complete days), kept by day
+    /// key. Reading it costs a fortnight of heart rate, so the rings widget takes Today's figure rather than
+    /// reading it again; until Today has resolved the day, the widget shows the unit without a goal.
+    @MainActor private static var activityGoalDefaults: [String: Double] = [:]
+
+    @MainActor
+    static func rememberActivityGoalDefault(_ goal: Double?, dayKey: String) {
+        // Browsing back through the days adds one entry each; a handful is all the widget ever needs.
+        if activityGoalDefaults.count > 8 { activityGoalDefaults = [:] }
+        activityGoalDefaults[dayKey] = goal
+    }
+
+    @MainActor
+    static func activityGoalDefault(dayKey: String) -> Double? {
+        activityGoalDefaults[dayKey]
+    }
+}

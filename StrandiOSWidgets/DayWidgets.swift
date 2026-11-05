@@ -57,9 +57,15 @@ struct DaySessionWidgetView: View {
     let entry: DayWidgetsEntry
 
     var body: some View {
-        DaySessionWidgetFace(session: entry.current?.session, labels: entry.labels, size: daySize(family))
-            .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
-            .widgetURL(DayWidgetsSnapshot.Link.session.url)
+        Group {
+            if family == .systemMedium {
+                DaySessionWidgetFaceV2(session: entry.current?.session, day: entry.current, labels: entry.labels)
+            } else {
+                DaySessionWidgetFace(session: entry.current?.session, labels: entry.labels, size: daySize(family))
+            }
+        }
+        .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
+        .widgetURL(DayWidgetsSnapshot.Link.session.url)
     }
 }
 
@@ -68,9 +74,15 @@ struct DayNutritionWidgetView: View {
     let entry: DayWidgetsEntry
 
     var body: some View {
-        DayNutritionWidgetFace(nutrition: entry.current?.nutrition, labels: entry.labels, size: daySize(family))
-            .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
-            .widgetURL(DayWidgetsSnapshot.Link.nutrition.url)
+        Group {
+            if family == .systemMedium {
+                DayNutritionWidgetFaceV2(nutrition: entry.current?.nutrition, day: entry.current, labels: entry.labels)
+            } else {
+                DayNutritionWidgetFace(nutrition: entry.current?.nutrition, labels: entry.labels, size: daySize(family))
+            }
+        }
+        .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
+        .widgetURL(DayWidgetsSnapshot.Link.nutrition.url)
     }
 }
 
@@ -79,9 +91,15 @@ struct DaySleepWidgetView: View {
     let entry: DayWidgetsEntry
 
     var body: some View {
-        DaySleepWidgetFace(sleep: entry.current?.sleep, labels: entry.labels, size: daySize(family))
-            .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
-            .widgetURL(DayWidgetsSnapshot.Link.sleep.url)
+        Group {
+            if family == .systemMedium {
+                DaySleepWidgetFaceV2(sleep: entry.current?.sleep, labels: entry.labels)
+            } else {
+                DaySleepWidgetFace(sleep: entry.current?.sleep, labels: entry.labels, size: daySize(family))
+            }
+        }
+        .overlay(alignment: .bottomLeading) { DayWidgetsGroupNote(entry: entry) }
+        .widgetURL(DayWidgetsSnapshot.Link.sleep.url)
     }
 }
 

@@ -432,7 +432,7 @@ extension DayWidgetsContent {
     /// Each stage's total over the night, deep first, as the sleep widget's legend lists them; a stage the
     /// night did not have is left out.
     static func stageTotals(_ phases: [DayWidgetsSnapshot.Phase]) -> [DayWidgetsSnapshot.StageTotal] {
-        let order: [(stage: String, label: StrandDesign.SleepStage)] = [("deep", .deep), ("rem", .rem), ("light", .light),
+        let order: [(stage: String, label: SleepStage)] = [("deep", .deep), ("rem", .rem), ("light", .light),
                                                            ("wake", .awake)]
         return order.compactMap { entry in
             let minutes = phases.filter { $0.stage == entry.stage }.reduce(0) { $0 + $1.minutes }

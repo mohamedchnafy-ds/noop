@@ -655,10 +655,11 @@ struct DayNutritionWidgetFaceV2: View {
                     }
                 }
                 Spacer(minLength: 0)
+                // Spread over the whole width: Left at the leading edge, Spent centred, Net at the trailing edge.
                 HStack(alignment: .top, spacing: 8) {
-                    figure(word("Left"), nutrition.left, tint: StrandPalette.intakeColor)
-                    figure(word("Spent"), nutrition.spent, tint: StrandPalette.caloriesActivity)
-                    figure(word("Net"), nutrition.net, tint: StrandPalette.textPrimary)
+                    figure(word("Left"), nutrition.left, tint: StrandPalette.intakeColor, alignment: .leading)
+                    figure(word("Spent"), nutrition.spent, tint: StrandPalette.caloriesActivity, alignment: .center)
+                    figure(word("Net"), nutrition.net, tint: StrandPalette.textPrimary, alignment: .trailing)
                 }
             } else {
                 Spacer(minLength: 0)
@@ -698,8 +699,8 @@ struct DayNutritionWidgetFaceV2: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func figure(_ name: String, _ value: String?, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+    private func figure(_ name: String, _ value: String?, tint: Color, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 0) {
             Text(name)
                 .font(StrandFont.caption2)
                 .foregroundStyle(StrandPalette.textSecondary)
@@ -710,7 +711,7 @@ struct DayNutritionWidgetFaceV2: View {
                 .monospacedDigit()
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .top))
         .accessibilityElement(children: .combine)
     }
 }

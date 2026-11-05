@@ -173,6 +173,8 @@ struct TodayStressCard: View {
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        // Fork chantier 12: the Stress screen grows out of this card and shrinks back into it.
+        .noopZoomSource(TabRoute.stress)
         .sheet(isPresented: $showsMethod) { TodayStressMethodSheet() }
     }
 

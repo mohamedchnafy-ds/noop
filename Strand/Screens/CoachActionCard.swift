@@ -13,6 +13,8 @@ struct CoachActionCard: View {
     let onConfirm: () -> Void
     let onUndo: () -> Void
     @State private var showsNote = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -53,7 +55,12 @@ struct CoachActionCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            // Fork chantier 12: Confirm folds into « Done · Undo », the check bounces, a success haptic.
             actions
+                .transition(.softCard(reduced: motion.poseStill(reduceMotion)))
+                .animation(NoopMotion.gated(NoopMotion.card, reduced: motion.poseStill(reduceMotion)),
+                           value: proposal.state)
+                .strandHaptic(.success, trigger: proposal.state, when: { $0 == .applied })
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -96,6 +103,7 @@ struct CoachActionCard: View {
         case .applied:
             HStack(spacing: 8) {
                 Label("Done", systemImage: "checkmark")
+                    .noopSymbolBounce(proposal.state)
                     .font(StrandFont.subhead.weight(.semibold))
                     .foregroundStyle(StrandPalette.accent)
                     .frame(maxWidth: .infinity, minHeight: 44)

@@ -16,6 +16,9 @@ import WhoopStore
 /// `sending`, `errorText`, `setKey(_:)`, `clearKey()`, and `send(_:)`.
 struct CoachView: View {
     @EnvironmentObject var coach: AICoachEngine
+    /// Fork chantier 12: a reply grows smoothly as its words arrive; at once under the quiet-motion gate.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
     /// K8: used by "Save to Journal" — saves the coach advice as a journal entry with the text
     /// in the notes field, so it appears alongside other journal entries in Insights.
     @EnvironmentObject var repo: Repository
@@ -710,6 +713,9 @@ struct CoachView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: 680, alignment: .leading)
                             .accessibilityLabel("Coach said: \(reply.body)")
+                            .transition(.opacity)
+                            .animation(streaming && !motion.poseStill(reduceMotion) ? .easeOut(duration: 0.25) : nil,
+                                       value: reply.body)
                     }
                     // Fork chantier 9: the charts the coach asked for, drawn from the app's own data.
                     ForEach(Array(charts.enumerated()), id: \.offset) { _, spec in
@@ -892,7 +898,9 @@ struct CoachView: View {
 
     private var typingIndicator: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small).tint(StrandPalette.accent)
+            // Fork chantier 12: the spark pulses while the Coach works (a loop that serves), still under
+            // the quiet-motion gate.
+            NoopWaitingSpark(tint: StrandPalette.accent)
             Group {
                 if let looking = coach.toolActivity {
                     Text("Looking at \(looking)…")

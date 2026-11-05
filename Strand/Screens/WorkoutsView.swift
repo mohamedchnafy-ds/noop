@@ -822,10 +822,14 @@ struct WorkoutsView: View {
         return ZStack {
             Circle()
                 .stroke(StrandPalette.surfaceInset, lineWidth: 9)
-            Circle()
-                .trim(from: 0, to: fraction)
-                .stroke(StrandPalette.effortColor, style: StrokeStyle(lineWidth: 9, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+            // Fork chantier 12, effect A: the Effort ring in its gradient, drawn in once per launch.
+            NoopFirstDraw(key: "workouts.history.effort", armed: hasData) { phase in
+                NoopGradientArc(fraction: phase.drawn ? fraction : 0, tint: StrandPalette.effortColor,
+                                deep: StrandPalette.effortDeep, diameter: 92, lineWidth: 9)
+                    .rotationEffect(.degrees(-90))
+                    .animation(phase.motion(NoopMotion.ringDraw), value: phase.drawn)
+                    .animation(phase.motion(NoopMotion.valueChange), value: fraction)
+            }
             VStack(spacing: 0) {
                 if hasData {
                     Text(verbatim: UnitFormatter.effortDisplay(avgStrain, scale: effortScale))

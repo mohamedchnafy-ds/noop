@@ -692,6 +692,8 @@ struct TodayHeartRateSection: View {
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        // Fork chantier 12: the full-day timeline grows out of this card and shrinks back into it.
+        .noopZoomSource(TabRoute.fullDayChart)
         .task(id: day.isToday) { await seedBuffer() }
         .onChangeCompat(of: live.heartRate) { hr in
             guard let hr, hr > 0 else { buffer.removeAll(); return }

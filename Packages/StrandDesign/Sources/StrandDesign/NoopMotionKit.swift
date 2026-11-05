@@ -1034,3 +1034,96 @@ public struct NoopZoneStrip: View {
         .accessibilityHidden(true)
     }
 }
+
+// MARK: - Zoom from a card (iOS 18)
+
+private struct NoopZoomNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+public extension EnvironmentValues {
+    /// The namespace a navigation stack's zoom transitions share: set by the stack's root, read by the cards
+    /// a screen zooms from. Nil outside such a stack (macOS, sheets).
+    var noopZoomNamespace: Namespace.ID? {
+        get { self[NoopZoomNamespaceKey.self] }
+        set { self[NoopZoomNamespaceKey.self] = newValue }
+    }
+}
+
+private struct NoopZoomSource<ID: Hashable>: ViewModifier {
+    let id: ID
+    @Environment(\.noopZoomNamespace) private var namespace
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 18.0, *), let namespace {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+private struct NoopZoomDestination<ID: Hashable>: ViewModifier {
+    let id: ID
+    let namespace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 18.0, *), !motion.poseStill(reduceMotion) {
+            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+public extension View {
+    /// Marks the card a pushed screen zooms out of (iOS 18 `matchedTransitionSource`); nothing elsewhere.
+    func noopZoomSource<ID: Hashable>(_ id: ID) -> some View {
+        modifier(NoopZoomSource(id: id))
+    }
+
+    /// The pushed screen grows out of the card marked with the same `id` and shrinks back into it (iOS 18
+    /// `.navigationTransition(.zoom)`); a plain push elsewhere and under the quiet-motion gate.
+    func noopZoomDestination<ID: Hashable>(_ id: ID, in namespace: Namespace.ID) -> some View {
+        modifier(NoopZoomDestination(id: id, namespace: namespace))
+    }
+}
+
+// MARK: - Waiting spark
+
+/// The Coach's spark while it works: sparkles that breathe (scale and light), looping while they serve;
+/// still under the quiet-motion gate.
+public struct NoopWaitingSpark: View {
+    private let tint: Color
+
+    @State private var lit = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    public init(tint: Color) {
+        self.tint = tint
+    }
+
+    public var body: some View {
+        let still = motion.poseStill(reduceMotion)
+        Image(systemName: "sparkles")
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(tint)
+            .scaleEffect(lit && !still ? 1.15 : 0.9)
+            .opacity(lit && !still ? 1 : 0.6)
+            .shadow(color: tint.opacity(lit && !still ? 0.6 : 0), radius: 6)
+            .animation(still ? nil : .easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: lit)
+            .onAppear { lit = true }
+            .accessibilityHidden(true)
+    }
+}

@@ -6,6 +6,14 @@ import StrandDesign
 struct NOOPEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot
+    /// Widgets v2: the day snapshot, whose rings the medium widget draws (Today's hero card).
+    var day: DayWidgetsSnapshot? = nil
+
+    /// The day snapshot's rings while its day lasts.
+    var rings: DayWidgetsSnapshot.Rings? {
+        guard let day, day.isCurrent(at: date) else { return nil }
+        return day.rings
+    }
 }
 
 struct NOOPProvider: TimelineProvider {
@@ -15,16 +23,19 @@ struct NOOPProvider: TimelineProvider {
 
     func getSnapshot(in context: Context, completion: @escaping (NOOPEntry) -> Void) {
         let fallback: WidgetSnapshot = context.isPreview ? .placeholder : .unavailable
-        completion(NOOPEntry(date: Date(), snapshot: WidgetSnapshot.load() ?? fallback))
+        let day = DayWidgetsSnapshot.loadDayWidgets(suiteName: WidgetSnapshot.suiteName)
+        completion(NOOPEntry(date: Date(), snapshot: WidgetSnapshot.load() ?? fallback,
+                             day: day ?? (context.isPreview ? .galleryPreview : nil)))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<NOOPEntry>) -> Void) {
         // Gallery previews use `placeholder(in:)` / getSnapshot's preview branch. A real timeline
         // with no shared snapshot must show missing data honestly, never plausible sample numbers.
         let snap = WidgetSnapshot.load() ?? .unavailable
+        let day = DayWidgetsSnapshot.loadDayWidgets(suiteName: WidgetSnapshot.suiteName)
         // Refresh roughly every 15 minutes; the app also forces a reload when it publishes fresh data.
         let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
-        completion(Timeline(entries: [NOOPEntry(date: Date(), snapshot: snap)], policy: .after(next)))
+        completion(Timeline(entries: [NOOPEntry(date: Date(), snapshot: snap, day: day)], policy: .after(next)))
     }
 }
 
@@ -52,7 +63,12 @@ struct NOOPWidgetView: View {
         case .systemLarge:
             large
         case .systemMedium:
-            medium
+            // Widgets v2: Today's four rings with their lines, once the app has published them.
+            if let rings = entry.rings {
+                DayRingsWidgetFace(rings: rings, noData: entry.day?.labels?.noData ?? "")
+            } else {
+                medium
+            }
         default:
             // systemSmall (and any future compact family)
             small

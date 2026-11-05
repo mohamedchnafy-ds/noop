@@ -1,6 +1,6 @@
 # Widgets v2 — fiche du chantier (5 nov. 2026)
 
-**État** : maquette faite, à valider. Code après la validation ; l'IPA du chantier 9 partira de `main` avec ces widgets.
+**État** : maquette **validée le 5 nov.** (« Go ») ; code en PR (`feat/widgets-v2`). L'IPA du chantier 9 partira de `main` avec ces widgets.
 
 ## Maquette
 Canvas « NOOP – Widgets v2 » — https://claude.ai/artifact/675CLLFJ77Y4qPen5TmxMc. Taille moyenne (338 × 158 pt), valeurs d'exemple, style F (fond #1C1C1E, rayon 22, SF Pro, chiffres arrondis), couleurs des jetons de l'app (sombre).
@@ -23,3 +23,26 @@ On doit comprendre un widget au premier coup d'œil. Aujourd'hui : Séance du jo
 - **Séance du jour** : la séance (nom, « Muscu · 4 blocs · ≈ 55 min », Démarrer blanc) et le cardio (sport, « Cardio · 30 min », Démarrer rose) ; « Cette semaine · 0 / 2 séances faites » ; faite = coche bleue « Faite · 52 min » ; repos = « Jour de repos · Prochaine : … ». Plus de blocs A1/B1 ni de points de la semaine.
 - **Nutrition** : anneau vert des kcal mangées / objectif, 3 barres Protéines (violet) / Glucides (jaune) / Lipides (cyan), Reste · Dépensé · Bilan.
 - Tout en français (mise en mots côté app, comme les widgets du jour).
+
+## Écarts avec la maquette (code)
+- Charge : pas de mot « basse » sous le chiffre (Today n'en affiche pas ; une seule lecture de la Charge).
+- Sommeil : « dette 2 h 8 min » / « Coucher conseillé 00:03 » reprennent les phrases déjà traduites du widget.
+- Séance cardio : « Objectif : 30 min » (le libellé de la feuille Démarrer) au lieu de « Cardio · 30 min » ; muscu : la ligne de la Synthèse (« 3 supersets + 1 exercice · ≈ 55 min »), sans « Muscu · ».
+- Jour de repos : « Repos » + « Prochaine : Full body B · lundi » (sinon « jour de repos du planning »).
+- Les petites tailles (Séance, Nutrition, Sommeil) et l'anneau/la ligne de l'écran verrouillé ne changent pas.
+
+## Ce qui est codé (PR `feat/widgets-v2`)
+- **Snapshot** `DayWidgetsSnapshot` (clé `noop.widget.day`) : + `rings`, `heart`, `stress`, `words` (mots par texte anglais, `word(_:)`) ; Séance + `rows` (`SessionRow` : lift | cardio | rest, nom, détail, fait, lien Démarrer), `dayLine`, `weekDone` ; Nutrition + `left` / `spent` / `net` ; Sommeil + `stages` (`StageTotal`). Tout optionnel (ancien JSON lisible). `changedWidgetKinds` recharge aussi `NOOPWidget`, `HeartRateWidget`, `StressWidget`.
+- **Mise en mots** (`DayWidgetsContent`, extension « Widgets v2 ») : `widgetSessionRows` (les éléments du jour du planning par `buildTrainingDays`, au plus 2 ; sinon la séance du résolveur), `liftDetail`, `nextPlannedLine`, `weekDoneLine` (`sessionTally`), `nutritionFigures` (règles de `NutritionView.figuresLine`), `stageTotals`, `ringsSection`, `heartSection` (par tranche de 5 min, `TodayHRAlert.thresholds`), `stressSection` (`TodayStressLogic.model`), `widgetWords`, `widgetDayLine`.
+- **Un seul calcul avec Aujourd'hui** : `TodayHeroFigures.heroEffortTarget` / `heroEffortCaption` (bande Effort, lus par `LiquidTodayView` et le widget) ; objectif d'activité par défaut mémorisé par Aujourd'hui (`rememberActivityGoalDefault`, par jour) ; sans lui, le widget montre « kcal » sans objectif (comme Aujourd'hui sans objectif). Activité = `NutritionDayReader.spentOnDay` (jour calendaire, comme Nutrition).
+- **Publication** : seuils FC lus une fois par jour (`DayWidgetsHeartMemo` : profil habituel 14 j + plancher éveillé ; sommeil relu à chaque fois) ; stress par `StressDayCurve.today` (mémo, pas de relecture) ; `WidgetSnapshot.publish` force la publication du jour quand Charge / Effort / Repos / courbe de stress changent.
+- **Vues** `StrandiOSShared/DayWidgetV2Views.swift` (ajoutée à la cible macOS dans `project.yml`) : `DayRingsWidgetFace`, `DayHeartWidgetFace` (courbe rose, rouge au-dessus du haut, verte sous le bas, pas de couleur pendant le sommeil, seuils en pointillés, « haut / bas » à droite), `DayStressWidgetFace`, `DaySessionWidgetFaceV2`, `DayNutritionWidgetFaceV2`, `DaySleepWidgetFaceV2` (hypnogramme 4 lignes), `DayWidgetTitle`.
+- **Extension** : moyen → nouvelles vues ; FC et Stress lisent aussi le snapshot du jour (Stress : ancien dessin tant que l'app n'a pas publié) ; **Brief du Coach retiré** de `NOOPWidgetBundle` (9 widgets).
+- **Démarrer** : `noop://widget/start?program=<id>&name=<nom>` / `?sport=<sport>` (`DayWidgetsSnapshot.Start`) → `NavRouter.widgetStart` → `RootTabView.startFromWidget` (onglet Entraînement, feuilles fermées, puis `beginProgramSession` ou `TrainingCardioLauncher`).
+- 4 clés (10 langues) : « Last 3 hours », « this hour », « Next: %@ », « %lld / %lld sessions done ».
+- Tests : `DayWidgetsTests` (+6), rendu `widgets-4-v2`, `widgets-5-v2-seance`.
+
+## À tester sur le téléphone
+- Les 6 widgets moyens : mêmes valeurs qu'Aujourd'hui (anneaux, bande Effort, objectif d'activité après avoir ouvert Aujourd'hui), carte FC (seuils, rouge / vert), carte Stress (niveau, « cette heure »), Nutrition (Reste / Dépensé / Bilan), Sommeil (durées des phases = Sommeil).
+- Séance : Démarrer muscu → la séance du programme s'ouvre ; Démarrer cardio → la séance en direct du sport ; app fermée puis ouverte par le bouton.
+- Brief du Coach absent de la galerie (un widget déjà posé disparaît).

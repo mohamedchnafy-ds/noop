@@ -24,6 +24,8 @@ struct TodaySessionResolution {
     var otherWorkouts: [WorkoutRow]
     /// The week plan, its deleted or empty programs left out (`TrainingWeekPlan.keepingPrograms`).
     var plan: TrainingWeekPlan
+    /// Every program with at least one line, by id: its name (the session widget names each planned item).
+    var programNames: [String: String] = [:]
 }
 
 enum TodaySessionResolver {
@@ -64,7 +66,8 @@ enum TodaySessionResolver {
         let plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(withItems.map(\.id)))
         var resolution = TodaySessionResolution(
             session: nil, programId: nil, programItems: [], hasPrograms: !programs.isEmpty,
-            performed: performed, liftWorkouts: split.lift, otherWorkouts: split.others, plan: plan)
+            performed: performed, liftWorkouts: split.lift, otherWorkouts: split.others, plan: plan,
+            programNames: Dictionary(withItems.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first }))
         func named(_ session: TodaySynthesisLogic.Session, programId: String?) -> TodaySessionResolution {
             resolution.session = session
             resolution.programId = programId

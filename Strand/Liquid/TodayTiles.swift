@@ -75,21 +75,39 @@ struct TodayHRSectionHead: View {
         .foregroundStyle(tint)
     }
 
+    /// The title, as a link when the card has a route.
+    @ViewBuilder
+    private var titleLink: some View {
+        if let titleRoute {
+            NavigationLink(value: titleRoute) { title }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the full-day heart rate timeline")
+        } else {
+            title
+        }
+    }
+
+    private var selector: some View {
+        SegmentedPillControl([TodayHRMode.live, TodayHRMode.day], selection: $mode,
+                             isEnabled: { $0 == .day || liveEnabled }) {
+            $0 == .live ? String(localized: "Live") : String(localized: "Whole day")
+        }
+        .fixedSize()
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: NoopMetrics.space2) {
-            if let titleRoute {
-                NavigationLink(value: titleRoute) { title }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Opens the full-day heart rate timeline")
-            } else {
-                title
+        // The whole title, never « Fréquence cardia… » (5 Nov.): beside the selector when both fit, else
+        // the selector goes under it.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: NoopMetrics.space2) {
+                titleLink.fixedSize()
+                Spacer(minLength: NoopMetrics.space2)
+                selector
             }
-            Spacer(minLength: NoopMetrics.space2)
-            SegmentedPillControl([TodayHRMode.live, TodayHRMode.day], selection: $mode,
-                                 isEnabled: { $0 == .day || liveEnabled }) {
-                $0 == .live ? String(localized: "Live") : String(localized: "Whole day")
+            VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+                titleLink
+                selector
             }
-            .fixedSize()
         }
     }
 }

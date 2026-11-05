@@ -65,11 +65,12 @@ struct TodaySynthesisCard: View {
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                 if let subtitle = TodaySynthesisCard.shownSubtitle(row) {
+                    // Two lines rather than « …réveil habituel de 0… » (5 Nov.).
                     Text(subtitle)
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: NoopMetrics.space2)
@@ -147,10 +148,12 @@ enum TodaySynthesisLogic {
     }
 
     static func sessionRow(_ session: Session?, route: TabRoute?) -> TodaySynthesisRow {
+        // Nothing in the week plan and no session today is not missing data: say so, and link to Training,
+        // where the week is planned (5 Nov.).
         guard let session else {
             return TodaySynthesisRow(id: "session", symbol: "dumbbell.fill", tint: StrandPalette.effortColor,
                                      title: String(localized: "Today's session"), subtitle: nil,
-                                     value: String(localized: "no data"), route: route)
+                                     value: String(localized: "Nothing planned"), route: route)
         }
         let subtitle: String
         switch session.state {

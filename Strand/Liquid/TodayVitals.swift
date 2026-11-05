@@ -33,6 +33,12 @@ enum TodayVitalRange {
             guard high > low else { return 0.5 }
             return min(1, max(0, (v - low) / (high - low)))
         }
+
+        /// Whether last night sits outside the personal normal band, either side. False while calibrating.
+        var isOutsideNormal: Bool {
+            guard let normal else { return false }
+            return !normal.contains(value)
+        }
     }
 
     /// The personal normal band from the baseline the Charge score uses, or nil while it is not usable

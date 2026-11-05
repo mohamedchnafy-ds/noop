@@ -16,6 +16,10 @@ import WhoopStore
 // bar. A night without stages is one grey bar. Touching a bar puts that night in the head (date, asleep,
 // each stage, awake) with « See this night », which shows it in the night card; touching it again goes
 // back to the average. 14 nights or 30 days.
+//
+// 5 Nov.: on the Sleep tab the bars and the night card above are one selection. Touching a bar also shows
+// that night in the night card (« See this night » then only scrolls up to it), and the night the card
+// shows is always marked by a dot above its bar, whichever control picked it.
 
 struct SleepDebtLedgerCard: View {
     let model: SleepModel
@@ -23,11 +27,16 @@ struct SleepDebtLedgerCard: View {
     var onOpenNight: ((String) -> Void)? = nil
     /// Whether a day has a night the night card can show; « See this night » shows only for those.
     var canOpenNight: (String) -> Bool = { _ in true }
+    /// The wake day of the night the night card shows (marked on its bar); nil on the Today host.
+    var shownDay: String? = nil
+    /// Shows a day's night in the night card without scrolling; nil on the Today host.
+    var onShowNight: ((String) -> Void)? = nil
 
     var body: some View {
         SleepNightsCard(data: SleepNightsData(ledger: model.sleepDebtLedger, month: model.trendPoints,
                                               splits: model.nightStageSplits),
-                        onOpenNight: onOpenNight, canOpenNight: canOpenNight)
+                        onOpenNight: onOpenNight, canOpenNight: canOpenNight,
+                        shownDay: shownDay, onShowNight: onShowNight)
     }
 }
 
@@ -159,6 +168,9 @@ struct SleepNightsCard: View {
     let data: SleepNightsData
     var onOpenNight: ((String) -> Void)? = nil
     var canOpenNight: (String) -> Bool = { _ in true }
+    /// The night the night card shows, marked on its bar, and who shows a touched night there.
+    var shownDay: String? = nil
+    var onShowNight: ((String) -> Void)? = nil
     @State var range: Span = .nights14
     /// The night touched on the bars (its day key), or nil for the average.
     @State var picked: String? = nil
@@ -192,8 +204,10 @@ struct SleepNightsCard: View {
                     }
                     let shownPick = bars.first { $0.day == picked && ($0.minutes ?? 0) > 0 }
                     head(bars, picked: shownPick)
-                    SleepNightsBars(bars: bars, needMinutes: data.needMinutes, picked: shownPick?.day, onPick: { day in
+                    SleepNightsBars(bars: bars, needMinutes: data.needMinutes, picked: shownPick?.day,
+                                    marked: shownDay, onPick: { day in
                         withAnimation(StrandMotion.fade) { picked = picked == day ? nil : day }
+                        if let onShowNight, canOpenNight(day) { onShowNight(day) }
                     })
                     .frame(height: 132)
                     dateRow(bars.map(\.day))
@@ -202,6 +216,10 @@ struct SleepNightsCard: View {
             }
         }
         .onChange(of: range) { _ in picked = nil }
+        // A night picked above (‹ ›) moves the touched bar with it, so the head never names another night.
+        .onChange(of: shownDay) { day in
+            if picked != nil, let day { picked = day }
+        }
     }
 
     // MARK: Parts
@@ -355,6 +373,8 @@ struct SleepNightsBars: View {
     let bars: [SleepNightBar]
     let needMinutes: Double
     var picked: String? = nil
+    /// The night shown in the night card above, marked by a dot over its bar; nil marks nothing.
+    var marked: String? = nil
     /// The colour of a bar without stages: grey on « Your nights »; the plain hours trend passes its own.
     var plainColor: Color? = nil
     var onPick: ((String) -> Void)? = nil
@@ -394,6 +414,10 @@ struct SleepNightsBars: View {
                                    with: .color(color))
                         bottom -= h
                     }
+                }
+                if bar.day == marked {
+                    ctx.fill(Path(ellipseIn: CGRect(x: cx - 3, y: y(value) - 10, width: 6, height: 6)),
+                             with: .color(StrandPalette.textPrimary))
                 }
             }
 

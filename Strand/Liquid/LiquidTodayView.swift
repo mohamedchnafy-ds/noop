@@ -65,7 +65,6 @@ struct LiquidTodayView: View {
     @State private var activityGoalDefaultDay = ""
     @State private var sleepNights: SleepNightsData?
     @State private var todaySession: TodaySynthesisLogic.Session?
-    @State private var hasLiftPrograms = false
     @State private var usualWakeMinutes: Int?
     @State private var sleepNeedMinutes: Double = 480
     @State private var hrDay = TodayHRDayInput()
@@ -478,6 +477,7 @@ struct LiquidTodayView: View {
             DashboardCardPrefs.migrateLegacyStepsAverage()
             applyLayoutV2IfNeeded()
             applyLayoutV3IfNeeded()
+            applyLayoutV4IfNeeded()
             await load()
         }
         .sheet(item: $guideSection) { section in
@@ -1186,10 +1186,10 @@ struct LiquidTodayView: View {
     // MARK: - Synthesis (personal fork, Today v2): sleep debt, today's session, suggested bedtime
 
     /// The Lift Log is an iPhone screen (its session controller is only provided there), so the row only
-    /// links on iOS, and only once a program exists.
+    /// links on iOS. It links even without a program: the Training tab is also where the week is planned.
     private var liftLogRoute: TabRoute? {
         #if os(iOS)
-        return hasLiftPrograms ? .liftLog : nil
+        return .liftLog
         #else
         return nil
         #endif
@@ -1897,7 +1897,6 @@ struct LiquidTodayView: View {
         let resolved = await TodaySessionResolver.resolveTodaySession(repo: repo, calendarFrom: calendarFrom,
                                                                        calendarTo: calendarTo, isToday: isToday)
         todaySession = resolved?.session
-        hasLiftPrograms = resolved?.hasPrograms ?? false
     }
 
     /// Re-reads today's logical day key; a change (midnight, or the 04:00 roll in sleep mode) reloads.
@@ -1921,6 +1920,14 @@ struct LiquidTodayView: View {
         guard !defaults.bool(forKey: TodayLayoutPrefs.liquidLayoutV3Key) else { return }
         sectionOrderRaw = TodayLayoutPrefs.liquidV3Order(sectionOrderRaw)
         defaults.set(true, forKey: TodayLayoutPrefs.liquidLayoutV3Key)
+    }
+
+    /// Moves heart rate above Synthesis in the saved order (5 Nov.), once, after v3.
+    private func applyLayoutV4IfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: TodayLayoutPrefs.liquidLayoutV4Key) else { return }
+        sectionOrderRaw = TodayLayoutPrefs.liquidV4Order(sectionOrderRaw)
+        defaults.set(true, forKey: TodayLayoutPrefs.liquidLayoutV4Key)
     }
 
     /// Re-read the indexed first-beat bounds on each load, so a new labelled sync clears the note.

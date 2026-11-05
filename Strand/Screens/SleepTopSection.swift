@@ -292,22 +292,35 @@ struct SleepTopSection: View {
         let picked = selection.wrappedValue == stage
         let dimmed = selection.wrappedValue != nil && !picked
         let tint = StrandPalette.sleepStageColor(stage, palette: data.palette)
+        let name = HStack(spacing: NoopMetrics.space2) {
+            Circle().fill(tint).frame(width: 10, height: 10)
+            Text(stage.label)
+                .font(StrandFont.subhead)
+                .foregroundStyle(secondary)
+                .lineLimit(1)
+        }
+        let figure = Text(SleepDurationText.format(minutes))
+            .font(StrandFont.subhead.weight(.bold))
+            .foregroundStyle(primary)
+            .monospacedDigit()
+            .lineLimit(1)
         return Button { select(picked ? nil : stage) } label: {
-            HStack(spacing: NoopMetrics.space2) {
-                Circle().fill(tint).frame(width: 10, height: 10)
-                Text(stage.label)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
-                Text(SleepDurationText.format(minutes))
-                    .font(StrandFont.subhead.weight(.bold))
-                    .foregroundStyle(primary)
-                    .monospacedDigit()
-                    .lineLimit(1)
+            // The whole duration, never « 1h 2… » (5 Nov.): name and figure side by side when they fit,
+            // else the figure under the name.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: NoopMetrics.space2) {
+                    name.fixedSize()
+                    Spacer(minLength: 4)
+                    figure.fixedSize()
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    name
+                    figure
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, NoopMetrics.space3)
+            .padding(.vertical, NoopMetrics.space1)
             .frame(maxWidth: .infinity, minHeight: 44)
             // The curve switches' fill, so the four totals read as buttons on the card.
             .background(NoopVisualStyle.control.opacity(0.6),
@@ -323,8 +336,11 @@ struct SleepTopSection: View {
         .accessibilityAddTraits(picked ? .isSelected : [])
     }
 
-    /// Bed, wake and asleep as three cells on one fixed grid (label / figure / caption). The bed and wake
-    /// cells open the time editor.
+    /// Bed, wake and a duration as three cells on one fixed grid (label / figure / caption). The bed and wake
+    /// cells open the time editor, and « Edit » is their one caption; a corrected time carries a small pencil
+    /// instead of a second, near-identical word (5 Nov.). Each figure is written once per view: the ring's
+    /// centre already says how long was slept, so under the ring the third cell is the time in bed; under
+    /// the curves, which say neither, it is the time asleep with the time in bed as its caption.
     private var timesRow: some View {
         let f = AppClock.hourMinuteFormatter()
         let inBed = max(0, data.wake.timeIntervalSince(data.onset)) / 60
@@ -333,10 +349,11 @@ struct SleepTopSection: View {
                 HStack(alignment: .top, spacing: 14) {
                     timeCell(symbol: "moon.fill", tint: StrandPalette.sleepBedtime,
                              label: String(localized: "Bed"), value: f.string(from: data.onset),
-                             caption: data.canEditTimes ? String(localized: "Edit") : nil, captionIsAction: true)
+                             caption: data.canEditTimes ? String(localized: "Edit") : nil, captionIsAction: true,
+                             edited: data.timesEdited)
                     timeCell(symbol: "sun.max.fill", tint: StrandPalette.sleepWake,
                              label: String(localized: "Wake"), value: f.string(from: data.wake),
-                             caption: data.timesEdited ? String(localized: "edited") : nil, captionIsAction: false)
+                             caption: nil, captionIsAction: false, edited: data.timesEdited)
                 }
                 .contentShape(Rectangle())
             }
@@ -344,14 +361,21 @@ struct SleepTopSection: View {
             .disabled(!data.canEditTimes)
             .accessibilityLabel(Text("Bed \(f.string(from: data.onset)), woke \(f.string(from: data.wake))"))
             .accessibilityHint(data.canEditTimes ? Text("Edit sleep times") : Text(""))
-            timeCell(symbol: "bed.double.fill", tint: StrandPalette.restColor,
-                     label: String(localized: "Asleep"), value: SleepDurationText.format(data.asleepMinutes),
-                     caption: String(localized: "\(SleepDurationText.format(inBed)) in bed"), captionIsAction: false)
+            if nightView == .ring {
+                timeCell(symbol: "bed.double.fill", tint: StrandPalette.restColor,
+                         label: String(localized: "In bed"), value: SleepDurationText.format(inBed),
+                         caption: nil, captionIsAction: false, edited: false)
+            } else {
+                timeCell(symbol: "bed.double.fill", tint: StrandPalette.restColor,
+                         label: String(localized: "Asleep"), value: SleepDurationText.format(data.asleepMinutes),
+                         caption: String(localized: "\(SleepDurationText.format(inBed)) in bed"),
+                         captionIsAction: false, edited: false)
+            }
         }
     }
 
     private func timeCell(symbol: String, tint: Color, label: String, value: String, caption: String?,
-                          captionIsAction: Bool) -> some View {
+                          captionIsAction: Bool, edited: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
                 Image(systemName: symbol)
@@ -364,12 +388,20 @@ struct SleepTopSection: View {
             }
             .foregroundStyle(tint)
             .frame(height: 16)
-            Text(value)
-                .font(StrandFont.rounded(22, weight: .bold))
-                .foregroundStyle(primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(height: 26)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(value)
+                    .font(StrandFont.rounded(22, weight: .bold))
+                    .foregroundStyle(primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if edited {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(secondary)
+                        .accessibilityLabel(Text("edited"))
+                }
+            }
+            .frame(height: 26)
             Text(caption ?? " ")
                 .font(StrandFont.caption2)
                 .foregroundStyle(captionIsAction ? StrandPalette.accent : secondary)

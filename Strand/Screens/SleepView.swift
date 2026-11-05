@@ -473,6 +473,18 @@ struct SleepView: View {
         nightScrollBump &+= 1
     }
 
+    /// A bar touched on Your nights: show that night in the night card, without scrolling (5 Nov.).
+    private func showNight(day: String) {
+        guard let index = openableNightIndex(day: day) else { return }
+        nightOffset = index
+    }
+
+    /// The wake day (local key) of the night the night card shows, the same key Your nights' bars carry.
+    private var shownNightDay: String? {
+        guard navDays.indices.contains(nightOffset), let last = navDays[nightOffset].last else { return nil }
+        return Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs)))
+    }
+
     /// The carousel offset of the night that woke on `day` (local wake-day key), if one is stored.
     private func openableNightIndex(day: String) -> Int? {
         navDays.firstIndex { group in
@@ -675,7 +687,8 @@ struct SleepView: View {
         case .nightDetail:     NightDetailCard(model: model, lowestHR: nightOffset == 0 ? lowestHR : nil)
         case .sleepDebt:
             SleepDebtLedgerCard(model: model, onOpenNight: { openNight(day: $0) },
-                                canOpenNight: { openableNightIndex(day: $0) != nil })
+                                canOpenNight: { openableNightIndex(day: $0) != nil },
+                                shownDay: shownNightDay, onShowNight: { showNight(day: $0) })
         // Personal fork: "vs typical" only once there is a typical to compare with; before that the
         // stages card says how many nights are still needed.
         case .stagesVsTypical:

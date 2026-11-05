@@ -42,7 +42,7 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 
 ## Chantier suivant (préparé le 5 nov.)
-- **Chantier 12 — animations** : maquettes validées, fiche `docs/fork/chantier-12-animations.md` (choix, règles du mouvement, plan en 3 PR, prompt de démarrage). Se code dans une nouvelle conversation, avant Élan ; une seule IPA à la fin.
+- **Chantier 12 — animations** : **code fusionné le 5 nov. (soir)** (#89, #90, #91, `main` faa1b8a), fiche `docs/fork/chantier-12-animations.md` (journal du code, reportés, liste « À tester » en vidéo). Reste : l'IPA `build/animations` et la validation. Ensuite : Élan (chantier 10).
 
 ## Feuille de route (chargée à chaque session)
 @../../docs/fork/feuille-de-route.md

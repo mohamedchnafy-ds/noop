@@ -114,15 +114,42 @@ final class TodayHUDRenderTests: XCTestCase {
         .environment(\.todayHUDStyle, true)
     }
 
+    private func synthesis() -> some View {
+        let nights = SleepNightsData(debtMinutes: 80, isDebt: true, needMinutes: 480, lastShortfallMinutes: 112,
+                                     recent: [.init(day: "2026-11-06", minutes: 368)], month: [])
+        var rows = [
+            TodaySynthesisLogic.sessionRow(.init(name: "Haut du corps A", state: .next, supersets: 3, singles: 2,
+                                                 typicalMinutes: 48), route: nil),
+            TodaySynthesisLogic.debtRow(nights),
+            TodaySynthesisLogic.bedtimeRow(wakeMinutes: 6 * 60 + 4, needMinutes: 480, format: TodaySynthesisLogic.clock),
+        ]
+        for i in rows.indices { rows[i].route = nil }   // no NavigationStack in a one-pass render
+        return TodaySynthesisCard(rows: rows)
+    }
+
+    private func tiles() -> some View {
+        HStack(spacing: 10) {
+            LiquidKeyMetricTile(label: String(localized: "Respiratory"), icon: "lungs.fill", value: "15,2",
+                                unit: "rpm", tint: StrandPalette.metricCyan, frac: nil)
+            LiquidKeyMetricTile(label: String(localized: "Steps"), icon: "figure.walk", value: "6 420",
+                                unit: "", tint: StrandPalette.caloriesActivity, frac: nil)
+        }
+    }
+
     private func page(_ state: State) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             header(empty: state == .empty)
             TodayHUDHero(model: heroModel(state), animated: false, onGuide: { _ in })
-            if state != .empty { heartCard() }
+            if state != .empty {
+                synthesis()
+                heartCard()
+                tiles()
+            }
         }
         .padding(.horizontal, NoopMetrics.screenHPadding)
         .padding(.top, 60)
         .padding(.bottom, 24)
+        .environment(\.todayHUDStyle, true)
     }
 
     // MARK: Renders
@@ -154,6 +181,20 @@ final class TodayHUDRenderTests: XCTestCase {
         XCTAssertEqual(dials[2].unit, "/ 21")
         XCTAssertEqual(dials[3].fraction, TodayHeroModel.fraction(of: model.rest), accuracy: 1e-9)
         XCTAssertEqual(dials[2].band, model.effortBandFraction)
+    }
+
+    func testTheHUDLiveCurveSitsOnTheClockAndBreaksAcrossAPause() {
+        let t0 = dayStart + 10 * 3600
+        let samples: [(ts: Int, bpm: Double)] = [(t0, 70), (t0 + 1, 71), (t0 + 2, 72), (t0 + 60, 75), (t0 + 61, 76)]
+        let thresholds = TodayHRAlert.thresholds(usualNow: 71, awakeFloor: 58, restingHR: 62)
+        let even = TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: nil)
+        XCTAssertEqual(even.points[1].x, 0.25, accuracy: 1e-9, "off the HUD the samples stay evenly spaced")
+        XCTAssertNil(even.timeSpan)
+        let timed = TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: nil, onClock: true)
+        XCTAssertEqual(timed.points[1].x, 1.0 / 61.0, accuracy: 1e-9)
+        XCTAssertEqual(timed.points.map(\.run), [0, 0, 0, 1, 1])
+        XCTAssertEqual(timed.timeSpan, t0...(t0 + 61))
+        XCTAssertEqual(timed.time(at: 1), t0 + 61)
     }
 
     private func render<V: View>(_ content: V, width: CGFloat, dark: Bool, name: String) throws {

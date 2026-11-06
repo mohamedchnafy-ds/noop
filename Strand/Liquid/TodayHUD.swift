@@ -87,6 +87,9 @@ struct TodayHUDReticle: View {
     var center: TodayHUDCenter
     var coreTint: Color
     var phase: NoopDrawPhase
+    /// A goal just closed: the ring it lights (`litRing`) brightens its drawn glow by `lit` (0…1).
+    var litRing: Int? = nil
+    var lit: Double = 0
 
     @Environment(\.colorScheme) private var scheme
 
@@ -180,7 +183,7 @@ struct TodayHUDReticle: View {
             }
             Group {
                 Circle().trim(from: 0, to: CGFloat(shown))
-                    .stroke(dial.tint.opacity(NoopHUDStyle.glowOpacity(scheme)),
+                    .stroke(dial.tint.opacity(NoopHUDStyle.glowOpacity(scheme) + (litRing == dial.id ? 0.6 * lit : 0)),
                             style: StrokeStyle(lineWidth: TodayHUDMetrics.glowWidth, lineCap: .round))
                 Circle().trim(from: 0, to: CGFloat(shown)).stroke(dial.tint, style: round)
                 Circle().trim(from: 0, to: CGFloat(shown))
@@ -309,7 +312,40 @@ struct TodayHUDHero: View {
     var animated: Bool
     var onGuide: (ScoreSection) -> Void
 
+    /// A goal just closed (the rule of `TodayHeroCard`, the same stored day): the ring lit, its light, and the
+    /// bounces of the check.
+    @State private var litRing: Int?
+    @State private var lit: Double = 0
+    @State private var celebrations = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
     private func number(_ v: Double) -> String { TodayHeroModel.wholeNumber(v) }
+
+    /// Celebrates the first goal closed today that was not celebrated yet, on either drawing of the hero: a
+    /// success haptic, the check bounces, the ring's glow brightens for a moment. Once per day and per ring,
+    /// under the keys `TodayHeroCard` uses, so switching the style never celebrates twice.
+    private func celebrateClosedGoal() {
+        guard animated, let day = model.goalDayKey else { return }
+        var reached: [(ring: Int, name: String)] = []
+        if model.activityGoalReached { reached.append((ring: 0, name: "activity")) }
+        if model.effortGoalReached { reached.append((ring: 2, name: "effort")) }
+        guard let goal = reached.first(where: {
+            UserDefaults.standard.string(forKey: TodayHeroMotion.goalStoreKey($0.name)) != day
+        }) else { return }
+        UserDefaults.standard.set(day, forKey: TodayHeroMotion.goalStoreKey(goal.name))
+        let still = motion.poseStill(reduceMotion)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (still ? 0 : TodayHeroMotion.goalDelay)) {
+            StrandHaptic.success.play()
+            celebrations += 1
+            guard !still else { return }
+            litRing = goal.ring
+            withAnimation(.easeOut(duration: 0.28)) { lit = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                withAnimation(.easeIn(duration: 0.45)) { lit = 0 }
+            }
+        }
+    }
 
     // MARK: Dials
 
@@ -373,6 +409,10 @@ struct TodayHUDHero: View {
                 vitals(phase)
             }
         }
+        .onAppear { celebrateClosedGoal() }
+        .onChangeCompat(of: animated) { _ in celebrateClosedGoal() }
+        .onChangeCompat(of: model.activityGoalReached) { _ in celebrateClosedGoal() }
+        .onChangeCompat(of: model.effortGoalReached) { _ in celebrateClosedGoal() }
     }
 
     private func panel(_ phase: NoopDrawPhase) -> some View {
@@ -383,11 +423,11 @@ struct TodayHUDHero: View {
                 .foregroundStyle(NoopHUDStyle.textSecondary)
             TodayHUDReticle(dials: dials, center: center,
                             coreTint: hasAnyValue ? model.chargeRingTint : NoopHUDStyle.textSecondary,
-                            phase: phase)
+                            phase: phase, litRing: litRing, lit: lit)
                 .frame(maxWidth: .infinity)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(dials) { dial in
-                    cell(dial)
+                    hudCell(dial)
                         .rise(phase, delay: TodayHUDMetrics.cellDelay + Double(dial.id) * TodayHUDMetrics.cellStep)
                 }
             }
@@ -401,7 +441,7 @@ struct TodayHUDHero: View {
     }
 
     @ViewBuilder
-    private func cell(_ dial: TodayHUDDial) -> some View {
+    private func hudCell(_ dial: TodayHUDDial) -> some View {
         let content = cellBody(dial)
         Group {
             if let route = dial.route {
@@ -429,6 +469,7 @@ struct TodayHUDHero: View {
                 if dial.done {
                     Image(systemName: "checkmark.circle.fill")
                         .font(StrandFont.hudLabel)
+                        .noopSymbolBounce(celebrations)
                         .accessibilityLabel(Text("Goal reached"))
                 }
             }
@@ -613,6 +654,26 @@ struct TodayHUDCardSurface: ViewModifier {
             content.noopHUDPanel(edge: accent.opacity(0.45), accent: accent)
         } else {
             content.background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        }
+    }
+}
+
+/// The surface of a small Today tile: the usual card, or a small HUD panel with its quiet edge.
+struct TodayHUDTileSurface: ViewModifier {
+    var hud: Bool
+    var surfaceOpacity: Double = 1
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if hud {
+            content.background {
+                ZStack {
+                    NoopChamferShape(cut: NoopHUDStyle.cutSmall).fill(NoopHUDStyle.panelFlat)
+                    NoopChamferShape(cut: NoopHUDStyle.cutSmall).strokeBorder(NoopHUDStyle.frameSoft, lineWidth: 1)
+                }
+            }
+        } else {
+            content.background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
         }
     }
 }

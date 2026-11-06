@@ -59,7 +59,14 @@
 - **Démarrage** : `NoopFirstDraw(key: "today.hud")`, une fois par affichage de l'écran : graduations qui pivotent de −24°, anneaux qui balaient (décalage `NoopMotion.ringStagger`), centre puis cellules et panneaux qui montent de 8 pt. Sous Réduire les animations (`poseStill`), tout arrive posé.
 - **Carte FC en HUD** (`\.todayHUDStyle`) : panneau HUD bordé de rose ; le graphique reçoit une échelle des bpm à droite (pas ronds, 3–4 valeurs), la valeur du point le plus bas et du plus haut, une lueur dessinée sous la courbe (`TodayHRChartModel.yAxis`, éteint ailleurs).
 - **Ordre** : en HUD la Synthèse est dessinée juste au-dessus de la FC (`TodayHUDOrder.hudSectionOrder`), **sans réécrire l'ordre enregistré** : éteindre le HUD rend l'ordre d'avant.
-- **Pas fait dans ce pilote** (à décider après l'essai) : Synthèse, Stress et Métriques gardent leurs cartes actuelles sur le fond HUD ; l'heure dans le curseur de la FC et l'axe temporel du mode En direct (le modèle ne porte pas l'heure des points) ; la célébration d'objectif (halo + vibration) n'existe que sur l'écran actuel, le HUD montre la coche.
+- **Complété le 6 nov. (nuit, « code tout » de Mohamed)**, toujours derrière l'interrupteur :
+  - **Synthèse** : libellé technique « SYNTHÈSE » et liste posée sur la page (filets HUD, pas de carte), « DÉMARRER » en chrome.
+  - **Stress** : panneau HUD (coins coupés, crochets chrome) à la place de la carte.
+  - **Métriques** : titre de section en libellé HUD, tuiles en petits panneaux à coins coupés, libellés en capitales techniques (même règle pour les autres titres de section d'Aujourd'hui).
+  - **Curseur de la FC** : l'heure du point touché (« 11:20 · 96 bpm ») ; `TodayHRChartModel.timeSpan` (secondes couvertes par le tracé) posé par la courbe de la journée et par la courbe en direct du HUD.
+  - **En direct** : en HUD, chaque échantillon est placé à son heure et la courbe se coupe après une pause de plus de 15 s (`liveChart(…, onClock:)`, `liveGapSec`) ; hors HUD, rien ne change (échantillons espacés régulièrement).
+  - **Objectif fermé** : vibration de succès, coche qui rebondit, lueur dessinée de l'anneau qui s'allume un instant ; une fois par jour et par anneau, **avec les mêmes clés que l'écran actuel** (`TodayHeroMotion.goalStoreKey`) : changer de style ne célèbre jamais deux fois.
+- **Reste pour après la validation du pilote** : les autres onglets (Sommeil, Nutrition, Entraînement, Coach), selon la demande de Mohamed (« n'étends le style qu'après validation »).
 - **Clés nouvelles (10 langues)** : « Today HUD style », la phrase d'aide de l'interrupteur, « Today's status », « night %@ », « measured · night », « nights » (« estimate » existait déjà).
 - **Vérification** : rendu `TodayHUDRenderTests` (sombre, clair, 375 pt, calibration, vide clair et sombre, + tests de l'ordre et des résolveurs), ajouté à `fork-render-on-push.yml`.
 

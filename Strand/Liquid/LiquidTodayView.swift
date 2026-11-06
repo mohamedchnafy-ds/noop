@@ -1535,8 +1535,16 @@ struct LiquidTodayView: View {
     /// Matches the Android twin, whose `SectionHeader` already takes `trailing: String? = null`.
     private func sectionHead(_ title: String, trailing: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            // Fork chantier 7: section titles in sentence case, 20 pt bold.
-            Text(LocalizedStringKey(title)).font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
+            // Fork chantier 7: section titles in sentence case, 20 pt bold; fork chantier 13: the HUD's label.
+            if hudStyle {
+                Text(LocalizedStringKey(title))
+                    .font(StrandFont.hudLabel)
+                    .noopHUDLabel()
+                    .foregroundStyle(NoopHUDStyle.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                Text(LocalizedStringKey(title)).font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
+            }
             Spacer()
             if let trailing {
                 Text(LocalizedStringKey(trailing)).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)

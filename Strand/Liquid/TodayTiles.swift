@@ -191,16 +191,27 @@ struct LiquidKeyMetricTile: View {
     var spark: [Double] = []
     var surfaceOpacity: Double = 1
 
+    @Environment(\.todayHUDStyle) private var hud
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
                     .accessibilityHidden(true)
-                Text(label)
-                    .font(StrandFont.overline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                // Fork chantier 13: the HUD names a tile in its technical label.
+                if hud {
+                    Text(label)
+                        .font(StrandFont.hudLabel)
+                        .noopHUDLabel()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                } else {
+                    Text(label)
+                        .font(StrandFont.overline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
             .foregroundStyle(tint)
             // Today v2: an absent value says so in words rather than as a dash.
@@ -244,6 +255,6 @@ struct LiquidKeyMetricTile: View {
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: detailed ? 128 : 92, alignment: .topLeading)
-        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
+        .modifier(TodayHUDTileSurface(hud: hud, surfaceOpacity: surfaceOpacity))
     }
 }

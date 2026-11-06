@@ -64,6 +64,15 @@ struct TodayHRChartModel: Equatable {
     /// The HUD style (fork chantier 13): a bpm scale on the right, the curve's lowest and highest points
     /// marked, and a drawn glow under the curve. Off, the chart is the one it was.
     var yAxis: Bool = false
+    /// The unix seconds the plot spans, left to right, when the points sit on a clock (the whole day, and
+    /// the HUD's live curve): the HUD's scrub then names the time of the point under the finger.
+    var timeSpan: ClosedRange<Int>? = nil
+
+    /// The time at `x` (0…1) across the plot, when the plot sits on a clock.
+    func time(at x: Double) -> Int? {
+        guard let span = timeSpan else { return nil }
+        return span.lowerBound + Int((Double(span.upperBound - span.lowerBound) * x).rounded())
+    }
 
     /// This chart with the HUD's bpm scale.
     var withYAxis: TodayHRChartModel {
@@ -466,23 +475,33 @@ struct TodayHRCardBody: View {
             if let scrubX, let i = chart.nearest(toX: scrubX, geometry: g) {
                 let p = chart.points[i]
                 let x = g.x(p.x), y = g.y(p.bpm)
+                // The HUD's readout carries the time too, so it keeps further from the edges.
+                let edge: CGFloat = chart.yAxis ? 60 : 40
                 Path { path in
                     path.move(to: CGPoint(x: x, y: g.rect.minY))
                     path.addLine(to: CGPoint(x: x, y: g.rect.maxY))
                 }
                 .stroke(tint, lineWidth: NoopMetrics.hairlineWidth)
                 Circle().fill(tint).frame(width: 8, height: 8).position(x: x, y: y)
-                (Text("\(Int(p.bpm.rounded()))").font(StrandFont.captionNumber)
+                (scrubTime(chart, at: p.x)
+                    + Text("\(Int(p.bpm.rounded()))").font(StrandFont.captionNumber)
                     + Text(" bpm").font(StrandFont.caption))
                     .foregroundStyle(StrandPalette.textPrimary)
                     .padding(.horizontal, NoopMetrics.space2)
                     .padding(.vertical, NoopMetrics.space1)
                     .background(StrandPalette.surfaceBase.opacity(0.9), in: Capsule())
-                    .position(x: min(max(x, 40), max(40, geo.size.width - 40)), y: 12)
+                    .position(x: min(max(x, edge), max(edge, geo.size.width - edge)), y: 12)
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// The HUD names the time of the point under the finger (« 11:20 · »); nothing elsewhere, or off a clock.
+    private func scrubTime(_ chart: TodayHRChartModel, at x: Double) -> Text {
+        guard chart.yAxis, let ts = chart.time(at: x) else { return Text(verbatim: "") }
+        let time = AppClock.hourMinuteFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(ts)))
+        return Text(verbatim: time).font(StrandFont.captionNumber) + Text(verbatim: TodayHUDDial.separator)
     }
 
     /// The wave at the end of the live curve, at each beat (fork chantier 12, 6 Nov. evening): on the "now"
@@ -581,9 +600,11 @@ enum TodayHRCardLogic {
             return b > a ? a...b : nil
         }
         let (zoneHigh, zoneLow) = dayZones(day, zone: zone, fx: fx)
-        return TodayHRChartModel(points: points, habitual: habitual, sleep: sleep,
-                                 zoneHigh: zoneHigh, zoneLow: zoneLow, zoneExclude: sleep,
-                                 endDot: day.isToday, axis: axisLabels(day))
+        var chart = TodayHRChartModel(points: points, habitual: habitual, sleep: sleep,
+                                      zoneHigh: zoneHigh, zoneLow: zoneLow, zoneExclude: sleep,
+                                      endDot: day.isToday, axis: axisLabels(day))
+        chart.timeSpan = day.domainEnd > day.dayStart ? day.dayStart...day.domainEnd : nil
+        return chart
     }
 
     /// The whole-day thresholds (fork chantier 9): at each 5-minute step, the SAME rule the live card
@@ -625,20 +646,34 @@ enum TodayHRCardLogic {
         return out
     }
 
+    /// The live curve. `onClock` (the HUD, fork chantier 13) places each sample at its own time and breaks the
+    /// line across a pause in the stream; otherwise the samples sit evenly, as they always did.
     static func liveChart(samples: [(ts: Int, bpm: Double)], thresholds: TodayHRAlert.Thresholds,
-                          alert: TodayHRAlert.Crossing?) -> TodayHRChartModel {
+                          alert: TodayHRAlert.Crossing?, onClock: Bool = false) -> TodayHRChartModel {
         let n = samples.count
-        let points = samples.enumerated().map { i, s in
-            TodayHRChartModel.Point(x: n > 1 ? Double(i) / Double(n - 1) : 1, bpm: s.bpm, run: 0)
+        let first = samples.first?.ts ?? 0
+        let last = samples.last?.ts ?? 0
+        let timed = onClock && n > 1 && last > first
+        var points: [TodayHRChartModel.Point] = []
+        var run = 0
+        for (i, s) in samples.enumerated() {
+            if timed, i > 0, s.ts - samples[i - 1].ts > liveGapSec { run += 1 }
+            let x = timed ? Double(s.ts - first) / Double(last - first) : (n > 1 ? Double(i) / Double(n - 1) : 1)
+            points.append(TodayHRChartModel.Point(x: x, bpm: s.bpm, run: run))
         }
         let flat: (Double?) -> [TodayHRChartModel.Point] = { v in
             v.map { [.init(x: 0, bpm: $0, run: 0), .init(x: 1, bpm: $0, run: 0)] } ?? []
         }
-        return TodayHRChartModel(points: points, band: band(thresholds), highLine: thresholds.high,
-                                 lowLine: thresholds.low, threshold: alert?.threshold,
-                                 alertSide: alert?.side, zoneHigh: flat(thresholds.high),
-                                 zoneLow: flat(thresholds.low), endDot: true)
+        var chart = TodayHRChartModel(points: points, band: band(thresholds), highLine: thresholds.high,
+                                      lowLine: thresholds.low, threshold: alert?.threshold,
+                                      alertSide: alert?.side, zoneHigh: flat(thresholds.high),
+                                      zoneLow: flat(thresholds.low), endDot: true)
+        if timed { chart.timeSpan = first...last }
+        return chart
     }
+
+    /// A pause in the live stream longer than this breaks the HUD's timed curve.
+    static let liveGapSec = 15
 
     /// The whole-day caption's two dashed thresholds (fork chantier 9): the high one follows the usual day
     /// (« high: usual + 20 »), or sits flat over the resting rate while calibrating; the low one is flat.
@@ -814,7 +849,7 @@ struct TodayHeartRateSection: View {
             bpm: bigBpm, showsBeat: true, pulsesCurve: true,
             subtitle: liveSubtitle(alert: alert),
             subtitleSide: alert?.side,
-            chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: alert),
+            chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: alert, onClock: hud),
             lineWidth: 2.5,
             emptyText: String(localized: "Waiting for a live heartbeat…"),
             caption: caption,

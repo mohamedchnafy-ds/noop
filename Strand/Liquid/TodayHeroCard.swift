@@ -57,13 +57,18 @@ struct TodayConcentricRings: View {
         .accessibilityHidden(true)
     }
 
-    /// Lit once the rings are traced, then kept at 55 %; a closed goal brightens it for a moment.
+    /// Lit once the rings are traced, then kept at `TodayHeroMotion.haloRest`; a closed goal brightens it to
+    /// full for a moment. Wider than the rings, so the card that holds them clips it (6 Nov.: the first cut,
+    /// at a third of the tint over 1.3 diameters, could not be seen on the card).
     private func haloLight(_ tint: Color, phase: NoopDrawPhase) -> some View {
         Circle()
-            .fill(RadialGradient(colors: [tint.opacity(0.32), tint.opacity(0)], center: .center,
-                                 startRadius: 0, endRadius: diameter * 0.64))
-            .frame(width: diameter * 1.3, height: diameter * 1.3)
-            .opacity(phase.drawn ? 0.55 + 0.45 * pulse : 0)
+            .fill(RadialGradient(gradient: Gradient(stops: [
+                .init(color: tint.opacity(TodayHeroMotion.haloCore), location: 0),
+                .init(color: tint.opacity(TodayHeroMotion.haloMid), location: 0.4),
+                .init(color: tint.opacity(0), location: 1)
+            ]), center: .center, startRadius: 0, endRadius: diameter * TodayHeroMotion.haloReach))
+            .frame(width: diameter * TodayHeroMotion.haloSpread, height: diameter * TodayHeroMotion.haloSpread)
+            .opacity(phase.drawn ? TodayHeroMotion.haloRest + (1 - TodayHeroMotion.haloRest) * pulse : 0)
             .animation(phase.motion(NoopMotion.ringDraw.delay(NoopMotion.ringDrawDuration * 0.7)),
                        value: phase.drawn)
             .allowsHitTesting(false)
@@ -467,6 +472,14 @@ enum TodayHeroMotion {
     static let cellsDelay: Double = 0.38
     /// A closed goal is celebrated once the rings have landed.
     static let goalDelay: Double = 1.0
+    /// The halo behind the rings (effect A), in the tint of the day's Charge: its width in ring diameters,
+    /// the reach of its gradient in ring diameters, the share of the tint at its centre and at 40 % of the
+    /// reach, and its opacity once lit (a closed goal takes it to full).
+    static let haloSpread: CGFloat = 1.7
+    static let haloReach: CGFloat = 0.85
+    static let haloCore: Double = 0.55
+    static let haloMid: Double = 0.2
+    static let haloRest: Double = 0.75
 
     /// Where the day a goal was last celebrated is kept (device only, outside `.noopbak`).
     static func goalStoreKey(_ ring: String) -> String { "today.goalClosed." + ring }
@@ -711,6 +724,8 @@ struct TodayHeroCard: View {
         }
         .padding(18)
         .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
+        // The halo spreads past the rings: the card's own shape bounds it.
+        .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
         .onAppear { celebrateClosedGoal() }
         .onChangeCompat(of: animated) { _ in celebrateClosedGoal() }
         .onChangeCompat(of: activityGoalReached) { _ in celebrateClosedGoal() }

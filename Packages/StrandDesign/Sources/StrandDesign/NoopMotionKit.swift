@@ -6,7 +6,8 @@ import SwiftUI
 // carries a duration of its own:
 //
 //   • the tokens of the motion table (ring draw, value change, the "slam" of a headline number)
-//   • `NoopLaunchOnce` — an entrance plays once per launch of the app, not at every tab change
+//   • `NoopLaunchOnce` — the ledger of the entrances that played: once per launch (a cascade, a record),
+//     or once per showing of their screen (`noopEntranceRoot()` counts the showings, 6 Nov.)
 //   • `NoopFirstDraw` — the one-shot "draw" flag a ring or a curve traces itself in with
 //   • `NoopGradientArc` — a flat ring stroked from its deep tone to its vivid one, with a lit tip (effect A)
 //   • `NoopRollingNumber` — a number that counts to its value, or rises blurred and lands (effect B)
@@ -34,9 +35,11 @@ public extension NoopMotion {
     /// The landing of that number: from `slamLandScale` back to 1.
     static let slamLandDuration: Double = 0.42
     /// The motion blur of a rising number at its fastest.
-    static let slamBlurMax: CGFloat = 6
+    static let slamBlurMax: CGFloat = 8
     /// The scale a rising number lands from.
-    static let slamLandScale: CGFloat = 1.14
+    static let slamLandScale: CGFloat = 1.22
+    /// The radius of the glow a landing number flashes.
+    static let slamGlowRadius: CGFloat = 14
     /// How far a card slides in when the day changes.
     static let daySlideDistance: CGFloat = 28
     /// A curve (heart rate, stress) tracing itself on its first appearance.
@@ -59,12 +62,18 @@ public extension NoopMotion {
     static var curveDraw: Animation { strongEaseOut(curveDrawDuration) }
 }
 
-// MARK: - Once per launch
+// MARK: - Once per launch, once per showing
 
-/// The entrances that already played in this run of the app. In memory only: a new launch plays them again,
-/// a tab change or a sheet does not.
+/// The entrances that already played. In memory only: a new launch plays them all again.
+///
+/// Two ledgers. The plain one is once per launch: a cascade of blocks, a record's burst, which must not
+/// replay when their screen is shown again. The `generation` one is once per showing of the screen (the
+/// rings, the headline numbers, the curves, 6 Nov.): `noopEntranceRoot()` counts the showings of a screen
+/// and a key plays once per count, so a tab shown again or a screen pushed again plays its entrance anew,
+/// while a lazy row scrolled back into view within the same showing does not.
 public enum NoopLaunchOnce {
     private static var played: Set<String> = []
+    private static var playedGeneration: [String: Int] = [:]
 
     /// Whether the entrance named `key` already played in this launch.
     public static func hasPlayed(_ key: String) -> Bool { played.contains(key) }
@@ -72,6 +81,62 @@ public enum NoopLaunchOnce {
     /// Marks the entrance named `key` as played; true for the one caller that gets to play it.
     @discardableResult
     public static func markPlayed(_ key: String) -> Bool { played.insert(key).inserted }
+
+    /// Whether the entrance named `key` already played in this `generation` of its screen.
+    public static func hasPlayed(_ key: String, generation: Int) -> Bool {
+        playedGeneration[key] == generation
+    }
+
+    /// Marks the entrance named `key` as played in this `generation`; true for the one caller that gets to
+    /// play it, false once it played in that generation.
+    @discardableResult
+    public static func markPlayed(_ key: String, generation: Int) -> Bool {
+        guard playedGeneration[key] != generation else { return false }
+        playedGeneration[key] = generation
+        return true
+    }
+}
+
+private struct NoopEntranceGenerationKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+public extension EnvironmentValues {
+    /// How many times the screen holding the view was shown, counted by `noopEntranceRoot()`: the
+    /// entrances keyed for `NoopLaunchOnce` play once per count. 0 outside such a root (macOS, sheets,
+    /// previews), where they play once per launch.
+    var noopEntranceGeneration: Int {
+        get { self[NoopEntranceGenerationKey.self] }
+        set { self[NoopEntranceGenerationKey.self] = newValue }
+    }
+}
+
+/// Counts the showings of a screen for `noopEntranceGeneration`: 1 from the start, so the first showing
+/// plays once, then one more each time the root appears again (its tab selected again, a pushed screen
+/// popped back to it). The views below replay their entrance on the change.
+private struct NoopEntranceRoot: ViewModifier {
+    @State private var generation = 1
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.noopEntranceGeneration, generation)
+            .onAppear {
+                if shown {
+                    generation += 1
+                } else {
+                    shown = true
+                }
+            }
+    }
+}
+
+public extension View {
+    /// Marks the root of a screen whose entrances (rings, headline numbers, curves) replay each time it is
+    /// shown: the tab roots of the iOS shell.
+    func noopEntranceRoot() -> some View {
+        modifier(NoopEntranceRoot())
+    }
 }
 
 // MARK: - First draw
@@ -92,12 +157,13 @@ public struct NoopDrawPhase: Equatable {
     public func motion(_ animation: Animation) -> Animation? { still ? nil : animation }
 }
 
-/// Hands its content a `drawn` flag that turns true once, the first time the surface is armed in this launch,
-/// under `NoopMotion.ringDraw`. Pieces of the content can pick their own curve or delay with
+/// Hands its content a `drawn` flag that turns true once, the first time the surface is armed in this showing
+/// of its screen, under `NoopMotion.ringDraw`; the screen shown again (`noopEntranceGeneration`) empties the
+/// surface at once and draws it in anew. Pieces of the content can pick their own curve or delay with
 /// `.animation(phase.motion(…), value: phase.drawn)`.
 ///
 /// Unarmed (data not loaded yet, or a PNG render) the content is drawn whole. Armed but already played in this
-/// launch, or with the quiet-motion gate closed, it is drawn whole too.
+/// showing, or with the quiet-motion gate closed, it is drawn whole too.
 public struct NoopFirstDraw<Content: View>: View {
     private let key: String
     private let armed: Bool
@@ -105,6 +171,7 @@ public struct NoopFirstDraw<Content: View>: View {
 
     @State private var started = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.noopEntranceGeneration) private var generation
     @ObservedObject private var motion = NoopMotionState.shared
 
     /// - Parameters:
@@ -119,22 +186,32 @@ public struct NoopFirstDraw<Content: View>: View {
     private var still: Bool { motion.poseStill(reduceMotion) }
 
     private var waiting: Bool {
-        armed && !started && !still && !NoopLaunchOnce.hasPlayed(key)
+        armed && !started && !still && !NoopLaunchOnce.hasPlayed(key, generation: generation)
     }
 
     public var body: some View {
         content(NoopDrawPhase(drawn: !waiting, still: still))
             .onAppear { begin() }
             .onChangeCompat(of: armed) { _ in begin() }
+            .onChangeCompat(of: generation) { _ in replay() }
     }
 
     private func begin() {
         guard armed, !started else { return }
-        guard !still, NoopLaunchOnce.markPlayed(key) else {
+        guard !still, NoopLaunchOnce.markPlayed(key, generation: generation) else {
             started = true
             return
         }
         withAnimation(NoopMotion.ringDraw) { started = true }
+    }
+
+    /// The screen is shown again: the surface empties without moving, then draws itself in.
+    private func replay() {
+        guard armed, started, !still else { return }
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { started = false }
+        DispatchQueue.main.async { begin() }
     }
 }
 
@@ -225,9 +302,9 @@ public enum NoopNumberEntrance: Equatable {
     case slam
 }
 
-/// A number that moves to its value: on its first appearance in this launch (from 0, when armed and given a
-/// `launchKey`), and on every change. Unarmed, or with the quiet-motion gate closed, it shows its value at
-/// once; a slam still gives its haptic on a change.
+/// A number that moves to its value: on its first appearance in each showing of its screen (from 0, when
+/// armed and given a `launchKey`; see `noopEntranceGeneration`), and on every change. Unarmed, or with the
+/// quiet-motion gate closed, it shows its value at once; a slam still gives its haptic on a change.
 ///
 /// The caller's `lineLimit` / `minimumScaleFactor` apply to the number as to any `Text`.
 public struct NoopRollingNumber: View {
@@ -249,6 +326,7 @@ public struct NoopRollingNumber: View {
     @State private var flash: Double = 0
     @State private var landing = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.noopEntranceGeneration) private var generation
     @ObservedObject private var motion = NoopMotionState.shared
 
     /// - Parameters:
@@ -259,7 +337,8 @@ public struct NoopRollingNumber: View {
     ///   - glow: the colour of the landing glow (a slam); the number's colour when nil.
     ///   - entrance: count or slam.
     ///   - armed: false shows the value at once and waits (data loading, or a render test).
-    ///   - launchKey: names the entrance for `NoopLaunchOnce`; nil skips the entrance (changes still move).
+    ///   - launchKey: names the entrance for `NoopLaunchOnce`, played once per showing of the screen; nil
+    ///     skips the entrance (changes still move).
     ///   - delay: the entrance's delay, to follow a ring's stagger.
     ///   - haptic: false keeps a slam silent.
     public init(value: Double, format: @escaping (Double) -> String, font: Font, color: Color,
@@ -283,7 +362,7 @@ public struct NoopRollingNumber: View {
     /// Armed and waiting for its entrance: drawn from 0, so the first frame is not the end of the run.
     private var waiting: Bool {
         guard let launchKey, armed, !started, !still else { return false }
-        return !NoopLaunchOnce.hasPlayed(launchKey)
+        return !NoopLaunchOnce.hasPlayed(launchKey, generation: generation)
     }
 
     private var entranceDuration: Double {
@@ -298,9 +377,10 @@ public struct NoopRollingNumber: View {
         NoopRollingNumberFace(number: waiting ? 0 : shown, origin: origin, target: shown,
                               blurs: entrance == .slam, format: format, font: font, color: color)
             .scaleEffect(landScale, anchor: .bottomLeading)
-            .shadow(color: glow.opacity(0.8 * flash), radius: 8)
+            .shadow(color: glow.opacity(0.8 * flash), radius: NoopMotion.slamGlowRadius)
             .onAppear { begin() }
             .onChangeCompat(of: armed) { _ in begin() }
+            .onChangeCompat(of: generation) { _ in replay() }
             .onChangeCompat(of: value) { newValue in change(to: newValue) }
             .accessibilityElement()
             .accessibilityLabel(Text(verbatim: format(value)))
@@ -308,7 +388,7 @@ public struct NoopRollingNumber: View {
 
     private func begin() {
         guard let launchKey, armed, !started else { return }
-        guard !still, NoopLaunchOnce.markPlayed(launchKey) else {
+        guard !still, NoopLaunchOnce.markPlayed(launchKey, generation: generation) else {
             started = true
             return
         }
@@ -316,6 +396,15 @@ public struct NoopRollingNumber: View {
         shown = value
         withAnimation(NoopMotion.strongEaseOut(entranceDuration).delay(delay)) { started = true }
         if entrance == .slam { land(after: delay + entranceDuration) }
+    }
+
+    /// The screen is shown again: back to 0 without moving, then the entrance anew.
+    private func replay() {
+        guard launchKey != nil, armed, started, !still else { return }
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { started = false }
+        DispatchQueue.main.async { begin() }
     }
 
     private func change(to newValue: Double) {

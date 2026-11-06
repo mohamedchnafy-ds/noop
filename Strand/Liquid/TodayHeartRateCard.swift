@@ -288,9 +288,18 @@ struct TodayHRChart: View {
                              with: .color(NoopHUDStyle.text))
                     let text = ctx.resolve(Text(verbatim: String(Int(p.bpm.rounded()))).font(StrandFont.hudLabel)
                         .foregroundColor(NoopHUDStyle.text))
-                    let x = min(max(c.x, g.rect.minX + 10), g.rect.maxX - 10)
-                    ctx.draw(text, at: CGPoint(x: x, y: below ? c.y + 5 : c.y - 5),
-                             anchor: below ? .top : .bottom)
+                    // Above the highest point and under the lowest one, or beside the point when the plot
+                    // leaves no room there (a peak at the top edge, a low by the hour labels).
+                    let room: CGFloat = below ? (g.rect.maxY - c.y) : (c.y - g.rect.minY)
+                    if room >= 16 {
+                        let x = min(max(c.x, g.rect.minX + 10), g.rect.maxX - 10)
+                        ctx.draw(text, at: CGPoint(x: x, y: below ? c.y + 5 : c.y - 5),
+                                 anchor: below ? .top : .bottom)
+                    } else {
+                        let leftSide = c.x > g.rect.maxX - 30
+                        ctx.draw(text, at: CGPoint(x: leftSide ? c.x - 6 : c.x + 6, y: c.y),
+                                 anchor: leftSide ? .trailing : .leading)
+                    }
                 }
             }
 

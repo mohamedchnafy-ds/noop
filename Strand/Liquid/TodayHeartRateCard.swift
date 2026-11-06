@@ -221,7 +221,9 @@ struct TodayHRChart: View {
             if model.endDot, let last = model.points.last {
                 let c = CGPoint(x: g.x(last.x), y: g.y(last.bpm))
                 let color = model.zone(of: last).map(TodayHRChartModel.sideColor) ?? tint
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)), with: .color(color))
+                let r = TodayHRCardBody.endDotSize / 2
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                         with: .color(color))
             }
 
             for (i, label) in model.axis.enumerated() {
@@ -250,8 +252,11 @@ struct TodayHRCaptionItem: Identifiable {
 struct TodayHRCardBody: View {
     var tint: Color
     var bpm: Int?
-    var beat: Bool = false
+    /// The heart before the number beats at `bpm` (fork chantier 12, 6 Nov. evening: the true rhythm, in
+    /// place of the number's tick at each sample); false keeps it still (no live rate).
     var showsBeat: Bool = false
+    /// The wave at the end of the curve beats with the heart: the live curve, whose last point is now.
+    var pulsesCurve: Bool = false
     var subtitle: String
     /// The crossed side, when there is one: the subtitle takes its colour.
     var subtitleSide: TodayHRAlert.Side? = nil
@@ -261,8 +266,14 @@ struct TodayHRCardBody: View {
     var caption: [TodayHRCaptionItem] = []
     var stats: (min: Double?, avg: Double?, max: Double?)
     /// Armed, the curve traces itself left to right once per launch (fork chantier 12); false draws it
-    /// whole (render tests).
+    /// whole (render tests), and the heart and the wave stay still.
     var animated: Bool = false
+
+    /// The beating heart before the number, and how far its bottom sits above the number's baseline.
+    static let heartSize: CGFloat = 22
+    static let heartLift: CGFloat = 2
+    /// The "now" dot the curve draws at its end, and the wave's starting diameter.
+    static let endDotSize: CGFloat = 8
 
     @State private var scrubX: CGFloat?
     #if os(iOS)
@@ -275,14 +286,16 @@ struct TodayHRCardBody: View {
             // crossed side's colour when the curve is past a threshold).
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let bpm {
+                    // The heart at the true rhythm, in the crossed side's colour when there is one, else rose.
+                    NoopHeartbeat(bpm: bpm, tint: subtitleSide.map(TodayHRChartModel.sideColor) ?? tint,
+                                  size: Self.heartSize, beating: showsBeat && animated)
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - Self.heartLift }
                     Text("\(bpm)")
                         .font(StrandFont.rounded(36))
                         .foregroundStyle(subtitleSide.map(TodayHRChartModel.sideColor) ?? StrandPalette.textPrimary)
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .animation(.easeOut(duration: 0.25), value: bpm)
-                        .scaleEffect(showsBeat ? (beat ? 1.03 : 1) : 1, anchor: .bottomLeading)
-                        .animation(.easeOut(duration: 0.28), value: beat)
                 }
                 Text(verbatim: bpmLine)
                     .font(StrandFont.subhead.weight(.medium))
@@ -295,6 +308,7 @@ struct TodayHRCardBody: View {
                     .noopRevealOnce("today.hr.curve", armed: animated)
                     .frame(height: chart.axis.isEmpty ? 104 : 124)
                     .contentShape(Rectangle())
+                    .overlay { curvePulse(chart) }
                     .overlay { scrubReadout(chart) }
                     .onContinuousHover(coordinateSpace: .local) { phase in
                         var transaction = Transaction()
@@ -407,6 +421,22 @@ struct TodayHRCardBody: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// The wave at the end of the live curve, at each beat (fork chantier 12, 6 Nov. evening): on the "now"
+    /// dot the chart draws, in the dot's colour, placed by the same plot mapping as the drawing.
+    @ViewBuilder
+    private func curvePulse(_ chart: TodayHRChartModel) -> some View {
+        if pulsesCurve, animated, let bpm, chart.endDot, let last = chart.points.last {
+            GeometryReader { geo in
+                let g = chart.geometry(in: geo.size)
+                NoopBeatPulse(bpm: bpm, tint: chart.zone(of: last).map(TodayHRChartModel.sideColor) ?? tint,
+                              size: Self.endDotSize, beating: showsBeat)
+                    .position(x: g.x(last.x), y: g.y(last.bpm))
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
     #if os(iOS)
@@ -632,7 +662,6 @@ struct TodayHeartRateSection: View {
     @EnvironmentObject private var profile: ProfileStore
 
     @State private var buffer: [(ts: Int, bpm: Double)] = []
-    @State private var beat = false
     @State private var chosenMode: TodayHRMode?
     @State private var sessionRunning = false
     @State private var phoneStill: Bool?
@@ -698,7 +727,6 @@ struct TodayHeartRateSection: View {
             buffer.append((now, Double(hr)))
             let from = now - TodayHRCardLogic.bufferSec
             if let first = buffer.first, first.ts < from { buffer.removeAll { $0.ts < from } }
-            beat.toggle()
             refreshGatesIfNeeded()
         }
     }
@@ -719,7 +747,7 @@ struct TodayHeartRateSection: View {
         let values = samples.map(\.bpm)
         return TodayHRCardBody(
             tint: tint,
-            bpm: bigBpm, beat: beat, showsBeat: true,
+            bpm: bigBpm, showsBeat: true, pulsesCurve: true,
             subtitle: liveSubtitle(alert: alert),
             subtitleSide: alert?.side,
             chart: TodayHRCardLogic.liveChart(samples: samples, thresholds: thresholds, alert: alert),
@@ -740,7 +768,7 @@ struct TodayHeartRateSection: View {
         let values = day.bucketBpm
         return TodayHRCardBody(
             tint: tint,
-            bpm: bigBpm, beat: beat, showsBeat: liveAvailable,
+            bpm: bigBpm, showsBeat: liveAvailable,
             subtitle: day.isToday ? String(localized: "5-minute average · since midnight")
                                   : String(localized: "5-minute average · that day"),
             chart: chart,

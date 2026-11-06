@@ -1106,16 +1106,25 @@ public struct NoopHeartbeat: View {
     }
 
     public var body: some View {
-        if beating, let bpm, bpm >= 25, !motion.poseStill(reduceMotion) {
+        if beating, let bpm, bpm >= Self.slowestBeat, !motion.poseStill(reduceMotion) {
             TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-                let period = 60.0 / Double(bpm)
-                let phase = context.date.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: period) / period
-                heart(phase: phase)
+                heart(phase: Self.beatPhase(at: context.date, bpm: bpm))
             }
         } else {
             heart(phase: 1)
         }
+    }
+
+    /// Below this rate nothing beats: a reading that low is not a rhythm to show.
+    public static let slowestBeat = 25
+
+    /// Where a beat at `bpm` stands at `date`, 0 at the beat and rising to 1 just before the next, on the
+    /// shared clock: every view beating at one rate (the heart beside Today's number, the wave at the end of
+    /// its curve) reads the same phase and beats together (6 Nov. evening). 0 below `slowestBeat`.
+    public static func beatPhase(at date: Date, bpm: Int) -> Double {
+        guard bpm >= slowestBeat else { return 0 }
+        let period = 60.0 / Double(bpm)
+        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
     }
 
     private func heart(phase: Double) -> some View {
@@ -1164,6 +1173,53 @@ public struct NoopZoneStrip: View {
         }
         .animation(NoopMotion.gated(.easeOut(duration: 0.35), reduced: motion.poseStill(reduceMotion)), value: zone)
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Beat pulse (effect C, the end of a live curve)
+
+/// A wave leaving a point at every beat: a ring that grows from the point and fades over the beat, at the true
+/// rhythm (60 / bpm) on the same clock as `NoopHeartbeat`, so both beat together. For the "now" dot at the
+/// end of a live curve. Draws nothing when not beating, under the quiet-motion gate, or below
+/// `NoopHeartbeat.slowestBeat`: the dot itself is the curve's to draw.
+public struct NoopBeatPulse: View {
+    private let bpm: Int?
+    private let tint: Color
+    private let size: CGFloat
+    private let beating: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    /// - Parameters:
+    ///   - bpm: the live rate; nil draws nothing.
+    ///   - tint: the colour of the wave (the dot's).
+    ///   - size: the diameter the wave starts from (the dot's).
+    ///   - beating: false draws nothing (a render, a paused session).
+    public init(bpm: Int?, tint: Color, size: CGFloat = 8, beating: Bool) {
+        self.bpm = bpm
+        self.tint = tint
+        self.size = size
+        self.beating = beating
+    }
+
+    public var body: some View {
+        if beating, let bpm, bpm >= NoopHeartbeat.slowestBeat, !motion.poseStill(reduceMotion) {
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                wave(phase: NoopHeartbeat.beatPhase(at: context.date, bpm: bpm))
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func wave(phase: Double) -> some View {
+        Circle()
+            .stroke(tint, lineWidth: 1.5)
+            .frame(width: size, height: size)
+            .scaleEffect(CGFloat(1 + 2.2 * phase))
+            .opacity(phase < 1 ? 0.6 * (1 - phase) : 0)
+            .accessibilityHidden(true)
     }
 }
 

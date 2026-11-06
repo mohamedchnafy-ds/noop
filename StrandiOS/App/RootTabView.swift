@@ -556,6 +556,9 @@ struct RootTabView: View {
                 // a screen that is a tab switch to that tab instead of pushing a copy.
                 .environment(\.showsMoreAvatar, true)
                 .environment(\.tabRouteSwitch, routeSwitch)
+                // Fork chantier 12 (6 Nov.): the rings, headline numbers and curves of the tab play their
+                // entrance each time the tab is shown or a pushed screen pops back to it, as Fitness does.
+                .noopEntranceRoot()
                 .background(StrandPalette.surfaceBase.ignoresSafeArea())
                 // The status bar's own backdrop (5 Nov.): with the navigation bar hidden, a scrolled page
                 // ran under the clock (the Nutrition title, the « Syncing strap history » pill). A

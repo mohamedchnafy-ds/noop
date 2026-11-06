@@ -1,6 +1,10 @@
 # Chantier 13 — Esthétique « Instrument » (fiche du chantier, 6 nov. 2026)
 
-**État (6 nov., soir)** : diagnostic et 3 propositions présentés ; **B « Instrument de lecture » retenue** ; maquette d'Aujourd'hui publiée, **à valider** : https://claude.ai/artifact/BxtF7aKChTqp1kGGvKpaEr (6 planches : sombre, clair, petit iPhone 375 pt, interaction, calibration, sans données). Le code ne commence qu'après la validation de la maquette. Les autres écrans ne prennent le style qu'après la validation du pilote sur le téléphone.
+**État (6 nov., soir)** : B jugée trop sage par Mohamed → **3 pistes futuristes à choisir** (page « Futuriste (v2) ») ; maquette : https://claude.ai/artifact/BxtF7aKChTqp1kGGvKpaEr (6 planches : sombre, clair, petit iPhone 375 pt, interaction, calibration, sans données). Le code ne commence qu'après la validation de la maquette. Les autres écrans ne prennent le style qu'après la validation du pilote sur le téléphone.
+
+## Retour sur la maquette B (6 nov., soir)
+- Mohamed : « pas du tout ce que j'attendais » ; il veut **quelque chose de futuriste comme dans les films, high tech**. La proposition B (sobre) est mise de côté, gardée sur la page « Proposition B (v1) » du canevas.
+- Trois pistes v2 sur la page « Futuriste (v2) » du même canevas : **1 · HUD holographique** (4 anneaux concentriques numérotés 01–04 dans un réticule gradué, panneaux à coins coupés, chrome cyan, libellés SF Mono capitales), **2 · Cockpit** (cadran segmenté de la Charge + 3 petits cadrans, télémétrie en barres segmentées, histogramme FC par quart d'heure, accent ambre), **3 · Projection holographique** (anneaux couchés en perspective au-dessus d'un socle lumineux, valeurs flottantes reliées par des traits). Communs : couleurs des mesures inchangées, lueurs dessinées (traits doublés, dégradés) sans flou, mêmes données qu'aujourd'hui.
 
 ## Demande de Mohamed (6 nov.)
 - Évolution vers une esthétique scientifique / science-fiction haut de gamme, qui reste une app de santé lisible et crédible : instrument de recherche personnel, fond sombre profond, surfaces sobres, contours fins ponctuels, espace généreux. Touche holographique seulement sur une sélection ou une interaction. Pas de grille hexagonale, de scanlines, de décor spatial ni de halos partout.

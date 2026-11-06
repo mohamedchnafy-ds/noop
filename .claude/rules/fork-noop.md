@@ -42,7 +42,7 @@ Ce dépôt est le fork personnel de Mohamed. Ces règles s'ajoutent à `AGENTS.m
 - Méthode demandée : lots dans l'ordre ; fusion dès que la CI est verte ; **une seule IPA à la fin**.
 
 ## Chantier 13 (6 nov., soir)
-- **Esthétique « Instrument » / HUD holographique** : fiche `docs/fork/chantier-13-instrument.md`. Pilote Aujourd'hui **fusionné** (#103, `main` c2fdd14) derrière l'interrupteur Réglages → Apparence → « Style HUD d'Aujourd'hui » (éteint par défaut, iPhone seulement). IPA `build/today-hud` à valider. Les autres onglets prennent le style **seulement après la validation du pilote**.
+- **Esthétique « Instrument » / HUD holographique : abandonné le 6 nov. (soir)** par Mohamed après l'essai de l'IPA `build/today-hud` ; le code (#103) est retiré de `main` par un commit d'annulation. Fiche `docs/fork/chantier-13-instrument.md` gardée comme historique.
 
 ## Chantier suivant (préparé le 5 nov.)
 - **Chantier 12 — animations** : **code fusionné le 5 nov. (soir)** (#89, #90, #91, `main` faa1b8a), fiche `docs/fork/chantier-12-animations.md` (journal du code, reportés, liste « À tester » en vidéo). IPA `build/animations-2` (`main` 93288d1) validée en vidéo le 6 nov. → #98 (filtres au repos, à-coup au défilement), #99 (cœur au rythme réel sur la carte FC), #100 (Courbes du Sommeil tracées), **fusionnées le 6 nov. (`main` ad55df6)** ; **IPA `build/animations-3`** = `main` ad55df6, à valider en vidéo (liste « À tester » du 6 nov. soir dans la fiche). Ensuite : Élan (chantier 10).

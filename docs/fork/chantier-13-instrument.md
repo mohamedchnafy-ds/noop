@@ -1,5 +1,7 @@
 # Chantier 13 — Esthétique « Instrument » (fiche du chantier, 6 nov. 2026)
 
+**ABANDONNÉ (6 nov., ~21:05 UTC)** : après l'IPA `build/today-hud`, Mohamed est revenu à l'IPA précédente et **ne veut plus ce design**. Le code du HUD (#103) est **retiré de `main`** par un commit d'annulation (pas de réécriture d'historique) : `main` a de nouveau le code de 7ae38ad (Aujourd'hui « Fitness + Santé » d'avant). Cette fiche reste comme historique : diagnostic, maquettes (https://claude.ai/artifact/BxtF7aKChTqp1kGGvKpaEr), choix et journal du code. Pour le reprendre un jour : annuler le commit d'annulation (revert du revert) sur une branche depuis `main`.
+
 **État (6 nov., soir)** : B jugée trop sage par Mohamed → 3 pistes futuristes → **piste 1 « HUD holographique » retenue**, maquette complète à valider ; maquette : https://claude.ai/artifact/BxtF7aKChTqp1kGGvKpaEr (6 planches : sombre, clair, petit iPhone 375 pt, interaction, calibration, sans données). Le code ne commence qu'après la validation de la maquette. Les autres écrans ne prennent le style qu'après la validation du pilote sur le téléphone.
 
 ## Retour sur la maquette B (6 nov., soir)

@@ -137,7 +137,6 @@ struct TodayStressCard: View {
     var animated: Bool = false
 
     @State private var showsMethod = false
-    @Environment(\.todayHUDStyle) private var hud
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -173,8 +172,7 @@ struct TodayStressCard: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Fork chantier 13: the HUD panel in the HUD style, else the usual card.
-        .modifier(TodayHUDCardSurface(hud: hud, accent: NoopHUDStyle.chrome))
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
         .sheet(isPresented: $showsMethod) { TodayStressMethodSheet() }
     }
 

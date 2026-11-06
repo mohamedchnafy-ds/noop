@@ -36,7 +36,6 @@ jobs:
             -only-testing:StrandTests/LiftSupersetRenderTests \
             -only-testing:StrandTests/SleepScreenRenderTests \
             -only-testing:StrandTests/TodayScreenRenderTests \
-            -only-testing:StrandTests/TodayHUDRenderTests \
             -only-testing:StrandTests/LiftProgressRenderTests \
             -only-testing:StrandTests/NutritionRenderTests \
             -only-testing:StrandTests/MoreHubRenderTests \

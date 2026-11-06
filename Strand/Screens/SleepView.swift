@@ -930,7 +930,8 @@ struct SleepView: View {
             showMotion: $showMotionCurve,
             notes: stageNotes(night),
             embedded: true,
-            fullScreen: $phasesFullScreen)
+            fullScreen: $phasesFullScreen,
+            animated: true)
     }
 
     /// The honest caveats about this night's staging, stacked under the stage totals; nil when none apply.

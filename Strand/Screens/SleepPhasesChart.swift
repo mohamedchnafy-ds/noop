@@ -151,6 +151,15 @@ enum SleepPhasesChartMath {
         intervals.first { t >= $0.start && t < $0.end }?.stage
     }
 
+    /// The part of a stage bar already written when the night is traced up to `limit` (seconds from the
+    /// night's start): the whole bar once the trace is past it, the bar cut at the front while it runs,
+    /// nil before the trace reaches it (fork chantier 12, 6 Nov. evening).
+    static func tracedBar(start: TimeInterval, end: TimeInterval,
+                          limit: TimeInterval) -> (start: TimeInterval, end: TimeInterval)? {
+        guard start < limit else { return nil }
+        return (start, min(end, limit))
+    }
+
     /// Whole clock hours inside the night's window, thinned to at most `maxLabels`.
     static func hourMarks(nightStart: Date, origin: TimeInterval, span: TimeInterval,
                           maxLabels: Int = 6, calendar: Calendar = .current) -> [Date] {
@@ -189,8 +198,20 @@ struct SleepPhasesChart: View {
     var bleed: CGFloat = NoopMetrics.cardPadding
     /// A reading shown before any touch, in seconds from `nightStart` (the render test sets one).
     var initialReading: TimeInterval? = nil
+    /// Fork chantier 12 (6 Nov. evening): armed, the night writes itself from left to right once per showing
+    /// of the screen (`noopEntranceGeneration`), and again when another night is shown; false draws it whole
+    /// (renders).
+    var animated: Bool = false
+    /// Names the entrance for `NoopLaunchOnce`: the night card's chart and the full-screen one play apart.
+    var entranceKey: String = SleepPhasesChart.cardEntranceKey
+
+    static let cardEntranceKey = "sleep.curves"
+    static let fullScreenEntranceKey = "sleep.curves.full"
 
     @State private var touched: TimeInterval?
+    /// The share of the night written, 0…1: back to 0 and up again when another night is shown.
+    @State private var retrace: Double = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The moment being read: the last touch, or the seeded reading before any.
     private var reading: TimeInterval? { touched ?? initialReading }
 
@@ -281,13 +302,28 @@ struct SleepPhasesChart: View {
             GeometryReader { geo in
                 let g = geometry(width: geo.size.width, strips: placed.below.count)
                 ZStack(alignment: .topLeading) {
-                    Canvas { ctx, size in draw(ctx, size: size, g: g, placed: placed) }
-                    if showsMotion, let motionTop = g.motionTop {
-                        MotionTrace(epochs: motion, height: stripHeight - 24, tint: StrandPalette.restColor)
-                            .frame(width: g.plotWidth, height: stripHeight - 24)
-                            .offset(x: g.left, y: motionTop + 22)
-                            .allowsHitTesting(false)
+                    // The lanes, the clock and the scales stay put; the night is written over them.
+                    Canvas { ctx, size in drawFrame(ctx, size: size, g: g, placed: placed) }
+                    NoopFirstDraw(key: entranceKey, armed: animated) { phase in
+                        SleepTracedPlot(trace: phase.drawn ? retrace : 0) { trace in
+                            ZStack(alignment: .topLeading) {
+                                Canvas { ctx, size in drawNight(ctx, size: size, g: g, placed: placed, trace: trace) }
+                                if showsMotion, let motionTop = g.motionTop {
+                                    MotionTrace(epochs: motion, height: stripHeight - 24, tint: StrandPalette.restColor)
+                                        .frame(width: g.plotWidth, height: stripHeight - 24)
+                                        .mask(alignment: .leading) {
+                                            Rectangle().frame(width: g.plotWidth * CGFloat(trace))
+                                        }
+                                        .offset(x: g.left, y: motionTop + 22)
+                                        .allowsHitTesting(false)
+                                }
+                            }
+                        }
+                        .animation(phase.motion(SleepNightDialMotion.trace), value: phase.drawn)
                     }
+                    // A picked stage: the others fade, as on the ring (the selection is animated).
+                    .id(highlighted)
+                    .transition(.opacity)
                 }
                 .contentShape(Rectangle())
                 .gesture(
@@ -304,6 +340,20 @@ struct SleepPhasesChart: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(accessibilitySummary(placed)))
             summary(placed)
+        }
+        .onChangeCompat(of: nightStart) { _ in retraceNight() }
+    }
+
+    /// Another night (‹ ›, a bar of Your nights, « See this night »): the chart writes it anew, as the ring
+    /// traces it.
+    private func retraceNight() {
+        // `motion` is the night's movement here; the quiet-motion gate is read once, as a one-shot check.
+        guard animated, !NoopMotionState.shared.poseStill(reduceMotion) else { return }
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { retrace = 0 }
+        DispatchQueue.main.async {
+            withAnimation(SleepNightDialMotion.trace) { retrace = 1 }
         }
     }
 
@@ -442,13 +492,28 @@ struct SleepPhasesChart: View {
 
     // MARK: Drawing
 
-    private func draw(_ ctx: GraphicsContext, size: CGSize, g: Geometry, placed: (onStages: [Series], below: [Series])) {
-        func x(_ t: TimeInterval) -> CGFloat { g.left + CGFloat((t - origin) / span) * g.plotWidth }
-        func laneY(_ stage: SleepStage) -> CGFloat {
-            g.stagesTop + CGFloat(Self.lanes.firstIndex(of: stage) ?? 0) * (laneHeight + Self.laneGap)
-        }
-        let barHeight = (laneHeight * 0.43).rounded()
-        func barMid(_ stage: SleepStage) -> CGFloat { laneY(stage) + laneHeight / 2 + 6 }
+    private func x(_ t: TimeInterval, g: Geometry) -> CGFloat {
+        g.left + CGFloat((t - origin) / span) * g.plotWidth
+    }
+
+    private func laneY(_ stage: SleepStage, g: Geometry) -> CGFloat {
+        g.stagesTop + CGFloat(Self.lanes.firstIndex(of: stage) ?? 0) * (laneHeight + Self.laneGap)
+    }
+
+    /// The band under the lanes the curves over the stages are drawn in.
+    private func stageBand(_ g: Geometry) -> (top: CGFloat, height: CGFloat) {
+        (top: g.stagesTop + 8, height: g.stagesBottom - g.stagesTop - 16)
+    }
+
+    private func stripBand(_ stripTop: CGFloat) -> (top: CGFloat, height: CGFloat) {
+        (top: stripTop + 22, height: stripHeight - 30)
+    }
+
+    /// What does not move: the hour hairlines and labels, the lane and strip backgrounds, the strips' grids,
+    /// titles and scales.
+    private func drawFrame(_ ctx: GraphicsContext, size: CGSize, g: Geometry,
+                           placed: (onStages: [Series], below: [Series])) {
+        func x(_ t: TimeInterval) -> CGFloat { self.x(t, g: g) }
 
         // Hour hairlines and labels.
         let f = AppClock.hourMinuteFormatter()
@@ -463,46 +528,22 @@ struct SleepPhasesChart: View {
             ctx.draw(label, at: CGPoint(x: hx, y: g.axisY + 2), anchor: .top)
         }
 
-        // Lanes, risers, stage bands.
+        // Lane backgrounds.
         for stage in Self.lanes {
-            let rect = CGRect(x: g.left, y: laneY(stage), width: g.plotWidth, height: laneHeight)
+            let rect = CGRect(x: g.left, y: laneY(stage, g: g), width: g.plotWidth, height: laneHeight)
             ctx.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(StrandPalette.surfaceInset))
         }
-        let sorted = intervals.sorted { $0.start < $1.start }
-        for (a, b) in zip(sorted, sorted.dropFirst()) where a.stage != b.stage {
-            var riser = Path()
-            riser.move(to: CGPoint(x: x(a.end), y: barMid(a.stage)))
-            riser.addLine(to: CGPoint(x: x(a.end), y: barMid(b.stage)))
-            ctx.stroke(riser, with: .color(StrandPalette.hairlineStrong), lineWidth: 1)
-        }
-        for iv in sorted {
-            let rect = CGRect(x: x(iv.start), y: barMid(iv.stage) - barHeight / 2,
-                              width: max(2, x(iv.end) - x(iv.start)), height: barHeight)
-            let dimmed = highlighted != nil && highlighted != iv.stage
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 5),
-                     with: .color(StrandPalette.sleepStageColor(iv.stage, palette: palette).opacity(dimmed ? 0.25 : 1)))
-        }
 
-        // Curves over the lanes, each with its scale: the first on the right edge, the second on the left.
-        let stageBand = (top: g.stagesTop + 8, height: g.stagesBottom - g.stagesTop - 16)
+        // The scales of the curves over the lanes: the first on the right edge, the second on the left.
         for (index, s) in placed.onStages.enumerated() {
-            stroke(ctx, s, x: x, band: stageBand)
-            drawScale(ctx, s, band: stageBand, g: g, onLeft: index == 1)
+            drawScale(ctx, s, band: stageBand(g), g: g, onLeft: index == 1)
         }
 
-        // Stage names inside the lanes, over the curves, on a chip of the lane's own colour.
-        for stage in Self.lanes {
-            let dimmed = highlighted != nil && highlighted != stage
-            chip(ctx, Text(stage.label).font(StrandFont.caption.weight(.semibold))
-                    .foregroundColor(dimmed ? StrandPalette.textTertiary : StrandPalette.textSecondary),
-                 at: CGPoint(x: g.left + 6, y: laneY(stage) + 4))
-        }
-
-        // Strips under the lanes.
+        // Strips under the lanes: background, grid, scale and title.
         for (s, stripTop) in zip(placed.below, g.stripTops) {
             let rect = CGRect(x: g.left, y: stripTop, width: g.plotWidth, height: stripHeight)
             ctx.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(StrandPalette.surfaceInset))
-            let band = (top: stripTop + 22, height: stripHeight - 30)
+            let band = stripBand(stripTop)
             for tick in s.scale.ticks {
                 let ty = band.top + CGFloat(s.scale.y(tick)) * band.height
                 var grid = Path()
@@ -510,18 +551,81 @@ struct SleepPhasesChart: View {
                 grid.addLine(to: CGPoint(x: g.left + g.plotWidth, y: ty))
                 ctx.stroke(grid, with: .color(StrandPalette.hairline), lineWidth: 0.8)
             }
-            stroke(ctx, s, x: x, band: band)
             drawScale(ctx, s, band: band, g: g, onLeft: false, withUnit: false)
+        }
+        if let motionTop = g.motionTop {
+            let rect = CGRect(x: g.left, y: motionTop, width: g.plotWidth, height: stripHeight)
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(StrandPalette.surfaceInset))
+        }
+    }
+
+    /// The night itself, written up to `trace` (0…1 of the night): the stage bands and their risers, the
+    /// curves, the stage names, then the reading. While the trace runs, a hairline marks its front.
+    private func drawNight(_ ctx: GraphicsContext, size: CGSize, g: Geometry,
+                           placed: (onStages: [Series], below: [Series]), trace: Double) {
+        func x(_ t: TimeInterval) -> CGFloat { self.x(t, g: g) }
+        let barHeight = (laneHeight * 0.43).rounded()
+        func barMid(_ stage: SleepStage) -> CGFloat { laneY(stage, g: g) + laneHeight / 2 + 6 }
+        let share = max(0, min(1, trace))
+        let limit = origin + share * span
+        // The curves are cut at the front of the trace; whole once it is past the end.
+        var written = ctx
+        if share < 1 {
+            written.clip(to: Path(CGRect(x: 0, y: 0, width: x(limit), height: size.height)))
+        }
+
+        // Risers and stage bands, as far as the trace reaches.
+        let sorted = intervals.sorted { $0.start < $1.start }
+        for (a, b) in zip(sorted, sorted.dropFirst()) where a.stage != b.stage && a.end <= limit {
+            var riser = Path()
+            riser.move(to: CGPoint(x: x(a.end), y: barMid(a.stage)))
+            riser.addLine(to: CGPoint(x: x(a.end), y: barMid(b.stage)))
+            ctx.stroke(riser, with: .color(StrandPalette.hairlineStrong), lineWidth: 1)
+        }
+        for iv in sorted {
+            guard let bar = SleepPhasesChartMath.tracedBar(start: iv.start, end: iv.end, limit: limit) else { continue }
+            let rect = CGRect(x: x(bar.start), y: barMid(iv.stage) - barHeight / 2,
+                              width: max(2, x(bar.end) - x(bar.start)), height: barHeight)
+            let dimmed = highlighted != nil && highlighted != iv.stage
+            ctx.fill(Path(roundedRect: rect, cornerRadius: 5),
+                     with: .color(StrandPalette.sleepStageColor(iv.stage, palette: palette).opacity(dimmed ? 0.25 : 1)))
+        }
+
+        // Curves over the lanes and in their strips.
+        let laneBand = stageBand(g)
+        for s in placed.onStages {
+            stroke(written, s, x: x, band: laneBand)
+        }
+        for (s, stripTop) in zip(placed.below, g.stripTops) {
+            stroke(written, s, x: x, band: stripBand(stripTop))
+        }
+
+        // Names over the curves, on chips of the lane's own colour: the stages in their lanes, each strip's
+        // curve and the movement strip.
+        for stage in Self.lanes {
+            let dimmed = highlighted != nil && highlighted != stage
+            chip(ctx, Text(stage.label).font(StrandFont.caption.weight(.semibold))
+                    .foregroundColor(dimmed ? StrandPalette.textTertiary : StrandPalette.textSecondary),
+                 at: CGPoint(x: g.left + 6, y: laneY(stage, g: g) + 4))
+        }
+        for (s, stripTop) in zip(placed.below, g.stripTops) {
             chip(ctx, Text(verbatim: Self.stripTitle(s.curve)).font(StrandFont.caption.weight(.semibold))
                     .foregroundColor(Self.tint(s.curve)),
                  at: CGPoint(x: g.left + 6, y: stripTop + 4))
         }
         if let motionTop = g.motionTop {
-            let rect = CGRect(x: g.left, y: motionTop, width: g.plotWidth, height: stripHeight)
-            ctx.fill(Path(roundedRect: rect, cornerRadius: 8), with: .color(StrandPalette.surfaceInset))
             chip(ctx, Text("Move, relative to tonight").font(StrandFont.caption.weight(.semibold))
                     .foregroundColor(StrandPalette.restColor),
                  at: CGPoint(x: g.left + 6, y: motionTop + 4))
+        }
+
+        // The front of the trace while it runs: a hairline through the lanes and strips.
+        if share > 0, share < 1 {
+            let fx = x(limit)
+            var front = Path()
+            front.move(to: CGPoint(x: fx, y: g.stagesTop - 4))
+            front.addLine(to: CGPoint(x: fx, y: g.axisY - 4))
+            ctx.stroke(front, with: .color(StrandPalette.textPrimary.opacity(0.6)), lineWidth: 1)
         }
 
         // The reading: a line through everything and a dot on each curve.
@@ -532,10 +636,10 @@ struct SleepPhasesChart: View {
             line.addLine(to: CGPoint(x: rx, y: g.axisY - 4))
             ctx.stroke(line, with: .color(StrandPalette.textPrimary.opacity(0.85)), lineWidth: 1.3)
             for s in placed.onStages {
-                dot(ctx, s, at: reading, x: rx, band: stageBand)
+                dot(ctx, s, at: reading, x: rx, band: laneBand)
             }
             for (s, stripTop) in zip(placed.below, g.stripTops) {
-                dot(ctx, s, at: reading, x: rx, band: (top: stripTop + 22, height: stripHeight - 30))
+                dot(ctx, s, at: reading, x: rx, band: stripBand(stripTop))
             }
         }
     }
@@ -611,4 +715,24 @@ struct SleepPhasesChart: View {
         }
         return parts.joined(separator: ". ")
     }
+}
+
+/// Hands the interpolated share of the night (0…1) to its content on every frame of a trace, so the Canvas is
+/// drawn for each value in between (fork chantier 12, 6 Nov. evening). The content is rebuilt per frame, so it
+/// keeps no state of its own.
+private struct SleepTracedPlot<Content: View>: View, Animatable {
+    var trace: Double
+    private let content: (Double) -> Content
+
+    init(trace: Double, @ViewBuilder content: @escaping (Double) -> Content) {
+        self.trace = trace
+        self.content = content
+    }
+
+    var animatableData: Double {
+        get { trace }
+        set { trace = newValue }
+    }
+
+    var body: some View { content(trace) }
 }

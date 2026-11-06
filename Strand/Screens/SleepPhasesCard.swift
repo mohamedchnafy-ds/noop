@@ -62,6 +62,9 @@ struct SleepPhasesCard: View {
     /// Who opens the full-screen chart: the night card's header button when embedded; nil keeps the
     /// card's own state and header button.
     var fullScreen: Binding<Bool>? = nil
+    /// Fork chantier 12 (6 Nov. evening): the chart writes the night in at each showing and on another
+    /// night; false draws it whole (renders).
+    var animated: Bool = false
 
     @State private var showsFullScreen = false
 
@@ -154,7 +157,8 @@ struct SleepPhasesCard: View {
 
     // MARK: Parts
 
-    private func chart(laneHeight: CGFloat, stripHeight: CGFloat, bleed: CGFloat) -> SleepPhasesChart {
+    private func chart(laneHeight: CGFloat, stripHeight: CGFloat, bleed: CGFloat,
+                       entranceKey: String = SleepPhasesChart.cardEntranceKey) -> SleepPhasesChart {
         SleepPhasesChart(intervals: intervals, nightStart: nightStart, palette: palette,
                          highlighted: selectedStage,
                          heartRate: showHeartRate ? curves.heartRate : [],
@@ -162,7 +166,7 @@ struct SleepPhasesCard: View {
                          skinTemp: showSkinTemp ? curves.skinTemp : [],
                          motion: showMotion ? curves.motion : [],
                          laneHeight: laneHeight, stripHeight: stripHeight, bleed: bleed,
-                         initialReading: initialReading)
+                         initialReading: initialReading, animated: animated, entranceKey: entranceKey)
     }
 
     /// The same chart on the whole screen: taller lanes and strips, the curve switches above it. Internal
@@ -194,8 +198,12 @@ struct SleepPhasesCard: View {
                 let lane = fullScreenLaneHeight(available: geo.size.height)
                 // Scrolls only when even the shortest lanes do not fit (many strips on a small screen).
                 ViewThatFits(in: .vertical) {
-                    chart(laneHeight: lane, stripHeight: 110, bleed: 0)
-                    ScrollView { chart(laneHeight: lane, stripHeight: 110, bleed: 0) }
+                    chart(laneHeight: lane, stripHeight: 110, bleed: 0,
+                          entranceKey: SleepPhasesChart.fullScreenEntranceKey)
+                    ScrollView {
+                        chart(laneHeight: lane, stripHeight: 110, bleed: 0,
+                              entranceKey: SleepPhasesChart.fullScreenEntranceKey)
+                    }
                 }
             }
         }

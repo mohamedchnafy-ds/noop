@@ -1,6 +1,6 @@
 # Chantier 13 — Carte (position et métriques) — fiche (6 nov. 2026)
 
-**État** : idée retenue par Mohamed le 6 nov. ; **maquette v1 à valider** (6 nov.). Code : après Élan (chantier 10), un seul chantier de code à la fois.
+**État** : idée retenue par Mohamed le 6 nov. ; maquette v1 faite en style F (6 nov.). **Choix de Mohamed (6 nov.)** : la Carte s'intègre avec le **nouveau design** du chantier de design en cours : à sa fin, refaire la maquette dans ce style (mêmes écrans et mêmes règles), la valider, puis coder. Un seul chantier de code à la fois.
 
 ## La demande (6 nov.)
 Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d'autres métriques, pour voir si une métrique dépend du lieu.

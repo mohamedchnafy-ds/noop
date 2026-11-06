@@ -26,40 +26,22 @@ struct TodaySynthesisCard: View {
     var surfaceOpacity: Double = 1
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.todayHUDStyle) private var hud
     @ObservedObject private var motion = NoopMotionState.shared
 
     var body: some View {
-        // Fork chantier 7: one list card, no section head (as in the retained design). Fork chantier 13: in
-        // the HUD, a technical label over a list laid on the page (no card), the day explained.
-        VStack(alignment: .leading, spacing: 0) {
-            if hud {
-                Text("Synthesis")
-                    .font(StrandFont.hudLabel)
-                    .noopHUDLabel()
-                    .foregroundStyle(NoopHUDStyle.textSecondary)
-                    .padding(.bottom, NoopMetrics.space1)
-                    .accessibilityAddTraits(.isHeader)
-            }
+        // Fork chantier 7: one list card, no section head (as in the retained design).
+        VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                if index > 0 || hud {
-                    Rectangle().fill(hud ? NoopHUDStyle.rule : StrandPalette.hairline)
-                        .frame(height: hud ? 1 : NoopMetrics.hairlineWidth)
+                if index > 0 {
+                    Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
                 }
                 link(row)
             }
-            if hud {
-                Rectangle().fill(NoopHUDStyle.rule).frame(height: 1)
-            }
         }
-        .padding(.horizontal, hud ? 2 : 18)
+        .padding(.horizontal, 18)
         .padding(.vertical, NoopMetrics.space1)
         .frame(maxWidth: .infinity)
-        .background {
-            if !hud {
-                NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity)
-            }
-        }
+        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
     }
 
     @ViewBuilder
@@ -83,36 +65,28 @@ struct TodaySynthesisCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title)
                     .font(StrandFont.body.weight(.medium))
-                    .foregroundStyle(hud ? NoopHUDStyle.text : StrandPalette.textPrimary)
+                    .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                 if let subtitle = TodaySynthesisCard.shownSubtitle(row) {
                     // Two lines rather than « …réveil habituel de 0… » (5 Nov.).
                     Text(subtitle)
                         .font(StrandFont.subhead)
-                        .foregroundStyle(hud ? NoopHUDStyle.textSecondary : StrandPalette.textSecondary)
+                        .foregroundStyle(StrandPalette.textSecondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: NoopMetrics.space2)
             if let action = row.action {
-                if hud {
-                    Text(action)
-                        .font(StrandFont.hudCaption)
-                        .noopHUDLabel()
-                        .foregroundStyle(NoopHUDStyle.chrome)
-                        .lineLimit(1)
-                } else {
-                    Text(action)
-                        .font(StrandFont.body.weight(.semibold))
-                        .foregroundStyle(StrandPalette.accent)
-                        .lineLimit(1)
-                }
+                Text(action)
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.accent)
+                    .lineLimit(1)
             } else {
                 // Fork chantier 12: a debt or a bedtime that changes rolls its digits.
                 Text(row.value)
                     .font(StrandFont.rounded(17, weight: .semibold))
-                    .foregroundStyle(hud ? NoopHUDStyle.text : StrandPalette.textPrimary)
+                    .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .contentTransition(.numericText())

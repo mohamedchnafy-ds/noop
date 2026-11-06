@@ -97,6 +97,16 @@ internal fun stageIntervalsFromWeights(
 }
 
 /**
+ * The shortest awake bout [displaySmoothed] keeps, whatever its threshold: an awakening of a minute or
+ * more is one the wearer remembers and the stage totals count, so the timeline must show it. Anything
+ * shorter is a flicker, absorbed like a sleep fragment. Twin of Swift `Hypnogram.awakeFloorSeconds`.
+ */
+internal const val AWAKE_FLOOR_SEC = 60.0
+
+/** The stage names the stager and the importers use for an awake bout (Swift accepts the same two). */
+private fun isAwakeStage(stage: String): Boolean = stage == "wake" || stage == "awake"
+
+/**
  * Display-time smoothing — a straight port of Swift `Hypnogram.displaySmoothed` (WHOOP-style,
  * Packages/StrandDesign/Sources/StrandDesign/Hypnogram.swift:92). The on-device stager emits
  * 30 s-epoch runs, so a real night arrives as 60–100 fragments; brief flickers are absorbed into
@@ -106,6 +116,7 @@ internal fun stageIntervalsFromWeights(
 internal fun displaySmoothed(
     intervals: List<StageInterval>,
     minDurationSec: Double,
+    awakeFloorSec: Double = AWAKE_FLOOR_SEC,
 ): List<StageInterval> {
     // Match Swift `Hypnogram.displaySmoothed`: guard ONLY on count. A minDurationSec <= 0 ("raw") must
     // still fall through to coalesce() — Swift returns the coalesced timeline, not the un-merged epoch
@@ -132,8 +143,9 @@ internal fun displaySmoothed(
     // Repeatedly absorb the shortest sub-threshold fragment into its longer neighbour,
     // re-coalescing after each pass, until every remaining block clears the threshold.
     while (ivs.size > 1) {
+        // A fragment below the threshold, unless it is an awake bout long enough to keep.
         val idx = ivs.indices
-            .filter { ivs[it].durationSec < minDurationSec }
+            .filter { ivs[it].durationSec < minDurationSec && !(isAwakeStage(ivs[it].stage) && ivs[it].durationSec >= awakeFloorSec) }
             .minByOrNull { ivs[it].durationSec } ?: break
         val victim = ivs[idx]
         val prev = if (idx > 0) ivs[idx - 1] else null

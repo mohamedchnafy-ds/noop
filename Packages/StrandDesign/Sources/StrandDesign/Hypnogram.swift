@@ -100,8 +100,20 @@ public struct Hypnogram: View {
     //
     // Pass `smoothingSeconds: 0` to render the raw timeline. Public so other stage-timeline
     // renderings (e.g. the WHOOP-style per-stage rows in SleepView) reuse the same smoothing.
-    public static func displaySmoothed(_ sorted: [SleepInterval], minDuration: TimeInterval) -> [SleepInterval] {
+    /// The shortest awake bout the smoothing keeps, whatever `minDuration`: an awakening of a minute or
+    /// more is one the wearer remembers and the stage totals count, so the ring and the curves must show
+    /// it (6 Nov.: a night of 17 min awake in short bouts drew none, while its tile said 17 min). Anything
+    /// shorter is a flicker, absorbed like a sleep fragment. Android's `AWAKE_FLOOR_SEC` is the twin.
+    public static let awakeFloorSeconds: TimeInterval = 60
+
+    public static func displaySmoothed(_ sorted: [SleepInterval], minDuration: TimeInterval,
+                                       awakeFloor: TimeInterval = Hypnogram.awakeFloorSeconds) -> [SleepInterval] {
         guard sorted.count > 2 else { return sorted }
+
+        /// A fragment below the threshold, unless it is an awake bout long enough to keep.
+        func absorbable(_ iv: SleepInterval) -> Bool {
+            iv.duration < minDuration && !(iv.stage == .awake && iv.duration >= awakeFloor)
+        }
 
         // Coalesce adjacent same-stage runs (also bridges the zero-length seams between epochs).
         func coalesce(_ ivs: [SleepInterval]) -> [SleepInterval] {
@@ -121,7 +133,7 @@ public struct Hypnogram: View {
         // re-coalescing after each pass, until every remaining block clears the threshold.
         while ivs.count > 1 {
             guard let idx = ivs.indices
-                .filter({ ivs[$0].duration < minDuration })
+                .filter({ absorbable(ivs[$0]) })
                 .min(by: { ivs[$0].duration < ivs[$1].duration }) else { break }
             let victim = ivs[idx]
             let prev = idx > 0 ? ivs[idx - 1] : nil

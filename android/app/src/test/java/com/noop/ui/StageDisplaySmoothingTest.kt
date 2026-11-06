@@ -52,6 +52,27 @@ class StageDisplaySmoothingTest {
     }
 
     @Test
+    fun keepsAnAwakeBoutOfAMinuteOrMore() {
+        // Twin of Swift `HypnogramSmoothingTests.testKeepsAnAwakeBoutOfAMinuteOrMore`: the same fixture and
+        // the same expected block. A 2 min awakening between two light runs is under the 5 min threshold
+        // but over the awake floor, so it stays; the 30 s one is a flicker and goes.
+        val out = displaySmoothed(
+            listOf(
+                iv("light", 0.0, 600.0),
+                iv("wake", 600.0, 720.0),
+                iv("light", 720.0, 1320.0),
+                iv("wake", 1320.0, 1350.0),
+                iv("light", 1350.0, 1950.0),
+            ),
+            minDurationSec = 300.0,
+        )
+        assertEquals(
+            listOf(iv("light", 0.0, 600.0), iv("wake", 600.0, 720.0), iv("light", 720.0, 1950.0)),
+            out,
+        )
+    }
+
+    @Test
     fun absorptionReCoalescesBridgedRuns() {
         // light | 30s wake | light → wake absorbed, then the two light runs coalesce into ONE block.
         val out = displaySmoothed(

@@ -1,6 +1,6 @@
 # Chantier 13 — Carte (position et métriques) — fiche (6 nov. 2026)
 
-**État** : idée retenue par Mohamed le 6 nov. ; **maquette à faire** (aucune encore). Code : après Élan (chantier 10), un seul chantier de code à la fois.
+**État** : idée retenue par Mohamed le 6 nov. ; **maquette v1 à valider** (6 nov.). Code : après Élan (chantier 10), un seul chantier de code à la fois.
 
 ## La demande (6 nov.)
 Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d'autres métriques, pour voir si une métrique dépend du lieu.
@@ -21,6 +21,11 @@ Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d
 - Par lieu, calques : **FC et Stress moyens** pendant les visites ; **VFC et Récupération des nuits** passées là ; peut-être Sommeil (durée, dette).
 - Afficher l'**écart à ta normale**, pas la valeur brute, et seulement au-delà d'un nombre minimum de jours (à fixer dans la maquette).
 - Demande l'autorisation **« Toujours »** (nouvelle clé `NSLocationAlwaysAndWhenInUseUsageDescription`) et un **interrupteur** pour arrêter le suivi et effacer les lieux.
+
+## Maquette v1 (6 nov.) — à valider
+Canvas « NOOP – Carte » — https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ. Style F, valeurs d'exemple. 6 écrans :
+0 Feuille Plus (ligne **Carte** sous Tendances, « 6 séances › ») · 1 Carte · Séances (interactif : 30 J · 90 J · Tout, toucher une séance = elle seule sur la carte, barre des zones par séance) · 2 Carte d'une séance (trajet par zone, pic de FC entouré, temps par zone) · 3 Carte · Lieux (interactif : calques FC · Stress · VFC · Récup, pastilles bleu clair = mieux que ta normale, gris = proche, orange = moins bien, taille = nombre de visites, creuses = pas assez de données) · 4 Un lieu (écarts VFC, Récupération, Sommeil, FC, Stress ; barres des nuits ; « Oublier ce lieu ») · 5 Activer les Lieux (ce qui est enregistré, « Toujours », interrupteurs Suivre / Le Coach peut le lire / Dans la sauvegarde, Garder 1 an, Effacer).
+Propositions : sélecteur **Séances | Lieux** sous le titre (Lieux absent tant que l'étape 2 n'est pas codée) ; écart affiché à partir de **3 nuits** (VFC, Récupération) ; couleurs bleu clair / orange (pas vert / rouge) ; la FC des séances est comptée à part dans le calque FC des Lieux.
 
 ## Points à trancher dans la maquette
 - **Pas de 6e onglet** : iOS n'en montre que 5 (au 6e il crée « Plus » tout seul). Proposition : **Plus → Analyses → Carte**, à côté de Tendances ; la carte des séances aussi depuis Entraînement → Historique.

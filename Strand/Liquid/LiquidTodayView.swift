@@ -134,6 +134,16 @@ struct LiquidTodayView: View {
     // drag-to-reorder rows); every section always renders (decode inserts a missing one at its default spot).
     @AppStorage(TodayLayoutPrefs.orderKey) private var sectionOrderRaw = ""
     @AppStorage(TodayLayoutPrefs.hiddenKey) private var hiddenSectionsRaw = ""
+    /// Fork chantier 13: Today drawn as the holographic HUD (Settings → Appearance, iPhone only, off by
+    /// default). Off, the screen is exactly the one it was.
+    @AppStorage(TodayHUDPrefs.enabledKey) private var hudStyleStored = false
+    private var hudStyle: Bool {
+        #if os(iOS)
+        return hudStyleStored
+        #else
+        return false
+        #endif
+    }
     private var sectionOrder: [TodaySection] {
         TodayLayoutPrefs.liquidVisibleOrder(orderRaw: sectionOrderRaw, hiddenRaw: hiddenSectionsRaw)
     }
@@ -366,6 +376,7 @@ struct LiquidTodayView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     scene
+                    if hudStyle { TodayHUDStatusLine() }
                     // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
                     // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
                     // RootView.swift likewise), so while this was unmounted a RAISED health alert had no
@@ -461,8 +472,10 @@ struct LiquidTodayView: View {
         #endif
         .onPreferenceChange(PullOffsetKey.self) { handlePull($0) }
         // Plain black canvas behind the scroll content, edge-to-edge under the status bar (fork chantier 7
-        // retired the day-cycle sky and the custom background image).
-        .background(StrandPalette.surfaceBase.ignoresSafeArea())
+        // retired the day-cycle sky and the custom background image); the HUD's static gradient instead
+        // (fork chantier 13: a fill, no filter).
+        .background(todayCanvas.ignoresSafeArea())
+        .environment(\.todayHUDStyle, hudStyle)
         .coordinateSpace(name: Self.daySwipeSpace)
         .onPreferenceChange(LiquidHeartRateCardFrameKey.self) { heartRateCardFrame = $0 }
         .onPreferenceChange(LiquidStressCardFrameKey.self) { stressCardFrame = $0 }
@@ -734,13 +747,30 @@ struct LiquidTodayView: View {
                                         proteinGoalG: goal > 0 ? goal : nil)
     }
 
+    /// The page behind Today: the black canvas, or the HUD's gradient.
+    @ViewBuilder
+    private var todayCanvas: some View {
+        if hudStyle {
+            NoopHUDStyle.canvas
+        } else {
+            StrandPalette.surfaceBase
+        }
+    }
+
     private var heroCard: some View {
-        TodayHeroCard(model: heroModel, animated: dataLoaded, surfaceOpacity: cardOpacity) { guideSection = $0 }
-            // Fork chantier 12: another day slides in from its side while the rings and numbers move.
-            .noopDaySlide(selectedDayOffset)
-            .onAppear { NoopLaunchOnce.markPlayed(Self.cascadeKey) }
-            // The meals alone, so a meal logged elsewhere refreshes the Nutrition line without a full reload.
-            .task(id: "\(selectedDayKey)-\(mealRevision)-\(repo.refreshSeq)") { await loadDayMeals() }
+        Group {
+            if hudStyle {
+                // Fork chantier 13: the same model, drawn as the reticle and its numbered cells.
+                TodayHUDHero(model: heroModel, animated: dataLoaded) { guideSection = $0 }
+            } else {
+                TodayHeroCard(model: heroModel, animated: dataLoaded, surfaceOpacity: cardOpacity) { guideSection = $0 }
+            }
+        }
+        // Fork chantier 12: another day slides in from its side while the rings and numbers move.
+        .noopDaySlide(selectedDayOffset)
+        .onAppear { NoopLaunchOnce.markPlayed(Self.cascadeKey) }
+        // The meals alone, so a meal logged elsewhere refreshes the Nutrition line without a full reload.
+        .task(id: "\(selectedDayKey)-\(mealRevision)-\(repo.refreshSeq)") { await loadDayMeals() }
     }
 
     /// The selected day's meals for the Nutrition line (personal fork).
@@ -1500,8 +1530,16 @@ struct LiquidTodayView: View {
     /// Matches the Android twin, whose `SectionHeader` already takes `trailing: String? = null`.
     private func sectionHead(_ title: String, trailing: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            // Fork chantier 7: section titles in sentence case, 20 pt bold.
-            Text(LocalizedStringKey(title)).font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
+            // Fork chantier 7: section titles in sentence case, 20 pt bold; fork chantier 13: the HUD's label.
+            if hudStyle {
+                Text(LocalizedStringKey(title))
+                    .font(StrandFont.hudLabel)
+                    .noopHUDLabel()
+                    .foregroundStyle(NoopHUDStyle.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                Text(LocalizedStringKey(title)).font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
+            }
             Spacer()
             if let trailing {
                 Text(LocalizedStringKey(trailing)).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)

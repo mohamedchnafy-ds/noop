@@ -132,40 +132,52 @@ struct TodayHUDReticle: View {
     private var graduations: some View {
         Canvas { ctx, size in
             let c = CGPoint(x: size.width / 2, y: size.height / 2)
-            var minor = Path()
-            var major = Path()
-            for i in 0..<72 {
-                let a = (Double(i) * 5 - 90) * .pi / 180
-                let isMajor = i % 6 == 0
-                let r2 = isMajor ? TodayHUDMetrics.tickMajor : TodayHUDMetrics.tickOuter
-                let from = CGPoint(x: c.x + TodayHUDMetrics.tickInner * cos(a), y: c.y + TodayHUDMetrics.tickInner * sin(a))
-                let to = CGPoint(x: c.x + r2 * cos(a), y: c.y + r2 * sin(a))
-                if isMajor {
-                    major.move(to: from)
-                    major.addLine(to: to)
-                } else {
-                    minor.move(to: from)
-                    minor.addLine(to: to)
-                }
-            }
-            ctx.stroke(minor, with: .color(NoopHUDStyle.chrome.opacity(0.45)), lineWidth: 1)
-            ctx.stroke(major, with: .color(NoopHUDStyle.chrome.opacity(0.9)), lineWidth: 1.4)
-            let r = TodayHUDMetrics.dashedRadius
-            ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)),
-                       with: .color(NoopHUDStyle.chrome.opacity(0.2)),
+            let chrome = NoopHUDStyle.chrome
+            ctx.stroke(TodayHUDReticle.ticks(around: c, major: false), with: .color(chrome.opacity(0.45)), lineWidth: 1)
+            ctx.stroke(TodayHUDReticle.ticks(around: c, major: true), with: .color(chrome.opacity(0.9)), lineWidth: 1.4)
+            ctx.stroke(TodayHUDReticle.dottedCircle(around: c), with: .color(chrome.opacity(0.2)),
                        style: StrokeStyle(lineWidth: 1, dash: [2, 4]))
-            var cross = Path()
-            cross.move(to: CGPoint(x: c.x, y: c.y - 132))
-            cross.addLine(to: CGPoint(x: c.x, y: c.y - 124))
-            cross.move(to: CGPoint(x: c.x, y: c.y + 124))
-            cross.addLine(to: CGPoint(x: c.x, y: c.y + 132))
-            cross.move(to: CGPoint(x: c.x - 134, y: c.y))
-            cross.addLine(to: CGPoint(x: c.x - 126, y: c.y))
-            cross.move(to: CGPoint(x: c.x + 126, y: c.y))
-            cross.addLine(to: CGPoint(x: c.x + 134, y: c.y))
-            ctx.stroke(cross, with: .color(NoopHUDStyle.chrome), lineWidth: 1.4)
+            ctx.stroke(TodayHUDReticle.crossMarks(around: c), with: .color(chrome), lineWidth: 1.4)
         }
         .frame(width: TodayHUDMetrics.size.width, height: TodayHUDMetrics.size.height)
+    }
+
+    /// The minor (every 5°) or major (every 30°) graduations around `c`.
+    static func ticks(around c: CGPoint, major: Bool) -> Path {
+        var path = Path()
+        for i in 0..<72 where (i % 6 == 0) == major {
+            let degrees: Double = Double(i) * 5 - 90
+            let angle: Double = degrees * Double.pi / 180
+            let dx = CGFloat(cos(angle))
+            let dy = CGFloat(sin(angle))
+            let inner: CGFloat = TodayHUDMetrics.tickInner
+            let outer: CGFloat = major ? TodayHUDMetrics.tickMajor : TodayHUDMetrics.tickOuter
+            path.move(to: CGPoint(x: c.x + inner * dx, y: c.y + inner * dy))
+            path.addLine(to: CGPoint(x: c.x + outer * dx, y: c.y + outer * dy))
+        }
+        return path
+    }
+
+    /// The dotted circle outside the graduations.
+    static func dottedCircle(around c: CGPoint) -> Path {
+        let r: CGFloat = TodayHUDMetrics.dashedRadius
+        return Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+    }
+
+    /// The four short cross marks at the top, bottom, left and right of the reticle.
+    static func crossMarks(around c: CGPoint) -> Path {
+        var path = Path()
+        let marks: [(CGPoint, CGPoint)] = [
+            (CGPoint(x: c.x, y: c.y - 132), CGPoint(x: c.x, y: c.y - 124)),
+            (CGPoint(x: c.x, y: c.y + 124), CGPoint(x: c.x, y: c.y + 132)),
+            (CGPoint(x: c.x - 134, y: c.y), CGPoint(x: c.x - 126, y: c.y)),
+            (CGPoint(x: c.x + 126, y: c.y), CGPoint(x: c.x + 134, y: c.y))
+        ]
+        for (from, to) in marks {
+            path.move(to: from)
+            path.addLine(to: to)
+        }
+        return path
     }
 
     /// One ring: its track, then (once drawn) a wide translucent copy for the glow, the fill and a fine light
@@ -175,6 +187,8 @@ struct TodayHUDReticle: View {
         let fill = min(1, max(0, dial.fraction))
         let shown = phase.drawn ? fill : 0
         let round = StrokeStyle(lineWidth: TodayHUDMetrics.ringWidth, lineCap: .round)
+        let extraGlow: Double = litRing == dial.id ? 0.6 * lit : 0
+        let glow: Double = NoopHUDStyle.glowOpacity(scheme) + extraGlow
         return ZStack {
             Circle().stroke(dial.tint.opacity(0.14), lineWidth: TodayHUDMetrics.ringWidth)
             if let band = dial.band, band.upperBound > band.lowerBound {
@@ -183,7 +197,7 @@ struct TodayHUDReticle: View {
             }
             Group {
                 Circle().trim(from: 0, to: CGFloat(shown))
-                    .stroke(dial.tint.opacity(NoopHUDStyle.glowOpacity(scheme) + (litRing == dial.id ? 0.6 * lit : 0)),
+                    .stroke(dial.tint.opacity(glow),
                             style: StrokeStyle(lineWidth: TodayHUDMetrics.glowWidth, lineCap: .round))
                 Circle().trim(from: 0, to: CGFloat(shown)).stroke(dial.tint, style: round)
                 Circle().trim(from: 0, to: CGFloat(shown))
@@ -273,13 +287,22 @@ struct TodayHUDRangeBar: View {
                     Rectangle()
                         .fill(g.isOutsideNormal ? StrandPalette.statusWarning : NoopHUDStyle.text)
                         .frame(width: 2, height: 10)
-                        .offset(x: min(max(0, CGFloat(g.fraction(g.value)) * w - 1), max(0, w - 2)))
+                        .offset(x: TodayHUDRangeBar.tickOffset(CGFloat(g.fraction(g.value)), width: w))
                 }
             }
             .frame(height: 10)
         }
         .frame(height: 10)
         .accessibilityHidden(true)
+    }
+}
+
+extension TodayHUDRangeBar {
+    /// Where the 2-point tick sits for a share of the bar, kept inside it.
+    static func tickOffset(_ share: CGFloat, width w: CGFloat) -> CGFloat {
+        let x: CGFloat = share * w - 1
+        let limit: CGFloat = max(0, w - 2)
+        return min(max(0, x), limit)
     }
 }
 

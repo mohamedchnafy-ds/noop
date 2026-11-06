@@ -212,7 +212,6 @@ struct SleepPhasesChart: View {
     /// The share of the night written, 0…1: back to 0 and up again when another night is shown.
     @State private var retrace: Double = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ObservedObject private var motion = NoopMotionState.shared
     /// The moment being read: the last touch, or the seeded reading before any.
     private var reading: TimeInterval? { touched ?? initialReading }
 
@@ -348,7 +347,8 @@ struct SleepPhasesChart: View {
     /// Another night (‹ ›, a bar of Your nights, « See this night »): the chart writes it anew, as the ring
     /// traces it.
     private func retraceNight() {
-        guard animated, !motion.poseStill(reduceMotion) else { return }
+        // `motion` is the night's movement here; the quiet-motion gate is read once, as a one-shot check.
+        guard animated, !NoopMotionState.shared.poseStill(reduceMotion) else { return }
         var instant = Transaction()
         instant.disablesAnimations = true
         withTransaction(instant) { retrace = 0 }

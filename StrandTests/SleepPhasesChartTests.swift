@@ -94,6 +94,18 @@ final class SleepPhasesChartTests: XCTestCase {
         XCTAssertNil(SleepPhasesChartMath.value(at: 3_000, in: points))
     }
 
+    func testATracedBarIsCutAtTheFrontOfTheTrace() {
+        // Fork chantier 12 (6 Nov. evening): the night writes itself left to right.
+        XCTAssertNil(SleepPhasesChartMath.tracedBar(start: 600, end: 1200, limit: 300), "not reached yet")
+        XCTAssertNil(SleepPhasesChartMath.tracedBar(start: 600, end: 1200, limit: 600), "reached, nothing written")
+        let cut = SleepPhasesChartMath.tracedBar(start: 600, end: 1200, limit: 900)
+        XCTAssertEqual(cut?.start, 600)
+        XCTAssertEqual(cut?.end, 900)
+        let whole = SleepPhasesChartMath.tracedBar(start: 600, end: 1200, limit: 5_000)
+        XCTAssertEqual(whole?.start, 600)
+        XCTAssertEqual(whole?.end, 1200, "the trace is past the bar: all of it")
+    }
+
     func testReadingNamesTheStageUnderTheTouch() {
         let intervals = [SleepInterval(stage: .light, start: 0, end: 600),
                          SleepInterval(stage: .rem, start: 600, end: 900)]

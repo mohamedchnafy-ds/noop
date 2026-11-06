@@ -40,6 +40,8 @@ public extension NoopMotion {
     static let slamLandScale: CGFloat = 1.22
     /// The radius of the glow a landing number flashes.
     static let slamGlowRadius: CGFloat = 14
+    /// How far the glow of a ring's lit tip reaches past the tip.
+    static let tipGlowRadius: CGFloat = 8
     /// How far a card slides in when the day changes.
     static let daySlideDistance: CGFloat = 28
     /// A curve (heart rate, stress) tracing itself on its first appearance.
@@ -277,10 +279,19 @@ public struct NoopGradientArc: View {
                 .stroke(deep, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .opacity(secondLap > 0.001 ? 1 : 0)
             if litTip {
+                // The tip's glow is drawn (a radial gradient behind the dot), not a shadow: a shadow is a
+                // filter the compositor runs again on every frame of a scroll (6 Nov. evening).
                 Circle()
                     .fill(secondLap > 0 ? deep : tint)
                     .frame(width: lineWidth, height: lineWidth)
-                    .shadow(color: tint.opacity(0.75), radius: 6)
+                    .background(
+                        Circle()
+                            .fill(RadialGradient(colors: [tint.opacity(0.75), tint.opacity(0)], center: .center,
+                                                 startRadius: lineWidth * 0.4,
+                                                 endRadius: lineWidth * 0.5 + NoopMotion.tipGlowRadius))
+                            .frame(width: lineWidth + 2 * NoopMotion.tipGlowRadius,
+                                   height: lineWidth + 2 * NoopMotion.tipGlowRadius)
+                    )
                     .offset(x: diameter / 2)
                     .frame(width: diameter, height: diameter)
                     .rotationEffect(.degrees(tipDegrees))
@@ -325,6 +336,10 @@ public struct NoopRollingNumber: View {
     @State private var landScale: CGFloat = 1
     @State private var flash: Double = 0
     @State private var landing = 0
+    /// True from the start of a slam's rise to its landing: the only time the text carries its blur.
+    @State private var rising = false
+    /// True from a landing to the end of its settle: the only time the text carries its glow.
+    @State private var glowing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.noopEntranceGeneration) private var generation
     @ObservedObject private var motion = NoopMotionState.shared
@@ -374,16 +389,30 @@ public struct NoopRollingNumber: View {
     }
 
     public var body: some View {
-        NoopRollingNumberFace(number: waiting ? 0 : shown, origin: origin, target: shown,
-                              blurs: entrance == .slam, format: format, font: font, color: color)
+        face
             .scaleEffect(landScale, anchor: .bottomLeading)
-            .shadow(color: glow.opacity(0.8 * flash), radius: NoopMotion.slamGlowRadius)
             .onAppear { begin() }
             .onChangeCompat(of: armed) { _ in begin() }
             .onChangeCompat(of: generation) { _ in replay() }
             .onChangeCompat(of: value) { newValue in change(to: newValue) }
             .accessibilityElement()
             .accessibilityLabel(Text(verbatim: format(value)))
+    }
+
+    /// The text, blurred only while a slam rises and glowing only while it lands. A blur of 0 or a glow of
+    /// no colour left on the number at rest is still a filter the compositor runs on every frame of a
+    /// scroll, for nothing to show (6 Nov. evening); `rising` and `glowing` are set outside any animation,
+    /// so the text swaps its filters without a fade.
+    @ViewBuilder
+    private var face: some View {
+        let text = NoopRollingNumberFace(number: waiting ? 0 : shown, origin: origin, target: shown,
+                                         blurs: entrance == .slam && rising, format: format, font: font,
+                                         color: color)
+        if glowing {
+            text.shadow(color: glow.opacity(0.8 * flash), radius: NoopMotion.slamGlowRadius)
+        } else {
+            text
+        }
     }
 
     private func begin() {
@@ -394,6 +423,7 @@ public struct NoopRollingNumber: View {
         }
         origin = 0
         shown = value
+        if entrance == .slam { rising = true }
         withAnimation(NoopMotion.strongEaseOut(entranceDuration).delay(delay)) { started = true }
         if entrance == .slam { land(after: delay + entranceDuration) }
     }
@@ -416,6 +446,7 @@ public struct NoopRollingNumber: View {
             return
         }
         origin = shown
+        if entrance == .slam { rising = true }
         withAnimation(NoopMotion.strongEaseOut(changeDuration)) { shown = newValue }
         if entrance == .slam { land(after: changeDuration) }
     }
@@ -427,6 +458,8 @@ public struct NoopRollingNumber: View {
         let pop = 0.06
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
             guard token == landing else { return }
+            rising = false
+            glowing = true
             if haptic { NoopSlamHaptic.fire() }
             withAnimation(.easeOut(duration: pop)) {
                 landScale = NoopMotion.slamLandScale
@@ -437,6 +470,11 @@ public struct NoopRollingNumber: View {
                 withAnimation(.easeOut(duration: NoopMotion.slamLandDuration - pop)) {
                     landScale = 1
                     flash = 0
+                }
+                // The glow has faded: the shadow leaves the text (no animation, so no fade of the text).
+                DispatchQueue.main.asyncAfter(deadline: .now() + NoopMotion.slamLandDuration - pop) {
+                    guard token == landing else { return }
+                    glowing = false
                 }
             }
         }
@@ -449,6 +487,7 @@ private struct NoopRollingNumberFace: View, Animatable {
     var number: Double
     let origin: Double
     let target: Double
+    /// True only while a slam rises: the text then carries its blur. False attaches no filter at all.
     let blurs: Bool
     let format: (Double) -> String
     let font: Font
@@ -466,12 +505,16 @@ private struct NoopRollingNumberFace: View, Animatable {
     }
 
     var body: some View {
-        Text(verbatim: format(number))
+        let text = Text(verbatim: format(number))
             .font(font)
             .foregroundStyle(color)
             .monospacedDigit()
-            .blur(radius: blurs ? NoopMotion.slamBlurMax * remaining : 0)
             .accessibilityHidden(true)
+        if blurs {
+            text.blur(radius: NoopMotion.slamBlurMax * remaining)
+        } else {
+            text
+        }
     }
 }
 
@@ -1063,16 +1106,25 @@ public struct NoopHeartbeat: View {
     }
 
     public var body: some View {
-        if beating, let bpm, bpm >= 25, !motion.poseStill(reduceMotion) {
+        if beating, let bpm, bpm >= Self.slowestBeat, !motion.poseStill(reduceMotion) {
             TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
-                let period = 60.0 / Double(bpm)
-                let phase = context.date.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: period) / period
-                heart(phase: phase)
+                heart(phase: Self.beatPhase(at: context.date, bpm: bpm))
             }
         } else {
             heart(phase: 1)
         }
+    }
+
+    /// Below this rate nothing beats: a reading that low is not a rhythm to show.
+    public static let slowestBeat = 25
+
+    /// Where a beat at `bpm` stands at `date`, 0 at the beat and rising to 1 just before the next, on the
+    /// shared clock: every view beating at one rate (the heart beside Today's number, the wave at the end of
+    /// its curve) reads the same phase and beats together (6 Nov. evening). 0 below `slowestBeat`.
+    public static func beatPhase(at date: Date, bpm: Int) -> Double {
+        guard bpm >= slowestBeat else { return 0 }
+        let period = 60.0 / Double(bpm)
+        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
     }
 
     private func heart(phase: Double) -> some View {
@@ -1121,6 +1173,53 @@ public struct NoopZoneStrip: View {
         }
         .animation(NoopMotion.gated(.easeOut(duration: 0.35), reduced: motion.poseStill(reduceMotion)), value: zone)
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Beat pulse (effect C, the end of a live curve)
+
+/// A wave leaving a point at every beat: a ring that grows from the point and fades over the beat, at the true
+/// rhythm (60 / bpm) on the same clock as `NoopHeartbeat`, so both beat together. For the "now" dot at the
+/// end of a live curve. Draws nothing when not beating, under the quiet-motion gate, or below
+/// `NoopHeartbeat.slowestBeat`: the dot itself is the curve's to draw.
+public struct NoopBeatPulse: View {
+    private let bpm: Int?
+    private let tint: Color
+    private let size: CGFloat
+    private let beating: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+
+    /// - Parameters:
+    ///   - bpm: the live rate; nil draws nothing.
+    ///   - tint: the colour of the wave (the dot's).
+    ///   - size: the diameter the wave starts from (the dot's).
+    ///   - beating: false draws nothing (a render, a paused session).
+    public init(bpm: Int?, tint: Color, size: CGFloat = 8, beating: Bool) {
+        self.bpm = bpm
+        self.tint = tint
+        self.size = size
+        self.beating = beating
+    }
+
+    public var body: some View {
+        if beating, let bpm, bpm >= NoopHeartbeat.slowestBeat, !motion.poseStill(reduceMotion) {
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                wave(phase: NoopHeartbeat.beatPhase(at: context.date, bpm: bpm))
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func wave(phase: Double) -> some View {
+        Circle()
+            .stroke(tint, lineWidth: 1.5)
+            .frame(width: size, height: size)
+            .scaleEffect(CGFloat(1 + 2.2 * phase))
+            .opacity(phase < 1 ? 0.6 * (1 - phase) : 0)
+            .accessibilityHidden(true)
     }
 }
 

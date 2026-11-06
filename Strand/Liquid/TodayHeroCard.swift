@@ -85,15 +85,29 @@ struct TodayConcentricRings: View {
                     .trim(from: clamped(band.lowerBound), to: clamped(band.upperBound))
                     .stroke(ring.tint.opacity(0.35), style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
             }
-            NoopGradientArc(fraction: phase.drawn ? fill : 0, tint: ring.tint, deep: ring.deep ?? ring.tint,
-                            diameter: ringDiameter, lineWidth: lineWidth, litTip: ring.deep != nil)
-                .shadow(color: ring.tint.opacity(0.9 * lit), radius: 8 * lit)
+            tracedArc(ring, fill: fill, index: index, diameter: ringDiameter, lit: lit, phase: phase)
                 .animation(phase.motion(NoopMotion.ringDraw.delay(Double(index) * NoopMotion.ringStagger)),
                            value: phase.drawn)
                 .animation(phase.motion(NoopMotion.valueChange), value: fill)
         }
         .rotationEffect(.degrees(-90))
         .frame(width: ringDiameter, height: ringDiameter)
+    }
+
+    /// The arc, with its glow only while its goal is celebrated (`pulseRing`): the glow is a shadow, a filter
+    /// the compositor runs on every frame the modifier is attached, so a ring at rest carries none
+    /// (6 Nov. evening). `pulseRing` is set and cleared outside the pulse's animations, so the arc swaps
+    /// without a fade.
+    @ViewBuilder
+    private func tracedArc(_ ring: TodayRing, fill: Double, index: Int, diameter: CGFloat, lit: Double,
+                           phase: NoopDrawPhase) -> some View {
+        let arc = NoopGradientArc(fraction: phase.drawn ? fill : 0, tint: ring.tint, deep: ring.deep ?? ring.tint,
+                                  diameter: diameter, lineWidth: lineWidth, litTip: ring.deep != nil)
+        if pulseRing == index {
+            arc.shadow(color: ring.tint.opacity(0.9 * lit), radius: 8 * lit)
+        } else {
+            arc
+        }
     }
 }
 
@@ -614,6 +628,8 @@ struct TodayHeroCard: View {
             withAnimation(.easeOut(duration: 0.28)) { goalPulse = 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
                 withAnimation(.easeIn(duration: 0.28)) { goalPulse = 0 }
+                // The glow is out: the ring drops its shadow (see `TodayConcentricRings.tracedArc`).
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { pulseRing = nil }
             }
         }
     }

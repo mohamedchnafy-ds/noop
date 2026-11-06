@@ -70,3 +70,9 @@
 - **Clés nouvelles (10 langues)** : « Today HUD style », la phrase d'aide de l'interrupteur, « Today's status », « night %@ », « measured · night », « nights » (« estimate » existait déjà).
 - **Vérification** : rendu `TodayHUDRenderTests` (sombre, clair, 375 pt, calibration, vide clair et sombre, + tests de l'ordre et des résolveurs), ajouté à `fork-render-on-push.yml`.
 
+## Fusion et IPA (6 nov., soir)
+- **#103 fusionnée** (`main` **c2fdd14**) sur 18/18 vérifications vertes sur sa tête 582ccd8 (build macOS + StrandTests, build iOS simulateur, rendu, paquets, Android, Python). Une erreur de compilation trouvée par le rendu (« unable to type-check this expression in reasonable time », `TodayHUD.swift:133`, dessin des graduations) a été corrigée en découpant le dessin en fonctions typées (`TodayHUDReticle.ticks` / `dottedCircle` / `crossMarks`). Le rendu a aussi montré la valeur du maximum de la FC coupée en haut : elle se place à côté du point quand il n'y a pas 16 pt.
+- PNG du rendu envoyés à Mohamed (release `render-render-today-hud`).
+- **IPA** `build/today-hud` = `main` c2fdd14, release `ipa-build-today-hud`.
+- Branches temporaires à supprimer sur accord : `ci/hud-intel` (vérification de secours sur Intel), `render/today-hud`.
+

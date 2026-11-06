@@ -7,7 +7,8 @@ import StrandDesign
 // (01 activity, 02 Charge, 03 Effort, 04 Rest, outside to inside) with the Charge in the middle, a 2 × 2 grid
 // of numbered cells that name each ring's value and unit, then the night's three vitals in small panels.
 // It reads the same `TodayHeroModel` as the rings card, through the same resolvers (`activityFraction`,
-// `fraction(of:)`, `valueText(of:)`…), so switching the style never changes a number. Switched on in
+// `fraction(of:)`, `valueText(of:)`…), so switching the style never changes a number, and it keeps the
+// stored section order (the heart rate above the Synthesis, choice of 6 Nov.). Switched on in
 // Settings → Appearance (`TodayHUDPrefs.enabledKey`, on the device only, off by default); off, Today is the
 // screen it was. Pure views: every value arrives in the model, so the render test draws the real panels.
 
@@ -698,21 +699,6 @@ struct TodayHUDTileSurface: ViewModifier {
         } else {
             content.background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius, surfaceOpacity: surfaceOpacity))
         }
-    }
-}
-
-/// The section order as the HUD reads it: the Synthesis (the day explained) moves just above the heart rate
-/// when the stored order puts it below. The stored order is never rewritten, so switching the HUD off gives
-/// back the order the wearer had (choice of 6 Nov., fork chantier 13).
-enum TodayHUDOrder {
-    static func hudSectionOrder(_ order: [TodaySection]) -> [TodaySection] {
-        guard let synthesis = order.firstIndex(of: .synthesis),
-              let heart = order.firstIndex(of: .heartRate),
-              heart < synthesis else { return order }
-        var out = order
-        out.remove(at: synthesis)
-        out.insert(.synthesis, at: heart)
-        return out
     }
 }
 

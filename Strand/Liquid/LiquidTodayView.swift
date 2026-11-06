@@ -144,11 +144,6 @@ struct LiquidTodayView: View {
         return false
         #endif
     }
-    /// The order the screen draws: the stored one, with the Synthesis above the heart rate in the HUD
-    /// (`TodayHUDOrder`, never written back).
-    private var displayedSectionOrder: [TodaySection] {
-        hudStyle ? TodayHUDOrder.hudSectionOrder(sectionOrder) : sectionOrder
-    }
     private var sectionOrder: [TodaySection] {
         TodayLayoutPrefs.liquidVisibleOrder(orderRaw: sectionOrderRaw, hiddenRaw: hiddenSectionsRaw)
     }
@@ -401,7 +396,7 @@ struct LiquidTodayView: View {
                     // sheet (the header's up/down button; native drag rows); the order persists under the
                     // byte-identical "today.sectionOrder" key Android uses. A gated-off Start-session renders
                     // nothing and keeps its slot in the saved order.
-                    ForEach(displayedSectionOrder) { section in
+                    ForEach(sectionOrder) { section in
                         Group {
                         switch section {
                         case .hero:
@@ -433,7 +428,7 @@ struct LiquidTodayView: View {
                         }
                         }
                         // Fork chantier 12: the blocks rise in one after the other, once per launch.
-                        .staggeredAppear(index: displayedSectionOrder.firstIndex(of: section) ?? 0,
+                        .staggeredAppear(index: sectionOrder.firstIndex(of: section) ?? 0,
                                          isVisible: cascadeEntrance)
                     }
                     // Opt-in "looks like a workout?" suggestion, dropped in the liquid Home rewrite. Its

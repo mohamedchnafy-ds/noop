@@ -141,8 +141,8 @@ final class TodayHUDRenderTests: XCTestCase {
             header(empty: state == .empty)
             TodayHUDHero(model: heroModel(state), animated: false, onGuide: { _ in })
             if state != .empty {
-                synthesis()
                 heartCard()
+                synthesis()
                 tiles()
             }
         }
@@ -161,14 +161,6 @@ final class TodayHUDRenderTests: XCTestCase {
         try render(page(.calibration), width: 390, dark: true, name: "4-calibration")
         try render(page(.empty), width: 390, dark: false, name: "5-vide-clair")
         try render(page(.empty), width: 390, dark: true, name: "6-vide-sombre")
-    }
-
-    func testTheHUDOrderPutsTheSynthesisAboveTheHeartRateWithoutRewritingTheRest() {
-        XCTAssertEqual(TodayHUDOrder.hudSectionOrder([.hero, .heartRate, .synthesis, .stress, .keyMetrics]),
-                       [.hero, .synthesis, .heartRate, .stress, .keyMetrics])
-        XCTAssertEqual(TodayHUDOrder.hudSectionOrder([.hero, .synthesis, .heartRate, .stress]),
-                       [.hero, .synthesis, .heartRate, .stress])
-        XCTAssertEqual(TodayHUDOrder.hudSectionOrder([.hero, .stress, .keyMetrics]), [.hero, .stress, .keyMetrics])
     }
 
     func testTheHUDCellsReadTheHeroResolvers() {

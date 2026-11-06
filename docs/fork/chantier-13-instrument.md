@@ -24,7 +24,7 @@
 - Direction « Instrument » (écartée le 2 nov.) : on reprend sa précision (axes, unités, annotations), pas son décor.
 - « Néon nuit » (écartée) : seule une lumière limitée à la sélection est reprise.
 - Chantier 12 : le **halo permanent** derrière les anneaux (renforcé le 6 nov.) **ne s'allume plus qu'à la fermeture d'un objectif** (choix de Mohamed, 6 nov.).
-- Passe de cohérence (5 nov., FC avant Synthèse) : **la Synthèse repasse avant la FC** (choix de Mohamed, 6 nov.) — anneaux → Synthèse → FC → Stress → Métriques, déplacement unique (v5) comme v3 / v4.
+- Passe de cohérence (5 nov., FC avant Synthèse) : la Synthèse devait repasser avant la FC (choix du 6 nov.), **puis Mohamed est revenu dessus le 6 nov. (nuit) : la FC reste avant la Synthèse**, l'ordre enregistré ne change pas.
 - Inchangés : couleurs sémantiques des mesures (`StrandPalette`), fond noir, SF Pro / SF Rounded, Liquid Glass natif, 5 onglets.
 
 ## Diagnostic (code de `main` 7ae38ad)
@@ -58,7 +58,7 @@
 - **Aujourd'hui en HUD** : réticule gradué (72 graduations, cercle pointillé, 4 repères) + 4 anneaux numérotés 01–04, Charge au centre ; 4 cellules (valeur + unité « / 480 kcal », « % », « / 21 », « % », barre de 20 segments, note : légende de calibration ou de reprise, cible de l'Effort, « nuit 6 h 08 ») ; 3 panneaux de la nuit (Dépensé « estimation », FC repos et VFC « mesuré · nuit », « ta normale … ») ; ligne de synchro sous le titre (`TodayHUDStatusLine` : « Synchronisation… », « Synchronisé il y a … », « Pas encore synchronisé ») ; fond en dégradé statique.
 - **Démarrage** : `NoopFirstDraw(key: "today.hud")`, une fois par affichage de l'écran : graduations qui pivotent de −24°, anneaux qui balaient (décalage `NoopMotion.ringStagger`), centre puis cellules et panneaux qui montent de 8 pt. Sous Réduire les animations (`poseStill`), tout arrive posé.
 - **Carte FC en HUD** (`\.todayHUDStyle`) : panneau HUD bordé de rose ; le graphique reçoit une échelle des bpm à droite (pas ronds, 3–4 valeurs), la valeur du point le plus bas et du plus haut, une lueur dessinée sous la courbe (`TodayHRChartModel.yAxis`, éteint ailleurs).
-- **Ordre** : en HUD la Synthèse est dessinée juste au-dessus de la FC (`TodayHUDOrder.hudSectionOrder`), **sans réécrire l'ordre enregistré** : éteindre le HUD rend l'ordre d'avant.
+- **Ordre** : d'abord prévu Synthèse avant FC en HUD ; **annulé le 6 nov. (nuit) par Mohamed : la FC reste avant la Synthèse**. Le HUD suit l'ordre enregistré (anneaux → FC → Synthèse → Stress → Métriques), comme l'écran actuel.
 - **Complété le 6 nov. (nuit, « code tout » de Mohamed)**, toujours derrière l'interrupteur :
   - **Synthèse** : libellé technique « SYNTHÈSE » et liste posée sur la page (filets HUD, pas de carte), « DÉMARRER » en chrome.
   - **Stress** : panneau HUD (coins coupés, crochets chrome) à la place de la carte.

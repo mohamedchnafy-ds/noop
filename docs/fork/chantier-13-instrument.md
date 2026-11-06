@@ -1,10 +1,17 @@
 # Chantier 13 — Esthétique « Instrument » (fiche du chantier, 6 nov. 2026)
 
-**État (6 nov., soir)** : B jugée trop sage par Mohamed → **3 pistes futuristes à choisir** (page « Futuriste (v2) ») ; maquette : https://claude.ai/artifact/BxtF7aKChTqp1kGGvKpaEr (6 planches : sombre, clair, petit iPhone 375 pt, interaction, calibration, sans données). Le code ne commence qu'après la validation de la maquette. Les autres écrans ne prennent le style qu'après la validation du pilote sur le téléphone.
+**État (6 nov., soir)** : B jugée trop sage par Mohamed → 3 pistes futuristes → **piste 1 « HUD holographique » retenue**, maquette complète à valider ; maquette : https://claude.ai/artifact/BxtF7aKChTqp1kGGvKpaEr (6 planches : sombre, clair, petit iPhone 375 pt, interaction, calibration, sans données). Le code ne commence qu'après la validation de la maquette. Les autres écrans ne prennent le style qu'après la validation du pilote sur le téléphone.
 
 ## Retour sur la maquette B (6 nov., soir)
 - Mohamed : « pas du tout ce que j'attendais » ; il veut **quelque chose de futuriste comme dans les films, high tech**. La proposition B (sobre) est mise de côté, gardée sur la page « Proposition B (v1) » du canevas.
 - Trois pistes v2 sur la page « Futuriste (v2) » du même canevas : **1 · HUD holographique** (4 anneaux concentriques numérotés 01–04 dans un réticule gradué, panneaux à coins coupés, chrome cyan, libellés SF Mono capitales), **2 · Cockpit** (cadran segmenté de la Charge + 3 petits cadrans, télémétrie en barres segmentées, histogramme FC par quart d'heure, accent ambre), **3 · Projection holographique** (anneaux couchés en perspective au-dessus d'un socle lumineux, valeurs flottantes reliées par des traits). Communs : couleurs des mesures inchangées, lueurs dessinées (traits doublés, dégradés) sans flou, mêmes données qu'aujourd'hui.
+
+## Choix de Mohamed (6 nov., nuit)
+- **Piste 1 · HUD holographique** retenue (Cockpit et Projection écartées, gardées sur la page « Pistes v2 écartées »).
+- **Séquence de démarrage courte (≈ 1 s) à chaque affichage d'Aujourd'hui** : graduations qui pivotent, anneaux qui balaient de l'extérieur vers le centre, panneaux qui montent, courbe FC qui se trace. Coupée par Réduire les animations (`poseStill`), suit la règle « une fois par affichage » du chantier 12 (`noopEntranceGeneration`).
+- **Typographie** : SF Pro (textes), SF Mono capitales espacées (libellés techniques, heures, unités), SF Rounded (chiffres). Pas de police embarquée.
+- **Mode clair « plan »** : fond blanc bleuté, chrome bleu ardoise #0B5E86, mêmes couleurs de mesures (variantes claires de `StrandPalette`) ; rose FC des libellés assombri (#C7002F) pour le contraste.
+- Maquette de la piste 1 complétée (page « HUD holographique (retenu) ») : sombre avec démarrage rejouable, clair « plan », petit iPhone 375 pt, calibration, sans données (clair et sombre). **À valider avant le code.**
 
 ## Demande de Mohamed (6 nov.)
 - Évolution vers une esthétique scientifique / science-fiction haut de gamme, qui reste une app de santé lisible et crédible : instrument de recherche personnel, fond sombre profond, surfaces sobres, contours fins ponctuels, espace généreux. Touche holographique seulement sur une sélection ou une interaction. Pas de grille hexagonale, de scanlines, de décor spatial ni de halos partout.

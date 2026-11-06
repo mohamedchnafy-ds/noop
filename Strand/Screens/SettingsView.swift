@@ -100,6 +100,8 @@ struct SettingsView: View {
     /// and `CoachBriefScheduler` (the daily background brief).
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
+    /// Fork chantier 13: Today drawn as the holographic HUD (iPhone only, device only, off by default).
+    @AppStorage(TodayHUDPrefs.enabledKey) private var todayHUDStyle = false
     @AppStorage(ClockFormatPreference.defaultsKey)
     private var clockFormatRaw = ClockFormatPreference.system.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
@@ -994,6 +996,22 @@ struct SettingsView: View {
                             .accessibilityLabel("Hide bar when scrolling")
                     }
                 }
+                #endif
+                #if os(iOS)
+                rowDivider
+                // Fork chantier 13: the switch between the current Today and the HUD. Display only: the
+                // numbers, the stored order and every other screen stay as they are.
+                FormRow(label: "Today HUD style") {
+                    Toggle("", isOn: $todayHUDStyle)
+                        .labelsHidden()
+                        .tint(StrandPalette.switchOn)
+                        .accessibilityLabel("Today HUD style")
+                }
+                Text("Shows Today as a holographic instrument panel. Switch it off to return to the current screen.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, NoopMetrics.space1)
                 #endif
                 rowDivider
                 FormRow(label: "Theme") {

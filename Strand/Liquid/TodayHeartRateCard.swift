@@ -61,6 +61,16 @@ struct TodayHRChartModel: Equatable {
     /// The halo on the last point: the curve reaches "now".
     var endDot: Bool = true
     var axis: [AxisLabel] = []
+    /// The HUD style (fork chantier 13): a bpm scale on the right, the curve's lowest and highest points
+    /// marked, and a drawn glow under the curve. Off, the chart is the one it was.
+    var yAxis: Bool = false
+
+    /// This chart with the HUD's bpm scale.
+    var withYAxis: TodayHRChartModel {
+        var chart = self
+        chart.yAxis = true
+        return chart
+    }
 
     /// The plot mapping, shared by the drawing and the scrub readout so both point at the same place.
     struct Geometry {
@@ -74,7 +84,7 @@ struct TodayHRChartModel: Equatable {
     }
 
     func geometry(in size: CGSize) -> Geometry {
-        let rect = CGRect(x: 4, y: 8, width: max(1, size.width - 14),
+        let rect = CGRect(x: 4, y: 8, width: max(1, size.width - (yAxis ? TodayHRChartModel.yAxisWidth : 14)),
                           height: max(1, size.height - 8 - (axis.isEmpty ? 6 : 22)))
         var values = points.map(\.bpm) + habitual.map(\.bpm)
         if let band { values += [band.lowerBound, band.upperBound] }
@@ -87,6 +97,22 @@ struct TodayHRChartModel: Equatable {
             hi = mid + 6
         }
         return Geometry(rect: rect, low: lo, high: hi)
+    }
+
+    /// The room the HUD's bpm labels take on the right.
+    static let yAxisWidth: CGFloat = 32
+
+    /// The bpm values the HUD's scale labels: round steps inside the plot, three or four of them.
+    func yTicks(_ g: Geometry) -> [Double] {
+        let span = g.high - g.low
+        let step = [5.0, 10, 20, 30, 40, 50].first { span / $0 <= 4 } ?? 50
+        var out: [Double] = []
+        var v = (g.low / step).rounded(.up) * step
+        while v <= g.high - step * 0.25 {
+            if v >= g.low + step * 0.25 { out.append(v) }
+            v += step
+        }
+        return out
     }
 
     /// Indices of the lowest and highest points, when there is a shape to mark.
@@ -193,6 +219,24 @@ struct TodayHRChart: View {
                 curve.addPath(smoothPath(run.map { CGPoint(x: g.x($0.x), y: g.y($0.bpm)) }))
             }
             let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+            if model.yAxis {
+                // The HUD's scale (fork chantier 13): a faint rule and its value at each round step, the unit
+                // on top; then the curve's drawn glow, a wide translucent copy (no blur, no shadow).
+                for v in model.yTicks(g) {
+                    var rule = Path()
+                    rule.move(to: CGPoint(x: g.rect.minX, y: g.y(v)))
+                    rule.addLine(to: CGPoint(x: g.rect.maxX, y: g.y(v)))
+                    ctx.stroke(rule, with: .color(NoopHUDStyle.chrome.opacity(0.14)), lineWidth: 1)
+                    let label = ctx.resolve(Text(verbatim: String(Int(v))).font(StrandFont.hudLabel)
+                        .foregroundColor(NoopHUDStyle.textSecondary))
+                    ctx.draw(label, at: CGPoint(x: g.rect.maxX + 5, y: g.y(v)), anchor: .leading)
+                }
+                let unit = ctx.resolve(Text("bpm").font(StrandFont.hudLabel)
+                    .foregroundColor(NoopHUDStyle.textSecondary))
+                ctx.draw(unit, at: CGPoint(x: g.rect.maxX + 5, y: g.rect.minY - 2), anchor: .leading)
+                ctx.stroke(curve, with: .color(tint.opacity(0.22)),
+                           style: StrokeStyle(lineWidth: lineWidth + 5, lineCap: .round, lineJoin: .round))
+            }
             ctx.stroke(curve, with: .color(tint), style: style)
             // The curve over each zone, redrawn in the zone's colour: clipped to the region beyond the
             // threshold, and away from the excluded ranges (sleep).
@@ -224,6 +268,21 @@ struct TodayHRChart: View {
                 let r = TodayHRCardBody.endDotSize / 2
                 ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
                          with: .color(color))
+            }
+
+            // The HUD marks the day's lowest and highest points with their value.
+            if model.yAxis, let ext = model.extremes {
+                for (index, below) in [(ext.min, true), (ext.max, false)] {
+                    let p = model.points[index]
+                    let c = CGPoint(x: g.x(p.x), y: g.y(p.bpm))
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5)),
+                             with: .color(NoopHUDStyle.text))
+                    let text = ctx.resolve(Text(verbatim: String(Int(p.bpm.rounded()))).font(StrandFont.hudLabel)
+                        .foregroundColor(NoopHUDStyle.text))
+                    let x = min(max(c.x, g.rect.minX + 10), g.rect.maxX - 10)
+                    ctx.draw(text, at: CGPoint(x: x, y: below ? c.y + 5 : c.y - 5),
+                             anchor: below ? .top : .bottom)
+                }
             }
 
             for (i, label) in model.axis.enumerated() {
@@ -279,6 +338,7 @@ struct TodayHRCardBody: View {
     #if os(iOS)
     @State private var scrubEngaged = false
     #endif
+    @Environment(\.todayHUDStyle) private var hud
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -303,7 +363,9 @@ struct TodayHRCardBody: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            if let chart, chart.points.count >= 2 {
+            if let source = chart, source.points.count >= 2 {
+                // The HUD (fork chantier 13) adds its bpm scale; the scrub and the wave read the same model.
+                let chart = hud ? source.withYAxis : source
                 TodayHRChart(model: chart, tint: tint, lineWidth: lineWidth)
                     .noopRevealOnce("today.hr.curve", armed: animated)
                     .frame(height: chart.axis.isEmpty ? 104 : 124)
@@ -667,6 +729,7 @@ struct TodayHeartRateSection: View {
     @State private var phoneStill: Bool?
     @State private var gatesCheckedAt = 0
     @State private var checkingGates = false
+    @Environment(\.todayHUDStyle) private var hud
 
     private var now: Int { Int(Date().timeIntervalSince1970) }
     private var liveSamples: [(ts: Int, bpm: Double)] {
@@ -720,7 +783,8 @@ struct TodayHeartRateSection: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface(cornerRadius: NoopMetrics.cardRadius))
+        // Fork chantier 13: the HUD panel edged in the heart rose, else the usual card.
+        .modifier(TodayHUDCardSurface(hud: hud, accent: tint))
         .task(id: day.isToday) { await seedBuffer() }
         .onChangeCompat(of: live.heartRate) { hr in
             guard let hr, hr > 0 else { buffer.removeAll(); return }

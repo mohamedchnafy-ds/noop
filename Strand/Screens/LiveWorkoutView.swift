@@ -47,7 +47,7 @@ struct LiveWorkoutView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                LiveWorkoutLiveContent(recorder: model.gpsRecorder)
+                LiveWorkoutLiveContent(recorder: model.gpsRecorder, stepRecorder: model.stepRecorder)
                 // Live-observing leaf: renders the sensor row only when a standard fitness sensor is
                 // feeding metrics, refreshing on its own packets (scroll-stutter isolation).
                 SensorRowIfPresent()
@@ -284,6 +284,8 @@ private struct SensorRowIfPresent: View {
 private struct LiveWorkoutLiveContent: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var recorder: GpsWorkoutRecorder
+    /// The phone's steps (chantier 14): a reading refreshes the Steps and Cadence tiles.
+    @ObservedObject var stepRecorder: WorkoutStepRecorder
     /// Effort display scale (#268): the live Effort reads through the shared helper, one format.
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
@@ -336,6 +338,8 @@ private struct LiveWorkoutLiveContent: View {
             currentPaceSecPerKm: recording ? LiveWorkoutMath.currentPace(route, pauses: recorder.pauseSpans) : nil,
             splits: recording ? LiveWorkoutMath.splits(route, unitMeters: unitMeters, pauses: recorder.pauseSpans) : [],
             zoneSeconds: LiveWorkoutMath.zoneSeconds(samples, zoneSet: zoneSet),
-            curve: LiveWorkoutMath.recentCurve(samples, now: Int(now.timeIntervalSince1970)))
+            curve: LiveWorkoutMath.recentCurve(samples, now: Int(now.timeIntervalSince1970)),
+            steps: stepRecorder.isRecording ? stepRecorder.steps : nil,
+            cadence: stepRecorder.isRecording ? WorkoutStepMath.stepCadenceNow(stepRecorder.samples) : nil)
     }
 }

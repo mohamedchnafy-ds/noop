@@ -83,7 +83,32 @@ struct LiveWorkoutDashboard: View {
                 case .strength: averageTile
                 }
             }
+            // Chantier 14: the phone's steps on an outdoor walk, run or hike.
+            if figures.layout == .cardio, figures.steps != nil {
+                GridRow {
+                    stepsTile
+                    cadenceTile
+                }
+            }
         }
+    }
+
+    private var stepsTile: some View {
+        tile(title: "Steps", tint: StrandPalette.metricCyan,
+             value: figures.steps.map { LiveWorkoutDashboard.groupedSteps($0) } ?? "—", unit: nil) {
+            Text("phone").foregroundStyle(StrandPalette.textSecondary)
+        }
+    }
+
+    /// Steps per minute of the moment: « — » until there is half a minute of readings.
+    private var cadenceTile: some View {
+        tile(title: "Cadence", tint: StrandPalette.metricCyan,
+             value: figures.cadence.map { "\($0)" } ?? "—", unit: "steps/min") { EmptyView() }
+    }
+
+    /// « 4 512 » with the locale's grouping.
+    static func groupedSteps(_ steps: Int) -> String {
+        steps.formatted(.number.grouping(.automatic))
     }
 
     private var zoneTint: Color {

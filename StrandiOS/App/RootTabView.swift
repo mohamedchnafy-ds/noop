@@ -731,7 +731,7 @@ private struct MoreGroupScreen: View {
 /// per-screen chrome the old inline links applied lives at the single `navigationDestination(for:)`
 /// registration in `moreSheet`.
 private enum MoreDestination: Hashable {
-    case trends, insightsHub, intelligence, coach, insights, explore, compare
+    case trends, routeMap, insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, liftLog, nutrition, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
@@ -746,6 +746,7 @@ private enum MoreDestination: Hashable {
         case .breathe: self = .breathe
         case .labBook: self = .labBook
         case .trends: self = .trends
+        case .routeMap: self = .routeMap
         case .alarms: self = .alarms
         case .backupSync: self = .backupSync
         case .dataSources: self = .dataSources
@@ -788,6 +789,7 @@ private enum MoreDestination: Hashable {
         case .hub(.nutrition): NutritionView()
         case .hub(let group):  MoreGroupScreen(group: group)
         case .trends:          TrendsView()
+        case .routeMap:        RouteMapScreen()
         case .insightsHub:     InsightsHubView()
         case .intelligence:    IntelligenceView()
         case .coach:           CoachView()

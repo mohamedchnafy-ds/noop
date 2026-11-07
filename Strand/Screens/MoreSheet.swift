@@ -15,7 +15,7 @@ import WhoopStore
 /// One row of the More sheet.
 enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
     case health, stress, breathe, labBook
-    case trends
+    case trends, routeMap
     case alarms, backupSync, dataSources, settings
     // « Advanced », folded.
     case rhythm, explore, compare, insightsHub, intelligence, insights
@@ -40,6 +40,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .breathe: return "Breathe"
         case .labBook: return "Lab Book"
         case .trends: return "Trends"
+        case .routeMap: return "Map"
         case .alarms: return "Alarms"
         case .backupSync: return "Backup"
         case .dataSources: return "Data Sources"
@@ -70,6 +71,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .breathe: return "wind"
         case .labBook: return "books.vertical.fill"
         case .trends: return "chart.line.uptrend.xyaxis"
+        case .routeMap: return "map.fill"
         case .alarms: return "alarm.fill"
         case .backupSync: return "externaldrive.fill.badge.icloud"
         case .dataSources: return "externaldrive.fill"
@@ -87,6 +89,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .breathe: return StrandPalette.metricCyan
         case .labBook: return StrandPalette.metricPurple
         case .trends: return StrandPalette.metricCyan
+        case .routeMap: return StrandPalette.metricRose
         case .alarms: return StrandPalette.caloriesActivity
         default: return StrandPalette.textTertiary
         }
@@ -121,7 +124,7 @@ enum MoreSheetSection: CaseIterable, Identifiable {
     var entries: [MoreSheetEntry] {
         switch self {
         case .healthRecovery: return [.health, .stress, .breathe, .labBook]
-        case .analysis: return [.trends]
+        case .analysis: return [.trends, .routeMap]
         case .dataSettings: return [.alarms, .backupSync, .dataSources, .settings]
         }
     }

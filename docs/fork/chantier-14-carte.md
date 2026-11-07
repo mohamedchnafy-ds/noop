@@ -1,6 +1,6 @@
 # Chantier 14 — Carte (position et métriques) — fiche (6 nov. 2026)
 
-**État** : **étape 1 fusionnée le 7 nov.** (#102, `main` 138c166 ; IPA `build/carte` validée par Mohamed). **Étape 2 en code (7 nov.)** : maquette v1 validée telle quelle ; 3 PR : A stockage (#106, fusionnée), B suivi (#107, fusionnée), C écrans Lieux · Un lieu · Points + Coach ; fusion dès la CI verte, **une seule IPA `build/carte-2`** à la fin.
+**État** : **étape 1 fusionnée le 7 nov.** (#102, `main` 138c166 ; IPA `build/carte` validée par Mohamed). **Étape 2 en code (7 nov.)** : maquette v1 validée telle quelle ; **code fusionné** : A stockage (#106), B suivi (#107), C écrans Lieux · Un lieu · Points + Coach (#108), `main` 4be20b4 ; **IPA `build/carte-2`** = `main` 4be20b4, à valider sur le téléphone (liste « À tester » de l'étape 2 ci-dessous).
 
 ## La demande (6 nov.)
 Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d'autres métriques, pour voir si une métrique dépend du lieu.
@@ -87,6 +87,7 @@ Choix de Mohamed (7 nov.) : **l'étape 1 entière** dans une PR, puis une IPA. N
   - **Points** (`PointsLayerView`) : FC | Stress, Jour · 7 J · 30 J (défaut 7 J) ; un point = FC du bucket le plus proche contre la FC habituelle de la même heure (30 derniers jours) ; Stress = niveau de l'heure (Calme / Modéré / Élevé, gris foncé en mouvement), creux sans donnée ; toucher un point = heure, lieu, FC et écart, Stress ; tuiles Points / Plus haute / Plus basse (FC) ou Élevé / Pas (Stress).
 - **Coach** : bloc **PLACES** (`CoachPlacesBlock.swift`) dans le contexte complet, seulement avec Lieux allumés **et** « Le Coach peut le lire » (et « Utiliser mes données ») : 8 lieux au plus, noms + visites, nuits, écarts VFC / Récupération / Sommeil / FC, jamais une coordonnée, stress omis (trop lent à chaque question). Ce que lit le Coach : carte **Lieux** avec le même réglage.
 - Traductions : 57 clés.
+- **Piège de parité vu sur #108** : `PlaceMetrics.verdict(delta:band:higherIsBetter:)` (3 arguments) comptait comme appel de `Whoop5EcgProbe.verdict` (3 arguments, appelée seulement par des tests) → `test-only-callsite|Packages/WhoopProtocol` en écart dans le test d'acceptation. Renommée `placeVerdict` (et `signedPlaceDelta`, `valueText`, `deltaText`, `reportDotTap`).
 
 ### À tester sur le téléphone (IPA `build/carte-2`)
 - **Activer** : Plus → Analyses → Carte → roue crantée → « Activer les Lieux » → iOS demande la position (« Lorsque l'app est active » d'abord) ; l'avertissement orange et « Ouvrir Réglages » tant que ce n'est pas « Toujours » ; choisir « Toujours » dans Réglages → l'avertissement disparaît ; la flèche de position iOS apparaît.

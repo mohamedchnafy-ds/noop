@@ -128,6 +128,10 @@ struct RouteMapScreen: View {
     @State private var pointMarks: [PlacePointMark] = []
     @State private var pointsLoaded = false
     @AppStorage(PlaceLog.revisionKey) private var placesRevision = 0
+    /// Carte v2: Lieux reloads when a place or a stay changes, not at each point.
+    @AppStorage(PlaceLog.placeRevisionKey) private var placeRevision = 0
+    /// Stress is scored only once the Stress layer has been asked for (the slowest read).
+    @State private var placesStressScored = false
 
     private var distanceSystem: UnitSystem {
         UnitPrefs.resolveDistance(system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
@@ -185,18 +189,38 @@ struct RouteMapScreen: View {
             }
         }
         .task(id: period) { await reloadRouteMap() }
-        .task(id: "\(mapPage.rawValue)-\(pointsPeriod.rawValue)-\(placesRevision)") { await reloadPlaceViews() }
+        .task(id: placeTaskKey) { await reloadPlaceViews() }
     }
 
-    /// The Lieux or Points figures, read when their view is shown (the stress of each day is scored).
+    /// What the Lieux or Points figures depend on: Lieux on the places and on whether stress is wanted,
+    /// Points on its period and on every new point.
+    private var placeTaskKey: String {
+        switch mapPage {
+        case .workouts: return "workouts"
+        case .places: return "places-\(placeRevision)-\(placeLayer == .stress || placesStressScored)"
+        case .points: return "points-\(pointsPeriod.rawValue)-\(placesRevision)"
+        }
+    }
+
+    /// The Lieux or Points figures, read when their view is shown. Lieux draws the last figures at once,
+    /// then the fresh ones (past days come from the day store, stress only once asked for).
     private func reloadPlaceViews() async {
         switch mapPage {
         case .workouts:
             return
         case .places:
-            let summaries = await PlaceMapReader.loadPlaceSummaries(repo: repo)
+            if placeSummaries.isEmpty, let snapshot = PlaceMapCacheFiles.loadPlaceSnapshot() {
+                placeSummaries = snapshot.summaries
+                placesLoaded = true
+            }
+            let withStress = placeLayer == .stress || placesStressScored
+            var summaries = await PlaceMapReader.loadPlaceSummaries(repo: repo, includeStress: withStress)
+            guard !Task.isCancelled else { return }
+            if !withStress { summaries = PlaceMapFreeze.carryPlaceStress(from: placeSummaries, into: summaries) }
             placeSummaries = summaries
             placesLoaded = true
+            if withStress { placesStressScored = true }
+            PlaceMapCacheFiles.savePlaceSnapshot(summaries)
         case .points:
             let period = pointsPeriod
             let marks = await PlaceMapReader.loadPointMarks(repo: repo, days: period.rawValue)

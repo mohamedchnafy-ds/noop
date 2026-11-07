@@ -11,7 +11,7 @@ enum PlaceVerdictStyle {
     static func color(_ verdict: PlaceVerdict) -> Color {
         switch verdict {
         case .better: return StrandPalette.metricCyan
-        case .worse: return StrandPalette.statusWarning
+        case .worse: return StrandPalette.deviationOrange
         case .close, .tooFew: return StrandPalette.textSecondary
         case .none: return StrandPalette.textTertiary
         }
@@ -190,7 +190,7 @@ struct PlacesLayerView: View {
                 HStack(spacing: 12) {
                     legendItem(StrandPalette.metricCyan, "Better than your normal")
                     legendItem(StrandPalette.textSecondary, "Close to it")
-                    legendItem(StrandPalette.statusWarning, "Worse")
+                    legendItem(StrandPalette.deviationOrange, "Worse")
                 }
                 .padding(NoopMetrics.cardPadding)
             }
@@ -659,7 +659,7 @@ struct PointsLayerView: View {
             case .heartRate:
                 legendItem(StrandPalette.metricCyan, "Lower")
                 legendItem(StrandPalette.textSecondary, "Normal")
-                legendItem(StrandPalette.statusWarning, "Higher")
+                legendItem(StrandPalette.deviationOrange, "Higher")
             case .stress:
                 legendItem(StrandPalette.stressCalm, "Calm")
                 legendItem(StrandPalette.stressModerate, "Moderate")

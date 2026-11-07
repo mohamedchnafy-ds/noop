@@ -108,6 +108,15 @@ Captures du 7 nov. (19:59) : vues Séances, Lieux (FC, VFC « aucune nuit »), P
 4. **« Ce qui ressort »** : les écarts nets classés (ex. « Chez mes parents : VFC −7 ms, 6 nuits ») avec le nombre de jours et une marge d'erreur ; signalé seulement s'il dépasse le bruit.
 Toujours : **Lieux s'affiche tout de suite** (résultats gardés d'un jour à l'autre — un jour passé ne change plus —, affichage immédiat du dernier calcul, stress calculé seulement quand on touche Stress) ; « Moins bien » en **orange**.
 
+### Carte v2 — code
+- **PR 1 — rapidité, fond sobre, orange** :
+  - **Jours passés gardés** (`Strand/Data/PlaceMapCache.swift`) : stress par heure et FC par 5 min, jour par jour, dans un fichier du dossier Caches (`noop-places-map-days.json`, 100 j au plus). Un jour est figé **24 h après sa fin** (`PlaceMapFreeze.frozenAfterSeconds`) : seuls aujourd'hui et hier sont relus à chaque ouverture. Le stress gardé est jeté si le réglage « ligne de base personnelle » change. Le fichier perdu = une ouverture lente, rien d'autre.
+  - **Dernier calcul d'abord** : les chiffres des lieux sont gardés (`noop-places-map-summaries.json`) et dessinés tout de suite, puis remplacés par le calcul frais. Oublier un lieu le retire aussi de ce fichier ; tout effacer le supprime.
+  - **Stress à la demande** : calculé seulement une fois la couche Stress touchée ; sinon le stress du dernier calcul est repris (`PlaceMapFreeze.carryPlaceStress`).
+  - **Plus de rechargement à chaque point** : nouveau compteur `places.placeRevision` (lieu ou séjour modifié) pour Lieux ; `places.revision` (chaque point) reste pour Points et les réglages.
+  - **Fond sobre** (`QuietMapLook.applyQuietMapLook`) : `MKStandardMapConfiguration(emphasisStyle: .muted)`, sans points d'intérêt, toujours sombre ; sur la carte des séances, Lieux, Points et le détail d'une séance.
+  - **Orange** : jeton `StrandPalette.deviationOrange` (orange dans les deux styles de graphique ; `statusWarning` vire au jaune en style Classique, d'où le jaune vu sur l'IPA) pour « Moins bien », « Plus haute » et l'avertissement de position.
+
 ## Prompt de démarrage (pour une nouvelle conversation)
 > Chantier 14 — Carte (fork NOOP). Lis `docs/fork/feuille-de-route.md`, puis `docs/fork/chantier-14-carte.md` (fiche du chantier : choix de Mohamed, code de l'étape 1, liste « À tester »). L'étape 1 (pas de l'iPhone toutes les 5 s, trajet coloré par zones FC ou par cadence, écran Carte dans Plus → Analyses) est sur la PR #102 / `main` selon son état. Prochaine étape : les retours de Mohamed sur l'IPA `build/carte`, puis l'étape 2 (Lieux, suivi continu réglable, autorisation « Toujours », défaut Équilibré · 15 min, pas depuis le point précédent) : maquette v1 https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ (écrans 3 à 7) à faire valider avant de coder ; stockage des lieux à trancher (migration iOS v54 / Android 45→46 ou stockage à part). Règles : `.claude/rules/fork-noop.md` (questions par l'outil à choix multiples, vérifications avant de pousser, IPA par `build/<nom>`).
 

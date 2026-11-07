@@ -188,7 +188,7 @@ struct PlacesSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(text)
                 .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.statusWarning)
+                .foregroundStyle(StrandPalette.deviationOrange)
                 .fixedSize(horizontal: false, vertical: true)
             #if os(iOS)
             if tracker.permission == .notAsked {

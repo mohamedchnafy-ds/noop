@@ -283,6 +283,9 @@ public enum StrandPalette {
     public static let stressModerate = Color(light: "#B28600", dark: "#FFD60A")
     public static let stressHigh = Color(light: "#D70015", dark: "#FF453A")
     public static let stressMoving = Color(light: "#C7C7CC", dark: "#48484A")
+    /// The Map's « worse than your normal » (fork chantier 14, Carte v2): one orange in both chart styles,
+    /// where `statusWarning` turns yellow under Classic. Also its location warnings.
+    public static let deviationOrange = Color(light: "#C93400", dark: "#FF9F0A")
     /// The Sleep tab's bedtime and wake time (fork chantier 9): the moon badge and « Bed » in indigo, the
     /// sun badge and « Wake » in orange, the asleep total in the rest cyan. Labels, not data series, so they
     /// stay apart from the stage violets.

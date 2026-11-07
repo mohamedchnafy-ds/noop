@@ -61,8 +61,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LiftSetEntity::class,
         MealEntity::class,
         MealItemEntity::class,
+        LocationPointEntity::class,
+        PlaceEntity::class,
+        PlaceVisitEntity::class,
     ],
-    version = 45,
+    version = 46,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -82,7 +85,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 45
+        const val SCHEMA_VERSION = 46
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -1203,6 +1206,33 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v45 -> v46 (personal fork, chantier 14 step 2): ADDITIVE, positions, places and visits —
+         * `locationPoint`, `place` and `placeVisit`, the Room twin of the Swift WhoopStore `v54-places` GRDB
+         * migration ([LocationPointEntity], [PlaceEntity], [PlaceVisitEntity]). CREATE TABLE / CREATE INDEX
+         * only, so no existing row is touched.
+         *
+         * The SQL MUST match Room's generated schema for the three entities exactly: columns in entity
+         * field order (= the GRDB column order), `ts INTEGER NOT NULL` with PRIMARY KEY(`ts`), each text
+         * `id TEXT NOT NULL` with PRIMARY KEY(`id`). Exposed as [PLACES_SQL] so `PlacesMigrationTest` can
+         * pin the shape on the plain JVM, and opened through the real chain by `WhoopDatabaseUpgradeTest`.
+         */
+        internal val PLACES_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `locationPoint` (`ts` INTEGER NOT NULL, `lat` REAL NOT NULL, " +
+                "`lon` REAL NOT NULL, `accuracyM` REAL NOT NULL, `steps` INTEGER, PRIMARY KEY(`ts`))",
+            "CREATE TABLE IF NOT EXISTS `place` (`id` TEXT NOT NULL, `name` TEXT, `lat` REAL NOT NULL, " +
+                "`lon` REAL NOT NULL, `radiusM` REAL NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            "CREATE TABLE IF NOT EXISTS `placeVisit` (`id` TEXT NOT NULL, `placeId` TEXT NOT NULL, " +
+                "`arrivedAt` INTEGER NOT NULL, `departedAt` INTEGER, `lat` REAL NOT NULL, `lon` REAL NOT NULL, " +
+                "`accuracyM` REAL NOT NULL, PRIMARY KEY(`id`))",
+            "CREATE INDEX IF NOT EXISTS `idx_placeVisit_place_arrivedAt` ON `placeVisit` (`placeId`, `arrivedAt`)",
+            "CREATE INDEX IF NOT EXISTS `idx_placeVisit_arrivedAt` ON `placeVisit` (`arrivedAt`)",
+        )
+
+        internal val MIGRATION_45_46 = object : Migration(45, 46) {
+            override fun migrate(db: SupportSQLiteDatabase) { PLACES_SQL.forEach(db::execSQL) }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -1229,7 +1259,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
             MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
-            MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45,
+            MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

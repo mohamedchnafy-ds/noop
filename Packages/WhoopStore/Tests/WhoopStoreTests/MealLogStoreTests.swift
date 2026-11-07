@@ -22,12 +22,12 @@ final class MealLogStoreTests: XCTestCase {
 
     // MARK: - Migration v51
 
-    func testV51CreatesBothTablesAndV53IsTheLastMigration() async throws {
+    func testV51CreatesBothTablesAndV53IsRegistered() async throws {
         let store = try await WhoopStore.inMemory()
         let tables = try await store.tableNames()
         XCTAssertTrue(tables.contains("meal"))
         XCTAssertTrue(tables.contains("mealItem"))
-        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v53-meal-slot")
+        XCTAssertTrue(WhoopStore.makeMigrator().migrations.contains("v53-meal-slot"))
     }
 
     // MARK: - Migration v52 (personal fork, chantier 8)

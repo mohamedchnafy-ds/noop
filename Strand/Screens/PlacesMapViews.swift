@@ -20,7 +20,7 @@ enum PlaceVerdictStyle {
     static func hollow(_ verdict: PlaceVerdict) -> Bool { verdict == .tooFew || verdict == .none }
 
     /// A signed difference: « +5 bpm », « −7 ms », « 0 bpm ».
-    static func signed(_ delta: Double, unit: String, decimals: Int = 0) -> String {
+    static func signedPlaceDelta(_ delta: Double, unit: String, decimals: Int = 0) -> String {
         let rounded = decimals == 0 ? delta.rounded() : (delta * 10).rounded() / 10
         let magnitude = abs(rounded)
         let number = decimals == 0 ? String(Int(magnitude)) : UnitFormatter.decimal(magnitude, places: decimals)
@@ -46,7 +46,7 @@ extension PlaceLayer {
 enum PlaceFigureFormat {
 
     /// The value of a figure in its unit, or « — ».
-    static func value(_ figure: PlaceFigure, layer: PlaceLayer) -> String {
+    static func valueText(_ figure: PlaceFigure, layer: PlaceLayer) -> String {
         guard let v = figure.value else { return "—" }
         switch layer {
         case .heartRate: return String(localized: "\(Int(v.rounded())) bpm")
@@ -57,14 +57,14 @@ enum PlaceFigureFormat {
     }
 
     /// The difference, « trop peu » when there is not enough data, empty when nothing to compare.
-    static func delta(_ figure: PlaceFigure, layer: PlaceLayer) -> String {
+    static func deltaText(_ figure: PlaceFigure, layer: PlaceLayer) -> String {
         if figure.verdict == .tooFew { return String(localized: "too few") }
         guard let d = figure.delta else { return "" }
         switch layer {
-        case .heartRate: return PlaceVerdictStyle.signed(d, unit: "bpm")
-        case .stress: return PlaceVerdictStyle.signed(d, unit: String(localized: "pts"))
-        case .hrv: return PlaceVerdictStyle.signed(d, unit: "ms")
-        case .recovery: return PlaceVerdictStyle.signed(d, unit: String(localized: "pts"))
+        case .heartRate: return PlaceVerdictStyle.signedPlaceDelta(d, unit: "bpm")
+        case .stress: return PlaceVerdictStyle.signedPlaceDelta(d, unit: String(localized: "pts"))
+        case .hrv: return PlaceVerdictStyle.signedPlaceDelta(d, unit: "ms")
+        case .recovery: return PlaceVerdictStyle.signedPlaceDelta(d, unit: String(localized: "pts"))
         }
     }
 
@@ -264,10 +264,10 @@ struct PlacesLayerView: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(verbatim: PlaceFigureFormat.value(figure, layer: layer))
+                Text(verbatim: PlaceFigureFormat.valueText(figure, layer: layer))
                     .font(StrandFont.number(17, weight: .semibold))
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text(verbatim: PlaceFigureFormat.delta(figure, layer: layer))
+                Text(verbatim: PlaceFigureFormat.deltaText(figure, layer: layer))
                     .font(StrandFont.number(13))
                     .foregroundStyle(color)
             }
@@ -424,10 +424,10 @@ struct PlaceDetailView: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(verbatim: PlaceFigureFormat.value(figure, layer: layer))
+                Text(verbatim: PlaceFigureFormat.valueText(figure, layer: layer))
                     .font(StrandFont.number(20, weight: .bold))
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text(verbatim: PlaceFigureFormat.delta(figure, layer: layer))
+                Text(verbatim: PlaceFigureFormat.deltaText(figure, layer: layer))
                     .font(StrandFont.number(13))
                     .foregroundStyle(PlaceVerdictStyle.color(figure.verdict))
             }
@@ -498,7 +498,7 @@ struct PlaceDetailView: View {
 
     private func barColor(_ hrv: Double?, normal: Double?) -> Color {
         guard let hrv, let normal else { return StrandPalette.textTertiary }
-        return PlaceVerdictStyle.color(PlaceMetrics.verdict(delta: hrv - normal, band: PlaceMetrics.closeBand(.hrv),
+        return PlaceVerdictStyle.color(PlaceMetrics.placeVerdict(delta: hrv - normal, band: PlaceMetrics.closeBand(.hrv),
                                                             higherIsBetter: true))
     }
 
@@ -628,7 +628,7 @@ struct PointsLayerView: View {
         let sub: String
         if let bpm = mark.bpm {
             var line = String(localized: "\(Int(bpm.rounded())) bpm")
-            if let usual = mark.habitual { line += " · " + PlaceVerdictStyle.signed(bpm - usual, unit: "bpm") }
+            if let usual = mark.habitual { line += " · " + PlaceVerdictStyle.signedPlaceDelta(bpm - usual, unit: "bpm") }
             main = line
             if mark.moving {
                 sub = String(localized: "On the move · difference to your heart rate at the same hour")

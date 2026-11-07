@@ -15,10 +15,10 @@ final class PlaceMetricsTests: XCTestCase {
     }
 
     func testAVerdictReadsTheDirectionOfTheMetric() {
-        XCTAssertEqual(PlaceMetrics.verdict(delta: 5, band: 3, higherIsBetter: true), .better)
-        XCTAssertEqual(PlaceMetrics.verdict(delta: -5, band: 3, higherIsBetter: true), .worse)
-        XCTAssertEqual(PlaceMetrics.verdict(delta: 5, band: 3, higherIsBetter: false), .worse, "a higher heart rate")
-        XCTAssertEqual(PlaceMetrics.verdict(delta: 2.9, band: 3, higherIsBetter: false), .close)
+        XCTAssertEqual(PlaceMetrics.placeVerdict(delta: 5, band: 3, higherIsBetter: true), .better)
+        XCTAssertEqual(PlaceMetrics.placeVerdict(delta: -5, band: 3, higherIsBetter: true), .worse)
+        XCTAssertEqual(PlaceMetrics.placeVerdict(delta: 5, band: 3, higherIsBetter: false), .worse, "a higher heart rate")
+        XCTAssertEqual(PlaceMetrics.placeVerdict(delta: 2.9, band: 3, higherIsBetter: false), .close)
     }
 
     func testANightBelongsToThePlaceOfTheBedtime() {

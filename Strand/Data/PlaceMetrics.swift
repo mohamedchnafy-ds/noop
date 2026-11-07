@@ -90,7 +90,7 @@ enum PlaceMetrics {
     }
 
     /// The verdict of a difference.
-    static func verdict(delta: Double, band: Double, higherIsBetter: Bool) -> PlaceVerdict {
+    static func placeVerdict(delta: Double, band: Double, higherIsBetter: Bool) -> PlaceVerdict {
         if abs(delta) < band { return .close }
         return (delta > 0) == higherIsBetter ? .better : .worse
     }
@@ -132,7 +132,7 @@ enum PlaceMetrics {
             return PlaceFigure(value: mean, normal: normal, delta: delta, verdict: .tooFew, count: here.count)
         }
         return PlaceFigure(value: mean, normal: normal, delta: delta,
-                           verdict: verdict(delta: delta, band: band, higherIsBetter: higherIsBetter),
+                           verdict: placeVerdict(delta: delta, band: band, higherIsBetter: higherIsBetter),
                            count: here.count)
     }
 
@@ -209,7 +209,7 @@ enum PlaceMetrics {
         let normal = weighted / Double(weight)
         let delta = value - normal
         let verdictNow: PlaceVerdict = visitsWithHR < minVisits
-            ? .tooFew : verdict(delta: delta, band: closeBand(.heartRate), higherIsBetter: false)
+            ? .tooFew : placeVerdict(delta: delta, band: closeBand(.heartRate), higherIsBetter: false)
         return PlaceFigure(value: value, normal: normal, delta: delta, verdict: verdictNow, count: visitsWithHR)
     }
 
@@ -243,7 +243,7 @@ enum PlaceMetrics {
         }
         let delta = value - normal
         let verdictNow: PlaceVerdict = visitsWithStress.count < minVisits
-            ? .tooFew : verdict(delta: delta, band: closeBand(.stress), higherIsBetter: false)
+            ? .tooFew : placeVerdict(delta: delta, band: closeBand(.stress), higherIsBetter: false)
         return PlaceFigure(value: value, normal: normal, delta: delta, verdict: verdictNow,
                            count: visitsWithStress.count)
     }
@@ -278,6 +278,6 @@ enum PlaceMetrics {
     static func pointVerdict(bpm: Double?, habitual: Double?) -> PlaceVerdict {
         guard let bpm else { return .none }
         guard let habitual else { return .tooFew }
-        return verdict(delta: bpm - habitual, band: closeBand(.heartRate), higherIsBetter: false)
+        return placeVerdict(delta: bpm - habitual, band: closeBand(.heartRate), higherIsBetter: false)
     }
 }

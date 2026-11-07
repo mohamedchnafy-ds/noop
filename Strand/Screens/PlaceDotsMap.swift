@@ -129,16 +129,16 @@ struct PlaceDotsMap: RouteMapRepresentable {
         #if canImport(UIKit)
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
             guard let map else { return }
-            report(at: gesture.location(in: map), in: map)
+            reportDotTap(at: gesture.location(in: map), in: map)
         }
         #elseif canImport(AppKit)
         @objc func tapped(_ gesture: NSClickGestureRecognizer) {
             guard let map else { return }
-            report(at: gesture.location(in: map), in: map)
+            reportDotTap(at: gesture.location(in: map), in: map)
         }
         #endif
 
-        private func report(at point: CGPoint, in map: MKMapView) {
+        private func reportDotTap(at point: CGPoint, in map: MKMapView) {
             var best: (id: String, distance: CGFloat)?
             for dot in dots {
                 let centre = map.convert(CLLocationCoordinate2D(latitude: dot.lat, longitude: dot.lon), toPointTo: map)

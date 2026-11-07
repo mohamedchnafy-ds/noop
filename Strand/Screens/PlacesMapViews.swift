@@ -88,51 +88,33 @@ enum PlaceFigureFormat {
     }
 }
 
-// MARK: - Lieux
+// MARK: - Map pieces (Carte v2)
 
-struct PlacesLayerView: View {
-    let summaries: [PlaceSummary]
-    let loaded: Bool
-    @Binding var layer: PlaceLayer
-    @AppStorage(PlaceTrackingSettings.enabledKey) private var enabled = false
-
-    private func dotRadius(_ summary: PlaceSummary) -> Double {
-        40 + sqrt(Double(summary.visits)) * 14
-    }
-
-    private var sorted: [PlaceSummary] {
-        func rank(_ v: PlaceVerdict) -> Int {
-            switch v { case .worse: return 0; case .better: return 1; case .close: return 2; case .tooFew: return 3; case .none: return 4 }
-        }
-        return summaries.sorted {
-            let a = rank($0.figure(layer).verdict), b = rank($1.figure(layer).verdict)
-            return a != b ? a < b : $0.visits > $1.visits
+extension PlaceLayer {
+    /// « VFC », « FC »… before a value on the map.
+    var tagName: String {
+        switch self {
+        case .heartRate: return String(localized: "HR")
+        case .stress: return String(localized: "Stress")
+        case .hrv: return String(localized: "HRV")
+        case .recovery: return String(localized: "Recov.")
         }
     }
+}
 
+extension PlaceFigureFormat {
+
+    /// « VFC +4 ms » under a place on the map, « VFC · trop peu », empty with nothing to compare.
+    static func tagText(_ figure: PlaceFigure, layer: PlaceLayer) -> String {
+        let delta = deltaText(figure, layer: layer)
+        guard !delta.isEmpty else { return "" }
+        return layer.tagName + (figure.verdict == .tooFew ? " · " : " ") + delta
+    }
+}
+
+/// « Activer les Lieux » when Places is off.
+struct PlacesEnableCard: View {
     var body: some View {
-        if !enabled {
-            enableCard
-        } else if summaries.isEmpty {
-            if loaded {
-                Text("No place yet. iOS reports a place after you have stayed there a while; the first differences show after about two weeks.")
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } else {
-            layerChips
-            mapCard
-            explain
-            listCard
-            Text("Last 90 days · a difference is not a cause: a place mostly reflects what you do there.")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var enableCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("See your metrics by place")
                 .font(StrandFont.sectionTitle)
@@ -155,56 +137,41 @@ struct PlacesLayerView: View {
         .padding(18)
         .background(NoopPanelSurface(cornerRadius: 26))
     }
+}
 
-    private var layerChips: some View {
-        HStack(spacing: 6) {
-            ForEach(PlaceLayer.allCases) { item in
-                Button { layer = item } label: {
-                    Text(item.chipTitle)
-                        .font(StrandFont.subhead.weight(.semibold))
-                        .foregroundStyle(layer == item ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(Capsule().fill(layer == item ? StrandPalette.textPrimary : StrandPalette.surfaceOverlay))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(layer == item ? .isSelected : [])
-            }
+/// The places, worse first, each opening its screen.
+struct PlacesListCard: View {
+    let summaries: [PlaceSummary]
+    let layer: PlaceLayer
+
+    private var sorted: [PlaceSummary] {
+        func rank(_ v: PlaceVerdict) -> Int {
+            switch v { case .worse: return 0; case .better: return 1; case .close: return 2; case .tooFew: return 3; case .none: return 4 }
+        }
+        return summaries.sorted {
+            let a = rank($0.figure(layer).verdict), b = rank($1.figure(layer).verdict)
+            return a != b ? a < b : $0.visits > $1.visits
         }
     }
 
-    private var mapCard: some View {
-        NoopCard(padding: 0) {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Places").font(StrandFont.sectionTitle).foregroundStyle(StrandPalette.textPrimary)
             VStack(alignment: .leading, spacing: 0) {
-                PlaceDotsMap(dots: summaries.map { summary in
-                    let figure = summary.figure(layer)
-                    return MapDot(id: summary.id, lat: summary.place.lat, lon: summary.place.lon,
-                                  radiusM: dotRadius(summary), color: PlaceVerdictStyle.color(figure.verdict),
-                                  hollow: PlaceVerdictStyle.hollow(figure.verdict), label: summary.name)
-                })
-                .frame(height: 320)
-                .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
-                .accessibilityHidden(true)
-                HStack(spacing: 12) {
-                    legendItem(StrandPalette.metricCyan, "Better than your normal")
-                    legendItem(StrandPalette.textSecondary, "Close to it")
-                    legendItem(StrandPalette.deviationOrange, "Worse")
+                ForEach(Array(sorted.enumerated()), id: \.element.id) { index, summary in
+                    if index > 0 { Rectangle().fill(StrandPalette.hairline).frame(height: 1) }
+                    NavigationLink {
+                        PlaceDetailView(summary: summary)
+                    } label: {
+                        placeRow(summary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(NoopMetrics.cardPadding)
             }
-        }
-    }
-
-    private func legendItem(_ color: Color, _ title: LocalizedStringKey) -> some View {
-        HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 10, height: 10).accessibilityHidden(true)
-            Text(title)
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+            .background(NoopPanelSurface(cornerRadius: 26))
+            explain
         }
     }
 
@@ -227,30 +194,12 @@ struct PlacesLayerView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var listCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(sorted.enumerated()), id: \.element.id) { index, summary in
-                if index > 0 { Rectangle().fill(StrandPalette.hairline).frame(height: 1) }
-                NavigationLink {
-                    PlaceDetailView(summary: summary)
-                } label: {
-                    placeRow(summary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
-        .background(NoopPanelSurface(cornerRadius: 26))
-    }
-
     private func placeRow(_ summary: PlaceSummary) -> some View {
         let figure = summary.figure(layer)
         let color = PlaceVerdictStyle.color(figure.verdict)
         return HStack(spacing: 12) {
             Circle()
-                .strokeBorder(color, lineWidth: 2)
-                .background(Circle().fill(PlaceVerdictStyle.hollow(figure.verdict) ? Color.clear : color))
+                .fill(PlaceVerdictStyle.hollow(figure.verdict) ? color.opacity(0.45) : color)
                 .frame(width: 12, height: 12)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
@@ -274,6 +223,217 @@ struct PlacesLayerView: View {
         }
         .frame(minHeight: 56)
         .contentShape(Rectangle())
+    }
+}
+
+/// The card over the map for the place touched.
+struct PlaceSelectionCard: View {
+    let summary: PlaceSummary
+    let layer: PlaceLayer
+    /// Opens the place's screen (not in full screen, which has no navigation).
+    var linked = true
+
+    var body: some View {
+        if linked {
+            NavigationLink {
+                PlaceDetailView(summary: summary)
+            } label: {
+                card
+            }
+            .buttonStyle(.plain)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
+        let figure = summary.figure(layer)
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: summary.name)
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                Text(verbatim: PlaceFigureFormat.countLine(summary, layer: layer))
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(verbatim: PlaceFigureFormat.valueText(figure, layer: layer))
+                    .font(StrandFont.number(15, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(verbatim: PlaceFigureFormat.deltaText(figure, layer: layer))
+                    .font(StrandFont.number(12))
+                    .foregroundStyle(PlaceVerdictStyle.color(figure.verdict))
+            }
+            if linked {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(StrandPalette.surfaceRaised.opacity(0.94)))
+        .frame(maxWidth: 280, alignment: .leading)
+    }
+}
+
+/// The legend posed on the map: one line per layer drawn.
+struct MapLayersLegend: View {
+    let routes: Bool
+    let routeMode: RouteColorMode
+    let places: Bool
+    let placeLayer: PlaceLayer
+    let points: Bool
+    let pointsByStress: Bool
+
+    var body: some View {
+        if routes || places || points {
+            VStack(alignment: .leading, spacing: 5) {
+                if routes { routesLine }
+                if places {
+                    line(title: String(localized: "Places") + " · " + placeLayer.tagName, items: [
+                        (StrandPalette.metricCyan, String(localized: "Better")),
+                        (StrandPalette.textSecondary, String(localized: "Close to it")),
+                        (StrandPalette.deviationOrange, String(localized: "Worse"))
+                    ])
+                }
+                if points {
+                    if pointsByStress {
+                        line(title: String(localized: "Points") + " · " + String(localized: "Stress"), items: [
+                            (StrandPalette.stressCalm, String(localized: "Calm")),
+                            (StrandPalette.stressModerate, String(localized: "Moderate")),
+                            (StrandPalette.stressHigh, String(localized: "High")),
+                            (StrandPalette.stressMoving, String(localized: "Moving"))
+                        ])
+                    } else {
+                        line(title: String(localized: "Points") + " · " + String(localized: "HR"), items: [
+                            (StrandPalette.metricCyan, String(localized: "Lower")),
+                            (StrandPalette.textSecondary, String(localized: "Normal")),
+                            (StrandPalette.deviationOrange, String(localized: "Higher"))
+                        ])
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(StrandPalette.surfaceBase.opacity(0.78)))
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var routesLine: some View {
+        HStack(spacing: 6) {
+            Text("Routes").font(StrandFont.caption2.weight(.semibold)).foregroundStyle(StrandPalette.textPrimary)
+            switch routeMode {
+            case .zones:
+                ForEach(1...5, id: \.self) { zone in
+                    Capsule().fill(routeMode.color(zone)).frame(width: 12, height: 4).accessibilityHidden(true)
+                }
+                Text("Heart-rate zones").font(StrandFont.caption2).foregroundStyle(StrandPalette.textSecondary)
+            case .cadence:
+                Text("Slow").font(StrandFont.caption2).foregroundStyle(StrandPalette.textSecondary)
+                ForEach(1...5, id: \.self) { band in
+                    Capsule().fill(routeMode.color(band)).frame(width: 12, height: 4).accessibilityHidden(true)
+                }
+                Text("Fast").font(StrandFont.caption2).foregroundStyle(StrandPalette.textSecondary)
+            }
+        }
+    }
+
+    private func line(title: String, items: [(Color, String)]) -> some View {
+        HStack(spacing: 6) {
+            Text(verbatim: title).font(StrandFont.caption2.weight(.semibold)).foregroundStyle(StrandPalette.textPrimary)
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 3) {
+                    Circle().fill(item.0).frame(width: 7, height: 7).accessibilityHidden(true)
+                    Text(verbatim: item.1).font(StrandFont.caption2).foregroundStyle(StrandPalette.textSecondary)
+                }
+            }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+    }
+}
+
+/// One line of « Ce qui ressort ».
+struct StandoutRow: View {
+    let standout: PlaceStandout
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: standout.name)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                Text(verbatim: StandoutFormat.metricTitle(standout.metric) + " · " + StandoutFormat.countText(standout))
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(verbatim: StandoutFormat.deltaText(standout))
+                    .font(StrandFont.number(17, weight: .semibold))
+                    .foregroundStyle(PlaceVerdictStyle.color(standout.verdict))
+                Text(verbatim: StandoutFormat.marginText(standout))
+                    .font(StrandFont.number(12))
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+        }
+        .frame(minHeight: 56)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The words and numbers of a stand-out.
+enum StandoutFormat {
+
+    static func metricTitle(_ metric: PlaceStandoutMetric) -> String {
+        switch metric {
+        case .hrv: return String(localized: "Night HRV")
+        case .recovery: return String(localized: "Recovery")
+        case .sleep: return String(localized: "Sleep")
+        case .heartRate: return String(localized: "Heart rate during visits")
+        case .stress: return String(localized: "High stress")
+        }
+    }
+
+    /// « 6 nuits », « 12 visites ».
+    static func countText(_ standout: PlaceStandout) -> String {
+        switch standout.metric {
+        case .hrv, .recovery, .sleep:
+            return standout.count == 1 ? String(localized: "1 night") : String(localized: "\(standout.count) nights")
+        case .heartRate, .stress:
+            return standout.count == 1 ? String(localized: "1 visit") : String(localized: "\(standout.count) visits")
+        }
+    }
+
+    private static func unit(_ metric: PlaceStandoutMetric) -> String {
+        switch metric {
+        case .hrv: return "ms"
+        case .heartRate: return "bpm"
+        case .recovery, .stress: return String(localized: "pts")
+        case .sleep: return ""
+        }
+    }
+
+    /// « −7 ms », « +35 min ».
+    static func deltaText(_ standout: PlaceStandout) -> String {
+        if standout.metric == .sleep {
+            let minutes = Int(standout.delta.rounded())
+            let sign = minutes > 0 ? "+" : (minutes < 0 ? "−" : "")
+            return sign + PlaceFigureFormat.sleepLength(Double(abs(minutes)))
+        }
+        return PlaceVerdictStyle.signedPlaceDelta(standout.delta, unit: unit(standout.metric))
+    }
+
+    /// « ± 4 ms », the margin of error.
+    static func marginText(_ standout: PlaceStandout) -> String {
+        let margin = max(standout.margin.rounded(), 1)
+        if standout.metric == .sleep { return "± " + PlaceFigureFormat.sleepLength(margin) }
+        let u = unit(standout.metric)
+        return "± " + String(Int(margin)) + (u.isEmpty ? "" : " " + u)
     }
 }
 
@@ -514,113 +674,31 @@ struct PlaceDetailView: View {
 
 // MARK: - Points
 
-/// The Points view's period.
-enum PlacePointsPeriod: Int, CaseIterable, Identifiable {
-    case day = 1, week = 7, month = 30
-    var id: Int { rawValue }
-    var title: LocalizedStringKey {
-        switch self {
-        case .day: return "Day"
-        case .week: return "7 D"
-        case .month: return "30 D"
-        }
-    }
-}
-
-/// The Points view's layer.
-enum PlacePointsLayer: String, CaseIterable, Identifiable {
-    case heartRate, stress
-    var id: String { rawValue }
-}
-
-struct PointsLayerView: View {
-    let marks: [PlacePointMark]
-    let loaded: Bool
-    @Binding var layer: PlacePointsLayer
-    @Binding var period: PlacePointsPeriod
-    @State private var picked: Int64?
-    @AppStorage(PlaceTrackingSettings.enabledKey) private var enabled = false
-
-    private func color(_ mark: PlacePointMark) -> Color {
-        switch layer {
-        case .heartRate:
+/// The colour of a point on the map: its heart rate against the same hour, or the stress of its hour.
+enum PointMarkStyle {
+    static func color(_ mark: PlacePointMark, byStress: Bool) -> Color {
+        if !byStress {
             return mark.bpm == nil ? StrandPalette.textTertiary : PlaceVerdictStyle.color(mark.hrVerdict)
-        case .stress:
-            if mark.moving { return StrandPalette.stressMoving }
-            guard let level = mark.stressLevel else { return StrandPalette.textTertiary }
-            switch StressBand(score: level) {
-            case .low: return StrandPalette.stressCalm
-            case .medium: return StrandPalette.stressModerate
-            case .high: return StrandPalette.stressHigh
-            }
+        }
+        if mark.moving { return StrandPalette.stressMoving }
+        guard let level = mark.stressLevel else { return StrandPalette.textTertiary }
+        switch StressBand(score: level) {
+        case .low: return StrandPalette.stressCalm
+        case .medium: return StrandPalette.stressModerate
+        case .high: return StrandPalette.stressHigh
         }
     }
 
-    private func isHollow(_ mark: PlacePointMark) -> Bool {
-        switch layer {
-        case .heartRate: return mark.bpm == nil
-        case .stress: return !mark.moving && mark.stressLevel == nil
-        }
+    static func hollow(_ mark: PlacePointMark, byStress: Bool) -> Bool {
+        byStress ? (!mark.moving && mark.stressLevel == nil) : mark.bpm == nil
     }
+}
+
+/// The card over the map for the point touched or the moment of the frise.
+struct PointSelectionCard: View {
+    let mark: PlacePointMark
 
     var body: some View {
-        if !enabled {
-            Text("Turn on Places to keep a point every 15 minutes and colour it by heart rate or stress.")
-                .font(StrandFont.subhead)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            HStack(spacing: 8) {
-                Picker("Layer", selection: $layer) {
-                    Text("HR").tag(PlacePointsLayer.heartRate)
-                    Text("Stress").tag(PlacePointsLayer.stress)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Picker("Period", selection: $period) {
-                    ForEach(PlacePointsPeriod.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-            if marks.isEmpty {
-                if loaded {
-                    Text("No point in this period yet.")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
-            } else {
-                mapCard
-                explain
-                tiles
-            }
-        }
-    }
-
-    private var pickedMark: PlacePointMark? { marks.first { $0.ts == picked } }
-
-    private var mapCard: some View {
-        NoopCard(padding: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .top) {
-                    PlaceDotsMap(dots: marks.map { mark in
-                        MapDot(id: String(mark.ts), lat: mark.lat, lon: mark.lon,
-                               radiusM: picked == mark.ts ? 45 : 30, color: color(mark),
-                               hollow: isHollow(mark), selected: picked == mark.ts)
-                    }, onTap: { id in
-                        let ts = id.flatMap { Int64($0) }
-                        picked = (ts == picked) ? nil : ts
-                    })
-                    .frame(height: 340)
-                    .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
-                    if let mark = pickedMark { pickCard(mark) }
-                }
-                legend.padding(NoopMetrics.cardPadding)
-            }
-        }
-    }
-
-    private func pickCard(_ mark: PlacePointMark) -> some View {
         let date = Date(timeIntervalSince1970: Double(mark.ts) / 1000)
         var when = date.formatted(Date.FormatStyle().weekday(.abbreviated).day().month(.abbreviated).hour().minute())
         if let place = mark.placeName { when += " · " + place }
@@ -642,86 +720,13 @@ struct PointsLayerView: View {
             sub = String(localized: "Strap off, or not synced yet")
         }
         return VStack(alignment: .leading, spacing: 2) {
-            Text(verbatim: when).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-            Text(verbatim: main).font(StrandFont.number(17, weight: .semibold)).foregroundStyle(StrandPalette.textPrimary)
-            Text(verbatim: sub).font(StrandFont.footnote).foregroundStyle(StrandPalette.textPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(StrandPalette.surfaceRaised))
-        .padding(12)
-    }
-
-    @ViewBuilder
-    private var legend: some View {
-        HStack(spacing: 12) {
-            switch layer {
-            case .heartRate:
-                legendItem(StrandPalette.metricCyan, "Lower")
-                legendItem(StrandPalette.textSecondary, "Normal")
-                legendItem(StrandPalette.deviationOrange, "Higher")
-            case .stress:
-                legendItem(StrandPalette.stressCalm, "Calm")
-                legendItem(StrandPalette.stressModerate, "Moderate")
-                legendItem(StrandPalette.stressHigh, "High")
-                legendItem(StrandPalette.stressMoving, "Moving")
-            }
-        }
-    }
-
-    private func legendItem(_ color: Color, _ title: LocalizedStringKey) -> some View {
-        HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 10, height: 10).accessibilityHidden(true)
-            Text(title)
-                .font(StrandFont.caption)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-    }
-
-    @ViewBuilder
-    private var explain: some View {
-        Group {
-            if layer == .heartRate {
-                Text("Each dot is one point. Its colour is your heart rate then, compared with your usual heart rate at the same hour (±3 bpm = normal). Hollow: no heart rate.")
-            } else {
-                Text("Each dot is one point. Its colour is the stress of that hour; dark grey when you were moving. Stress covers the last 14 days.")
-            }
-        }
-        .font(StrandFont.footnote)
-        .foregroundStyle(StrandPalette.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var tiles: some View {
-        let withHR = marks.filter { $0.bpm != nil }.count
-        let higher = marks.filter { $0.hrVerdict == .worse }.count
-        let lower = marks.filter { $0.hrVerdict == .better }.count
-        let steps = marks.compactMap(\.steps).reduce(0, +)
-        return HStack(spacing: 8) {
-            tile(title: "Points", value: "\(marks.count)", sub: String(localized: "with HR: \(withHR)"))
-            if layer == .heartRate {
-                tile(title: "Higher", value: "\(higher)", sub: String(localized: "above your usual"))
-                tile(title: "Lower", value: "\(lower)", sub: String(localized: "below your usual"))
-            } else {
-                let high = marks.filter { !$0.moving && ($0.stressLevel ?? 0) >= 2 }.count
-                tile(title: "High", value: "\(high)", sub: String(localized: "points in High"))
-                tile(title: "Steps", value: steps > 0 ? steps.formatted() : "—",
-                     sub: String(localized: "between points"))
-            }
-        }
-    }
-
-    private func tile(title: LocalizedStringKey, value: String, sub: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-            Text(verbatim: value).font(StrandFont.number(22, weight: .bold)).foregroundStyle(StrandPalette.textPrimary)
+            Text(verbatim: when).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
+            Text(verbatim: main).font(StrandFont.number(15, weight: .semibold)).foregroundStyle(StrandPalette.textPrimary)
             Text(verbatim: sub).font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
-                .lineLimit(1).minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(NoopPanelSurface(cornerRadius: 16))
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(StrandPalette.surfaceRaised.opacity(0.94)))
+        .frame(maxWidth: 280, alignment: .leading)
     }
 }

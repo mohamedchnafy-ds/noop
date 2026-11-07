@@ -15,13 +15,13 @@ final class PlaceStoreTests: XCTestCase {
 
     // MARK: - Migration v54
 
-    func testV54CreatesTheThreeTablesAndIsTheLastMigration() async throws {
+    func testV54CreatesTheThreeTablesAndIsRegistered() async throws {
         let store = try await WhoopStore.inMemory()
         let tables = try await store.tableNames()
         XCTAssertTrue(tables.contains("locationPoint"))
         XCTAssertTrue(tables.contains("place"))
         XCTAssertTrue(tables.contains("placeVisit"))
-        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v54-places")
+        XCTAssertTrue(WhoopStore.makeMigrator().migrations.contains("v54-places"))
     }
 
     /// The migration only adds tables: a meal written before it is still there.

@@ -1332,6 +1332,27 @@ extension WhoopStore {
             try db.create(index: "idx_placeVisit_arrivedAt", on: "placeVisit",
                           columns: ["arrivedAt"], options: [.ifNotExists])
         }
+        // v55-fasts (personal fork, chantier 15): the intermittent fasts, kept on the device.
+        // Twin of the Android `MIGRATION_46_47`; the table is pinned in schema_oracle.json as `both`.
+        //   - `fast`: one fast, unix SECONDS. `startedAt` is the last meal (editable after the fact),
+        //     `endedAt` nil while the fast is going, `goalMinutes` the duration aimed at (12 h to 36 h,
+        //     to the hour). The phases, the progress and the history are derived from these three values
+        //     by `FastingTimeline` (StrandAnalytics), never stored.
+        // No `deviceId`: a fast belongs to the person, not to a strap (the `meal` reasoning). The create
+        // is `ifNotExists` so the migration is a no-op on a database that already has the table.
+        migrator.registerMigration("v55-fasts") { db in
+            try db.create(table: "fast", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("startedAt", .integer).notNull()          // unix seconds
+                t.column("endedAt", .integer)                      // unix seconds; nil: still fasting
+                t.column("goalMinutes", .integer).notNull()
+                t.column("createdAt", .integer).notNull()          // unix seconds
+                t.column("updatedAt", .integer).notNull()          // unix seconds
+            }
+            // The history reads a time window; the running fast is the newest row with no end.
+            try db.create(index: "idx_fast_startedAt", on: "fast", columns: ["startedAt"],
+                          options: [.ifNotExists])
+        }
         return migrator
     }
 }

@@ -101,6 +101,12 @@ enum RouteMapReader {
     }
 }
 
+/// The Map's three views (personal fork, chantier 14 step 2).
+enum RouteMapView: String, CaseIterable, Identifiable {
+    case workouts, places, points
+    var id: String { rawValue }
+}
+
 struct RouteMapScreen: View {
     @EnvironmentObject private var repo: Repository
     @StateObject private var profile = ProfileStore()
@@ -112,6 +118,16 @@ struct RouteMapScreen: View {
     @State private var selected: String?
     @State private var entries: [RouteMapEntry] = []
     @State private var loaded = false
+    /// Personal fork, chantier 14 step 2: the three views of the Map.
+    @State private var mapPage: RouteMapView = .workouts
+    @State private var placeLayer: PlaceLayer = .hrv
+    @State private var placeSummaries: [PlaceSummary] = []
+    @State private var placesLoaded = false
+    @State private var pointsLayer: PlacePointsLayer = .heartRate
+    @State private var pointsPeriod: PlacePointsPeriod = .week
+    @State private var pointMarks: [PlacePointMark] = []
+    @State private var pointsLoaded = false
+    @AppStorage(PlaceLog.revisionKey) private var placesRevision = 0
 
     private var distanceSystem: UnitSystem {
         UnitPrefs.resolveDistance(system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
@@ -136,24 +152,58 @@ struct RouteMapScreen: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Places settings"))
         }) {
-            Picker("Period", selection: $period) {
-                ForEach(RouteMapPeriod.allCases) { Text($0.title).tag($0) }
+            Picker("View", selection: $mapPage) {
+                Text("Sessions").tag(RouteMapView.workouts)
+                Text("Places").tag(RouteMapView.places)
+                Text("Points").tag(RouteMapView.points)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            if entries.isEmpty {
-                if loaded { emptyState }
-            } else {
-                mapCard
-                listCard
+            switch mapPage {
+            case .workouts:
+                Picker("Period", selection: $period) {
+                    ForEach(RouteMapPeriod.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if entries.isEmpty {
+                    if loaded { emptyState }
+                } else {
+                    mapCard
+                    listCard
+                }
+                Text("Only outdoor workouts started in NOOP have a route. The routes stay on this iPhone.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .places:
+                PlacesLayerView(summaries: placeSummaries, loaded: placesLoaded, layer: $placeLayer)
+            case .points:
+                PointsLayerView(marks: pointMarks, loaded: pointsLoaded, layer: $pointsLayer, period: $pointsPeriod)
             }
-            Text("Only outdoor workouts started in NOOP have a route. The routes stay on this iPhone.")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .task(id: period) { await reloadRouteMap() }
+        .task(id: "\(mapPage.rawValue)-\(pointsPeriod.rawValue)-\(placesRevision)") { await reloadPlaceViews() }
+    }
+
+    /// The Lieux or Points figures, read when their view is shown (the stress of each day is scored).
+    private func reloadPlaceViews() async {
+        switch mapPage {
+        case .workouts:
+            return
+        case .places:
+            let summaries = await PlaceMapReader.loadPlaceSummaries(repo: repo)
+            placeSummaries = summaries
+            placesLoaded = true
+        case .points:
+            let period = pointsPeriod
+            let marks = await PlaceMapReader.loadPointMarks(repo: repo, days: period.rawValue)
+            guard period == pointsPeriod else { return }
+            pointMarks = marks
+            pointsLoaded = true
+        }
     }
 
     private func reloadRouteMap() async {

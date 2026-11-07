@@ -1,6 +1,6 @@
 # Chantier 14 — Carte (position et métriques) — fiche (6 nov. 2026)
 
-**État** : **étape 1 fusionnée le 7 nov.** (#102, `main` 138c166 ; IPA `build/carte` validée par Mohamed). **Étape 2 en code (7 nov.)** : maquette v1 validée telle quelle ; 3 PR (A stockage, B suivi, C écrans Lieux · Un lieu · Points + Coach), fusion dès la CI verte, **une seule IPA `build/carte-2`** à la fin.
+**État** : **étape 1 fusionnée le 7 nov.** (#102, `main` 138c166 ; IPA `build/carte` validée par Mohamed). **Étape 2 en code (7 nov.)** : maquette v1 validée telle quelle ; 3 PR : A stockage (#106, fusionnée), B suivi (#107, fusionnée), C écrans Lieux · Un lieu · Points + Coach ; fusion dès la CI verte, **une seule IPA `build/carte-2`** à la fin.
 
 ## La demande (6 nov.)
 Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d'autres métriques, pour voir si une métrique dépend du lieu.
@@ -74,6 +74,27 @@ Choix de Mohamed (7 nov.) : **l'étape 1 entière** dans une PR, puis une IPA. N
 - **Écrans** : roue crantée en haut de l'écran Carte → **Lieux** (`PlacesSettingsView` : carte d'activation, état de l'autorisation avec « Ouvrir Réglages », Suivre mes lieux, Suivi de position, Le Coach peut le lire, Garder les visites, Lieux reconnus → renommer / oublier, Effacer tous les lieux ; ligne « dans la sauvegarde .noopbak ») → **Suivi de position** (`LocationTrackingSettingsView` : dernier relevé et points de la semaine, mode + batterie, fréquence, Quand, plages sans relevé, Garder les points, Effacer tous les points).
 - `project.yml` : `NSLocationAlwaysAndWhenInUseUsageDescription` (iOS), `NSMotionUsageDescription` cite les pas entre deux positions.
 - Tests : `PlaceTrackingTests` (plages à cheval sur minuit, intervalle, distance, défauts, noms). Traductions : 59 clés dans les 10 langues.
+
+### PR C — écrans Lieux · Un lieu · Points + Coach
+- **Règles pures** `Strand/Data/PlaceMetrics.swift` (tests `PlaceMetricsTests`) ; **lecture** `Strand/Data/PlaceMapReader.swift` (un seul lecteur pour la vue Lieux, l'écran d'un lieu et le Coach).
+  - **Nuit → lieu** : le séjour en cours au début du sommeil (lieu du coucher), sinon le dernier séjour commencé dans les 12 h ; une nuit = le plus long bloc de sommeil (≥ 3 h) qui finit ce jour-là, avec la VFC / Récupération / durée de `dailyMetric`.
+  - **VFC, Récupération, Sommeil** : moyenne des nuits du lieu contre la moyenne de **toutes** les nuits des 90 j ; écart affiché dès **3 nuits** (« trop peu » avant, pastille creuse). Bande « proche » : VFC ± 3 ms, Récupération ± 5 pts, Sommeil ± 20 min.
+  - **FC** : moyenne des buckets 5 min **éveillés** des séjours (séances et sommeil retirés) contre la FC des **mêmes heures** dans les autres lieux, pondérée par heure ; ± 3 bpm = proche ; dès 3 visites avec FC.
+  - **Stress** : part des heures notées en Élevé (niveau ≥ 2, heures en mouvement retirées) pendant les séjours contre la part sur toutes les heures notées ; ± 3 pts ; **14 derniers jours** seulement (le stress se calcule jour par jour).
+  - Couleurs : mieux = `metricCyan` (bleu clair), proche = gris, moins bien = `statusWarning` (orange) ; FC et Stress : plus bas = mieux.
+- **Écran Carte** : sélecteur **Séances | Lieux | Points** sous le titre (`RouteMapView`), la vue Séances inchangée.
+  - **Lieux** (`PlacesLayerView`) : pastilles FC · Stress · VFC · Récup (défaut VFC), carte à disques (`PlaceDotsMap` : taille = visites, creux = trop peu, nom sous le disque), légende, explication du calque, liste triée (moins bien d'abord) → **Un lieu** (`PlaceDetailView` : visites · nuits · dernière, zone ≈ rayon, « Comparé à ta normale » VFC / Récupération / Sommeil / FC / Stress, « Nuits ici » (12 dernières, bleu clair / orange contre la normale), Renommer, Oublier ce lieu). Sans Lieux allumés : carte « Activer les Lieux » → réglages.
+  - **Points** (`PointsLayerView`) : FC | Stress, Jour · 7 J · 30 J (défaut 7 J) ; un point = FC du bucket le plus proche contre la FC habituelle de la même heure (30 derniers jours) ; Stress = niveau de l'heure (Calme / Modéré / Élevé, gris foncé en mouvement), creux sans donnée ; toucher un point = heure, lieu, FC et écart, Stress ; tuiles Points / Plus haute / Plus basse (FC) ou Élevé / Pas (Stress).
+- **Coach** : bloc **PLACES** (`CoachPlacesBlock.swift`) dans le contexte complet, seulement avec Lieux allumés **et** « Le Coach peut le lire » (et « Utiliser mes données ») : 8 lieux au plus, noms + visites, nuits, écarts VFC / Récupération / Sommeil / FC, jamais une coordonnée, stress omis (trop lent à chaque question). Ce que lit le Coach : carte **Lieux** avec le même réglage.
+- Traductions : 57 clés.
+
+### À tester sur le téléphone (IPA `build/carte-2`)
+- **Activer** : Plus → Analyses → Carte → roue crantée → « Activer les Lieux » → iOS demande la position (« Lorsque l'app est active » d'abord) ; l'avertissement orange et « Ouvrir Réglages » tant que ce n'est pas « Toujours » ; choisir « Toujours » dans Réglages → l'avertissement disparaît ; la flèche de position iOS apparaît.
+- **Suivi** : Suivi de position → « Dernier relevé il y a … · n points cette semaine » avance (un point / 15 min en se déplaçant) ; Économe / Précis et les fréquences ; nuit 23:00–07:00 sans point ; une plage ajoutée (ex. 12:00–14:00) sans point ; app fermée d'un balayage → les points reprennent après un grand déplacement ; batterie sur une journée (Réglages → Batterie).
+- **Lieux** : après quelques jours, Lieux reconnus → « Lieu 1 », « Lieu 2 »… ; renommer (Maison, Travail) ; vue Lieux de la Carte : disques et noms, calques, liste, un lieu → écarts, Nuits ici, Oublier ; « trop peu » avant 3 nuits.
+- **Points** : FC | Stress, Jour · 7 J · 30 J, toucher un point (heure, lieu, FC, écart), points creux bracelet retiré.
+- **Coach** : « Le Coach peut le lire » allumé → « Est-ce que je dors mieux chez mes parents ? » ; éteint → il ne sait rien des lieux.
+- **Sauvegarde** : un `.noopbak` exporté puis restauré garde les lieux et les points.
 
 ## Prompt de démarrage (pour une nouvelle conversation)
 > Chantier 14 — Carte (fork NOOP). Lis `docs/fork/feuille-de-route.md`, puis `docs/fork/chantier-14-carte.md` (fiche du chantier : choix de Mohamed, code de l'étape 1, liste « À tester »). L'étape 1 (pas de l'iPhone toutes les 5 s, trajet coloré par zones FC ou par cadence, écran Carte dans Plus → Analyses) est sur la PR #102 / `main` selon son état. Prochaine étape : les retours de Mohamed sur l'IPA `build/carte`, puis l'étape 2 (Lieux, suivi continu réglable, autorisation « Toujours », défaut Équilibré · 15 min, pas depuis le point précédent) : maquette v1 https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ (écrans 3 à 7) à faire valider avant de coder ; stockage des lieux à trancher (migration iOS v54 / Android 45→46 ou stockage à part). Règles : `.claude/rules/fork-noop.md` (questions par l'outil à choix multiples, vérifications avant de pousser, IPA par `build/<nom>`).

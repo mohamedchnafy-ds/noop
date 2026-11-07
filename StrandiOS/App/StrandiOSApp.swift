@@ -88,6 +88,11 @@ struct StrandiOSApp: App {
         }, log: { [weak model] line in
             model?.live.append(log: AppModel.stamped(line))
         })
+        // Personal fork, chantier 14: the place tracking. Wired here, before the first scene, so a relaunch
+        // by iOS for a visit or a significant location change finds its delegate.
+        PlaceTracker.shared.attach(repo: model.repo, log: { [weak model] line in
+            model?.live.append(log: AppModel.stamped(line))
+        })
         // Settings → "Keep screen on while syncing". Wired once here, not as another modifier on `body`.
         SyncKeepAwake.shared.attach(to: model.live)
         // The strap-sync Live Activity (Lock Screen + Dynamic Island). Same placement, same reason — and
@@ -367,6 +372,8 @@ struct StrandiOSApp: App {
             if phase == .active {
                 CoachBriefScheduler.activateIfEnabled { await model.coach.generateBrief() }
                 model.drainPendingIntents(router: router)
+                // Personal fork, chantier 14: a quiet span may have ended, a setting changed in the background.
+                PlaceTracker.shared.applyPlaceSettings()
                 // iOS starts a Lift Log banner only for an app on screen, so a banner lost while NOOP was in
                 // the background comes back now, whether or not the strap is sending anything.
                 pushLiftActivity()

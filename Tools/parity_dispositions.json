@@ -796,6 +796,182 @@
       "identity_sha256": "df1cae3a8eada8b923bfbde744db6af7eeb810902e0707bdd578c86dd49d108e",
       "platform": "kotlin",
       "rationale": "Room Migration.migrate override of MIGRATION_45_46, the personal-fork place tracking tables (locationPoint, place, placeVisit). GRDB registers each migration as a closure (`v54-places`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift",
+      "identity_sha256": "d64194d555dc50c707af629b7a0db55348e0e81cb493beacfea6630a9509ce26",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the iOS store of the intermittent fasts (GRDB migration v55-fasts: the `fast` table). Its Room twin is the schema only (android/app/src/main/java/com/noop/data/FastEntities.kt, MIGRATION_46_47), pinned column by column in schema_oracle.json; the fasting section and its screens are iPhone only, so there is no Kotlin file to pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift::decode/1#1",
+      "identity_sha256": "a89aad31f01b49421af016a789a6aa7b583fd6da8fa5cbd6f48c38c642b52c20",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): iOS store of the intermittent fasts (GRDB migration v55-fasts; the `fast` table is declared `both` in schema_oracle.json and twinned by Room MIGRATION_46_47). The fasting section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift::deleteFast/1#1",
+      "identity_sha256": "33e03b95c20280ca8f3ff719373f13d1def43524c3ef91e72d908eb1badfb758",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): iOS store of the intermittent fasts (GRDB migration v55-fasts; the `fast` table is declared `both` in schema_oracle.json and twinned by Room MIGRATION_46_47). The fasting section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift::fastsBetween/2#1",
+      "identity_sha256": "67b99590b5682e952483432814aac62bd3747d7d358de8a653a476878a27463c",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): iOS store of the intermittent fasts (GRDB migration v55-fasts; the `fast` table is declared `both` in schema_oracle.json and twinned by Room MIGRATION_46_47). The fasting section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift::recentFasts/1#1",
+      "identity_sha256": "b54f2f6fb32cef5dce0b9cf75e2e73319488689cc665f0c0c01bf124e65644f3",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): iOS store of the intermittent fasts (GRDB migration v55-fasts; the `fast` table is declared `both` in schema_oracle.json and twinned by Room MIGRATION_46_47). The fasting section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift::runningFast/0#1",
+      "identity_sha256": "9593e3e5186d368363e7f0ef472d7646290e06f35977321fd3a20445145ad595",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): iOS store of the intermittent fasts (GRDB migration v55-fasts; the `fast` table is declared `both` in schema_oracle.json and twinned by Room MIGRATION_46_47). The fasting section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/FastStore.swift::upsertFast/1#1",
+      "identity_sha256": "3a3a6ce741b58bb4de044339a1a652070d6fbed9a1dea2e69fecaa91ac4882df",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): iOS store of the intermittent fasts (GRDB migration v55-fasts; the `fast` table is declared `both` in schema_oracle.json and twinned by Room MIGRATION_46_47). The fasting section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift",
+      "identity_sha256": "1e58e0276122a26f89318452108b074a3dd2071f3cbf34fad7003dbe0575b15b",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::clampGoalMinutes/1#1",
+      "identity_sha256": "e7295efe6972a5f81fbd32f833d5428f38027444c1b7ed64a36413f9cce9a796",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::fastingMarkers/1#1",
+      "identity_sha256": "703ca69297892807e247ae154aab4ecad662d4ae8e56d78d98c3b13a6d8b85ea",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::fastingPhaseIndex/1#1",
+      "identity_sha256": "868b599cd2ce8424fa03ffe0eb7bd61820f16fc980f95c5f2a45a949dee09339",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::fastingProgressPermille/2#1",
+      "identity_sha256": "93076ad5c6dc5876970a0956be6653dac85a59f477b40760a1871366124edc83",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::fastingRemainingMinutes/2#1",
+      "identity_sha256": "a30cfa5b802602c774a27c3bd276f6f145a848ec4985886b33d8df715ae586ca",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::fastingSummary/2#1",
+      "identity_sha256": "849b3e75ee8fe2f073cff485f50e1ffb601723c4ec5863a2e3ed8696054f3dad",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::phaseIds",
+      "identity_sha256": "e0bc703dd032a7edcb1619977d860e51f0ed0b34dbfbacb28f7c3dfa19884844",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::phaseStartHours",
+      "identity_sha256": "6ba348dafef63fecf6d076f5e19d1bbabe129c6dafd6270fc4be40b09d696c88",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::quickGoalHours",
+      "identity_sha256": "674d179b023a0ded3935242fb8a48a367b377e42b8898bd7552e668be008fa98",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/FastEntities.kt",
+      "identity_sha256": "5804199766498a8299fb4d3da92554468312e326bf13dd046b0bc4e1923f76fc",
+      "platform": "kotlin",
+      "rationale": "Personal fork (chantier 15): the Room entity of the intermittent fasts (`fast`), the schema twin of the GRDB table written by Packages/WhoopStore/Sources/WhoopStore/FastStore.swift (migration v55-fasts). Schema only, pinned by schema_oracle.json; no DAO and no Swift file to pair because the fasting screens are iPhone only in this fork."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#45",
+      "identity_sha256": "c62610df407fe73d05bcf7a4c7959373a3be16192ff9f06934844cd700ef17aa",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_46_47, the personal-fork intermittent fasts table (fast). GRDB registers each migration as a closure (`v55-fasts`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::defaultGoalMinutes",
+      "identity_sha256": "f6fbbee75d6d32f33cb48fb6aef0196051dd1b1741f69c29a1bd5997e2610574",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::maxGoalMinutes",
+      "identity_sha256": "970130f00f576b4c4c307404d4100a6bfe440f23b0314e36e4068ad7864e8f32",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/FastingTimeline.swift::minGoalMinutes",
+      "identity_sha256": "cee28fcb6e8acdcb4e0d66198623dfec8cdff48b6e44895d4f77b175bee9069e",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
     }
   ]
 }

@@ -54,6 +54,7 @@ struct PlaceDotsMap: RouteMapRepresentable {
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsUserLocation = false
+        QuietMapLook.applyQuietMapLook(to: map)
         context.coordinator.map = map
         #if canImport(UIKit)
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))

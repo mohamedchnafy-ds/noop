@@ -104,10 +104,17 @@ enum PlaceLog {
     /// tracker records something in the background.
     static let revisionKey = "places.revision"
 
+    /// Bumped only when a place or a stay changes (not at each point), so the Lieux figures, which a new
+    /// point cannot move, are not computed again every 15 minutes (Carte v2).
+    static let placeRevisionKey = "places.placeRevision"
+
     @MainActor
-    private static func bumpPlaceRevision() {
+    private static func bumpPlaceRevision(placesChanged: Bool = false) {
         let defaults = UserDefaults.standard
         defaults.set(defaults.integer(forKey: revisionKey) &+ 1, forKey: revisionKey)
+        if placesChanged {
+            defaults.set(defaults.integer(forKey: placeRevisionKey) &+ 1, forKey: placeRevisionKey)
+        }
     }
 
     // MARK: Points
@@ -168,25 +175,27 @@ enum PlaceLog {
                                                makeId: { UUID().uuidString })
         if let place = outcome.newPlace { try? await store.upsertPlace(place) }
         for visit in outcome.visits { try? await store.upsertPlaceVisit(visit) }
-        await bumpPlaceRevision()
+        await bumpPlaceRevision(placesChanged: outcome.newPlace != nil || !outcome.visits.isEmpty)
     }
 
     /// Give a place a name; a blank name clears it.
     static func renameKnownPlace(_ store: WhoopStore, id: String, name: String) async {
         try? await store.renamePlace(id: id, name: name)
-        await bumpPlaceRevision()
+        await bumpPlaceRevision(placesChanged: true)
     }
 
     /// Forget a place and its stays.
     static func forgetKnownPlace(_ store: WhoopStore, id: String) async {
         try? await store.forgetPlace(id: id)
-        await bumpPlaceRevision()
+        await PlaceMapCacheFiles.dropPlaceFromSnapshot(id: id)
+        await bumpPlaceRevision(placesChanged: true)
     }
 
     /// Delete every place and every stay.
     static func eraseAllPlaces(_ store: WhoopStore) async {
         try? await store.erasePlaces()
-        await bumpPlaceRevision()
+        await PlaceMapCacheFiles.clearPlaceSnapshot()
+        await bumpPlaceRevision(placesChanged: true)
     }
 
     /// Keep `keepDays` of points and of stays (the "Garder" settings).

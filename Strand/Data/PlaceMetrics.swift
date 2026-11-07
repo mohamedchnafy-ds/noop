@@ -13,7 +13,7 @@ enum PlaceLayer: String, CaseIterable, Identifiable {
 }
 
 /// How a place (or a point) compares to the wearer's normal.
-enum PlaceVerdict: Equatable {
+enum PlaceVerdict: String, Codable, Equatable {
     /// Better than the normal (light blue).
     case better
     /// Within the band around the normal (grey).
@@ -38,13 +38,13 @@ struct PlaceNight: Equatable {
 }
 
 /// One five-minute heart-rate bucket.
-struct PlaceHRBucket: Equatable {
+struct PlaceHRBucket: Codable, Equatable {
     var ts: Int
     var bpm: Double
 }
 
 /// One scored stress window.
-struct PlaceStressWindow: Equatable {
+struct PlaceStressWindow: Codable, Equatable {
     var start: Int
     var end: Int
     /// 0 calm … 3; nil when unscored.
@@ -54,7 +54,7 @@ struct PlaceStressWindow: Equatable {
 }
 
 /// A place's figures for one layer.
-struct PlaceFigure: Equatable {
+struct PlaceFigure: Codable, Equatable {
     /// The place's own value (bpm, % of time in High stress, ms, % recovery).
     var value: Double?
     /// The wearer's normal for the same thing (same hours elsewhere for heart rate).

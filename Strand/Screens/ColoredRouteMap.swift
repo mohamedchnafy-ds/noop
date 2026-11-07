@@ -82,6 +82,21 @@ import AppKit
 private typealias ColoredPlatformColor = NSColor
 #endif
 
+/// The Map's quiet base (Carte v2): dark and muted, without shops or public places, so the routes, the
+/// places and the points read first.
+enum QuietMapLook {
+    static func applyQuietMapLook(to map: MKMapView) {
+        let configuration = MKStandardMapConfiguration(emphasisStyle: .muted)
+        configuration.pointOfInterestFilter = .excludingAll
+        map.preferredConfiguration = configuration
+        #if canImport(UIKit)
+        map.overrideUserInterfaceStyle = .dark
+        #elseif canImport(AppKit)
+        map.appearance = NSAppearance(named: .darkAqua)
+        #endif
+    }
+}
+
 /// A polyline that knows its band and whether it is faded, so the renderer can stroke it.
 private final class BandPolyline: MKPolyline {
     var band = 0
@@ -103,6 +118,7 @@ struct ColoredRouteMap: RouteMapRepresentable {
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsUserLocation = false
+        QuietMapLook.applyQuietMapLook(to: map)
         configure(map, coordinator: context.coordinator, reframe: true)
         return map
     }

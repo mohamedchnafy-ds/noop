@@ -1,6 +1,6 @@
 # Chantier 14 — Carte (position et métriques) — fiche (6 nov. 2026)
 
-**État** : **étape 1 en code (7 nov.)**, PR #102, IPA `build/carte` à valider sur le téléphone. Le chantier de design « Instrument » (numéroté 13) a été abandonné le 6 nov. : pas de nouveau design à attendre, la Carte est codée en style F d'après la maquette v1 (choix de Mohamed, 7 nov.). Étape 2 (Lieux, suivi continu) : après la validation de l'étape 1.
+**État** : **étape 1 fusionnée le 7 nov.** (#102, `main` 138c166 ; IPA `build/carte` validée par Mohamed). **Étape 2 en code (7 nov.)** : maquette v1 validée telle quelle ; 3 PR (A stockage, B suivi, C écrans Lieux · Un lieu · Points + Coach), fusion dès la CI verte, **une seule IPA `build/carte-2`** à la fin.
 
 ## La demande (6 nov.)
 Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d'autres métriques, pour voir si une métrique dépend du lieu.
@@ -51,6 +51,21 @@ Choix de Mohamed (7 nov.) : **l'étape 1 entière** dans une PR, puis une IPA. N
 - **Écran Carte** : `Strand/Screens/RouteMapScreen.swift`, ligne **Carte** sous Tendances dans la feuille Plus (Analyses) ; 30 J · 90 J · Tout (60 séances au plus) ; toutes les séances GPS, toucher une séance = elle seule en couleur, les autres pâlies ; sélecteur Zones FC | Cadence quand une séance a des pas ; liste avec distance, durée, pas et barre des zones ; état vide expliqué. Pas de sélecteur Séances | Lieux tant que l'étape 2 n'existe pas, pas de valeur à droite de la ligne Carte (v1).
 - **Traductions** : 19 clés dans les 10 langues (« Cadence » = « Cadence des pas » en français pour éviter l'écho de l'anglais).
 - **À tester sur le téléphone** (la CI ne voit ni podomètre ni GPS) : une marche dehors lancée par le « + » d'Aujourd'hui, iPhone en poche : autorisation « Mouvements et forme » au premier lancement, tuiles Pas et Cadence qui avancent, Pause (les pas pendant la pause ne comptent pas) ; à la fin, détail de la séance : trajet coloré par zones, sélecteur Zones FC | Cadence, courbe Cadence, pas par km, tuile Pas = total de la carte Cadence ; Plus → Analyses → Carte : la séance sur la carte, 30 J · 90 J · Tout, toucher une séance, Zones | Cadence. Une course de plus de 1 km pour les pas par km. Une ancienne séance GPS (sans pas) : trajet par zones si ses points ont leur heure, sinon gris.
+
+## Étape 2 — choix de Mohamed (7 nov.)
+- IPA `build/carte` : **tout est bon**, #102 fusionnée.
+- **Maquette v1 validée telle quelle** (écrans 3 à 7) : écart dès 3 nuits, bleu clair / gris / orange, FC des séances à part, défaut Équilibré · 15 min, nuit 23:00–07:00 sans relevé.
+- **Stockage** : tables dans la base (migration iOS **v54-places** / Android **MIGRATION_45_46**, Room 46), tables créées aussi sur Android sans écran.
+- **Découpage** : 3 PR + 1 IPA (A stockage, B suivi et réglages, C écrans Lieux / Un lieu / Points), fusion dès la CI verte, IPA `build/carte-2` à la fin.
+- **« Dans la sauvegarde »** : interrupteur retiré ; lieux et points sont **toujours** dans le `.noopbak` (il copie la base entière), une ligne le dit.
+- **« Le Coach peut le lire »** (éteint par défaut) : **dans cette étape** (PR C) : bloc lieux dans la fiche du Coach quand il est allumé.
+
+## Étape 2 — code
+### PR A — stockage
+- GRDB `v54-places` / Room `MIGRATION_45_46` : `locationPoint` (clé = heure en **ms**, lat, lon, précision, **pas depuis le point précédent**, nul = inconnu), `place` (id, nom facultatif, centre, rayon en m, création), `placeVisit` (id, lieu, arrivée, départ nul tant qu'on y est, centre, précision ; index par lieu + arrivée et par arrivée). Pas de `deviceId` (comme les repas). Les deux `schema_oracle.json` (`both`), export Room `46.json` (branche temporaire `ci/room-schema-places`, release `room-schema-8d89546`).
+- `WhoopStore` `PlaceStore.swift` (points, lieux, visites ; la purge des visites efface aussi un lieu **sans nom** resté vide) ; tests `PlaceStoreTests`, `PlacesMigrationTest` (Kotlin).
+- Côté app, **un seul accès** : `Strand/Data/PlaceLog.swift` (`PlaceLog`, compteur `places.revision`) ; `PlaceVisitPlan.planVisit` = règle visite iOS → lieu + séjour : lieu le plus proche dont la zone (max(rayon, 150 m)) contient la visite, sinon nouveau lieu de 150 m ; une arrivée ouvre un séjour et ferme un séjour resté ouvert ; un départ ferme le séjour de même arrivée (± 2 min), sinon celui du même lieu ; tests `PlaceLogTests`.
+- Aucune métrique copiée : FC, Stress, nuits sont relus par l'heure dans les données du bracelet.
 
 ## Prompt de démarrage (pour une nouvelle conversation)
 > Chantier 14 — Carte (fork NOOP). Lis `docs/fork/feuille-de-route.md`, puis `docs/fork/chantier-14-carte.md` (fiche du chantier : choix de Mohamed, code de l'étape 1, liste « À tester »). L'étape 1 (pas de l'iPhone toutes les 5 s, trajet coloré par zones FC ou par cadence, écran Carte dans Plus → Analyses) est sur la PR #102 / `main` selon son état. Prochaine étape : les retours de Mohamed sur l'IPA `build/carte`, puis l'étape 2 (Lieux, suivi continu réglable, autorisation « Toujours », défaut Équilibré · 15 min, pas depuis le point précédent) : maquette v1 https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ (écrans 3 à 7) à faire valider avant de coder ; stockage des lieux à trancher (migration iOS v54 / Android 45→46 ou stockage à part). Règles : `.claude/rules/fork-noop.md` (questions par l'outil à choix multiples, vérifications avant de pousser, IPA par `build/<nom>`).

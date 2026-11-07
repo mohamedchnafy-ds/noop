@@ -636,6 +636,166 @@
       "identity_sha256": "57926d7d7aa3b7927da66846990d75a0c164193933d153fc1567b30b69c53aed",
       "platform": "kotlin",
       "rationale": "Room Migration.migrate override of MIGRATION_44_45, the personal-fork meal moment column (meal.slot). GRDB registers each migration as a closure (`v53-meal-slot`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift",
+      "identity_sha256": "29e960e217285feafd4d5b5ce2d724b5d8b9fe0787531aa2e1bcb38b78cd1dcd",
+      "platform": "swift",
+      "rationale": "Personal fork: the iOS store of the place tracking (GRDB migration v54-places: locationPoint, place, placeVisit). Its Room twin is the schema only (android/app/src/main/java/com/noop/data/PlaceEntities.kt, MIGRATION_45_46), pinned column by column in schema_oracle.json; the tracking and its screens are iPhone only, so there is no Kotlin file to pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::allPlaces/0#1",
+      "identity_sha256": "b2128fb0b02a524558c63014f5e57a8a69712756a82c33499babe73336418f6f",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::countLocationPoints/1#1",
+      "identity_sha256": "471e37e1db56a4c8b7fc1b9eeafbe71c507df241b048e33bcb96a0a70d486036",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::decode/1#1",
+      "identity_sha256": "49d249f6d508b8a7aea655df04b1deecb398d9bf7389f5385c1252defe72a254",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::decode/1#2",
+      "identity_sha256": "818b5bab262f5c614102057124faa9e938d0b007b322ab55df13786a07285c9c",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::decode/1#3",
+      "identity_sha256": "8022336f6e453f2c6f897884a8b2e5c1c00ef863920af6880c56d688a8ceb6f8",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::eraseLocationPoints/0#1",
+      "identity_sha256": "036af3d2dfdd1bbc94a6c088e1d5d11367d0dc1ed8f7fccb77b955f06345d3fb",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::erasePlaces/0#1",
+      "identity_sha256": "0d4734df463fa86f166bee7343d2a01463d811a04572b8486ee9e7b650c28fad",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::forgetPlace/1#1",
+      "identity_sha256": "e553a0ae99376d685bc2c735099b951d11b0ad0b444be10df356c462eb4d4f93",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::insertLocationPoint/1#1",
+      "identity_sha256": "aa4da7c860d5e9d73cc617ee455f283b6da21ea67b58c766c6b02dcb0178cc23",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::latestLocationPoint/0#1",
+      "identity_sha256": "385b3c2fc92e569ce9fec2e9eadf76505423f80dd4e03e374c5b942bd89d8954",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::locationPointsBetween/2#1",
+      "identity_sha256": "ed2f0e06d6c72abdf959cdd0d9fc6bb859e144ab7e6872d6e2f13143a6a0b73b",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::placeVisitsBetween/2#1",
+      "identity_sha256": "0bff87314560e2e755f50ffad0c8e14209806aa2d0f33b1ecdad1a83e119d014",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::pruneLocationPoints/1#1",
+      "identity_sha256": "eb9d2bcc638d9e5022f5dd26e1a94ac6473efba56371c1f22886034e603589ca",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::prunePlaceVisits/1#1",
+      "identity_sha256": "0aff0e9bf1110d92c92c8ca8cc5f3d6aacb42d4f6e2efba3f70c383e57f5edd0",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::renamePlace/2#1",
+      "identity_sha256": "1029e28ba2a818a4e2da2d3b0cca80c9da14641a4e1add97406c93f253971604",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::upsertPlace/1#1",
+      "identity_sha256": "b4eff5b0d447ffb3ac40724795f6a870595972c6a5dd0fbc4d06d48c9992aeaa",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift::upsertPlaceVisit/1#1",
+      "identity_sha256": "8dcf31072be8ea3467aaf825d6e39c35e75f2712e998f1620df36be950f28583",
+      "platform": "swift",
+      "rationale": "Personal fork: iOS store of the place tracking (GRDB migration v54-places; the locationPoint, place and placeVisit tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_45_46). The tracking and the Map's place screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/PlaceEntities.kt",
+      "identity_sha256": "ad8aa92bb23d822f9232870a465b69ecd43a4942877deb3f36678f8d1a180f6f",
+      "platform": "kotlin",
+      "rationale": "Personal fork: the Room entities of the place tracking (locationPoint, place, placeVisit), the schema twin of the GRDB tables written by Packages/WhoopStore/Sources/WhoopStore/PlaceStore.swift (v54-places / MIGRATION_45_46). The file holds data classes only, with no function to pair; both schemas are pinned column by column in schema_oracle.json (SchemaOracleTests / SchemaOracleTest)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#44",
+      "identity_sha256": "df1cae3a8eada8b923bfbde744db6af7eeb810902e0707bdd578c86dd49d108e",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_45_46, the personal-fork place tracking tables (locationPoint, place, placeVisit). GRDB registers each migration as a closure (`v54-places`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
     }
   ]
 }

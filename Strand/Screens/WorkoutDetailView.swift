@@ -60,6 +60,13 @@ struct WorkoutDetailView: View {
     /// The GPS route captured for this session on-device (#524), if any. Decoded from `RouteStore` by the
     /// row's natural key. nil = no route was recorded (honest — the map only shows when points exist).
     @State private var route: [RouteMath.LatLng] = []
+    /// Chantier 14: the route cut by heart-rate zone and by cadence (`RouteColoring`), the points with
+    /// their times, and the phone's step readings saved with the workout (`WorkoutStepStore`).
+    @State private var zoneSegments: [RouteBandSegment] = []
+    @State private var cadenceSegments: [RouteBandSegment] = []
+    @State private var timedRoute: [WorkoutRoutePoint] = []
+    @State private var stepSamples: [WorkoutStepSample] = []
+    @State private var routeMode: RouteColorMode = .zones
 
     /// Drives the GPX/FIT export chooser for the recorded route.
     @State private var showRouteExport = false
@@ -81,6 +88,7 @@ struct WorkoutDetailView: View {
             headerCard
             statStrip
             routeCard
+            stepsCard
             hrCurveCard
             zonesCard
             heartRateRecoveryCard
@@ -108,6 +116,22 @@ struct WorkoutDetailView: View {
             let pts = RouteMath.decode(r.polyline)
             return pts.count >= 2 ? pts : []
         }()
+
+        // Chantier 14: colour the route by the heart-rate zone of the moment (and by cadence when the phone
+        // counted steps). A route saved without its point times stays one colour.
+        let timed = RouteStore.loadWithPoints(startTs: row.startTs, sport: row.sport)?.points ?? []
+        let storedSteps = WorkoutStepStore.load(startTs: row.startTs, sport: row.sport) ?? []
+        var zoneSegs = RouteColoring.plainSegments(routePoints)
+        var cadenceSegs: [RouteBandSegment] = []
+        if timed.count >= 2, routePoints.count >= 2 {
+            let hr = await repo.hrSamples(from: row.startTs - 60, to: row.endTs + 60, limit: 20_000)
+            let bands = RouteColoring.zoneBandsForRoute(timed, hr: hr, zoneSet: profile.hrZoneSet)
+            zoneSegs = RouteColoring.routeBandSegments(timed, bands: bands)
+            if !storedSteps.isEmpty {
+                cadenceSegs = RouteColoring.routeBandSegments(
+                    timed, bands: RouteColoring.cadenceBandsForRoute(timed, steps: storedSteps))
+            }
+        }
 
         // HR curve over the exact session window — a finer bucket than the 24h chart so a short run
         // still reads as a curve, not a handful of points.
@@ -140,7 +164,12 @@ struct WorkoutDetailView: View {
         // sports (cycling/rowing/… have no footfalls). Both sources return nil for "no data", so an empty
         // window stays "–" rather than a fabricated 0.
         var stepReadout: StepReadout? = nil
-        if WorkoutCatalog.isOnFoot(row.sport) {
+        // Chantier 14: the readings saved with the workout come first, so this tile and the Cadence card
+        // give the same total.
+        if let last = storedSteps.last, last.steps > 0 {
+            stepReadout = StepReadout(count: last.steps, fromStrap: false)
+        }
+        if stepReadout == nil, WorkoutCatalog.isOnFoot(row.sport) {
             if let ticks = await repo.strapStepTicks(from: row.startTs, to: row.endTs) {
                 // Same per-user ticks-per-step calibration the daily total applies (#139), floor 0.5.
                 let scaled = Int((Double(ticks) / max(profile.stepTicksPerStep, 0.5)).rounded())
@@ -154,6 +183,10 @@ struct WorkoutDetailView: View {
 
         await MainActor.run {
             self.route = routePoints
+            self.zoneSegments = zoneSegs
+            self.cadenceSegments = cadenceSegs
+            self.timedRoute = timed
+            self.stepSamples = storedSteps
             self.hrPoints = points
             self.zoneMinutes = minutes
             self.zonesFromImport = fromImport
@@ -284,11 +317,23 @@ struct WorkoutDetailView: View {
                               trailing: distanceLabel(row.distanceM))
                 NoopCard(padding: 0, tint: StrandPalette.effortColor) {
                     VStack(alignment: .leading, spacing: 0) {
-                        WorkoutRouteMap(points: route)
+                        ColoredRouteMap(routes: [ColoredMapRoute(id: "\(row.startTs)", segments: mapSegments)],
+                                        mode: effectiveRouteMode)
                             .frame(height: 220)
                             .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius,
                                                         style: .continuous))
                             .accessibilityLabel(routeAccessibilityLabel)
+                        VStack(alignment: .leading, spacing: 10) {
+                            if !cadenceSegments.isEmpty {
+                                Picker("Colour", selection: $routeMode) {
+                                    ForEach(RouteColorMode.allCases) { mode in Text(mode.title).tag(mode) }
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                            }
+                            if timedRoute.count >= 2 { RouteColorLegend(mode: effectiveRouteMode) }
+                        }
+                        .padding([.horizontal, .top], NoopMetrics.cardPadding)
                         HStack(spacing: 0) {
                             routeStat(String(localized: "Distance"), distanceLabel(row.distanceM),
                                       tint: StrandPalette.metricCyan)
@@ -315,6 +360,89 @@ struct WorkoutDetailView: View {
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text("Save this route as a standard file you can import into Strava, Garmin Connect, and other apps.")
+                }
+            }
+        }
+    }
+
+    /// The colour the map shows: cadence only when the phone counted steps.
+    private var effectiveRouteMode: RouteColorMode {
+        cadenceSegments.isEmpty ? .zones : routeMode
+    }
+
+    private var mapSegments: [RouteBandSegment] {
+        effectiveRouteMode == .cadence ? cadenceSegments : zoneSegments
+    }
+
+    // MARK: - Steps and cadence (chantier 14)
+
+    /// The phone's steps during the workout: steps per minute across the session, then the steps of each
+    /// kilometre (the same crossings as the splits).
+    @ViewBuilder private var stepsCard: some View {
+        if stepSamples.count >= 2 {
+            let startMs = Int64(row.startTs) * 1000
+            let perMinute = WorkoutStepMath.stepCadenceByMinute(stepSamples, startMs: startMs)
+            let points: [TrendPoint] = perMinute.enumerated().compactMap { index, value in
+                value.map { TrendPoint(date: Date(timeIntervalSince1970: TimeInterval(row.startTs + index * 60 + 30)),
+                                       value: Double($0)) }
+            }
+            let cadences = perMinute.compactMap { $0 }
+            let lowCadence: Double = max(0, Double(cadences.min() ?? 0) - 10)
+            let highCadence: Double = Double(cadences.max() ?? 120) + 10
+            let unitMeters = distanceUnitSystem == .imperial ? 1609.344 : 1000
+            let perSplit = WorkoutStepMath.stepsPerSplit(stepSamples, route: LiveWorkoutMath.cumulative(timedRoute),
+                                                         unitMeters: unitMeters)
+            let total = stepSamples.last?.steps ?? 0
+            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                if points.count > 1 {
+                    ChartCard(
+                        title: "Cadence",
+                        subtitle: String(localized: "Steps per minute, counted by the phone"),
+                        trailing: String(localized: "\(LiveWorkoutDashboard.groupedSteps(total)) steps"),
+                        tint: StrandPalette.metricCyan
+                    ) {
+                        TrendChart(
+                            points: points,
+                            gradient: Gradient(colors: [StrandPalette.metricCyan.opacity(0.55), StrandPalette.metricCyan]),
+                            valueRange: lowCadence...highCadence,
+                            showsArea: true,
+                            valueFormat: { String(localized: "\(Int($0.rounded())) steps/min") },
+                            dateFormat: { Self.tooltipTime.string(from: $0) },
+                            accessibilityLabel: String(localized: "Cadence during \(WorkoutSource.displaySport(row.sport))"),
+                            workoutTimeAxis: Date(timeIntervalSince1970: TimeInterval(row.startTs))...Date(timeIntervalSince1970: TimeInterval(row.endTs))
+                        )
+                    } footer: {
+                        ChartFooter([
+                            ("Steps", LiveWorkoutDashboard.groupedSteps(total)),
+                            ("Avg", cadences.isEmpty ? "–"
+                                : String(localized: "\(cadences.reduce(0, +) / cadences.count) steps/min")),
+                            ("Peak", cadences.max().map { String(localized: "\($0) steps/min") } ?? "–"),
+                        ])
+                    }
+                }
+                if !perSplit.isEmpty {
+                    NoopCard(tint: StrandPalette.metricCyan) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Group {
+                                if distanceUnitSystem == .imperial { Text("Steps per mile") } else { Text("Steps per kilometre") }
+                            }
+                            .font(StrandFont.headline)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            ForEach(Array(perSplit.enumerated()), id: \.offset) { index, count in
+                                HStack {
+                                    Group {
+                                        if distanceUnitSystem == .imperial { Text("Mile \(index + 1)") } else { Text("Kilometre \(index + 1)") }
+                                    }
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                                    Spacer(minLength: 8)
+                                    Text("\(LiveWorkoutDashboard.groupedSteps(count)) steps")
+                                        .monospacedDigit()
+                                        .foregroundStyle(StrandPalette.textPrimary)
+                                }
+                                .font(StrandFont.subhead)
+                            }
+                        }
+                    }
                 }
             }
         }

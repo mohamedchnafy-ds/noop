@@ -11,7 +11,7 @@ final class MoreSheetTests: XCTestCase {
         XCTAssertEqual(listed.count, MoreSheetEntry.allCases.count)
         XCTAssertEqual(Set(listed), Set(MoreSheetEntry.allCases))
         XCTAssertEqual(MoreSheetEntry.advanced.count, 15)
-        XCTAssertEqual(MoreSheetSection.analysis.entries, [.trends])
+        XCTAssertEqual(MoreSheetSection.analysis.entries, [.trends, .routeMap])
         XCTAssertTrue(MoreSheetEntry.advanced.allSatisfy { $0.isAdvanced && $0.formerGroup != nil })
         XCTAssertTrue(MoreSheetSection.allCases.flatMap(\.entries).allSatisfy { !$0.isAdvanced && $0.formerGroup == nil })
     }

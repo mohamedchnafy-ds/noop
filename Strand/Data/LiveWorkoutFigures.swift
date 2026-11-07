@@ -44,6 +44,10 @@ struct LiveWorkoutFigures: Equatable {
     var zoneSeconds: [Int]
     /// The last ten minutes of heart rate, one average per 10-second bucket (nil = no sample).
     var curve: [Double?]
+    /// The phone's steps since the start (chantier 14), nil when the workout records no steps.
+    var steps: Int? = nil
+    /// Steps per minute of the moment (`WorkoutStepMath.stepCadenceNow`), nil at the start.
+    var cadence: Int? = nil
 }
 
 enum LiveWorkoutMath {

@@ -109,6 +109,11 @@ final class AppModel: ObservableObject {
     /// True while the active workout is a GPS-type session (drives the End-time route persist). Mirrors
     /// Android's `ActiveWorkout.gpsEnabled`.
     private var activeWorkoutIsGps = false
+    /// The phone's steps during an outdoor walk, run or hike (personal fork, chantier 14): one reading every
+    /// five seconds, saved with the route under the same natural key (`WorkoutStepStore`).
+    let stepRecorder = WorkoutStepRecorder()
+    /// True while the active workout records steps (a GPS on-foot sport, `WorkoutStepMath.recordsSteps`).
+    private var activeWorkoutRecordsSteps = false
 
     /// A manual workout in progress. `samples` accumulate from the smoothed live `bpm`; `liveStrain`
     /// is recomputed as the window grows so the active card can show strain building in real time.
@@ -841,6 +846,8 @@ final class AppModel: ObservableObject {
         if activeWorkoutIsGps {
             gpsRecorder.start(startMs: Int64(started.timeIntervalSince1970 * 1000))
         }
+        activeWorkoutRecordsSteps = activeWorkoutIsGps && WorkoutStepMath.recordsSteps(sport: resolved)
+        if activeWorkoutRecordsSteps { stepRecorder.start(at: started) }
         // Make the session durable from the first instant (#529): persist it now so an OS kill right
         // after Start , before any HR sample lands , can still be rehydrated + ended on relaunch.
         persistActiveWorkout()
@@ -934,6 +941,10 @@ final class AppModel: ObservableObject {
                 pausedDurationMs: Int64(snap.pausedDurationSec ?? 0) * 1000
             )
         }
+        activeWorkoutRecordsSteps = activeWorkoutIsGps && WorkoutStepMath.recordsSteps(sport: snap.sport)
+        if activeWorkoutRecordsSteps {
+            stepRecorder.restore(start: w.start, paused: snap.pausedAtSec != nil)
+        }
     }
 
     func toggleWorkoutPause() {
@@ -942,9 +953,11 @@ final class AppModel: ObservableObject {
             w.pausedDuration += Date().timeIntervalSince(pausedAt)
             w.pausedAt = nil
             if activeWorkoutIsGps { gpsRecorder.resume() }
+            if activeWorkoutRecordsSteps { stepRecorder.resume() }
         } else {
             w.pausedAt = Date()
             if activeWorkoutIsGps { gpsRecorder.pause() }
+            if activeWorkoutRecordsSteps { stepRecorder.pause() }
         }
         activeWorkout = w
         persistActiveWorkout()
@@ -956,6 +969,8 @@ final class AppModel: ObservableObject {
         activeWorkout = nil
         if activeWorkoutIsGps { gpsRecorder.stop() }
         activeWorkoutIsGps = false
+        if activeWorkoutRecordsSteps { stepRecorder.stop() }
+        activeWorkoutRecordsSteps = false
         ActiveWorkoutPersistence.clear()
         lastWorkout = nil
     }
@@ -992,6 +1007,9 @@ final class AppModel: ObservableObject {
             gpsRecorder.stop()
             route = gpsRecorder.capturedRoute()
         }
+        // Chantier 14: the phone's step readings, saved below with the route.
+        let stepSamples = activeWorkoutRecordsSteps ? stepRecorder.stop() : []
+        activeWorkoutRecordsSteps = false
         let samples = w.samples
         // Save when there's an HR window OR a real GPS route , a GPS-only walk (HR not streaming) is
         // still a workout (parity with Android's `samples.size < 2 && track.size < 2` discard gate).
@@ -1062,6 +1080,7 @@ final class AppModel: ObservableObject {
         // Persist the route polyline under the row's natural key so WorkoutDetailView can draw it. On
         // device only; mirrors the moments / sleepMarks UserDefaults persistence. (#524)
         if let route { RouteStore.store(route, startTs: startTs, sport: w.sport) }
+        if !stepSamples.isEmpty { WorkoutStepStore.store(stepSamples, startTs: startTs, sport: w.sport) }
         lastWorkout = row
         // Workouts & GPS test mode: one session-end summary tagged `.workouts` (the lastSessionSummary readout
         // source) carrying the captured HR window size, the duration, and the accepted GPS point count, so the

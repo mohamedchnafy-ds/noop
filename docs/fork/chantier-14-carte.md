@@ -117,6 +117,26 @@ Toujours : **Lieux s'affiche tout de suite** (résultats gardés d'un jour à l'
   - **Fond sobre** (`QuietMapLook.applyQuietMapLook`) : `MKStandardMapConfiguration(emphasisStyle: .muted)`, sans points d'intérêt, toujours sombre ; sur la carte des séances, Lieux, Points et le détail d'une séance.
   - **Orange** : jeton `StrandPalette.deviationOrange` (orange dans les deux styles de graphique ; `statusWarning` vire au jaune en style Classique, d'où le jaune vu sur l'IPA) pour « Moins bien », « Plus haute » et l'avertissement de position.
 
+- **PR 1 fusionnée** : #111 (`main` 92e1180, 16/16).
+- **PR 2 — carte à calques, frise, « Ce qui ressort »** :
+  - **Un seul écran** (`RouteMapScreen`) : la carte (`LayeredPlaceMap`) dessine en même temps **Trajets** (zones FC, ou cadence), **Lieux** (disques pleins de 14 à 28 pt selon les séjours, nom + « VFC +4 ms » dessous ; pâle quand trop peu ou rien à comparer) et **Points** (petits disques reliés par un trajet fin, coupé quand deux points sont à plus de 3 h). Bouton **Calques** (menu à cases) et **Plein écran** en haut à droite ; **légende posée en bas à gauche**, une ligne par calque allumé. Calques et couleur gardés (`map.layers.*`, `map.tint`).
+  - **Couleur au choix** (pastilles sous la carte) : FC · Stress · VFC · Récup · Cadence (Cadence seulement si une séance a les pas). Lieux suivent FC / Stress / VFC / Récup (Cadence → VFC) ; Points suivent Stress, sinon FC ; Trajets en zones FC, sinon cadence.
+  - **Période** : Jour · 7J · 30J · 90J (défaut 7J) pour Trajets et Points ; Lieux toujours sur 90 jours.
+  - **Frise de la journée** (`MapDayStrip`) : ‹ jour › + FC | Stress ; courbe FC du jour (5 min) ou barres de stress par heure ; un trait sous chaque point du jour. **Glisser** → curseur blanc sur la carte (sur la ligne entre les deux points qui encadrent l'instant, s'ils sont à moins de 3 h ; sinon au point le plus proche à 30 min près) + carte du point en haut à gauche ; **toucher un point** de la carte → la frise passe à son jour et montre son heure.
+  - **« Ce qui ressort »** (`PlaceStandouts`) : pour chaque lieu et VFC, Récup, Sommeil, FC, Stress, l'écart est listé seulement s'il est un verdict (assez de nuits ou de visites, hors de la bande « proche ») **et** plus grand que sa **marge d'erreur** (intervalle à 95 % de la moyenne du lieu : 1,96 × écart-type / √n, sur les nuits, ou sur les visites pour FC et Stress). Classé par écart / marge ; 5 lignes au plus. Ex. « Chez mes parents · VFC de la nuit · 6 nuits : −7 ms, ± 4 ms ».
+  - Le **Coach** reçoit la marge d'erreur dans le bloc PLACES (« margin of error ±4 ms ») et la consigne qu'un écart dans sa marge est du bruit.
+  - Supprimés : les vues séparées Séances | Lieux | Points (`PlacesLayerView`, `PointsLayerView`). L'écran d'un lieu ne change pas.
+
+### À tester sur le téléphone (IPA `build/carte-3`)
+- **Rapidité** : Plus → Analyses → Carte : la 2e ouverture montre les lieux tout de suite (la 1re après l'installation reste lente, le temps de garder les jours passés) ; toucher Stress : premier calcul un peu plus long, ensuite immédiat.
+- **Fond** : carte sombre atténuée, sans commerces ni lieux publics (aussi dans le détail d'une séance).
+- **Calques** : bouton Calques → Trajets, Lieux, Points allumés ensemble ; la légende suit ; éteindre / rallumer ; l'état est gardé en revenant.
+- **Couleur** : FC, Stress, VFC, Récup, (Cadence) : les disques, leurs étiquettes et les points changent ; « Moins bien » / « Plus haute » en **orange**.
+- **Plein écran** : bouton ↗︎ → carte entière, pastilles en bas, ✕ pour fermer ; la légende ne passe pas sous les pastilles.
+- **Frise** : glisser le doigt → curseur sur la carte et heure + FC (ou stress) au-dessus de la frise ; ‹ › change de jour ; toucher un point de la carte → son heure sur la frise.
+- **Ce qui ressort** : lignes avec le nombre de nuits ou de visites et « ± » ; « Rien ne ressort encore au-delà du bruit » sinon.
+- **Captures à envoyer** : la carte avec les trois calques, le plein écran, la frise pendant un glissé, « Ce qui ressort ».
+
 ## Prompt de démarrage (pour une nouvelle conversation)
 > Chantier 14 — Carte (fork NOOP). Lis `docs/fork/feuille-de-route.md`, puis `docs/fork/chantier-14-carte.md` (fiche du chantier : choix de Mohamed, code de l'étape 1, liste « À tester »). L'étape 1 (pas de l'iPhone toutes les 5 s, trajet coloré par zones FC ou par cadence, écran Carte dans Plus → Analyses) est sur la PR #102 / `main` selon son état. Prochaine étape : les retours de Mohamed sur l'IPA `build/carte`, puis l'étape 2 (Lieux, suivi continu réglable, autorisation « Toujours », défaut Équilibré · 15 min, pas depuis le point précédent) : maquette v1 https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ (écrans 3 à 7) à faire valider avant de coder ; stockage des lieux à trancher (migration iOS v54 / Android 45→46 ou stockage à part). Règles : `.claude/rules/fork-noop.md` (questions par l'outil à choix multiples, vérifications avant de pousser, IPA par `build/<nom>`).
 

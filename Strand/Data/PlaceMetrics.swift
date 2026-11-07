@@ -64,6 +64,9 @@ struct PlaceFigure: Codable, Equatable {
     var verdict: PlaceVerdict
     /// Visits (heart rate, stress) or nights (HRV, recovery, sleep) behind the value.
     var count: Int
+    /// Half-width of the 95 % interval of the place's mean (same unit as `value`), from the spread of its
+    /// nights or visits; nil under two of them (Carte v2, « Ce qui ressort »).
+    var margin: Double? = nil
 }
 
 enum PlaceMetrics {
@@ -87,6 +90,16 @@ enum PlaceMetrics {
     /// Higher is better for HRV, recovery and sleep; lower is better for heart rate and stress.
     static func higherIsBetter(_ layer: PlaceLayer) -> Bool {
         layer == .hrv || layer == .recovery
+    }
+
+    /// The half-width of the 95 % interval of a mean: 1.96 × the sample standard deviation / √n, nil
+    /// under two values.
+    static func marginOfPlaceMean(_ values: [Double]) -> Double? {
+        guard values.count >= 2 else { return nil }
+        let n = Double(values.count)
+        let mean = values.reduce(0, +) / n
+        let variance = values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / (n - 1)
+        return 1.96 * variance.squareRoot() / n.squareRoot()
     }
 
     /// The verdict of a difference.
@@ -128,12 +141,14 @@ enum PlaceMetrics {
         let normal = everywhere.isEmpty ? nil : everywhere.reduce(0, +) / Double(everywhere.count)
         guard let normal else { return PlaceFigure(value: mean, normal: nil, delta: nil, verdict: .none, count: here.count) }
         let delta = mean - normal
+        let margin = marginOfPlaceMean(here)
         guard here.count >= minNights else {
-            return PlaceFigure(value: mean, normal: normal, delta: delta, verdict: .tooFew, count: here.count)
+            return PlaceFigure(value: mean, normal: normal, delta: delta, verdict: .tooFew, count: here.count,
+                               margin: margin)
         }
         return PlaceFigure(value: mean, normal: normal, delta: delta,
                            verdict: placeVerdict(delta: delta, band: band, higherIsBetter: higherIsBetter),
-                           count: here.count)
+                           count: here.count, margin: margin)
     }
 
     // MARK: Awake time
@@ -173,9 +188,12 @@ enum PlaceMetrics {
         var hereByHour = [Int: (sum: Double, n: Int)]()
         var elseByHour = [Int: (sum: Double, n: Int)]()
         var visitsWithHR = 0
+        var visitMeans: [Double] = []
         for visit in visits {
             let isHere = visit.placeId == placeId
             var any = false
+            var visitSum = 0.0
+            var visitN = 0
             for span in awakeSpans(of: visit, until: now, excluding: excluding) {
                 var k = firstBucket(atOrAfter: span.start, in: buckets)
                 while k < buckets.count, buckets[k].ts < span.end {
@@ -183,6 +201,8 @@ enum PlaceMetrics {
                     if isHere {
                         hereByHour[hour, default: (0, 0)].sum += buckets[k].bpm
                         hereByHour[hour, default: (0, 0)].n += 1
+                        visitSum += buckets[k].bpm
+                        visitN += 1
                     } else {
                         elseByHour[hour, default: (0, 0)].sum += buckets[k].bpm
                         elseByHour[hour, default: (0, 0)].n += 1
@@ -191,7 +211,10 @@ enum PlaceMetrics {
                     k += 1
                 }
             }
-            if isHere && any { visitsWithHR += 1 }
+            if isHere && any {
+                visitsWithHR += 1
+                visitMeans.append(visitSum / Double(visitN))
+            }
         }
         let hereN = hereByHour.values.reduce(0) { $0 + $1.n }
         guard hereN > 0 else { return PlaceFigure(value: nil, normal: nil, delta: nil, verdict: .none, count: 0) }
@@ -203,14 +226,17 @@ enum PlaceMetrics {
             weighted += Double(h.n) * (e.sum / Double(e.n))
             weight += h.n
         }
+        let margin = marginOfPlaceMean(visitMeans)
         guard weight > 0 else {
-            return PlaceFigure(value: value, normal: nil, delta: nil, verdict: .none, count: visitsWithHR)
+            return PlaceFigure(value: value, normal: nil, delta: nil, verdict: .none, count: visitsWithHR,
+                               margin: margin)
         }
         let normal = weighted / Double(weight)
         let delta = value - normal
         let verdictNow: PlaceVerdict = visitsWithHR < minVisits
             ? .tooFew : placeVerdict(delta: delta, band: closeBand(.heartRate), higherIsBetter: false)
-        return PlaceFigure(value: value, normal: normal, delta: delta, verdict: verdictNow, count: visitsWithHR)
+        return PlaceFigure(value: value, normal: normal, delta: delta, verdict: verdictNow, count: visitsWithHR,
+                           margin: margin)
     }
 
     /// Stress at a place: the share of its scored awake time in the High band (level ≥ 2), in percent,
@@ -221,6 +247,7 @@ enum PlaceMetrics {
         let spans = here.flatMap { awakeSpans(of: $0, until: now, excluding: excluding) }
         var hereHigh = 0, hereAll = 0, allHigh = 0, allAll = 0
         var visitsWithStress = Set<String>()
+        var perVisit: [String: (high: Int, all: Int)] = [:]
         for window in windows {
             guard let level = window.level else { continue }
             let mid = (window.start + window.end) / 2
@@ -232,20 +259,25 @@ enum PlaceMetrics {
                 if high { hereHigh += 1 }
                 if let v = here.first(where: { mid >= $0.arrivedAt && mid < ($0.departedAt ?? now) }) {
                     visitsWithStress.insert(v.id)
+                    perVisit[v.id, default: (0, 0)].all += 1
+                    if high { perVisit[v.id, default: (0, 0)].high += 1 }
                 }
             }
         }
         guard hereAll > 0 else { return PlaceFigure(value: nil, normal: nil, delta: nil, verdict: .none, count: 0) }
         let value = 100 * Double(hereHigh) / Double(hereAll)
         let normal = allAll > 0 ? 100 * Double(allHigh) / Double(allAll) : nil
+        let margin = marginOfPlaceMean(perVisit.values.filter { $0.all > 0 }
+                                        .map { 100 * Double($0.high) / Double($0.all) })
         guard let normal else {
-            return PlaceFigure(value: value, normal: nil, delta: nil, verdict: .none, count: visitsWithStress.count)
+            return PlaceFigure(value: value, normal: nil, delta: nil, verdict: .none, count: visitsWithStress.count,
+                               margin: margin)
         }
         let delta = value - normal
         let verdictNow: PlaceVerdict = visitsWithStress.count < minVisits
             ? .tooFew : placeVerdict(delta: delta, band: closeBand(.stress), higherIsBetter: false)
         return PlaceFigure(value: value, normal: normal, delta: delta, verdict: verdictNow,
-                           count: visitsWithStress.count)
+                           count: visitsWithStress.count, margin: margin)
     }
 
     // MARK: Points

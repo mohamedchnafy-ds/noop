@@ -62,6 +62,16 @@ struct PlacePointMark: Identifiable, Equatable {
     var id: Int64 { ts }
 }
 
+/// One day of the Map's frise (Carte v2).
+struct PlaceDayTimeline: Equatable {
+    /// Unix seconds: local midnight and the next one.
+    var dayStart: Int
+    var dayEnd: Int
+    var heartRate: [PlaceHRBucket]
+    /// Empty until stress is asked for.
+    var stress: [PlaceStressWindow]
+}
+
 enum PlaceMapReader {
 
     /// The period the Lieux view and a place's screen read (« 90 derniers jours »).
@@ -103,56 +113,72 @@ enum PlaceMapReader {
     /// today and yesterday are scored again at each opening.
     @MainActor
     static func stressWindows(repo: Repository, days: Int, now: Date) async -> [PlaceStressWindow] {
-        var out: [PlaceStressWindow] = []
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let baseline = PuffinExperiment.stressPersonalBaselineEnabled
+        var store = loadPlaceDayStore()
+        var changed = false
+        var out: [PlaceStressWindow] = []
+        for back in stride(from: days - 1, through: 0, by: -1) {
+            guard let day = calendar.date(byAdding: .day, value: -back, to: today) else { continue }
+            out += await stressOfPlaceDay(repo: repo, dayStart: day, now: now, store: &store, changed: &changed)
+        }
+        if changed { saveTrimmedDayStore(store, now: now) }
+        return out
+    }
+
+    /// The day store, emptied of the stress scored with another baseline setting.
+    @MainActor
+    private static func loadPlaceDayStore() -> PlaceMapDayStore {
         var store = PlaceMapCacheFiles.loadDayStore()
+        let baseline = PuffinExperiment.stressPersonalBaselineEnabled
         if store.personalBaseline != baseline {
             store.stress = [:]
             store.personalBaseline = baseline
         }
-        var changed = false
-        for back in stride(from: days - 1, through: 0, by: -1) {
-            guard let day = calendar.date(byAdding: .day, value: -back, to: today) else { continue }
-            let key = dayKey(Int(day.timeIntervalSince1970))
-            let end = calendar.date(byAdding: .day, value: 1, to: day) ?? day.addingTimeInterval(86_400)
-            let frozen = PlaceMapFreeze.isFrozenDay(dayEnd: end, now: now)
-            if frozen, let kept = store.stress[key] {
-                out += kept
-                continue
-            }
-            var dayWindows: [PlaceStressWindow] = []
-            if let scored = await StressDayCurve.day(repo: repo, dayStart: day, now: now,
-                                                     personalBaseline: baseline) {
-                for hour in scored.result.hours {
-                    dayWindows.append(PlaceStressWindow(start: hour.startTs, end: hour.startTs + 3_600,
-                                                        level: hour.maskedForActivity ? nil : hour.level,
-                                                        moving: hour.maskedForActivity))
-                }
-            }
-            out += dayWindows
-            if frozen {
-                store.stress[key] = dayWindows
-                changed = true
-            }
-        }
-        if changed { saveTrimmedDayStore(store, now: now, baseline: baseline) }
-        return out
+        return store
     }
 
-    /// The five-minute heart-rate buckets from `from` to `now`, oldest first, read day by day: a day
-    /// over for long enough comes from the day store, the others from the strap's samples.
+    /// The stress windows of the local day starting at `dayStart`: from the store when the day is frozen
+    /// and already scored, else scored now (and kept when frozen).
     @MainActor
-    static func placeHeartRateBuckets(repo: Repository, from: Date, now: Date) async -> [PlaceHRBucket] {
+    private static func stressOfPlaceDay(repo: Repository, dayStart: Date, now: Date,
+                                         store: inout PlaceMapDayStore, changed: inout Bool) async -> [PlaceStressWindow] {
         let calendar = Calendar.current
-        var store = PlaceMapCacheFiles.loadDayStore()
+        let key = dayKey(Int(dayStart.timeIntervalSince1970))
+        let end = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
+        let frozen = PlaceMapFreeze.isFrozenDay(dayEnd: end, now: now)
+        if frozen, let kept = store.stress[key] { return kept }
+        var windows: [PlaceStressWindow] = []
+        if let scored = await StressDayCurve.day(repo: repo, dayStart: dayStart, now: now,
+                                                 personalBaseline: store.personalBaseline) {
+            for hour in scored.result.hours {
+                windows.append(PlaceStressWindow(start: hour.startTs, end: hour.startTs + 3_600,
+                                                 level: hour.maskedForActivity ? nil : hour.level,
+                                                 moving: hour.maskedForActivity))
+            }
+        }
+        if frozen {
+            store.stress[key] = windows
+            changed = true
+        }
+        return windows
+    }
+
+    /// The five-minute heart-rate buckets from `from` to `to` (default and at most `now`), oldest first,
+    /// read day by day: a day over for long enough comes from the day store, the others from the strap's
+    /// samples.
+    @MainActor
+    static func placeHeartRateBuckets(repo: Repository, from: Date, to: Date? = nil, now: Date) async -> [PlaceHRBucket] {
+        let calendar = Calendar.current
+        var store = loadPlaceDayStore()
         var changed = false
         var out: [PlaceHRBucket] = []
+        let upper = min(to ?? now, now)
         var day = calendar.startOfDay(for: from)
         let fromTs = Int(from.timeIntervalSince1970)
+        let upperTs = Int(upper.timeIntervalSince1970)
         let nowTs = Int(now.timeIntervalSince1970)
-        while day <= now {
+        while day < upper {
             let end = calendar.date(byAdding: .day, value: 1, to: day) ?? day.addingTimeInterval(86_400)
             let startTs = Int(day.timeIntervalSince1970)
             let endTs = Int(end.timeIntervalSince1970)
@@ -171,21 +197,19 @@ enum PlaceMapReader {
                     changed = true
                 }
             }
-            out += dayBuckets.filter { $0.ts >= fromTs && $0.ts <= nowTs }
+            out += dayBuckets.filter { $0.ts >= fromTs && $0.ts <= upperTs }
             day = end
         }
-        if changed {
-            saveTrimmedDayStore(store, now: now, baseline: PuffinExperiment.stressPersonalBaselineEnabled)
-        }
+        if changed { saveTrimmedDayStore(store, now: now) }
         return out
     }
 
     /// Write the day store without the days past `PlaceMapFreeze.keepDays`.
     @MainActor
-    private static func saveTrimmedDayStore(_ store: PlaceMapDayStore, now: Date, baseline: Bool) {
+    private static func saveTrimmedDayStore(_ store: PlaceMapDayStore, now: Date) {
         let oldest = dayKey(Int(now.timeIntervalSince1970) - PlaceMapFreeze.keepDays * 86_400)
         PlaceMapCacheFiles.saveDayStore(PlaceMapFreeze.prunedDayStore(store, oldestKey: oldest,
-                                                                      personalBaseline: baseline))
+                                                                      personalBaseline: store.personalBaseline))
     }
 
     /// The Lieux view: every place with its figures over the last `placeDays` days, those with a stay in
@@ -238,12 +262,22 @@ enum PlaceMapReader {
         return out
     }
 
-    /// The Points view: the points of the last `days` days with their heart rate and stress.
+    /// The points of the last `days` days with their heart rate, and their stress when asked for
+    /// (`includeStress`; stress covers `stressDays` at most).
     @MainActor
-    static func loadPointMarks(repo: Repository, days: Int, now: Date = Date()) async -> [PlacePointMark] {
+    static func loadPointMarks(repo: Repository, days: Int, includeStress: Bool, now: Date = Date()) async -> [PlacePointMark] {
+        await loadPointMarks(repo: repo, from: now.addingTimeInterval(-Double(days) * 86_400), to: now,
+                             includeStress: includeStress, now: now)
+    }
+
+    /// The points from `from` to `to` with their heart rate (against the habitual heart rate of the same
+    /// hour over the last 30 days) and, when asked for, the stress of their hour.
+    @MainActor
+    static func loadPointMarks(repo: Repository, from: Date, to: Date, includeStress: Bool,
+                               now: Date = Date()) async -> [PlacePointMark] {
         guard let store = await repo.storeHandle() else { return [] }
-        let from = now.addingTimeInterval(-Double(days) * 86_400)
-        let points = await PlaceLog.points(store, from: from, to: now)
+        let upper = min(to, now)
+        let points = await PlaceLog.points(store, from: from, to: upper)
         guard !points.isEmpty else { return [] }
         let places = await PlaceLog.places(store)
         // The habitual heart rate per hour comes from the last 30 days whatever the view's period.
@@ -253,7 +287,11 @@ enum PlaceMapReader {
         let hourOf: (Int) -> Int = { calendar.component(.hour, from: Date(timeIntervalSince1970: TimeInterval($0))) }
         let habitual = PlaceMetrics.habitualHeartRateByHour(
             buckets.filter { $0.ts >= Int(habitFrom.timeIntervalSince1970) }, hourOf: hourOf)
-        let windows = await stressWindows(repo: repo, days: min(days, stressDays), now: now)
+        var windows: [PlaceStressWindow] = []
+        if includeStress {
+            let spanDays = Int((now.timeIntervalSince(calendar.startOfDay(for: from)) / 86_400).rounded(.up))
+            windows = await stressWindows(repo: repo, days: min(max(spanDays, 1), stressDays), now: now)
+        }
         return points.map { point in
             let ts = Int(point.ts / 1000)
             let bpm = PlaceMetrics.heartRateAt(ts, buckets: buckets)
@@ -266,5 +304,24 @@ enum PlaceMapReader {
                                   placeName: place.map { PlaceNaming.placeName($0, in: places) },
                                   steps: point.steps)
         }
+    }
+
+    /// One day of the Map's frise: its heart rate and, when asked for, its hourly stress.
+    @MainActor
+    static func loadDayTimeline(repo: Repository, dayStart: Date, includeStress: Bool,
+                                now: Date = Date()) async -> PlaceDayTimeline {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: dayStart)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        let heartRate = await placeHeartRateBuckets(repo: repo, from: start, to: end, now: now)
+        var stress: [PlaceStressWindow] = []
+        if includeStress {
+            var store = loadPlaceDayStore()
+            var changed = false
+            stress = await stressOfPlaceDay(repo: repo, dayStart: start, now: now, store: &store, changed: &changed)
+            if changed { saveTrimmedDayStore(store, now: now) }
+        }
+        return PlaceDayTimeline(dayStart: Int(start.timeIntervalSince1970), dayEnd: Int(end.timeIntervalSince1970),
+                                heartRate: heartRate, stress: stress)
     }
 }

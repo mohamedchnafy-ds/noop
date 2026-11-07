@@ -13,7 +13,8 @@ extension CoachFiche {
         guard !places.isEmpty else { return "" }
         var lines = ["PLACES (last 90 days; where the user stays, named by the user or numbered; each figure is "
                      + "compared with the user's OWN normal. A difference is not a cause: a place mostly reflects "
-                     + "what the user does there. Coordinates are never shared):"]
+                     + "what the user does there. A difference within its margin of error is noise, not a finding. "
+                     + "Coordinates are never shared):"]
         for place in places.sorted(by: { $0.visits > $1.visits }).prefix(maxPlaces) {
             var parts = ["\(place.visits) visits", "\(place.nights) nights"]
             func appendPlaceFigure(_ label: String, _ f: PlaceFigure, unit: String) {
@@ -22,6 +23,7 @@ extension CoachFiche {
                 if let delta = f.delta, let normal = f.normal {
                     let sign = delta >= 0 ? "+" : "−"
                     text += " (\(sign)\(Int(abs(delta).rounded()))\(unit) vs normal \(Int(normal.rounded()))\(unit)"
+                    if let margin = f.margin { text += ", margin of error ±\(Int(max(margin.rounded(), 1)))\(unit)" }
                     text += f.verdict == .tooFew ? ", too few to conclude)" : ")"
                 }
                 parts.append(text)

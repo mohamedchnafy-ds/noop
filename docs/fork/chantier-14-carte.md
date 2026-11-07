@@ -97,6 +97,17 @@ Choix de Mohamed (7 nov.) : **l'étape 1 entière** dans une PR, puis une IPA. N
 - **Coach** : « Le Coach peut le lire » allumé → « Est-ce que je dors mieux chez mes parents ? » ; éteint → il ne sait rien des lieux.
 - **Sauvegarde** : un `.noopbak` exporté puis restauré garde les lieux et les points.
 
+## Carte v2 — retours sur l'IPA `build/carte-2` (7 nov., soir) et choix de Mohamed
+Captures du 7 nov. (19:59) : vues Séances, Lieux (FC, VFC « aucune nuit »), Points (7 J, 18 points).
+**Retours** : le design ne fait pas « sport / science » comme le reste de l'app ; l'affichage sur la carte est à optimiser ; vouloir une légende, choisir ce qu'on affiche et voir plusieurs valeurs à la fois ; **Lieux met du temps à s'afficher**.
+**Constats** : fond Apple Plans chargé (commerces, cinéma, hôpital) qui écrase les données ; un lieu sans écart = grand cercle gris vide ; « Moins bien » sort en **jaune** (`statusWarning`) au lieu d'orange ; trois vues séparées (impossible de voir un trajet et ses points ensemble). Lenteur : à chaque ouverture, stress recalculé jour par jour sur 14 j (`StressDayCurve.day` × 14, le plus lourd) + 90 j de FC / sommeil / séances, et rechargé à chaque nouveau point (`places.revision`).
+**Choix (7 nov.)** : les 4 propositions, **codées directement sans maquette** :
+1. **Une carte à calques** : une seule carte ; bouton Calques pour afficher **en même temps** Trajets, Lieux et Points ; couleur au choix (FC, Stress, VFC, Récup, Cadence) ; **légende posée sur la carte** selon ce qui est allumé.
+2. **Fond sobre, données en avant** : fond sombre atténué sans commerces ni lieux publics (`MKStandardMapConfiguration(emphasisStyle: .muted)`, `pointOfInterestFilter = .excludingAll`, sombre) ; lieux en disques pleins avec leur valeur en étiquette (« VFC +4 ms ») ; points reliés en trajet fin ; plein écran.
+3. **Frise de la journée** : sous la carte, la courbe FC ou Stress du jour ; glisser le doigt dessus montre le point sur la carte, toucher un point montre son heure sur la courbe.
+4. **« Ce qui ressort »** : les écarts nets classés (ex. « Chez mes parents : VFC −7 ms, 6 nuits ») avec le nombre de jours et une marge d'erreur ; signalé seulement s'il dépasse le bruit.
+Toujours : **Lieux s'affiche tout de suite** (résultats gardés d'un jour à l'autre — un jour passé ne change plus —, affichage immédiat du dernier calcul, stress calculé seulement quand on touche Stress) ; « Moins bien » en **orange**.
+
 ## Prompt de démarrage (pour une nouvelle conversation)
 > Chantier 14 — Carte (fork NOOP). Lis `docs/fork/feuille-de-route.md`, puis `docs/fork/chantier-14-carte.md` (fiche du chantier : choix de Mohamed, code de l'étape 1, liste « À tester »). L'étape 1 (pas de l'iPhone toutes les 5 s, trajet coloré par zones FC ou par cadence, écran Carte dans Plus → Analyses) est sur la PR #102 / `main` selon son état. Prochaine étape : les retours de Mohamed sur l'IPA `build/carte`, puis l'étape 2 (Lieux, suivi continu réglable, autorisation « Toujours », défaut Équilibré · 15 min, pas depuis le point précédent) : maquette v1 https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ (écrans 3 à 7) à faire valider avant de coder ; stockage des lieux à trancher (migration iOS v54 / Android 45→46 ou stockage à part). Règles : `.claude/rules/fork-noop.md` (questions par l'outil à choix multiples, vérifications avant de pousser, IPA par `build/<nom>`).
 

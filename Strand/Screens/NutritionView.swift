@@ -68,6 +68,15 @@ struct NutritionView: View {
     // Personal fork, chantier 8: the followed Lab Book markers, and the Lab Book they open.
     @State private var labLines: [NutritionLabLine] = []
     @State private var showLabBook = false
+    // Personal fork, chantier 15: the Fast · Water card under the rings, and the Jeûne page it opens. The
+    // fast is resolved once (`FastingLog`), the water read from the hydration store; both reload with their
+    // revisions and the day.
+    @AppStorage(FastingLog.revisionKey) private var fastingRevision = 0
+    @AppStorage(FastingView.dismissedDoneKey) private var dismissedDoneId = ""
+    @State private var fastingState: FastingState?
+    @State private var waterML: Double = 0
+    @State private var waterTick = 0
+    @State private var showFasting = false
 
     private enum ScannerExit {
         case manual, coach
@@ -120,6 +129,11 @@ struct NutritionView: View {
                                    onScan: barcodeScannerAvailable ? { scannerSlot = nil; showScanner = true } : nil)
                 NutritionBalanceCard(model: NutritionBalanceModel(summary: current, plan: plan),
                                      animated: summary?.dayKey == dayKey)
+                NutritionFastingCard(state: fastingState, waterML: waterML,
+                                     goalML: repo.hydrationGoalML(profileSex: profile.sex),
+                                     animated: summary?.dayKey == dayKey,
+                                     onOpen: { showFasting = true },
+                                     onAddWater: { Task { await addWaterFromCard() } })
             }
             .nutritionListRow()
 
@@ -166,6 +180,11 @@ struct NutritionView: View {
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .navigationDestination(isPresented: $showHistory) { NutritionHistoryScreen() }
+        .navigationDestination(isPresented: $showFasting) { FastingView() }
+        .task(id: "\(fastingRevision)-\(dismissedDoneId)-\(Repository.localDayKey(Date()))") { await reloadFastingCard() }
+        .task(id: "\(waterTick)-\(repo.refreshSeq)-\(Repository.localDayKey(Date()))") {
+            waterML = await repo.hydrationTotal(day: Repository.logicalDayKey(Date()))
+        }
         .task(id: "\(mealRevision)-\(Repository.localDayKey(Date()))") {
             let days = await NutritionHistory.loadNutritionHistory(repo, profile: profile, range: .week)
             if !Task.isCancelled { week = days }
@@ -224,6 +243,29 @@ struct NutritionView: View {
         } message: { _ in
             Text("It is removed from your journal.")
         }
+    }
+
+    // MARK: Fast · Water (personal fork, chantier 15)
+
+    /// The fast shown on the card: the running one, else the one just over until « New fast ».
+    private func reloadFastingCard() async {
+        guard let store = await repo.storeHandle() else { return }
+        let now = Date()
+        if let state = await FastingLog.resolveFastingState(store, now: now) {
+            fastingState = state
+            return
+        }
+        if let latest = await FastingLog.recentFastRows(store, limit: 1).first, latest.endedAt != nil,
+           latest.id != dismissedDoneId {
+            fastingState = FastingLog.fastingState(of: latest, now: now)
+        } else {
+            fastingState = nil
+        }
+    }
+
+    private func addWaterFromCard() async {
+        _ = await repo.logHydration(amountMl: 250, day: Repository.logicalDayKey(Date()))
+        waterTick += 1
     }
 
     // MARK: Parts

@@ -176,18 +176,18 @@ struct FastingPhasesCard: View {
     }
 
     private func row(_ index: Int) -> some View {
-        let standing = standing(index)
+        let place = standing(index)
         let tint = FastingPhaseText.tint(index)
         return Button { onPick(index) } label: {
             HStack(spacing: 12) {
                 ZStack {
-                    Circle().fill(standing == .current ? tint
-                                  : standing == .passed ? StrandPalette.fastingDone.opacity(0.18)
+                    Circle().fill(place == .current ? tint
+                                  : place == .passed ? StrandPalette.fastingDone.opacity(0.18)
                                   : StrandPalette.fastingRemaining.opacity(0.16))
                     Image(systemName: FastingPhaseText.symbol(index))
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(standing == .current ? StrandPalette.surfaceBase
-                                         : standing == .passed ? StrandPalette.fastingDone : StrandPalette.fastingRemaining)
+                        .foregroundStyle(place == .current ? StrandPalette.surfaceBase
+                                         : place == .passed ? StrandPalette.fastingDone : StrandPalette.fastingRemaining)
                 }
                 .frame(width: 32, height: 32)
                 VStack(alignment: .leading, spacing: 1) {
@@ -206,16 +206,16 @@ struct FastingPhasesCard: View {
                     .monospacedDigit()
             }
             .padding(.vertical, 6)
-            .padding(.horizontal, standing == .current ? 8 : 0)
+            .padding(.horizontal, place == .current ? 8 : 0)
             .frame(minHeight: 52)
-            .background(standing == .current ? StrandPalette.surfaceInset : Color.clear,
+            .background(place == .current ? StrandPalette.surfaceInset : Color.clear,
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .padding(.horizontal, standing == .current ? -8 : 0)
+            .padding(.horizontal, place == .current ? -8 : 0)
             .contentShape(Rectangle())
         }
         .buttonStyle(LiquidPressStyle())
         .overlay(alignment: .top) {
-            if index > 0 && standing != .current && standing(index - 1) != .current {
+            if index > 0 && place != .current && standing(index - 1) != .current {
                 Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
             }
         }
@@ -345,82 +345,28 @@ struct FastingWaterCard: View {
     private var goalShare: Double { min(1, max(0, Double(goalML) / 3000)) }
     private var percent: Int { goalML > 0 ? Int((totalML / Double(goalML) * 100).rounded(.towardZero)) : 0 }
     private var leftML: Double { max(0, Double(goalML) - totalML) }
+    /// Where the « goal » word sits under the dashed line, in the 210-point bottle (0 L at 196, 3 L at 46).
+    private var goalLabelOffsetY: CGFloat {
+        let level: CGFloat = 196 - CGFloat(goalShare) * 150
+        return level - 105 + 12
+    }
+
+    /// « 43 % » of the goal, computed once so the body stays simple to type-check.
+    private var percentText: String {
+        let permille = goalML > 0 ? Int(totalML / Double(goalML) * 1000) : 0
+        return FastingFormat.percent(permille: permille)
+    }
 
     var body: some View {
         NoopCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Water")
-                        .font(StrandFont.headline)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Spacer()
-                    Text("today's goal \(FastingFormat.litres(ml: Double(goalML)))")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                }
+                header
                 HStack(alignment: .center, spacing: 14) {
-                    ZStack {
-                        FastingBottle(fill: fill, goal: goalShare)
-                            .frame(width: 150, height: 210)
-                        Text("goal")
-                            .font(StrandFont.caption2.weight(.semibold))
-                            .foregroundStyle(StrandPalette.textPrimary.opacity(0.75))
-                            .offset(x: -15, y: -210 / 2 + 210 * (0.05 + 0.715 * (1 - goalShare)) + 14)
-                            .accessibilityHidden(true)
-                    }
-                    .contentShape(Rectangle())
-                    .onLongPressGesture { onCorrect() }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text("Water"))
-                    .accessibilityValue(Text(verbatim: "\(FastingFormat.litres(ml: totalML)) / \(FastingFormat.litres(ml: Double(goalML)))"))
-                    .accessibilityHint(Text("Long press to correct an entry"))
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            NoopRollingNumber(value: totalML, format: { FastingFormat.litres(ml: $0) },
-                                              font: StrandFont.rounded(26), color: StrandPalette.accent,
-                                              armed: animated, launchKey: "fasting.water")
-                            Text("\(FastingFormat.percent(permille: goalML > 0 ? Int(totalML / Double(goalML) * 1000) : 0)) of the goal")
-                                .font(StrandFont.footnote)
-                                .foregroundStyle(StrandPalette.textSecondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        if leftML > 0 {
-                            Text("\(FastingFormat.litres(ml: leftML)) to go before the goal.")
-                                .font(StrandFont.footnote)
-                                .foregroundStyle(StrandPalette.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } else {
-                            Text("Goal reached. Keep drinking to your thirst.")
-                                .font(StrandFont.footnote)
-                                .foregroundStyle(StrandPalette.fastingDone)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                            waterButton(Text("\(250) ml"), filled: true, plus: true) { onAdd(250) }
-                            waterButton(Text("\(500) ml"), filled: true, plus: true) { onAdd(500) }
-                            waterButton(Text("Custom · \(customML) ml"), filled: false) { onAdd(customML) }
-                            waterButton(Text("Undo the last"), filled: false, enabled: canUndo) { onUndo() }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    bottle
+                    figures
                 }
                 Rectangle().fill(StrandPalette.hairline).frame(height: NoopMetrics.hairlineWidth)
-                HStack {
-                    Text("Long press on the bottle to correct an entry")
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                    Spacer(minLength: 8)
-                    Button(action: onCaffeine) {
-                        HStack(spacing: 2) {
-                            Text("Coffee · tea")
-                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
-                        }
-                        .font(StrandFont.caption.weight(.semibold))
-                        .foregroundStyle(StrandPalette.accent)
-                    }
-                    .buttonStyle(.plain)
-                }
+                footer
             }
         }
         .onAppear {
@@ -431,6 +377,91 @@ struct FastingWaterCard: View {
             withAnimation(NoopMotion.gated(NoopMotion.valueChange, reduced: motion.poseStill(reduceMotion))) {
                 fill = newShare
             }
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Water")
+                .font(StrandFont.headline)
+                .foregroundStyle(StrandPalette.textPrimary)
+            Spacer()
+            Text("today's goal \(FastingFormat.litres(ml: Double(goalML)))")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+        }
+    }
+
+    private var bottle: some View {
+        ZStack {
+            FastingBottle(fill: fill, goal: goalShare)
+                .frame(width: 150, height: 210)
+            Text("goal")
+                .font(StrandFont.caption2.weight(.semibold))
+                .foregroundStyle(StrandPalette.textPrimary.opacity(0.75))
+                .offset(x: -15, y: goalLabelOffsetY)
+                .accessibilityHidden(true)
+        }
+        .contentShape(Rectangle())
+        .onLongPressGesture { onCorrect() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Water"))
+        .accessibilityValue(Text(verbatim: "\(FastingFormat.litres(ml: totalML)) / \(FastingFormat.litres(ml: Double(goalML)))"))
+        .accessibilityHint(Text("Long press to correct an entry"))
+    }
+
+    private var figures: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                NoopRollingNumber(value: totalML, format: { FastingFormat.litres(ml: $0) },
+                                  font: StrandFont.rounded(26), color: StrandPalette.accent,
+                                  armed: animated, launchKey: "fasting.water")
+                Text("\(percentText) of the goal")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            if leftML > 0 {
+                Text("\(FastingFormat.litres(ml: leftML)) to go before the goal.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Goal reached. Keep drinking to your thirst.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.fastingDone)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            buttons
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var buttons: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+            waterButton(Text("\(250) ml"), filled: true, plus: true) { onAdd(250) }
+            waterButton(Text("\(500) ml"), filled: true, plus: true) { onAdd(500) }
+            waterButton(Text("Custom · \(customML) ml"), filled: false) { onAdd(customML) }
+            waterButton(Text("Undo the last"), filled: false, enabled: canUndo) { onUndo() }
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Text("Long press on the bottle to correct an entry")
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Spacer(minLength: 8)
+            Button(action: onCaffeine) {
+                HStack(spacing: 2) {
+                    Text("Coffee · tea")
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                }
+                .font(StrandFont.caption.weight(.semibold))
+                .foregroundStyle(StrandPalette.accent)
+            }
+            .buttonStyle(.plain)
         }
     }
 

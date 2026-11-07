@@ -1,6 +1,6 @@
 # Chantier 15 — Jeûne intermittent et eau (section de Nutrition) — fiche (7 nov. 2026)
 
-**État** : demande reçue le 7 nov. (nuit). **Rien de codé.** Étape suivante : questions à Mohamed (outil à choix multiples), puis **maquette** (artefact Design, style F), validation, puis le code.
+**État** : demande reçue le 7 nov. (nuit) ; **questions posées et répondues le 7 nov. (soir)** ; **maquette faite** (lien ci-dessous), **en attente de la validation de Mohamed**. **Rien de codé.** Étape suivante : ses retours sur la maquette, puis le code (PR depuis `main`), une IPA à la fin.
 
 ## La demande (7 nov., mots de Mohamed résumés)
 - Une **nouvelle section dans Nutrition** : le **jeûne intermittent**. Mohamed ne sait pas encore où la placer : la maquette doit proposer l'emplacement.
@@ -17,7 +17,23 @@
 - **Repas** : tout passe par `MealJournal` (moment du repas, heure) ; la page Nutrition est organisée par moments (#70).
 - **Jeûne** : **rien** (le mot « fasting » n'apparaît que dans les marqueurs de labo, `fasting_glucose`).
 
-## Propositions de Claude (à faire trancher dans les questions)
+## Réponses de Mohamed (7 nov., soir, outil à choix multiples)
+1. **Place** : **sous les anneaux, au-dessus des moments de repas** (carte compacte Jeûne · Eau juste après la carte des 4 anneaux ; un tap ouvre la page Jeûne).
+2. **Forme du jeûne** (réponse dictée, reformulée) : **un anneau qui ressemble à celui du Sommeil** (fer à cheval ouvert en bas, début en bas à gauche, fin en bas à droite, sens d'une montre), mais **agréable et joyeux, sans rappeler le sommeil** : vert vif = fait, rouge doux = reste, point lumineux à « maintenant », étincelles quand l'objectif est atteint ; pas de violet ni de lune.
+3. **Durées** : **raccourcis + molette** : pastilles 14 · 16 · 18 · 20 h et une molette à l'heure près de 12 à 36 h ; 16 h par défaut, puis la dernière durée utilisée.
+4. **1re version** : **les quatre extras** : lien avec les repas (3), historique 7 j / 30 j + série (5), notification de fin + Live Activity (6 + 7, sans widget), Coach + bracelet (8 + 9).
+- Eau : non reposée (déjà tranchée dans la demande) : **bouteille graduée 0 · 1 L · 2 L · 3 L**, bleue comme l'écran Hydratation, branchée sur `HydrationStore` / `HydrationGoal`.
+
+## Maquette (7 nov., soir) — à valider
+- **Artefact Design** : https://claude.ai/artifact/7B61h2m4wtyxh28iKuzmdJ (style F : fond noir, cartes #1C1C1E, chiffres arrondis). Cinq planches :
+  1. **Nutrition** avec la carte Jeûne · Eau sous les anneaux (mini-anneau, « reste 4 h 18 min · fin prévue 12:30 », ligne Eau, « + 250 ml » au bord droit ; « Petit-déjeuner » porte « jeûne jusqu'à 12:30 »). Un tap sur la carte ouvre la planche 2.
+  2. **Page Jeûne, interactive** : anneau fer à cheval (vert fait / rouge doux reste, repère « 12 h », point blanc à maintenant, pastille couverts au début, soleil à la fin), « 11 h 42 min · faites sur 16 h · reste 4 h 18 min » ; boutons **Début** (feuille : reculer l'heure, l'anneau se recalcule) et **Fin prévue** (feuille : pastilles + molette, la fin se déplace) ; **Arrêter le jeûne** (feuille : fin réelle à corriger, écart à l'objectif) → **Terminé** (badge atteint / non atteint, « Corriger la fin », « Nouveau jeûne ») → **Pas de jeûne** (choix de la durée, « Commencer maintenant », « Déjà commencé ? »). Dessous : **Eau** (bouteille graduée, ligne pointillée = objectif 2,9 L, + 250 / + 500 / Perso / Annuler la dernière, appui long pour corriger, lien Café · thé) et **Vos jeûnes** (7 j | 30 j, barres vertes / rouge doux / grises, moyenne, objectif tenu, série).
+  3. **Les quatre états** côte à côte : pas de jeûne, modifier le début (roue), arrêter plus tôt (fin réelle), terminé (objectif atteint, étincelles).
+  4. **Autour** : Live Activity de l'écran verrouillé (modèle de la bannière de séance ; pas de widget, lot à 10), notification « 16 h de jeûne atteintes », question « Terminer le jeûne à 12:30 ? » quand on note un repas, bloc FASTING de la fiche du Coach + pastilles, carte « Nuits de jeûne » (VFC, FC repos, sommeil ; règle de « Ce qui ressort »).
+  5. **Ce que j'ai retenu** : les réponses ci-dessus, ce qui reste à trancher au code (stockage / migration, un seul résolveur de l'état du jeûne, vraies roues heure / minute), ce qui attend (plan habituel, repères 18 / 24 h, widget, frise 24 h).
+- Hypothèses prises dans la maquette (à confirmer avec elle) : la notification de fin est allumée par défaut, celle de mi-parcours éteinte (réglages derrière l'engrenage de la page) ; un repas noté à une heure antérieure recule la fin réelle ; les boissons sans calories ne posent pas la question ; la carte Nutrition montre « Terminé · 16 h 20 min » jusqu'au prochain « Commencer ».
+
+## Propositions de Claude (tranchées le 7 nov. au soir, voir « Réponses »)
 1. **Anneau du jeûne** (cohérent avec les anneaux de l'app) : vert = fait, rouge doux = reste ; heure de début et heure de fin prévue sous l'anneau, chacune modifiable d'un tap ; au centre « 11 h 42 / 16 h ». Variante : une barre horizontale ou une frise de 24 h qui montre aussi la fenêtre de repas.
 2. **Repères pendant le jeûne** (facultatifs, présentés comme indicatifs, jamais médicaux) : 12 h, 16 h, 18 h, 24 h marqués sur l'anneau.
 3. **Lien avec les repas** : noter un repas pendant un jeûne propose « Terminer le jeûne à 12:30 ? » (heure du repas) ; la fenêtre de repas suit d'elle-même la fin du jeûne.
@@ -29,7 +45,7 @@
 9. **Coach** : bloc FASTING (jeûne en cours, historique court) dans sa fiche ; il peut proposer un repas de reprise.
 10. **Eau** : une bouteille graduée 0 → 3 L (graduation finale = l'objectif `HydrationGoal`, arrondi), boutons + 250 ml / + 500 ml / perso, appui long pour corriger ; café / thé (caféine) en raccourci à côté.
 
-## Choix par défaut (si Mohamed ne tranche pas)
+## Choix par défaut (historique : tranchés le 7 nov. au soir, voir « Réponses »)
 - Place : **carte en haut de la page Nutrition** (au-dessus des moments de repas), qui ouvre une page « Jeûne » avec le détail et l'historique.
 - Visuel : **anneau** (vert fait / rouge doux reste), durée par défaut **16 h**, choix rapide 12 · 14 · 16 · 17 · 18 · 19 · 20 h + « Autre ».
 - Eau : **une bouteille graduée** sous le jeûne, branchée sur `HydrationStore` et `HydrationGoal`.

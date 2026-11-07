@@ -310,9 +310,12 @@ targets:
           - $(PRODUCT_BUNDLE_IDENTIFIER).stalebattery
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your iPhone. Nothing leaves your device."
         NSLocationWhenInUseUsageDescription: "NOOP records your route during an outdoor workout to show distance, pace, and a map, and keeps recording while the screen is off. The route stays on your device. Nothing leaves it."
+        # Personal fork, chantier 14: Places (More → Analyses → Map) asks for « Always » to keep the places
+        # where the wearer stays and a point every N minutes. Off until the wearer turns Places on.
+        NSLocationAlwaysAndWhenInUseUsageDescription: "When you turn Places on, NOOP keeps the places where you stay and a position every few minutes, so the Map can show your heart rate, stress and nights by place. Everything stays on your iPhone. Nothing leaves it."
         NSHealthShareUsageDescription: "NOOP reads your own Apple Health data on-device to compute recovery, strain, and sleep. Nothing leaves your device."
         NSHealthUpdateUsageDescription: "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."
-        NSMotionUsageDescription: "NOOP reads your iPhone's step count for a walking or running workout to show steps in the activity summary, and whether the phone has been still for the last few minutes so Today can tell a resting heart-rate rise from activity. It stays on your device. Nothing leaves it."
+        NSMotionUsageDescription: "NOOP reads your iPhone's step count for a walking or running workout to show steps in the activity summary, the steps between two positions when Places is on, and whether the phone has been still for the last few minutes so Today can tell a resting heart-rate rise from activity. It stays on your device. Nothing leaves it."
         # K4: Coach voice input. Speech is transcribed ON-DEVICE ONLY (requiresOnDeviceRecognition);
         # the mic button is disabled where the locale doesn't support that, never falls back to
         # server transcription. Only the resulting TEXT reaches the provider, via the same channel

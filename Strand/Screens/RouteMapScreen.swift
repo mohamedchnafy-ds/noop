@@ -123,7 +123,19 @@ struct RouteMapScreen: View {
     private var effectiveMode: RouteColorMode { hasCadence ? mode : .zones }
 
     var body: some View {
-        ScreenScaffold(title: "Map", subtitle: "Your outdoor workouts") {
+        ScreenScaffold(title: "Map", subtitle: "Your outdoor workouts", trailing: {
+            // Personal fork, chantier 14 step 2: Places and the location tracking.
+            NavigationLink {
+                PlacesSettingsView()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Places settings"))
+        }) {
             Picker("Period", selection: $period) {
                 ForEach(RouteMapPeriod.allCases) { Text($0.title).tag($0) }
             }

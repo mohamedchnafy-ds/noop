@@ -1,6 +1,6 @@
 # Chantier 14 — Carte (position et métriques) — fiche (6 nov. 2026)
 
-**État** : **étape 1 fusionnée le 7 nov.** (#102, `main` 138c166 ; IPA `build/carte` validée par Mohamed). **Étape 2 en code (7 nov.)** : maquette v1 validée telle quelle ; **code fusionné** : A stockage (#106), B suivi (#107), C écrans Lieux · Un lieu · Points + Coach (#108), `main` 4be20b4 ; **IPA `build/carte-2`** = `main` 4be20b4, à valider sur le téléphone (liste « À tester » de l'étape 2 ci-dessous).
+**État** : étape 1 fusionnée (#102) ; étape 2 fusionnée (#106, #107, #108, `main` 4be20b4, IPA `build/carte-2` essayée) ; **Carte v2 fusionnée le 7 nov. (nuit)** : #111 (rapidité, fond sobre, orange) et #112 (carte à calques, frise, « Ce qui ressort »), `main` 5dee25b ; **IPA `build/carte-3`** = `main` 5dee25b, à valider sur le téléphone (liste « À tester (IPA `build/carte-3`) »).
 
 ## La demande (6 nov.)
 Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d'autres métriques, pour voir si une métrique dépend du lieu.
@@ -118,6 +118,7 @@ Toujours : **Lieux s'affiche tout de suite** (résultats gardés d'un jour à l'
   - **Orange** : jeton `StrandPalette.deviationOrange` (orange dans les deux styles de graphique ; `statusWarning` vire au jaune en style Classique, d'où le jaune vu sur l'IPA) pour « Moins bien », « Plus haute » et l'avertissement de position.
 
 - **PR 1 fusionnée** : #111 (`main` 92e1180, 16/16).
+- **PR 2 fusionnée** : #112 (`main` 5dee25b, 6/6 : macOS + StrandTests, iOS, Android, Tools).
 - **PR 2 — carte à calques, frise, « Ce qui ressort »** :
   - **Un seul écran** (`RouteMapScreen`) : la carte (`LayeredPlaceMap`) dessine en même temps **Trajets** (zones FC, ou cadence), **Lieux** (disques pleins de 14 à 28 pt selon les séjours, nom + « VFC +4 ms » dessous ; pâle quand trop peu ou rien à comparer) et **Points** (petits disques reliés par un trajet fin, coupé quand deux points sont à plus de 3 h). Bouton **Calques** (menu à cases) et **Plein écran** en haut à droite ; **légende posée en bas à gauche**, une ligne par calque allumé. Calques et couleur gardés (`map.layers.*`, `map.tint`).
   - **Couleur au choix** (pastilles sous la carte) : FC · Stress · VFC · Récup · Cadence (Cadence seulement si une séance a les pas). Lieux suivent FC / Stress / VFC / Récup (Cadence → VFC) ; Points suivent Stress, sinon FC ; Trajets en zones FC, sinon cadence.

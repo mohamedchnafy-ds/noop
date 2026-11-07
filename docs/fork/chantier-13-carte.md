@@ -30,6 +30,17 @@ Une carte avec plusieurs calques : mes positions avec la FC, avec la VFC, avec d
 - **Calque Points** (vue Séances | Lieux | Points) : FC comparée à ta FC habituelle de la même heure (±3 bpm = normale ; bleu clair plus basse, orange plus haute) ou Stress (couleurs Calme / Modéré / Élevé, gris foncé en mouvement) ; Jour · 7 J · 30 J ; toucher un point = heure, lieu, valeurs ; point creux sans FC.
 - Maquette : écrans 6 « Suivi de position » et 7 « Carte · Points » du canvas.
 
+### Pas (choix de Mohamed, 7 nov.)
+- **Le WHOOP 4.0 n'envoie pas de pas** en Bluetooth, et son accéléromètre arrive environ une fois par minute : impossible de compter les foulées. Aujourd'hui NOOP montre une **estimation** du jour (`steps_est`, `StepsEstimateEngine`, calibrée sur les pas de l'iPhone) ; seul le WHOOP 5.0/MG a un compteur (`step_motion_counter`).
+- La source des pas est donc **l'iPhone** (CoreMotion, `CMPedometer`), qui doit être sur soi. Déjà utilisé une fois en fin de séance (`Strand/Data/WorkoutPedometer.swift`, `NSMotionUsageDescription` présent) ; à ajouter : le relevé **en direct** (`startUpdates`).
+- **Pendant une séance d'extérieur** (marche, course, rando) : un relevé **toutes les 5 s** (pas cumulés, cadence en pas/min, distance du podomètre), à côté des points GPS (même heure) :
+  - tuiles **Pas** et **Cadence** sur l'écran de séance en cours ;
+  - dans le détail : **courbe des pas/min** et **pas de chaque km** ;
+  - sur la Carte : couleur du trajet **Zones FC | Cadence**.
+- **Suivi continu** : chaque point (Équilibré · 15 min) garde aussi les **pas depuis le point précédent**, lus dans l'historique de l'iPhone (7 jours gardés par iOS) sans relevé en direct.
+- iOS donne les mises à jour du podomètre à son rythme (quelques secondes) : on garde la dernière valeur toutes les 5 s. Stockage iPhone seulement, à côté du trajet (`RouteStore`) ; pas de donnée envoyée.
+- Rangé dans ce chantier, avec l'étape 1 (même séance GPS) ; maquette refaite dans le nouveau design.
+
 ## Maquette v1 (6 nov.) — à valider
 Canvas « NOOP – Carte » — https://claude.ai/artifact/KAiT8uvq4iWVKHeX4TY7uJ. Style F, valeurs d'exemple. 8 écrans :
 0 Feuille Plus (ligne **Carte** sous Tendances, « 6 séances › ») · 1 Carte · Séances (interactif : 30 J · 90 J · Tout, toucher une séance = elle seule sur la carte, barre des zones par séance) · 2 Carte d'une séance (trajet par zone, pic de FC entouré, temps par zone) · 3 Carte · Lieux (interactif : calques FC · Stress · VFC · Récup, pastilles bleu clair = mieux que ta normale, gris = proche, orange = moins bien, taille = nombre de visites, creuses = pas assez de données) · 4 Un lieu (écarts VFC, Récupération, Sommeil, FC, Stress ; barres des nuits ; « Oublier ce lieu ») · 5 Activer les Lieux (ce qui est enregistré, « Toujours », interrupteurs Suivre / Le Coach peut le lire / Dans la sauvegarde, Garder 1 an, Effacer) · 6 Suivi de position (interactif : mode, fréquence, plages, pause à l'arrêt) · 7 Carte · Points (interactif : FC · Stress, Jour · 7 J · 30 J).

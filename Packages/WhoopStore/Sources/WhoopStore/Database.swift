@@ -1290,6 +1290,48 @@ extension WhoopStore {
                 t.add(column: "slot", .text)
             }
         }
+        // v54-places (personal fork, chantier 14 step 2): where the wearer was, kept on the device.
+        // Twin of the Android `MIGRATION_45_46`; the three tables are pinned in schema_oracle.json as `both`.
+        //   - `locationPoint`: one position of the continuous tracking (one per interval or per distance,
+        //     depending on the mode), keyed by its time in unix MILLISECONDS (the `WorkoutRoutePoint`
+        //     unit), with the iPhone pedometer's steps since the previous point (nil: unknown). No metric
+        //     is copied here: heart rate, stress and the rest are found again by time in the strap's data.
+        //   - `place`: a spot where the wearer stays (a cluster of iOS visits), with an optional name
+        //     typed by the wearer and the radius of the zone, in metres.
+        //   - `placeVisit`: one stay at a place, unix seconds; `departedAt` nil while it is still going.
+        // No `deviceId`: a position belongs to the person, not to a strap (the `meal` reasoning). Every
+        // create is `ifNotExists` so the migration is a no-op on a database that already has the tables.
+        migrator.registerMigration("v54-places") { db in
+            try db.create(table: "locationPoint", options: [.ifNotExists]) { t in
+                t.column("ts", .integer).notNull().primaryKey()   // unix ms
+                t.column("lat", .double).notNull()
+                t.column("lon", .double).notNull()
+                t.column("accuracyM", .double).notNull()
+                t.column("steps", .integer)                       // since the previous point; nil: unknown
+            }
+            try db.create(table: "place", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text)                           // nil until the wearer names it
+                t.column("lat", .double).notNull()
+                t.column("lon", .double).notNull()
+                t.column("radiusM", .double).notNull()
+                t.column("createdAt", .integer).notNull()         // unix seconds
+            }
+            try db.create(table: "placeVisit", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("placeId", .text).notNull()
+                t.column("arrivedAt", .integer).notNull()         // unix seconds
+                t.column("departedAt", .integer)                  // unix seconds; nil: still there
+                t.column("lat", .double).notNull()
+                t.column("lon", .double).notNull()
+                t.column("accuracyM", .double).notNull()
+            }
+            // A place's screen reads its visits in order; the map and the nights read a time window.
+            try db.create(index: "idx_placeVisit_place_arrivedAt", on: "placeVisit",
+                          columns: ["placeId", "arrivedAt"], options: [.ifNotExists])
+            try db.create(index: "idx_placeVisit_arrivedAt", on: "placeVisit",
+                          columns: ["arrivedAt"], options: [.ifNotExists])
+        }
         return migrator
     }
 }

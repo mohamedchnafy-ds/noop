@@ -1573,6 +1573,13 @@ final class AICoachEngine: ObservableObject {
         // The recent days' naps (personal fork): the day lines carry the main night only.
         let naps = await napsBlock()
         if !naps.isEmpty { ctx += "\n\n" + naps }
+        // The places (personal fork, chantier 14): only with Places on AND « The Coach can read it » on, and
+        // only the Lieux view's differences by place, never a position. Stress is left out (scored day by
+        // day, too slow for every question).
+        if PlaceTrackingSettings.isEnabled(), PlaceTrackingSettings.coachReadsPlaces() {
+            let block = CoachFiche.placesBlock(await PlaceMapReader.loadPlaceSummaries(repo: repo, includeStress: false))
+            if !block.isEmpty { ctx += "\n\n" + block }
+        }
         if includeOnDeviceSignals {
             let block = await onDeviceSignalsBlock()
             if !block.isEmpty { ctx += "\n\n" + block }

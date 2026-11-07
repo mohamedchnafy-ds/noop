@@ -14,6 +14,8 @@ struct CoachDataView: View {
     @State private var showProfile = false
     @State private var exactText: CoachExactText?
     @State private var loadingExact = false
+    /// Personal fork, chantier 14: the same setting as « The Coach can read it » in Places.
+    @AppStorage(PlaceTrackingSettings.coachReadsKey) private var coachReadsPlaces = false
 
     var body: some View {
         ScreenScaffold(title: "What the coach reads",
@@ -38,6 +40,7 @@ struct CoachDataView: View {
                 CoachSectionTitle("If your question needs it")
                 onDemandCard
                 labReportCard
+                placesCard
             }
             CoachSectionTitle("Never sent")
             Text("Raw beats, second-by-second readings, your location. Your key only goes to \(coach.provider.displayName).")
@@ -146,6 +149,22 @@ struct CoachDataView: View {
                 .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                 .accessibilityLabel("Also share my patterns and Lab Book with the coach")
         }
+    }
+
+    /// The places (personal fork, chantier 14): the same setting as « The Coach can read it » in Places. Rides
+    /// « Use my data »; only the differences by place go, never a position.
+    private var placesCard: some View {
+        NoopCard(padding: 14) {
+            HStack(spacing: 12) {
+                CoachDataRow(symbol: "mappin.and.ellipse", tint: StrandPalette.textSecondary,
+                             title: "Places",
+                             detail: String(localized: "Your places' names and their differences to your normal (night HRV, recovery, sleep, heart rate), never a position. Needs Places on."))
+                Toggle("", isOn: $coachReadsPlaces)
+                    .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                    .accessibilityLabel("Let the coach read my places")
+            }
+        }
+        .opacity(coach.dataConsent ? 1 : 0.45)
     }
 
     /// The lab-report opt-in (personal fork, chantier 8), separate from "Use my data": only "Read a PDF

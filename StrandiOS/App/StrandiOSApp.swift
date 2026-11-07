@@ -399,6 +399,9 @@ struct StrandiOSApp: App {
                 // opened, which is a worse regression than the bug being fixed. `analyzeRecent`
                 // serialises itself, so overlapping with the sync this foreground also kicks off is safe.
                 Task { await model.runDeferredRescoreIfOwed() }
+                // Personal fork (7 Nov.): copy the iPhone's daily steps of the last seven days before iOS forgets
+                // them (the pedometer keeps about a week; a sideload cannot read Apple Health). Once an hour.
+                Task { await PhoneStepsBackfill.runPhoneStepsBackfill(repo: model.repo) }
                 Task {
                     health.refreshAuthIfPreviouslyGranted()
                     HealthWritebackBackgroundScheduler.updateSchedule(

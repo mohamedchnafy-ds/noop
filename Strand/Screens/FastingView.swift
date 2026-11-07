@@ -196,22 +196,32 @@ struct FastingView: View {
         let mode: FastingRingMode = state.map { $0.isRunning ? .running : .done(reached: $0.goalReached) } ?? .idle
         let key = "fasting.ring.\(state?.fast.id ?? "idle")"
         NoopFirstDraw(key: key, armed: loaded) { phase in
-            TimelineView(.animation(minimumInterval: 1 / 24, paused: still || mode != .running || !phase.drawn)) { context in
-                let breath = (sin(context.date.timeIntervalSinceReferenceDate * 2 * .pi / 3.2) + 1) / 2
-                FastingRing(mode: mode, progressPermille: state?.progressPermille ?? 0,
-                            trace: phase.drawn ? 1 : 0,
-                            markers: state?.markers ?? FastingTimeline.fastingMarkers(goalMinutes: pickedGoalMinutes),
-                            currentPhase: state?.phaseIndex ?? 0, diameter: 250, breath: still ? 0 : breath,
-                            onMarker: { index in
-                                phaseIndex = index
-                                sheet = .phase
-                            }) {
-                    ringCenter(state, drawn: phase.drawn)
+            // The « now » dot breathes only while a fast runs and the quiet-motion gate is open; at rest the
+            // ring is drawn with no timeline behind it (a paused timeline still costs frames).
+            if still || mode != .running || !phase.drawn {
+                ringFace(state, mode: mode, phase: phase, breath: 0)
+            } else {
+                TimelineView(.animation(minimumInterval: 1 / 24)) { context in
+                    let breath = (sin(context.date.timeIntervalSinceReferenceDate * 2 * .pi / 3.2) + 1) / 2
+                    ringFace(state, mode: mode, phase: phase, breath: breath)
                 }
-                .animation(phase.motion(NoopMotion.ringDraw), value: phase.drawn)
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func ringFace(_ state: FastingState?, mode: FastingRingMode, phase: NoopDrawPhase, breath: Double) -> some View {
+        FastingRing(mode: mode, progressPermille: state?.progressPermille ?? 0,
+                    trace: phase.drawn ? 1 : 0,
+                    markers: state?.markers ?? FastingTimeline.fastingMarkers(goalMinutes: pickedGoalMinutes),
+                    currentPhase: state?.phaseIndex ?? 0, diameter: 250, breath: breath,
+                    onMarker: { index in
+                        phaseIndex = index
+                        sheet = .phase
+                    }) {
+            ringCenter(state, drawn: phase.drawn)
+        }
+        .animation(phase.motion(NoopMotion.ringDraw), value: phase.drawn)
     }
 
     @ViewBuilder

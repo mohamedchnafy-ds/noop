@@ -82,6 +82,8 @@ struct CoachView: View {
     /// The reply whose action card is confirming or undoing (chantier 8).
     @State private var actionBusy: UUID?
     @State private var mealEditor: CoachMealEditTarget?
+    /// Fork chantier 15 PR C: a meal card added during a fast asks « End the fast at 12:30? ».
+    @State private var fastingQuestion: FastingMealQuestion?
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
     private let customModelTag = "__custom__"
@@ -586,11 +588,24 @@ struct CoachView: View {
                                     room: max(1, CoachPhotoStore.maxPerQuestion - attachedPhotos.count),
                                     onPicked: attachPicked, onCamera: stageAttachment))
         .task(id: coach.pendingComposerAction) { await consumeComposerAction() }
-        .sheet(item: $mealEditor) { edit in
+        .sheet(item: $mealEditor, onDismiss: askFastingQuestionIfPending) { edit in
             NutritionMealEditor(target: edit.target, day: edit.day, onSaved: { saved in
                 coach.markMealSaved(messageId: edit.messageId, mealId: saved.meal.id)
             })
             .environmentObject(repo)
+        }
+        .sheet(item: $fastingQuestion) { question in
+            FastingMealQuestionSheet(question: question,
+                                     onEnd: { fastingQuestion = nil; Task { await question.end(repo) } },
+                                     onKeep: { fastingQuestion = nil; question.keep() })
+        }
+    }
+
+    /// Fork chantier 15: a meal the Coach just put in the journal during a fast left a question
+    /// (`FastingMealLink`); ask it. Nothing pending, or the fast changed since: nothing shows.
+    private func askFastingQuestionIfPending() {
+        Task {
+            if let question = await FastingMealQuestion.pending(repo) { fastingQuestion = question }
         }
     }
 
@@ -1228,6 +1243,7 @@ struct CoachView: View {
         Task {
             if undo { await coach.undoMenu(messageId: messageId) } else { await coach.addMenuToJournal(messageId: messageId) }
             menuBusy = nil
+            if !undo { askFastingQuestionIfPending() }
         }
     }
 
@@ -1237,6 +1253,7 @@ struct CoachView: View {
         Task {
             await coach.addMealToJournal(messageId: messageId)
             mealBusy = nil
+            askFastingQuestionIfPending()
         }
     }
 

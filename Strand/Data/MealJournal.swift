@@ -70,7 +70,11 @@ enum MealJournal {
             row.ord = index
             return row
         }
-        return MealEntry(meal: meal, items: saved)
+        let entry = MealEntry(meal: meal, items: saved)
+        // Fork chantier 15: a meal eaten during a fast proposes to end the fast at its time; the screen that
+        // saved it asks (`FastingMealLink`). Recorded here so every way in (typed, scanned, the Coach) asks.
+        await FastingMealLink.recordMealForFast(store, entry: entry, now: now)
+        return entry
     }
 
     /// A recent meal added again at `eatenAt`, in `slot` (nil = by its time): the same lines under new

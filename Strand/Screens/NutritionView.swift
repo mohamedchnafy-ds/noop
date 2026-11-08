@@ -181,6 +181,12 @@ struct NutritionView: View {
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .navigationDestination(isPresented: $showHistory) { NutritionHistoryScreen() }
         .navigationDestination(isPresented: $showFasting) { FastingView() }
+        // Fork chantier 15 PR C: a fasting notification or the Lock Screen banner asked for the Jeûne page.
+        .task(id: router.fastingPageRequested) {
+            guard router.fastingPageRequested else { return }
+            router.fastingPageRequested = false
+            showFasting = true
+        }
         .task(id: "\(fastingRevision)-\(dismissedDoneId)-\(Repository.localDayKey(Date()))") { await reloadFastingCard() }
         .task(id: "\(waterTick)-\(repo.refreshSeq)-\(Repository.localDayKey(Date()))") {
             waterML = await repo.hydrationTotal(day: Repository.logicalDayKey(Date()))

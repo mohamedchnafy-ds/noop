@@ -4,8 +4,8 @@ import SwiftUI
 /// The widget extension entry point. Bundles the glanceable widget, the live-HR Live Activity,
 /// the K10 Coach brief widget (stored morning brief on Lock Screen / Home Screen), the
 /// heart-rate trace widget (#1957), the stress curve widget (#2040), the Lift Log session
-/// Live Activity, the strap-sync Live Activity, and the three day widgets — today's session, nutrition and
-/// sleep (personal fork, chantier 6).
+/// Live Activity, the strap-sync Live Activity, the three day widgets — today's session, nutrition and
+/// sleep (personal fork, chantier 6) — and the fast's Live Activity (chantier 15).
 @main
 struct NOOPWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -19,5 +19,7 @@ struct NOOPWidgetBundle: WidgetBundle {
         DaySessionWidget()
         DayNutritionWidget()
         DaySleepWidget()
+        // Personal fork, chantier 15: the fast's Live Activity. The tenth entry, the builder's limit.
+        FastingLiveActivity()
     }
 }

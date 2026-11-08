@@ -102,6 +102,16 @@ final class NavRouter: ObservableObject {
     /// Open the screen a day widget summarises.
     func openWidgetRoute(_ route: TabRoute) { widgetRoute = route }
 
+    /// Personal fork, chantier 15: the Jeûne page under Nutrition is wanted (a fasting notification's tap, the
+    /// Lock Screen banner's tap). `NutritionView` pushes it and clears this.
+    @Published var fastingPageRequested = false
+
+    /// Open the Jeûne page: Nutrition first, which then pushes the page.
+    func openFastingPage() {
+        fastingPageRequested = true
+        widgetRoute = .nutrition
+    }
+
     /// A "Start" of the session widget (widgets v2): the program or the cardio to launch. The iOS shell
     /// starts it, then clears it.
     @Published var widgetStart: DayWidgetsSnapshot.Start?

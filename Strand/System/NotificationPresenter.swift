@@ -23,6 +23,10 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// root has wired it.
     var onCoachBriefTapped: (() -> Void)?
 
+    /// Personal fork, chantier 15: a tapped fasting notification (« 16h of fasting reached », halfway) opens
+    /// the Jeûne page (`NavRouter.openFastingPage`). nil is a safe no-op, as above.
+    var onFastingTapped: (() -> Void)?
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -39,8 +43,11 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        if response.notification.request.content.categoryIdentifier == CoachBriefScheduler.notificationCategoryId {
+        let category = response.notification.request.content.categoryIdentifier
+        if category == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
+        } else if category == FastingNotifier.categoryId {
+            onFastingTapped?()
         }
         completionHandler()
     }

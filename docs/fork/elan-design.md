@@ -1,6 +1,40 @@
-# Élan (section motivation) — fiche du chantier (2 nov. 2026, mise à jour le 5 nov.)
+# Élan (section motivation) — fiche du chantier 10 (2 nov. 2026, mise à jour le 8 nov.)
 
-**État** : **maquette v2.1 validée par Mohamed le 5 nov.** (style de l'app après les chantiers 7 et 9). Code : après la validation de la v2 et l'IPA du chantier 9 (un seul chantier de code à la fois). À ajouter à la feuille de route quand le chantier démarre.
+**État (8 nov.)** : **code démarré**. Maquette v2.1 validée le 5 nov. ; **maquette animée validée le 8 nov.** ; **PR A (données) ouverte** depuis `main` db114ba. Un seul chantier de code à la fois : Élan est le chantier en cours.
+
+## Chantier 10 — le code (8 nov.)
+
+### Maquette animée (validée le 8 nov.)
+https://claude.ai/artifact/6wbnVTZd2vpmovGFKDs1en — la v2.1 jouée comme l'app (barre Démo : Plus → Élan, Élan, Écran verrouillé ; Rejouer ; Lente ×3 ; Réduire les animations). Les 11 règles de mouvement, validées telles quelles (jetons du chantier 12, `NoopMotion`) :
+1. **Entrées rejouées** à chaque affichage d'Élan et à chaque changement d'onglet (cascade de 8 pt, 0,04 s d'écart).
+2. **Trois chiffres qui claquent** (effet B) : le « 1 » de 1 / 3 séances, le « 2,8 » de Quand tu étais lancé, le « 84,1 » de la tendance ; les autres comptent sans éclat.
+3. **Cette semaine** : les 7 pastilles s'allument de gauche à droite (0,09 s), le tiret sable de « ce soir » bat 2 fois puis s'arrête. Rien en boucle.
+4. **Barres des 12 semaines** : montée en 0,9 s, 0,04 s d'écart ; la bande « lancé » en fondu ensuite.
+5. **Courbe du poids** tracée en 0,9 s, point du jour au bout ; jamais de point de pesée, jamais l'écart entre deux matins ; changer la période retrace.
+6. **Pesée** : Enregistrer → coche tracée + vibration de succès, puis la carte du cas (point de départ et barre 1 / 5, ou le message après une pesée plus haute) ; retour dans Progrès : « notée ce matin », « Pesées » roule de 5 à 6.
+7. **Séance courte acceptée « ce soir »** : la feuille se ferme, la carte devient « Ajoutée à aujourd'hui » (fondu), la pastille du jour devient sable pleine, vibration de succès ; « 1 / 3 » ne roule qu'une fois la séance faite.
+8. **« Pas aujourd'hui »** : la carte se replie en une ligne grise ; plus de proposition ce jour-là.
+9. **Lecture du jour** : bande normale en fondu, courbe tracée, point ; L'essentiel en cascade ; ★ fait un bond ; « Fais-moi le tour de… » : l'étincelle bat pendant l'attente (seule boucle), la nouvelle lecture glisse en tête.
+10. **Victoires / Ce que tu as construit** : cascade seulement, pas d'effet Record.
+11. **Réduire les animations** : tout arrive posé, les vibrations restent ; l'écran verrouillé n'est animé que par iOS.
+
+### Choix de Mohamed (8 nov., questions à choix multiples)
+- **Pesées** : dans la **série existante** `metricSeries`, source **`noop-weight`**, clé `weight`, une pesée par jour (modèle `MoodStore` / `NutritionSeries`) : aucune migration, déjà dans le `.noopbak`, Analyses la lit par le catalogue (source « Pesées »). Pas de table dédiée, pas le Carnet de labo.
+- **Découpage** : **4 PR**, IPA après la 3e. **A données** · **B écrans** (ligne Plus, Élan 3 onglets, Pesée, Poids, Avant / maintenant, Mon pourquoi, essentiels, animations) · **C séance courte** (`TodaySessionResolver`, Démarrer) + écran **Rappels** unifié + notifications → **IPA `build/elan`** · **D lecture du jour** (Coach + recherche web) → 2e IPA.
+- **Essentiels** : les **9 de la maquette** (Cœur : VFC, FC au repos, SpO2, respiration · Sommeil : phases, dette, Charge et Effort · Nutrition : déficit, protéines), **français + anglais** dans un fichier de ressources (pas le catalogue) ; les autres langues lisent l'anglais. Sources vérifiées par recherche web, aucune référence inventée.
+
+### PR A — données (ouverte le 8 nov.)
+- `Strand/Data/ElanWeight.swift` : `ElanWeighIn`, `ElanWeightSummary`, `ElanWeight` (constantes `noop-weight` / `weight`, réglages `elan.weight.targetKg` et `elan.weight.profileFollowsTrend`, hors `.noopbak`), `Repository.elanWeighIns / saveElanWeighIn / deleteElanWeighIn`. **Tendance** = moyenne mobile exponentielle sur les jours (0,1 par jour, un trou de d jours compte 1 − 0,9^d), **après 5 pesées** ; rythme kg / sem. sur les 28 derniers jours de tendance (au moins 14 jours d'écart), date estimée seulement si le rythme va vers le poids visé (plancher 0,05 kg / sem., horizon 2 ans). `weighInOutcome` : point de départ · tendance en construction (n / 5) · notée · notée plus haute que la tendance (le message tout prêt). `syncProfileWeight` : « Le profil suit la tendance » (allumé par défaut) écrit la tendance arrondie au dixième dans `profile.weightKg`, lu par le Coach et les Objectifs.
+- `Strand/Data/ElanWhy.swift` : « Mon pourquoi » sous `elan.why` (UserDefaults = clé `.noopbak`, **ajoutée à la liste blanche** `BackupSettings` / `BackupSettingsCodec`, String, les deux tests mis à jour ; côté Android la passerelle garde la valeur dans les prefs sous la même clé), 600 caractères au plus ; `elan.why.coachCanRead` éteint par défaut, hors `.noopbak` ; `coachBlock` = le bloc WHY du Coach (branché en PR B avec l'interrupteur).
+- `Strand/Data/ElanState.swift` : `ElanDays` (arithmétique de clés de jour sur un calendrier UTC fixe), `ElanResolver` = **le seul résolveur** de ce qu'Élan affiche : marques des 7 jours (`ElanDayMark` : faite · prévue · passée · aujourd'hui · ce soir (courte acceptée) · repos), **raté d'hier** (`elanMissedYesterday` : le premier programme prévu hier non fait ; un cardio non fait ne propose rien), jours depuis la dernière séance, **récap de la semaine**, **« jour Nutrition tenu »** = apport à **10 % près** de l'objectif d'apport (entier : 1 800 tient 2 000, 1 799 non ; un jour sans repas noté n'est ni tenu ni raté), **Avant / maintenant** : « Ces 3 semaines » = les 21 jours avant aujourd'hui ; « lancé » = la fenêtre de **28 jours** la plus chargée (séances, puis séries) des **6 mois** avant ces 3 semaines, nulle sous 4 séances. Une « séance » = une séance du Carnet ou un cardio ≥ 15 min. `ElanLedger` (entrées par jour) rempli par `loadElanState` depuis `TrainingSnapshot`, `LiftProgressData` (records), la série `noop-nutrition` (`calories_in`), `Repository.days` (nuits) et les pesées. `ElanShortSessionChoice` : « Pas aujourd'hui » / acceptée ce soir / « Retirer », par jour (UserDefaults `elan.shortSession.*`).
+- Catalogue : `MetricDescriptor` « Weight » source `noop-weight`, libellé « Weigh-ins » / « Pesées » (clé ajoutée au catalogue, 10 langues).
+- Tests `StrandTests` : `ElanWeightTests`, `ElanStateTests`, `ElanWhyTests` (Swift non compilé dans la session : la CI de la PR le vérifie).
+- Vérifications locales : i18n audit vert, doc_comment_lint vert, Tools unittest (338) + parité acceptance verts après avoir **inliné la clé Kotlin** (une constante `private const val` dans `com.noop.data` est une constante non appariée pour le registre de parité : écrire le littéral deux fois, comme `"journal.customBehaviors"`).
+
+### Suite
+- **PR B écrans** : ligne Élan en tête de la feuille Plus (`RootTabView.moreSheet`, entre la carte profil et `MoreSheetRows`, nouveau cas `MoreDestination.elan`), écran Élan 3 onglets, Pesée, Poids, Avant / maintenant, Mon pourquoi (+ interrupteur Coach → `buildFullContext`, `CoachDataView`), les 9 essentiels (FR + EN), animations des règles 1 à 5 et 8 à 11. Jeton `StrandPalette.elanSand` (#E0B072, Élan seul).
+- **PR C** : séance courte (2 premiers blocs du programme manqué, `LiftSuperset.blocks`, séries et charges de `lastLiftSets`) acceptée = séance du jour (`TodaySessionResolver`, feuille Démarrer « ajoutée par Élan ») ; écran Rappels unifié (budget commun avec `MealReminder`, silence 21:30–07:00, priorité raté > prévue > repas > 3 jours) ; notifications avec actions (première `UNNotificationCategory` de l'app) ; **IPA `build/elan`**.
+- **PR D** : lecture du jour (`AICoachEngine` hors conversation, outil serveur `web_search` avec `allowed_domains`, blocs `server_tool_use` / `web_search_tool_result` / citations à ajouter à `AnthropicTurnAccumulator`), stockage des lectures, « Fais-moi le tour de… ».
 
 ## Maquette v2 (5 nov.) — celle qui compte
 Canvas « NOOP – Élan · v2 » — https://claude.ai/artifact/73nKWv2DvetXnpEUtAmojx (v2.1 du 5 nov.). 11 écrans en style F (fond noir, cartes #1C1C1E, boutons blancs, liens bleus, pas de capitales) : 1 Élan en 3 onglets (interactif) · 2 Lecture du jour · 3 Mon pourquoi · 4 Rappels · 5 Feuille Plus · 6 Notifications · 7 Séance courte · 8 Feuille Démarrer · 9 Avant / maintenant · 10 Pesée (1re / 6e, interactif) · 11 Poids.
@@ -84,11 +118,11 @@ Mohamed aime avoir des sujets à lire : sommeil et santé, régime, FC, VFC, SpO
 - Notifications locales (UNUserNotificationCenter) ; pas de push serveur en sideload. Préparées quand l'app tourne (synchro du bracelet en arrière-plan).
 - Messages par règles + modèles traduits (10 langues) ; le Coach seulement sur un tap ou à l'ouverture d'Élan (lecture du jour).
 - Repérage du décrochage : `TrainingWeekPlan.planDecision`, `TrainingDays.buildTrainingDays`, `MealJournal`, `Repository.sleepSynthesisFigures`, `LiftProgress` ; séance courte via `create_program` (carte Séance).
-- Poids : regarder ce qui existe (profil, métrique Poids, import Apple Santé par raccourci) avant toute nouvelle table (sinon migration iOS v52 / Android MIGRATION_43_44, parité). Le poids du profil (Coach, objectifs Nutrition) devrait suivre la tendance — à décider.
+- Poids : ~~regarder ce qui existe avant toute nouvelle table~~ → **tranché le 8 nov.** : série `metricSeries` source `noop-weight`, aucune migration ; le profil suit la tendance (interrupteur allumé par défaut).
 - « Jour Nutrition tenu » : `NutritionDayReader.currentPlan`, `NutritionDaySummary` ; un jour sans repas noté n'est ni tenu ni raté.
 - Heure des séances dans le planning (`training.weekPlan.v1`) : extension du JSON, compatible avec les plannings déjà enregistrés.
 
 ## Reste à trancher
-- Liste des essentiels de la v1 et des domaines autorisés ; langue des textes générés.
-- Stockage des pesées (série `weightKg` existante d'Apple Santé ou table propre + migration iOS v54 / Android MIGRATION_45_46) et du pourquoi (`.noopbak`).
+- ~~Liste des essentiels de la v1~~ (les 9, FR + EN, 8 nov.) ; **domaines autorisés** de la recherche web (proposition pour la PR D : pubmed.ncbi.nlm.nih.gov, pmc.ncbi.nlm.nih.gov, inserm.fr, has-sante.fr, anses.fr, who.int, nih.gov, cochranelibrary.com) ; langue de la lecture du jour = celle de l'app.
+- ~~Stockage des pesées et du pourquoi~~ : tranché le 8 nov. (série `noop-weight` ; `elan.why` dans la liste blanche du `.noopbak`).
 - ~~Place exacte de l'écran dans Plus~~ : en tête de la feuille Plus (5 nov.).

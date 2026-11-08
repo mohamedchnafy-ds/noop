@@ -1,6 +1,6 @@
 # Chantier 15 — Jeûne intermittent et eau (section de Nutrition) — fiche (7 nov. 2026)
 
-**État** (8 nov., ~00:10 UTC) : **PR A #115 (données) et PR B #116 (écrans) fusionnées** (`main` 0779192) ; **IPA `build/jeune`** = `main` 0779192 en construction, à installer et valider (liste « À tester » ci-dessous) ; **PR C (extras) à faire dans une autre conversation** (prompt de démarrage en bas de la fiche).
+**État** (8 nov.) : **PR A #115 (données) et PR B #116 (écrans) fusionnées** (`main` 0779192) ; **IPA `build/jeune`** installée ; **PR C (extras) en cours** : réponses de Mohamed et journal du code dans « PR C » ci-dessous (1 repas → fin du jeûne, 2 notification + Live Activity, 3 Coach, 4 Nuits de jeûne), une PR par préoccupation.
 
 ## La demande (7 nov., mots de Mohamed résumés)
 - Une **nouvelle section dans Nutrition** : le **jeûne intermittent**. Mohamed ne sait pas encore où la placer : la maquette doit proposer l'emplacement.
@@ -63,6 +63,18 @@
 - **Eau** : la bouteille se remplit (vague) à + 250 / + 500 / Perso, les litres roulent, pointillés = objectif du jour, « Annuler la dernière » retire la dernière entrée ; appui long → l'écran Hydratation ; « Café · thé » → la carte Caféine.
 - **Vos jeûnes** : 7 j | 30 j, barres qui montent à l'arrivée, moyenne, objectif tenu, série ; la barre d'aujourd'hui plus claire pendant un jeûne.
 - **Réduire les animations** (Réglages ou système) : tout s'affiche d'un coup, le point ne respire plus. **Captures et une courte vidéo à envoyer.**
+
+## PR C — réponses de Mohamed (8 nov., outil à choix multiples)
+1. **Live Activity** : **dès le début du jeûne, relancée à l'ouverture de NOOP**. iOS retire toute Live Activity après 8 h et l'app ne peut la relancer qu'au premier plan : un jeûne commencé à 20:30 perd sa bannière vers 04:30, elle revient dès que NOOP est rouvert (le matin) jusqu'à la fin. La page Jeûne l'explique sous l'interrupteur.
+2. **Nuits de jeûne** : **jeûne ≥ 12 h contre les autres nuits, sur 90 jours** (comme la Carte, et non 30 j comme la maquette) : une nuit est « de jeûne » quand un jeûne d'au moins 12 h courait à l'endormissement.
+3. **BodyFast / Easy Fast** (liens envoyés le 8 nov.) : repères visuels seulement, rien de plus à en retenir ; la session ne pouvait pas ouvrir ces sites.
+4. **Coach** : bloc FASTING dans la fiche **et** pastilles seulement pendant un jeûne (« Que manger pour rompre le jeûne ? » quand un jeûne est en cours ; « Mon jeûne de la semaine » quand il y a au moins un jeûne sur 7 jours) ; les 6 pastilles habituelles restent.
+
+## Code — PR C, 1 : un repas noté pendant un jeûne (8 nov.)
+- **Règle pure** `FastingMealLink.fastingEndProposal(fast:meal:kcal:now:)` (`Strand/Data/FastingMealLink.swift`, tests `StrandTests/FastingMealLinkTests.swift`) : un repas avec des calories (> 0 kcal : eau, café noir, thé ne posent pas la question), noté **après** le début du jeûne, propose de **terminer le jeûne à l'heure du repas** (jamais « maintenant » : un repas noté en retard recule la fin réelle à l'heure mangée ; une heure future compte comme maintenant). Jeûne déjà terminé et repas mangé **avant** la fin enregistrée → « Avancer la fin du jeûne à HH:MM ? ». Repas à l'heure du début ou avant = le dernier repas, rien.
+- **Enregistrement** : `MealJournal.saveMealEntry` appelle `FastingMealLink.recordMealForFast` après chaque sauvegarde (éditeur, feuille d'ajout, scanner, carte Repas et Menu du Coach, « ajouter de nouveau ») → UserDefaults `fasting.pendingMealQuestion` (JSON `FastingMealProposal`). Un « Continuer le jeûne » mémorise `fasting.mealQuestionDismissed` = `repas:fin`, donc la même sauvegarde ne redemande pas. La question est revérifiée contre la table au moment de l'afficher (`resolvePending`) : jeûne arrêté ou corrigé entre-temps → rien.
+- **Feuille** `FastingMealQuestionSheet` (`Strand/Screens/FastingMealQuestionSheet.swift`, maquette planche 4) : « Terminer le jeûne à 12:30 ? », « Tu notes « Déjeuner » à 12:30 alors qu'un jeûne de 16 h est en cours (fin prévue 12:30). Le repas est enregistré quoi qu'il arrive. », bouton vert « Terminer à 12:30 · 15 h 58 min faites », bouton gris « Continuer le jeûne » (ou « Garder 13:00 » pour une fin à avancer). Fin écrite par `FastingLog.endFast` / `amendFast` (le résolveur unique).
+- **Hôtes** : `NutritionView` (à la fermeture de l'éditeur, de la feuille d'ajout, du scanner), `CoachView` (après « Ajouter au journal » d'une carte Repas ou Menu, à la fermeture de son éditeur), `FastingView` (à l'arrivée, si une question attend d'un autre écran). 7 clés dans les 10 langues.
 
 ## Prompt de démarrage — PR C (pour une nouvelle conversation)
 > Chantier 15 — Jeûne intermittent et eau, **PR C (extras)**, fork NOOP. Lis `docs/fork/feuille-de-route.md` puis `docs/fork/chantier-15-jeune.md` (PR A #115 données, PR B #116 écrans fusionnées ; maquette validée https://claude.ai/artifact/7B61h2m4wtyxh28iKuzmdJ, planche 4 « Autour »).

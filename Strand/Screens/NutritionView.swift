@@ -77,6 +77,8 @@ struct NutritionView: View {
     @State private var waterML: Double = 0
     @State private var waterTick = 0
     @State private var showFasting = false
+    // Fork chantier 15 PR C: a meal saved during a fast asks « End the fast at 12:30? » once its sheet is gone.
+    @State private var fastingQuestion: FastingMealQuestion?
 
     private enum ScannerExit {
         case manual, coach
@@ -190,6 +192,11 @@ struct NutritionView: View {
             if !Task.isCancelled { week = days }
         }
         .navigationDestination(isPresented: $showLabBook) { LabBookView() }
+        .sheet(item: $fastingQuestion) { question in
+            FastingMealQuestionSheet(question: question,
+                                     onEnd: { fastingQuestion = nil; Task { await question.end(repo) } },
+                                     onKeep: { fastingQuestion = nil; question.keep() })
+        }
         .task(id: repo.refreshSeq) { labLines = await NutritionLabLines.loadLabLines(repo) }
         .task(id: "\(dayKey)-\(mealRevision)-\(repo.refreshSeq)") {
             await NutritionSeries.backfillNutritionSeriesIfNeeded(repo)
@@ -424,7 +431,7 @@ struct NutritionView: View {
 
     /// The add sheet closed on one of its four ways in: open it now, for the moment chosen there.
     private func runPendingAdd() {
-        guard let pending = pendingAdd else { return }
+        guard let pending = pendingAdd else { askFastingQuestionIfPending(); return }
         pendingAdd = nil
         switch pending.action {
         case .scan:
@@ -464,10 +471,18 @@ struct NutritionView: View {
             capture = mode
             return
         }
-        guard scannerRequested else { return }
+        guard scannerRequested else { askFastingQuestionIfPending(); return }
         scannerRequested = false
         scannerSlot = editorSlot
         showScanner = true
+    }
+
+    /// Fork chantier 15: a meal just saved during a fast left a question (`FastingMealLink`); ask it now that
+    /// the sheet it was saved from is gone. Nothing pending, or the fast changed since: nothing shows.
+    private func askFastingQuestionIfPending() {
+        Task {
+            if let question = await FastingMealQuestion.pending(repo) { fastingQuestion = question }
+        }
     }
 
     /// The capture sheet closed on a proposal: open it in the editor, as a meal not saved yet.
@@ -487,7 +502,7 @@ struct NutritionView: View {
             editorSlot = scannerSlot
             editor = .add
         case .coach?: router.openCoach()
-        case nil: break
+        case nil: askFastingQuestionIfPending()
         }
     }
 

@@ -42,11 +42,13 @@ struct FastingView: View {
     @State private var editDate = Date()
     @State private var editGoalMinutes = FastingTimeline.defaultGoalMinutes
     @State private var phaseIndex = 0
+    /// Fork chantier 15 PR C: a meal saved during the fast (from the Coach, say) left « End the fast at 12:30? ».
+    @State private var mealQuestion: FastingMealQuestion?
 
     static let dismissedDoneKey = "fasting.dismissedDoneId"
 
     private enum Sheet: Identifiable {
-        case startTime, plannedEnd, stop, phase, caffeine, waterCorrect
+        case startTime, plannedEnd, stop, phase, caffeine, waterCorrect, mealQuestion
         var id: Int {
             switch self {
             case .startTime: return 0
@@ -55,6 +57,7 @@ struct FastingView: View {
             case .phase: return 3
             case .caffeine: return 4
             case .waterCorrect: return 5
+            case .mealQuestion: return 6
             }
         }
     }
@@ -115,6 +118,12 @@ struct FastingView: View {
                 NavigationStack { HydrationView() }
                     .environmentObject(repo)
                     .environmentObject(profile)
+            case .mealQuestion:
+                if let mealQuestion {
+                    FastingMealQuestionSheet(question: mealQuestion, now: now,
+                                             onEnd: { sheet = nil; Task { await mealQuestion.end(repo) } },
+                                             onKeep: { sheet = nil; mealQuestion.keep() })
+                }
             }
         }
     }
@@ -497,6 +506,11 @@ struct FastingView: View {
         if lastGoalMinutes > 0 { pickedGoalMinutes = FastingTimeline.clampGoalMinutes(lastGoalMinutes) }
         now = Date()
         loaded = true
+        // A meal saved during the fast from another screen: its question is asked here, once nothing else shows.
+        if sheet == nil, let question = await FastingMealQuestion.pending(repo) {
+            mealQuestion = question
+            sheet = .mealQuestion
+        }
     }
 
     private func reloadHistory() async {

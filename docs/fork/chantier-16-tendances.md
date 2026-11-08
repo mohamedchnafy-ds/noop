@@ -1,6 +1,6 @@
 # Chantier 16 — Tendances : une vision de forme, pas six graphiques (8 nov. 2026)
 
-**État** (8 nov., après-midi) : maquette v1 **validée** par Mohamed (les deux graphiques, anneaux pour le Bilan) ; code écrit dans la PR `claude/modest-maxwell-ssqsl3` → `main` ; **IPA `build/tendances`** à construire depuis la tête de la PR une fois la CI verte, puis fusion sur validation.
+**État** (8 nov., ~15:40 UTC) : maquette v1 **validée** par Mohamed (les deux graphiques, anneaux pour le Bilan) ; code + animations dans la **PR #128** (`claude/modest-maxwell-ssqsl3` → `main`), **6/6 verte** sur sa tête 2fe0b9f (macOS + StrandTests, iOS, Python, Android, lint) ; **IPA `build/tendances`** = 2fe0b9f, release `ipa-build-tendances` (`NOOP-ios-unsigned-v12.1.0-2fe0b9f.ipa`), envoyée à Mohamed ; **à installer et valider** (liste « À tester » ci-dessous), fusion ensuite.
 
 ## La demande (8 nov., mots de Mohamed résumés)
 - « Trop de graphiques » dans la section Tendances (Plus → Analyses → Tendances).

@@ -69,10 +69,12 @@ extension AICoachEngine {
         let messages = [AnthropicToolRequest.message(role: "user", text: Self.fastingExplainQuestion(context))]
         do {
             let body = try AnthropicToolRequest.body(model: model, system: system, messages: messages, tools: [],
-                                                     allowTools: false, maxTokens: 600)
+                                                     allowTools: false, maxTokens: 1500)
             let turn = try await streamToolRound(key: key, body: body) { _ in }
-            let said = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            var said = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !said.isEmpty else { return .failure(String(localized: "The Coach did not answer. Try again.")) }
+            // Cut by the token budget (it happened at 600 on the first IPA): say so rather than end mid-sentence.
+            if turn.stopReason == "max_tokens" { said += "…" }
             return .answer(said)
         } catch {
             if Task.isCancelled || error is CancellationError { return .failure("") }

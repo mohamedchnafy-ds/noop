@@ -465,11 +465,10 @@ struct FastingView: View {
                           onClose: { sheet = nil })
     }
 
-    /// The question « Continue › » hands to the Coach tab. Until its fiche carries a FASTING block (PR C),
-    /// the figures travel in the question itself, so the Coach never answers « I have no fasting data ».
+    /// The question « Continue › » hands to the Coach tab. Short again (chantier 15 PR C): the fiche's FASTING
+    /// block carries the fast's figures and the water with every question.
     private var coachHandoffPrompt: String {
-        guard let s = state else { return String(localized: "Explain where I am in my fast and what to do next.") }
-        return String(localized: "I am fasting since \(FastingFormat.dayAndClock(s.startedAt, now: now)): \(FastingFormat.duration(minutes: s.elapsedMinutes)) done out of \(FastingFormat.duration(minutes: s.fast.goalMinutes)), \(FastingFormat.duration(minutes: s.remainingMinutes)) left, phase \(FastingPhaseText.name(s.phaseIndex)). Water today: \(FastingFormat.litres(ml: waterML)) of \(FastingFormat.litres(ml: Double(goalML))). Explain where I am in my fast and what to do next.")
+        String(localized: "Explain where I am in my fast and what to do next.")
     }
 
     private var caffeineSheet: some View {

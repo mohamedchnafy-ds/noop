@@ -458,11 +458,18 @@ struct FastingView: View {
         FastingPhaseSheet(index: $phaseIndex, state: state, now: now,
                           explain: phaseExplainer,
                           onOpenCoach: {
-                              coach.pendingPrompt = String(localized: "Explain where I am in my fast and what to do next.")
+                              coach.pendingPrompt = coachHandoffPrompt
                               sheet = nil
                               DispatchQueue.main.async { router.openCoach() }
                           },
                           onClose: { sheet = nil })
+    }
+
+    /// The question « Continue › » hands to the Coach tab. Until its fiche carries a FASTING block (PR C),
+    /// the figures travel in the question itself, so the Coach never answers « I have no fasting data ».
+    private var coachHandoffPrompt: String {
+        guard let s = state else { return String(localized: "Explain where I am in my fast and what to do next.") }
+        return String(localized: "I am fasting since \(FastingFormat.dayAndClock(s.startedAt, now: now)): \(FastingFormat.duration(minutes: s.elapsedMinutes)) done out of \(FastingFormat.duration(minutes: s.fast.goalMinutes)), \(FastingFormat.duration(minutes: s.remainingMinutes)) left, phase \(FastingPhaseText.name(s.phaseIndex)). Water today: \(FastingFormat.litres(ml: waterML)) of \(FastingFormat.litres(ml: Double(goalML))). Explain where I am in my fast and what to do next.")
     }
 
     private var caffeineSheet: some View {

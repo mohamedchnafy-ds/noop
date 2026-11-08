@@ -146,6 +146,22 @@ struct StrandiOSApp: App {
             Self.pushLiftBanner(session: liftSession, activity: liftActivity, model: model, system: system)
             await liftActivity.flushUpdate()
         }
+        // Personal fork, chantier 15 PR C: after every write to a fast, the end notification and the Lock Screen
+        // banner follow the one resolver; the banner's Stop ends the running fast here, in NOOP's process.
+        FastingLog.onFastingChange = { store in
+            let state = await FastingLog.resolveFastingState(store)
+            await FastingNotifier.refreshFastingNotifications(state)
+            await FastingLiveActivityController.shared.update(state)
+        }
+        FastingBannerRelay.stopHandler = { [weak model] in
+            guard let model, let store = await model.repo.storeHandle() else { return }
+            if let running = try? await store.runningFast() {
+                await FastingLog.endFast(store, running, endedAt: Date())
+            } else {
+                await FastingLiveActivityController.shared.end()
+            }
+        }
+        NotificationPresenter.shared.onFastingTapped = { [weak router] in router?.openFasting() }
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
@@ -338,6 +354,9 @@ struct StrandiOSApp: App {
                 .onOpenURL { url in
                     if url.host == "import-health" {
                         model.handleHealthImportURL(url)
+                    } else if url.scheme == "noop", url.host == "fasting" {
+                        // The fasting banner's tap (personal fork, chantier 15): the Jeûne page.
+                        router.openFasting()
                     } else if let start = DayWidgetsSnapshot.Start(url: url) {
                         // A Start of the session widget (personal fork, widgets v2): launch it.
                         router.widgetStart = start
@@ -402,6 +421,13 @@ struct StrandiOSApp: App {
                 // Personal fork (7 Nov.): copy the iPhone's daily steps of the last seven days before iOS forgets
                 // them (the pedometer keeps about a week; a sideload cannot read Apple Health). Once an hour.
                 Task { await PhoneStepsBackfill.runPhoneStepsBackfill(repo: model.repo) }
+                // Personal fork, chantier 15 PR C: the fasting notification re-planned, and a fasting banner iOS
+                // ended after its 8 hours started again (iOS starts one only for the app on screen).
+                Task {
+                    if let store = await model.repo.storeHandle() {
+                        await FastingLog.refreshFastingSurroundings(store)
+                    }
+                }
                 Task {
                     health.refreshAuthIfPreviouslyGranted()
                     HealthWritebackBackgroundScheduler.updateSchedule(

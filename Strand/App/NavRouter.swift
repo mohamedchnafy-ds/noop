@@ -102,6 +102,16 @@ final class NavRouter: ObservableObject {
     /// Open the screen a day widget summarises.
     func openWidgetRoute(_ route: TabRoute) { widgetRoute = route }
 
+    /// Personal fork, chantier 15 PR C: the Jeûne page was asked for (the fasting notification, the fasting
+    /// banner). Nutrition opens it, then clears it.
+    @Published var fastingRequested = false
+
+    /// The Nutrition tab, then its Jeûne page.
+    func openFasting() {
+        fastingRequested = true
+        widgetRoute = .nutrition
+    }
+
     /// A "Start" of the session widget (widgets v2): the program or the cardio to launch. The iOS shell
     /// starts it, then clears it.
     @Published var widgetStart: DayWidgetsSnapshot.Start?

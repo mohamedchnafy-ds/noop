@@ -101,16 +101,20 @@ struct CoachEmptyState: View {
 }
 
 /// The six short questions above the composer of an empty conversation (fork chantier 9), wrapped rather
-/// than scrolled sideways (a sideways row fought the swipe between tabs). They go as soon as the
-/// conversation starts. Without photos (a provider other than Anthropic) the meal chip is left out: it
-/// would send « Analyze my meal from a photo » with no photo.
+/// than scrolled sideways (a sideways row fought the swipe between tabs), plus the fasting chips while a
+/// fast runs (chantier 15). They go as soon as the conversation starts. Without photos (a provider other
+/// than Anthropic) the meal chip is left out: it would send « Analyze my meal from a photo » with no photo.
 struct CoachQuickPrompts: View {
     let photosAvailable: Bool
+    /// The fasting chips (personal fork, chantier 15), after the six: present only while a fast runs or the
+    /// week holds one (`AICoachEngine.fastingQuickPrompts`).
+    var fasting: [CoachPrompts.QuickPrompt] = []
     let onAsk: (String) -> Void
 
     private var prompts: [CoachPrompts.QuickPrompt] {
-        photosAvailable ? CoachPrompts.quickPrompts
+        let six = photosAvailable ? CoachPrompts.quickPrompts
             : CoachPrompts.quickPrompts.filter { $0.question != CoachPrompts.photoMealPrompt }
+        return six + fasting
     }
 
     var body: some View {

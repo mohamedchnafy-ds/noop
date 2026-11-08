@@ -82,6 +82,9 @@ struct CoachView: View {
     /// The reply whose action card is confirming or undoing (chantier 8).
     @State private var actionBusy: UUID?
     @State private var mealEditor: CoachMealEditTarget?
+    /// Fork chantier 15: the fasting chips of the empty screen, re-read when a fast changes.
+    @AppStorage(FastingLog.revisionKey) private var fastingRevision = 0
+    @State private var fastingChips: [CoachPrompts.QuickPrompt] = []
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
     private let customModelTag = "__custom__"
@@ -572,8 +575,9 @@ struct CoachView: View {
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
             if isEmptyConversation {
-                CoachQuickPrompts(photosAvailable: photosAvailable) { ask($0) }
+                CoachQuickPrompts(photosAvailable: photosAvailable, fasting: fastingChips) { ask($0) }
                     .padding(.bottom, 4)
+                    .task(id: fastingRevision) { fastingChips = await coach.fastingQuickPrompts() }
             }
             composer
             // K12: the estimate, now only when it is worth a warning.

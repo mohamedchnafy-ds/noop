@@ -78,6 +78,8 @@ enum CoachFiche {
         var priorities: [LiftProgress.Priority] = []
         var unitSystem: UnitSystem = .metric
         var nutrition: Nutrition?
+        /// The fast (personal fork, chantier 15): nil when fasting is not used.
+        var fasting: Fasting?
     }
 
     /// The meal journal (personal fork, Nutrition): today against the goals the Nutrition screen shows,
@@ -101,8 +103,8 @@ enum CoachFiche {
     static let maxExercises = 20
 
     /// The head of the context, in reading order: the body profile, what the user told the coach
-    /// (`told`, `CoachProfile.contextBlock`), today, the normals and the sleep figures. The Lift Log
-    /// statuses (`progression`) go after the LIFT LOG block they qualify.
+    /// (`told`, `CoachProfile.contextBlock`), today, the normals, the sleep figures, the meal journal and
+    /// the fast. The Lift Log statuses (`progression`) go after the LIFT LOG block they qualify.
     static func head(_ inputs: Inputs, told: String) -> String {
         var blocks: [String] = []
         if let body = inputs.body { blocks.append(bodyBlock(body)) }
@@ -113,6 +115,7 @@ enum CoachFiche {
         if !normals.isEmpty { blocks.append(normals) }
         if let sleep = inputs.sleep { blocks.append(sleepBlock(sleep)) }
         if let nutrition = inputs.nutrition { blocks.append(nutritionBlock(nutrition)) }
+        if let fasting = inputs.fasting { blocks.append(fastingBlock(fasting)) }
         return blocks.joined(separator: "\n\n")
     }
 

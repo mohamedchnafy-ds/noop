@@ -64,6 +64,11 @@
 - **Vos jeûnes** : 7 j | 30 j, barres qui montent à l'arrivée, moyenne, objectif tenu, série ; la barre d'aujourd'hui plus claire pendant un jeûne.
 - **Réduire les animations** (Réglages ou système) : tout s'affiche d'un coup, le point ne respire plus. **Captures et une courte vidéo à envoyer.**
 
+## Code — PR C, 3 : le Coach (8 nov.)
+- **Bloc FASTING** de la fiche (`Strand/AI/CoachFastingBlock.swift`, `CoachFiche.Fasting`, `CoachFiche.fastingBlock`, tests `CoachFastingBlockTests`), après NUTRITION dans `CoachFiche.head` : « running since 2026-11-07 20:30: 11h 42m done out of 16h 00m, 4h 18m left, planned end 2026-11-08 12:30, phase glycogen running low (8–12 h) » (ou « goal reached (20m past it) », ou « no fast running; last fast … → …, 15h 00m out of 16h 00m (stopped 1h 00m before the goal) »), « last 7 days: fasted 6 of 7 days, goal (16h 00m) kept 5, mean 16h 29m, streak 1 day » (`FastingLog.fastingHistory`, comme la carte « Vos jeûnes »), « water today: 1.25 L of 2.9 L goal » (`hydrationTotal` / `hydrationGoalML`). Horodatages en 24 h, noms de phase en anglais (le contexte est en anglais). **Absent quand le jeûne n'est pas utilisé** (rien en cours, rien sur 7 jours). Rempli par `AICoachEngine.fastingFiche()` dans `ficheInputs()`.
+- **Pastilles** de l'écran vide (`CoachPrompts.fastingQuickPrompts`, `CoachQuickPrompts(fasting:)`, lues par `CoachView` à chaque révision du jeûne) : « Que manger pour rompre le jeûne ? » pendant un jeûne, « Mon jeûne de la semaine » (→ « Comment s'est passé mon jeûne cette semaine ? ») avec au moins un jeûne sur 7 jours ; les 6 pastilles habituelles restent (réponse 4 de Mohamed).
+- **Ce que lit le Coach** : ligne « Jeûne · Le jeûne en cours ou le dernier, les 7 derniers jours, l'eau du jour. Seulement si tu jeûnes. » sous Nutrition. 4 clés dans les 10 langues. Le « Continuer › » de la feuille d'une phase (#118) garde sa question détaillée : elle ne nuit pas avec le bloc.
+
 ## Prompt de démarrage — PR C (pour une nouvelle conversation)
 > Chantier 15 — Jeûne intermittent et eau, **PR C (extras)**, fork NOOP. Lis `docs/fork/feuille-de-route.md` puis `docs/fork/chantier-15-jeune.md` (PR A #115 données, PR B #116 écrans fusionnées ; maquette validée https://claude.ai/artifact/7B61h2m4wtyxh28iKuzmdJ, planche 4 « Autour »).
 >

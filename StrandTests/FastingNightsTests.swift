@@ -65,8 +65,8 @@ final class FastingNightsTests: XCTestCase {
         XCTAssertEqual(hrv.verdict, .better)
         XCTAssertTrue(hrv.shown, "7 ms is past the 3 ms band and past its margin")
         let rhr = result.figures.first { $0.metric == .restingHR }!
-        XCTAssertEqual(rhr.delta!, -1.5, accuracy: 0.001)
-        XCTAssertEqual(rhr.verdict, .close, "1.5 bpm is inside the 3 bpm band")
+        XCTAssertEqual(rhr.delta!, -10.0 / 6, accuracy: 0.001)
+        XCTAssertEqual(rhr.verdict, .close, "1.7 bpm is inside the 3 bpm band")
         XCTAssertFalse(rhr.shown)
         let sleep = result.figures.first { $0.metric == .sleep }!
         XCTAssertFalse(sleep.shown, "a 3-minute difference is inside the band and the margin")

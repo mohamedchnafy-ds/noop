@@ -1,6 +1,6 @@
 # Chantier 15 — Jeûne intermittent et eau (section de Nutrition) — fiche (7 nov. 2026)
 
-**État** (8 nov., matin) : PR A #115 et PR B #116 fusionnées (`main` 0779192), #118 correctif (`main` 6c889b9) ; IPA `build/jeune` = 0779192 sur le téléphone. **PR C codée en 4 PR, ouvertes vers `main`** : **#123** repas pendant un jeûne, **#124** notification + engrenage + Live Activity, **#125** bloc FASTING du Coach, **#126** carte « Nuits de jeûne » ; à fusionner quand vertes et validées par Mohamed (chacune touche le haut du catalogue : fusionner `main` dans la suivante avant sa fusion, union des clés), puis une IPA (liste « À tester (PR C) » ci-dessous).
+**État** (8 nov., matin) : PR A #115 et PR B #116 (`main` 0779192), #118 correctif (`main` 6c889b9) ; **PR C fusionnée en 4 PR** : #123 repas pendant un jeûne (`main` 0b991e3), #124 notification + engrenage + Live Activity (8762a76), #125 bloc FASTING du Coach (b0beba2), #126 « Nuits de jeûne » (`main` **f14646a**), chacune 6/6 sur sa tête à jour avec `main` ; **IPA `build/jeune-2`** = `main` f14646a (release `ipa-build-jeune-2`), à installer et valider (liste « À tester (PR C) » ci-dessous, et celle de `build/jeune` plus haut).
 
 ## La demande (7 nov., mots de Mohamed résumés)
 - Une **nouvelle section dans Nutrition** : le **jeûne intermittent**. Mohamed ne sait pas encore où la placer : la maquette doit proposer l'emplacement.

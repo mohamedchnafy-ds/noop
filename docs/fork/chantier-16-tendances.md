@@ -1,0 +1,50 @@
+# Chantier 16 — Tendances : une vision de forme, pas six graphiques (8 nov. 2026)
+
+**État** (8 nov., après-midi) : maquette v1 **validée** par Mohamed (les deux graphiques, anneaux pour le Bilan) ; code écrit dans la PR `claude/modest-maxwell-ssqsl3` → `main` ; **IPA `build/tendances`** à construire depuis la tête de la PR une fois la CI verte, puis fusion sur validation.
+
+## La demande (8 nov., mots de Mohamed résumés)
+- « Trop de graphiques » dans la section Tendances (Plus → Analyses → Tendances).
+- Une vision **plus globale, plus scientifique, plus sportive**.
+- Méthode : maquette → PR → IPA.
+
+## Diagnostic (captures du 8 nov., 9 jours de données)
+- 8 cartes, **6 graphiques** de 8 points chacun (Charge, VFC, FC repos, Effort, charge d'entraînement vide, calendrier annuel à 8 cases).
+- La semaine résumée **deux fois** (3 jauges puis « Résumé de la semaine » en barres) : la règle d'`AGENTS.md` « deux lectures d'un même fait ne doivent pas pouvoir diverger ».
+- **Deux horloges** : le ‹ › de la semaine (digest) et le sélecteur S · M · 3M · 6M · 1A · Tout (courbes) ne parlaient pas de la même période.
+- Une phrase du moteur en anglais (« Last week only had 2 days of data… »).
+
+## Maquette validée (8 nov.)
+https://claude.ai/artifact/4EJDD4QCZReyLLe2vQsysZ — 3 planches : la page à 7 jours (données réelles de Mohamed), la même à 3 mois (modèle de forme actif), « ce qui part, où ça va ».
+
+Réponses de Mohamed (outil à choix multiples) : **on code** ; **les deux graphiques** (nuage + Forme) ; **anneaux** pour le Bilan.
+
+## Ce que fait le nouvel écran
+Une seule période pour toute la page : pastilles **S · M · 3M · 6M · 1A** (« Tout » retiré de l'écran, gardé dans l'enum pour les cartes hôtes d'Aujourd'hui) + un ‹ › qui recule d'une période entière. Semaine = lundi–dimanche (comme le digest) ; les autres = blocs glissants finissant aujourd'hui. Puis cinq cartes :
+
+1. **Bilan** (`TrendsBilanCard`) : Charge · Effort · Repos une fois (jauges `BevelGauge`), écart en % vs la période précédente, une phrase déterministe (`TrendsOverview.bilanReading` : période précédente trop courte < 3 j, les deux montent, Effort monte / Charge baisse, etc.). Partage en PNG par l'icône en haut à droite (même rendu que l'ancien « Partager le récap »).
+2. **Équilibre Charge / Effort** (`TrendsBalanceCard`) : un point par jour, axes 0–100 stockés, coupés à **50** ; quadrants Optimal / Surmenage / Récupération / Sous-exploité ; compte par quadrant ; phrase par règle (≥ la moitié en surmenage, ≥ 40 % sous-exploité, ≥ la moitié optimal, sinon « réparti ») ; dernier jour cerclé de blanc.
+3. **Forme** (`TrendsFormeCard`) : Condition (CTL 42 j) · Fatigue (ATL 7 j) · Forme (TSB) de `TrainingLoadEngine` sur **tout** l'historique ; le seul graphique de courbes (CTL bleu, ATL ambre, aire verte / ambre entre les deux) cadré sur la période ; ratio aigu / chronique et monotonie de `ReadinessEngine` (zone 0,8–1,3). Avant 14 jours contigus : tuiles « — », « Se construit · n / 14 » en pastilles, phrase « Encore n jours ». En anglais la tuile s'appelle **Fitness** (« Condition » en français).
+4. **Signaux vs ta normale** (`TrendsSignalsCard`) : VFC, FC repos, Respiration, Temp. peau, Sommeil ; valeur = moyenne de la période ; **bande = moyenne ± ½ écart-type** sur une fenêtre plus longue (S → 30 j, M → 90 j, 3M → 180 j, 6M / 1A → 365 j), au moins 7 lectures sinon pas de bande ; axe de la ligne = moyenne ± 2 écarts-types ; pastille = écart vs période précédente (Sommeil : écart au **besoin** de `sleepSynthesisFigures`). Chaque ligne ouvre `MetricDetailView` (`TabRoute.metric`).
+5. **Jour par jour** (`TrendsGridCard`) : grille 5 lignes (Charge, Effort, VFC, FC repos, Sommeil) × colonnes : jours (S), semaines lundi-alignées (M, 3M), mois (6M, 1A). Charge = dégradé de récupération, Effort = bleu par intensité, signaux = vert (mieux) / gris (dedans) / ambre (moins bien) vs la bande. Toucher une colonne affiche ses valeurs au-dessus.
+
+Pied : deux lignes « Explorer une mesure › » (`TabRoute.metricExplorer`) et « Exporter le rapport › » (feuille PDF #436 inchangée).
+
+## Ce qui part
+Digest hebdomadaire (jauges + ‹ › semaine), carte « Résumé de la semaine », courbe Charge, courbes VFC / FC repos / Effort, carte « Charge d'entraînement » (remplacée par Forme), calendrier annuel, grande carte Exporter. `WeeklyDigestView.swift`, `TrainingLoadCard.swift` et `TrainingLoadChart.swift` restent dans le dépôt (le digest sert ailleurs ; `TrainingLoadCard.modelKey` sert de clé de cache à Forme et a son test).
+
+## Code
+- `Strand/Data/TrendsOverview.swift` : la logique pure (fenêtres, période précédente, `maxOffset`, moyennes et écarts, quadrants et lecture, phrase du Bilan, bande personnelle, colonnes de grille, `civilDaysBetween`). Pas de jumeau Kotlin (iPhone seulement, aucune donnée stockée) ; le nom `civilDaysBetween` évite la collision lexicale avec `CyclePhaseEngine.daysBetween` du paquet (piège de parité de la feuille de route).
+- `Strand/Screens/TrendsView.swift` (réécrit : période, `TrendsPeriodData`, `TrendsFormat`), `TrendsCardBits.swift` (ⓘ, en-tête, piste à bande, cellule), et les cinq cartes.
+- `StrandTests/TrendsOverviewTests.swift` : 18 tests (semaine du 2–8 nov. des captures : 3 optimal / 4 surmenage, fenêtres, bande, colonnes, lecture du Bilan).
+- 87 clés ajoutées au catalogue (10 langues) ; « Charge » / « Effort » traduits comme dans le reste du catalogue (Energie / Belastung, Carga / Esfuerzo…).
+- Non compilé dans la session : `app-build.yml` sur la PR est la vérification.
+
+## À tester (IPA `build/tendances`)
+- Plus → Analyses → Tendances : S par défaut, « Cette semaine · 2–8 nov. · 7 / 7 jours » ; ‹ recule d'une semaine (« Semaine dernière »), › grisé sur la semaine en cours ; M / 3M / 6M / 1A : « 30 derniers jours », les dates après un ‹.
+- Bilan : trois anneaux, pastilles « ↘ −15 % » colorées (Charge / Repos : vert si mieux, rose sinon ; Effort gris), phrase en français (période précédente à 2 jours → « les écarts sont indicatifs »). Icône partager en haut à droite → PNG du Bilan.
+- Équilibre : 7 points, « aujourd'hui » cerclé, 4 pastilles de compte, phrase ; ⓘ en popover. Avec M / 3M les points sont plus petits.
+- Forme : avec 9 jours → tuiles « — », 9 / 14 pastilles bleues, « Encore 5 jours… » ; **à partir du ~13 nov.** : tuiles chiffrées, courbe bleue / ambre, ratio avec sa zone verte, phrase monotonie.
+- Signaux : 5 lignes, bande colorée, point gris si moins de 7 lectures (Respiration / Temp. peau selon la nuit), Sommeil « 7 h 10 · besoin 7 h 50 » avec pastille d'écart au besoin ; un tap ouvre la mesure.
+- Jour par jour : L M M J V S D, D en blanc ; toucher une colonne → ligne « dim. 8 nov. · Charge 36 · Effort 53 · … » ; M → « Semaine par semaine » avec « nov. » au-dessus de la 1re semaine du mois ; 1A → « Mois par mois ».
+- Pied : « Explorer une mesure » → Explorer ; « Exporter le rapport » → feuille PDF.
+- Rien ne dépasse de l'écran en français (titres des cartes, pastilles).

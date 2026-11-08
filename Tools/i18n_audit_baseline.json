@@ -883,42 +883,6 @@
       "\\(title) · guided"
     ],
     [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Custom"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Fit"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Frosted"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Midnight"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Mint"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Ocean"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Stretch"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "Tile"
-    ],
-    [
-      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
-      "WHOOP Blue"
-    ],
-    [
       "Packages/StrandDesign/Sources/StrandDesign/ChartHover.swift",
       "\\(value), \\(label!)"
     ],
@@ -1451,10 +1415,6 @@
       "Notifications are off"
     ],
     [
-      "Strand/Screens/SmartAlarmView.swift",
-      "Open Settings"
-    ],
-    [
       "Strand/Screens/StressView.swift",
       "Daily 0-3 proxy"
     ],
@@ -1543,14 +1503,6 @@
       "\\(prettyDate(report.start))-\\(prettyDate(report.end))  ·  \\(span) days"
     ],
     [
-      "Strand/Screens/TrendsView.swift",
-      "Opens the full Charge metric."
-    ],
-    [
-      "Strand/Screens/TrendsView.swift",
-      "Opens the full \\(accessibilityTitle) metric."
-    ],
-    [
       "Strand/Screens/VitalSignsSummary.swift",
       "No raw SpO₂ decode for the night"
     ],
@@ -1592,39 +1544,11 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
-      " · filtered"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "All sources"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "All sports"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Clear filters"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
       "Delete (\\(chosen.count))"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
       "Double-tap to select"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Effort \\(Self.effortCellLabel(strain: row.strain, scale: effortScale))"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Filter by source"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Filter by sport"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
@@ -1636,10 +1560,6 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
-      "Merge"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
       "Merge (\\(chosen.count))"
     ],
     [
@@ -1648,23 +1568,11 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
-      "Select"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
       "Select sessions to merge or delete"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
       "These sessions have no sport label yet. Pick one for the merged session."
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Typical effort \\(UnitFormatter.effortDisplay(avgStrain, scale: effortScale))"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "Typical effort, no data"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
@@ -1684,15 +1592,7 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
-      "\\(grouped(k)) kcal"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
       "no Effort recorded"
-    ],
-    [
-      "Strand/Screens/WorkoutsView.swift",
-      "of 21"
     ],
     [
       "Strand/System/CoachBriefScheduler.swift",

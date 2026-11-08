@@ -14,6 +14,9 @@ struct ElanComparisonView: View {
     let gains: [ElanLiftGain]
     let unitSystem: UnitSystem
     var animated: Bool = true
+    /// Opens the short session (PR C); nil when none is proposed today.
+    var onShortSession: (() -> Void)? = nil
+    var shortMinutes: Int? = nil
 
     private var launched: ElanWindow? { state.comparison.launched }
     private var recent: ElanWindow { state.comparison.recent }
@@ -167,6 +170,16 @@ struct ElanComparisonView: View {
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let onShortSession {
+                    if let shortMinutes, shortMinutes > 0 {
+                        ElanActionButton(title: Text("Short session · \(shortMinutes) min"), look: .primary,
+                                         action: onShortSession)
+                            .padding(.top, 4)
+                    } else {
+                        ElanActionButton(title: Text("Short session"), look: .primary, action: onShortSession)
+                            .padding(.top, 4)
+                    }
+                }
             }
         }
     }

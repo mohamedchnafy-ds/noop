@@ -35,6 +35,9 @@ final class NavRouter: ObservableObject {
         /// Also the K5 scheduled morning-brief notification's tap-through target.
         case coach
         case alarms
+        /// Personal fork, chantier 10 PR C: the Élan screen (the More sheet opened on it), the target of
+        /// Élan's notifications.
+        case elan
 
         var id: String { rawValue }
 
@@ -110,6 +113,21 @@ final class NavRouter: ObservableObject {
     func openFasting() {
         fastingRequested = true
         widgetRoute = .nutrition
+    }
+
+    /// What the Élan screen should present once shown (personal fork, chantier 10 PR C): the short-session
+    /// sheet (the missed-session notification's action) or the weigh-in (the weigh-in notification's « Log »).
+    /// Élan consumes it, then clears it.
+    enum ElanRequest: Equatable {
+        case shortSession, weighIn
+    }
+
+    @Published var elanRequest: ElanRequest?
+
+    /// The Élan screen, then what it should present.
+    func openElan(_ request: ElanRequest? = nil) {
+        elanRequest = request
+        requestedDestination = .elan
     }
 
     /// A "Start" of the session widget (widgets v2): the program or the cardio to launch. The iOS shell

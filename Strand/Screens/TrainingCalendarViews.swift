@@ -654,6 +654,11 @@ struct TrainingDaySection: View {
                         Text("Missed")
                             .font(StrandFont.overline)
                             .foregroundStyle(StrandPalette.statusWarning)
+                    } else if program.elanShort {
+                        // Élan's short session, accepted for today (personal fork, chantier 10 PR C).
+                        Text("added by Élan")
+                            .font(StrandFont.overline)
+                            .foregroundStyle(StrandPalette.elanSand)
                     }
                     Text(verbatim: program.name)
                         .font(StrandFont.title2.weight(.bold))

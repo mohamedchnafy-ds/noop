@@ -56,6 +56,18 @@ struct TrainingWeekPlan: Codable, Equatable {
     /// The first day ("yyyy-MM-dd", local) the plan applies to. Days before it show only what was done,
     /// so saving a plan never marks the weeks before it as missed.
     var since: String?
+    /// The usual hour of a session, in minutes since midnight (personal fork, chantier 10 PR C): what the
+    /// « Avant une séance prévue » reminder counts back from. Nil until set (the Rappels screen); absent from
+    /// plans stored before it, which decode as nil.
+    var sessionMinutes: Int?
+    /// Items added to ONE day only ("yyyy-MM-dd" → items), never stored with the plan: Élan's short session
+    /// accepted for today (`ElanShortSessionChoice`, applied by `loadWeekPlan`). They come out of
+    /// `planDecision` with the weekday's items, so the calendar, the Synthèse, the « Start » sheet and the
+    /// widget read them exactly as they read the plan, and `TrainingDays.buildTrainingDays` marks them
+    /// `isExtra` so the week's planned count does not grow by them.
+    var extraByDay: [String: [TrainingPlanItem]] = [:]
+
+    private enum CodingKeys: String, CodingKey { case days, since, sessionMinutes }
 
     /// UserDefaults key of the stored JSON (v2: a list of items per day).
     static let storageKey = "training.weekPlan.v2"
@@ -65,9 +77,12 @@ struct TrainingWeekPlan: Codable, Equatable {
     /// At most three items on a day (Mohamed's choice, 3 Nov.).
     static let maxItemsPerDay = 3
 
-    init(days: [String: [TrainingPlanItem]] = [:], since: String? = nil) {
+    init(days: [String: [TrainingPlanItem]] = [:], since: String? = nil, sessionMinutes: Int? = nil,
+         extraByDay: [String: [TrainingPlanItem]] = [:]) {
         self.days = days.filter { !$0.value.isEmpty }
         self.since = since
+        self.sessionMinutes = sessionMinutes
+        self.extraByDay = extraByDay.filter { !$0.value.isEmpty }
     }
 
     /// The v1 shape: one program per weekday.
@@ -105,19 +120,45 @@ struct TrainingWeekPlan: Codable, Equatable {
 
     /// The plan without the programs that no longer exist: a deleted program frees its place; cardio stays.
     func keepingPrograms(_ existing: Set<String>) -> TrainingWeekPlan {
-        TrainingWeekPlan(days: days.mapValues { items in
+        func keep(_ items: [TrainingPlanItem]) -> [TrainingPlanItem] {
             items.filter { item in item.programId.map { existing.contains($0) } ?? true }
-        }, since: since)
+        }
+        return TrainingWeekPlan(days: days.mapValues(keep), since: since, sessionMinutes: sessionMinutes,
+                                extraByDay: extraByDay.mapValues(keep))
+    }
+
+    /// The items added to the day `key` alone (`extraByDay`), as given; `planDecision` leaves out the ones
+    /// the weekday already plans.
+    func extraItems(day key: String) -> [TrainingPlanItem] {
+        extraByDay[key] ?? []
     }
 
     /// What the plan says for `date`: the day's items, or rest; nil when the plan does not decide (no plan,
     /// or a day before it applies), so the rotation decides. The one resolver the calendar, Today's
-    /// Synthesis, the widget, the meal reminders and the Coach read.
+    /// Synthesis, the widget, the meal reminders and the Coach read. An item added to that day alone
+    /// (`extraByDay`) follows the weekday's items, and makes a planned day of a rest day or of a day the
+    /// plan does not decide.
     func planDecision(for date: Date, calendar: Calendar) -> TrainingPlanDecision? {
-        guard !isEmpty else { return nil }
-        guard appliesToDay(TrainingCalendar.trainingDayKey(date, calendar: calendar)) else { return nil }
-        let items = plannedItems(weekday: TrainingCalendar.isoWeekday(date, calendar: calendar))
-        return items.isEmpty ? .rest : .planned(items)
+        let key = TrainingCalendar.trainingDayKey(date, calendar: calendar)
+        var items: [TrainingPlanItem] = []
+        if !isEmpty, appliesToDay(key) {
+            items = plannedItems(weekday: TrainingCalendar.isoWeekday(date, calendar: calendar))
+        }
+        let extra = extraItems(day: key).filter { !items.contains($0) }
+        if items.isEmpty, extra.isEmpty {
+            return (!isEmpty && appliesToDay(key)) ? .rest : nil
+        }
+        return .planned(items + extra)
+    }
+
+    /// The plan with `item` added to the day `key` alone (Élan's accepted short session), unless that day
+    /// already plans it.
+    func adding(_ item: TrainingPlanItem, toDay key: String) -> TrainingWeekPlan {
+        var copy = self
+        var extra = copy.extraByDay[key] ?? []
+        if !extra.contains(item) { extra.append(item) }
+        copy.extraByDay[key] = extra
+        return copy
     }
 
     /// True when the plan applies to the day `key` ("yyyy-MM-dd").
@@ -137,7 +178,7 @@ struct TrainingWeekPlan: Codable, Equatable {
     static func decodeWeekPlan(_ raw: String?) -> TrainingWeekPlan {
         guard let raw, let data = raw.data(using: .utf8) else { return TrainingWeekPlan() }
         if let plan = try? JSONDecoder().decode(TrainingWeekPlan.self, from: data) {
-            return TrainingWeekPlan(days: plan.days, since: plan.since)
+            return TrainingWeekPlan(days: plan.days, since: plan.since, sessionMinutes: plan.sessionMinutes)
         }
         if let legacy = try? JSONDecoder().decode(LegacyWeekPlan.self, from: data) {
             return TrainingWeekPlan(programs: legacy.programs, since: legacy.since)
@@ -153,9 +194,15 @@ struct TrainingWeekPlan: Codable, Equatable {
         return text
     }
 
-    /// The stored plan: v2 when one was saved, else the v1 plan carried over.
-    static func loadWeekPlan(_ defaults: UserDefaults = .standard) -> TrainingWeekPlan {
-        decodeWeekPlan(defaults.string(forKey: storageKey) ?? defaults.string(forKey: legacyStorageKey))
+    /// The stored plan: v2 when one was saved, else the v1 plan carried over; then Élan's short session
+    /// accepted for today (`ElanShortSessionChoice.acceptedProgramId`, personal fork chantier 10) added to
+    /// today alone, so every reader of the plan sees today's session where Élan put it.
+    static func loadWeekPlan(_ defaults: UserDefaults = .standard, now: Date = Date(),
+                             calendar: Calendar = .current) -> TrainingWeekPlan {
+        let stored = decodeWeekPlan(defaults.string(forKey: storageKey) ?? defaults.string(forKey: legacyStorageKey))
+        let today = TrainingCalendar.trainingDayKey(now, calendar: calendar)
+        guard let accepted = ElanShortSessionChoice.acceptedProgramId(day: today, defaults) else { return stored }
+        return stored.adding(.program(accepted), toDay: today)
     }
 
     func storeWeekPlan(_ defaults: UserDefaults = .standard) {
@@ -255,6 +302,9 @@ struct TrainingActivityDone: Equatable {
 struct TrainingPlannedItem: Equatable {
     var item: TrainingPlanItem
     var isDone: Bool
+    /// Added to that day alone (`TrainingWeekPlan.extraByDay`: Élan's short session), not by the week plan:
+    /// it is to do, started and ticked like the others, but the week's planned count leaves it out.
+    var isExtra: Bool = false
 }
 
 /// One day of the calendar: what was planned and what was done.
@@ -308,6 +358,9 @@ struct TrainingProgramSummary: Equatable, Identifiable {
     /// The loads to raise next time this program is run (fork chantier 9: the day card's « ↑ » lines),
     /// filled once the Progression data is read (`TrainingDays.programRaises`).
     var raises: [TrainingRaise] = []
+    /// Élan's short version of the program, accepted for today (personal fork, chantier 10 PR C): the day
+    /// card says where it came from, and its Start runs the short plan.
+    var elanShort: Bool = false
 }
 
 /// One load to raise: an exercise of a program whose last session earned a step up (`LiftProgression`).
@@ -342,9 +395,16 @@ enum TrainingDays {
             let dayLifts = (liftsByDay[key] ?? []).sorted { $0.startTs < $1.startTs }
             let dayActivities = (activitiesByDay[key] ?? []).sorted { $0.startTs < $1.startTs }
             let items = plan.planDecision(for: date, calendar: calendar)?.items ?? []
+            let weekdayItems = plan.appliesToDay(key)
+                ? plan.plannedItems(weekday: TrainingCalendar.isoWeekday(date, calendar: calendar)) : []
+            var planned = matchPlanned(items, lifts: dayLifts, activities: dayActivities)
+            // An item the weekday does not plan came from `extraByDay` (Élan's short session).
+            for index in planned.indices where !weekdayItems.contains(planned[index].item) {
+                planned[index].isExtra = true
+            }
             return TrainingDay(date: calendar.startOfDay(for: date), key: key, isToday: key == todayKey,
                                isPast: key < todayKey,
-                               planned: matchPlanned(items, lifts: dayLifts, activities: dayActivities),
+                               planned: planned,
                                lifts: dayLifts, activities: dayActivities)
         }
     }
@@ -388,10 +448,12 @@ enum TrainingDays {
     /// Sessions done and planned over a period (a week, a month). Every Lift Log session done counts, on
     /// whatever day it was done (a session moved to another day of the week still counts for the week),
     /// plus the planned cardio done; planned = every item of the plan over the period.
+    /// An item added to one day alone (Élan's short session, `isExtra`) is not planned by the week: done,
+    /// it counts as a session; open, it does not grow the planned count (« 2 / 3 », not « 2 / 4 »).
     static func sessionTally(_ days: [TrainingDay]) -> (done: Int, planned: Int) {
         let lifts = days.reduce(0) { $0 + $1.lifts.count }
         let cardio = days.reduce(0) { total, day in total + day.planned.filter { $0.isDone && $0.item.isCardio }.count }
-        return (lifts + cardio, days.reduce(0) { $0 + $1.planned.count })
+        return (lifts + cardio, days.reduce(0) { $0 + $1.planned.filter { !$0.isExtra }.count })
     }
 
     /// The other activities of a period and the minutes of everything done (lifts and activities).

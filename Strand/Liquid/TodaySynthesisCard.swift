@@ -134,6 +134,9 @@ enum TodaySynthesisLogic {
         var cardioMinutes: Int? = nil
         /// The day's other planned items still to do, already worded ("Running · 30 min").
         var alsoPlanned: [String] = []
+        /// Élan's short version of the program, accepted for today (personal fork, chantier 10 PR C): the
+        /// shape and the length are the short session's, and the line says where it came from.
+        var elanShort: Bool = false
 
         var isCardio: Bool { cardioMinutes != nil }
     }
@@ -186,6 +189,10 @@ enum TodaySynthesisLogic {
             if let m = session.typicalMinutes {
                 let length = String(localized: "≈ \(m) min")
                 line = line.isEmpty ? length : line + " · " + length
+            }
+            if session.elanShort {
+                let origin = String(localized: "short version added by Élan")
+                line = line.isEmpty ? origin : line + " · " + origin
             }
             subtitle = line
         }

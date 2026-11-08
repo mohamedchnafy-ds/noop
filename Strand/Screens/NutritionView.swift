@@ -181,6 +181,9 @@ struct NutritionView: View {
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .navigationDestination(isPresented: $showHistory) { NutritionHistoryScreen() }
         .navigationDestination(isPresented: $showFasting) { FastingView() }
+        // Chantier 15 PR C: the fasting notification or banner asked for the Jeûne page.
+        .onAppear { openFastingIfRequested() }
+        .onChange(of: router.fastingRequested) { _ in openFastingIfRequested() }
         .task(id: "\(fastingRevision)-\(dismissedDoneId)-\(Repository.localDayKey(Date()))") { await reloadFastingCard() }
         .task(id: "\(waterTick)-\(repo.refreshSeq)-\(Repository.localDayKey(Date()))") {
             waterML = await repo.hydrationTotal(day: Repository.logicalDayKey(Date()))
@@ -246,6 +249,13 @@ struct NutritionView: View {
     }
 
     // MARK: Fast · Water (personal fork, chantier 15)
+
+    /// Opens the Jeûne page once when the router asked for it, then clears the request.
+    private func openFastingIfRequested() {
+        guard router.fastingRequested else { return }
+        router.fastingRequested = false
+        showFasting = true
+    }
 
     /// The fast shown on the card: the running one, else the one just over until « New fast ».
     private func reloadFastingCard() async {

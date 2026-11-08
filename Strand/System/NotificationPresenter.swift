@@ -22,6 +22,9 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// is a safe no-op (the tap is simply not routed) rather than a crash if this ever fires before the
     /// root has wired it.
     var onCoachBriefTapped: (() -> Void)?
+    /// Personal fork, chantier 15 PR C: a tapped fasting notification opens the Jeûne page. Wired by the iOS
+    /// app root; nil is a no-op.
+    var onFastingTapped: (() -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -41,6 +44,8 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     ) {
         if response.notification.request.content.categoryIdentifier == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
+        } else if response.notification.request.content.categoryIdentifier == FastingNotifier.categoryId {
+            onFastingTapped?()
         }
         completionHandler()
     }

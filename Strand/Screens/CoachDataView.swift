@@ -128,6 +128,10 @@ struct CoachDataView: View {
         CoachDataRow(symbol: "fork.knife", tint: StrandPalette.metricCyan, title: "Nutrition",
                      detail: String(localized: "Today's meals against your goals, and the 7 days before"))
         divider
+        // Chantier 15 PR C: the FASTING block of the fiche.
+        CoachDataRow(symbol: "timer", tint: StrandPalette.fastingDone, title: "Fasting",
+                     detail: String(localized: "The fast running or the last one, the last 7 days, today's water"))
+        divider
         CoachDataRow(symbol: "calendar", tint: StrandPalette.textSecondary, title: "Last 14 days",
                      detail: String(localized: "One line per day, and today's stress"))
     }

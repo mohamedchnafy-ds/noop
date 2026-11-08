@@ -37,6 +37,8 @@ struct FastingView: View {
     // History.
     @State private var historyDays = 7
     @State private var history: (durations: [Int], summary: FastingTimeline.Summary)?
+    /// Chantier 15 PR C: the fasting nights against the others (nil while reading).
+    @State private var nights: FastingNightsResult?
     // Sheets and what they edit.
     @State private var sheet: Sheet?
     @State private var editDate = Date()
@@ -46,7 +48,7 @@ struct FastingView: View {
     static let dismissedDoneKey = "fasting.dismissedDoneId"
 
     private enum Sheet: Identifiable {
-        case startTime, plannedEnd, stop, phase, caffeine, waterCorrect
+        case startTime, plannedEnd, stop, phase, caffeine, waterCorrect, reminders
         var id: Int {
             switch self {
             case .startTime: return 0
@@ -55,6 +57,7 @@ struct FastingView: View {
             case .phase: return 3
             case .caffeine: return 4
             case .waterCorrect: return 5
+            case .reminders: return 6
             }
         }
     }
@@ -75,7 +78,17 @@ struct FastingView: View {
     private var todayKey: String { Repository.logicalDayKey(now) }
 
     var body: some View {
-        ScreenScaffold(title: "Fasting") {
+        ScreenScaffold(title: "Fasting", trailing: {
+            // Chantier 15 PR C: the notifications and the Lock Screen banner.
+            Button { sheet = .reminders } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Fasting reminders"))
+        }) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 ringCard
                 FastingPhasesCard(state: state) { index in
@@ -93,6 +106,8 @@ struct FastingView: View {
                                    goalMinutes: state?.fast.goalMinutes ?? pickedGoalMinutes,
                                    todayRunning: running != nil, days: $historyDays,
                                    loading: history == nil, animated: loaded)
+                FastingNightsCard(result: nights)
+                    .animation(NoopMotion.gated(NoopMotion.card, reduced: still), value: nights)
                 Text("Indicative landmarks from the general literature, on \(Platform.deviceNounPhrase) only. Not medical advice.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -102,6 +117,9 @@ struct FastingView: View {
         .noopEntranceRoot()
         .task(id: revision) { await reloadFasts() }
         .task(id: "\(historyDays)-\(revision)-\(todayKey)") { await reloadHistory() }
+        .task(id: "\(revision)-\(repo.refreshSeq)-\(todayKey)") {
+            nights = await FastingNights.loadFastingNights(repo: repo)
+        }
         .task(id: "\(waterTick)-\(repo.refreshSeq)-\(todayKey)") { await reloadWater() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
         .sheet(item: $sheet, onDismiss: { Task { await reloadWater() } }) { which in
@@ -115,6 +133,9 @@ struct FastingView: View {
                 NavigationStack { HydrationView() }
                     .environmentObject(repo)
                     .environmentObject(profile)
+            case .reminders:
+                FastingRemindersSheet(onChange: { Task { await refreshSurroundings() } },
+                                      onClose: { sheet = nil })
             }
         }
     }
@@ -465,11 +486,10 @@ struct FastingView: View {
                           onClose: { sheet = nil })
     }
 
-    /// The question « Continue › » hands to the Coach tab. Until its fiche carries a FASTING block (PR C),
-    /// the figures travel in the question itself, so the Coach never answers « I have no fasting data ».
+    /// The question « Continue › » hands to the Coach tab. Short again (chantier 15 PR C): the fiche's FASTING
+    /// block carries the fast's figures and the water with every question.
     private var coachHandoffPrompt: String {
-        guard let s = state else { return String(localized: "Explain where I am in my fast and what to do next.") }
-        return String(localized: "I am fasting since \(FastingFormat.dayAndClock(s.startedAt, now: now)): \(FastingFormat.duration(minutes: s.elapsedMinutes)) done out of \(FastingFormat.duration(minutes: s.fast.goalMinutes)), \(FastingFormat.duration(minutes: s.remainingMinutes)) left, phase \(FastingPhaseText.name(s.phaseIndex)). Water today: \(FastingFormat.litres(ml: waterML)) of \(FastingFormat.litres(ml: Double(goalML))). Explain where I am in my fast and what to do next.")
+        String(localized: "Explain where I am in my fast and what to do next.")
     }
 
     private var caffeineSheet: some View {
@@ -548,6 +568,12 @@ struct FastingView: View {
         } else if let latest, latest.endedAt != nil {
             await FastingLog.amendFast(store, latest, endedAt: date)
         }
+    }
+
+    /// A reminder setting changed: the notification and the banner re-planned at once.
+    private func refreshSurroundings() async {
+        guard let store = await repo.storeHandle() else { return }
+        await FastingLog.refreshFastingSurroundings(store)
     }
 
     private func addWater(_ ml: Int) async {

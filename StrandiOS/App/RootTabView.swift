@@ -494,6 +494,9 @@ struct RootTabView: View {
                 // it ever reaches the host.
                 case .coach: CoachView()
                 case .alarms: SmartAlarmView()
+                // .elan opens the More sheet on Élan (handled above — `openElanScreen`); this keeps the
+                // switch exhaustive and falls back to Élan inside the sheet host if it ever reaches here.
+                case .elan: ElanView()
                 }
             }
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a

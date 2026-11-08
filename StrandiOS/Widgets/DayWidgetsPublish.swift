@@ -29,9 +29,9 @@ extension DayWidgetsSnapshot {
                 }
             }
         } while DayWidgetsPublishGate.finishRun()
-        // Personal fork, chantier 8: the meal reminders follow the same moments (a meal, a plan, a session,
-        // the foreground); a no-op beyond clearing when they are off.
-        await MealReminder.refreshMealReminders(repo: model.repo, now: Date())
+        // Personal fork, chantier 8 and chantier 10 PR C: the meal reminders and Élan's follow the same moments
+        // (a meal, a plan, a session, Élan's choice, the foreground), through the one shared budget.
+        await ReminderPlanner.refreshAllReminders(repo: model.repo, profile: model.profile, now: Date())
     }
 
     /// Today's three sections. The session and the week over the logical day, as the Synthèse resolves them;
@@ -182,11 +182,14 @@ struct DayWidgetsRefreshHooks: ViewModifier {
     let savedSessions: AnyPublisher<Int, Never>
     @AppStorage(MealJournal.revisionKey) private var mealRevision = 0
     @AppStorage(TrainingWeekPlan.storageKey) private var weekPlanRaw = ""
+    /// Élan's choice about the short session (personal fork, chantier 10 PR C): it moves today's session.
+    @AppStorage(ElanShortSessionChoice.revisionKey) private var elanRevision = 0
 
     func body(content: Content) -> some View {
         content
             .onChange(of: mealRevision) { _, _ in republish() }
             .onChange(of: weekPlanRaw) { _, _ in republish() }
+            .onChange(of: elanRevision) { _, _ in republish() }
             .onReceive(savedSessions.dropFirst()) { _ in republish() }
     }
 

@@ -335,6 +335,8 @@ struct RootView: View {
             // stays in exactly one place.
             case .coach: selection = .coach
             case .alarms: selection = .smartAlarm
+            // Élan (personal fork, chantier 10) lives in the iOS More sheet only; the Mac has no row for it.
+            case .elan: break
             case nil: break
             }
             if dest != nil { router.requestedDestination = nil }

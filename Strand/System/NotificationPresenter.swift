@@ -25,6 +25,10 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// Personal fork, chantier 15 PR C: a tapped fasting notification opens the Jeûne page. Wired by the iOS
     /// app root; nil is a no-op.
     var onFastingTapped: (() -> Void)?
+    /// Personal fork, chantier 10 PR C: an Élan or meal reminder's tap or action (`ElanReminder.elanAction`:
+    /// the short session, « Pas aujourd'hui », the weigh-in, « Plus tard », Élan, Nutrition). Wired by the iOS
+    /// app root; nil is a no-op.
+    var onElanAction: ((ElanReminder.Action) -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -34,18 +38,21 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound, .list])
     }
 
-    /// Handle a tap on a delivered notification. Only the scheduled morning-brief category (K5) routes
-    /// anywhere; every other notification (wind-down, smart-alarm, battery/illness) just opens the app
-    /// to wherever it was, matching the pre-K5 behaviour.
+    /// Handle a tap on a delivered notification. The scheduled morning-brief category (K5), the fasting one
+    /// and Élan's (personal fork) route somewhere; every other notification (wind-down, smart-alarm,
+    /// battery/illness) just opens the app to wherever it was, matching the pre-K5 behaviour.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        if response.notification.request.content.categoryIdentifier == CoachBriefScheduler.notificationCategoryId {
+        let category = response.notification.request.content.categoryIdentifier
+        if category == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
-        } else if response.notification.request.content.categoryIdentifier == FastingNotifier.categoryId {
+        } else if category == FastingNotifier.categoryId {
             onFastingTapped?()
+        } else if let action = ElanReminder.elanAction(category: category, actionIdentifier: response.actionIdentifier) {
+            onElanAction?(action)
         }
         completionHandler()
     }

@@ -53,6 +53,10 @@ struct LiftLogView: View {
     @State private var viewing: SessionDetailTarget?
     /// The week plan, kept on the iPhone.
     @State private var plan = TrainingWeekPlan()
+    /// Élan's short session accepted for today (personal fork, chantier 10 PR C): today's card shows it in
+    /// place of the whole program, and its Start runs it.
+    @State private var elanShort: ElanShortSessionPlan?
+    @AppStorage(ElanShortSessionChoice.revisionKey) private var elanRevision = 0
     @State private var mode: TrainingViewMode = .week
     /// The chosen day; the week and the month shown are the ones holding it.
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
@@ -98,7 +102,7 @@ struct LiftLogView: View {
         }
         // Also on a saved session: the session sheet lives above this screen and cannot tell it
         // directly, and a save does not always bump `refreshSeq`.
-        .task(id: "\(repo.refreshSeq)-\(session.savedSessions)") { await load() }
+        .task(id: "\(repo.refreshSeq)-\(session.savedSessions)-\(elanRevision)") { await load() }
         .sheet(item: $editing) { target in
             LiftProgramEditorSheet(program: target.program) {
                 await load()
@@ -208,7 +212,7 @@ struct LiftLogView: View {
         let openIds = Set(day?.openProgramIds ?? [])
         return Group {
             if let day {
-                TrainingDaySection(day: day, programs: summaries,
+                TrainingDaySection(day: day, programs: dayPrograms(day),
                                    others: summaries.filter { !openIds.contains($0.id) },
                                    isRunning: session.isActive,
                                    unitSystem: unitSystem,
@@ -293,9 +297,17 @@ struct LiftLogView: View {
 
     // MARK: - Start a session
 
-    /// Starts a program through the start the « Start » sheet shares (`beginProgramSession`).
+    /// Starts a program through the start the « Start » sheet shares: Élan's short version when it was
+    /// accepted for today, else the whole program (`beginTodayProgramSession`).
     private func start(_ program: LiftProgramRow) async {
-        await session.beginProgramSession(programId: program.id, programName: program.name, repo: repo)
+        await session.beginTodayProgramSession(programId: program.id, programName: program.name, repo: repo)
+    }
+
+    /// The programs as the day card shows them: today, Élan's accepted program as its short version
+    /// (`ElanShortSession.elanProgramSummary`), the others as they are.
+    private func dayPrograms(_ day: TrainingDay) -> [TrainingProgramSummary] {
+        guard day.isToday, let short = elanShort else { return summaries }
+        return summaries.map { $0.id == short.programId ? ElanShortSession.elanProgramSummary(short) : $0 }
     }
 
     // MARK: - Load
@@ -322,6 +334,12 @@ struct LiftLogView: View {
                                                        lastSets: { judged.exercise(named: $0)?.points.last?.sets },
                                                        stepKg: step)
             return raised
+        }
+        let today = TrainingCalendar.trainingDayKey(Date(), calendar: calendar)
+        if let id = ElanShortSessionChoice.acceptedProgramId(day: today) {
+            elanShort = await ElanShortSession.loadElanShortSession(repo: repo, programId: id)
+        } else {
+            elanShort = nil
         }
         loaded = true
     }

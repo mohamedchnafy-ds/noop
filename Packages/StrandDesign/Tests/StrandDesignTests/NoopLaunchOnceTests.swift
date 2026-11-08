@@ -33,4 +33,16 @@ final class NoopLaunchOnceTests: XCTestCase {
         XCTAssertTrue(NoopLaunchOnce.markPlayed(key, generation: 0))
         XCTAssertTrue(NoopLaunchOnce.hasPlayed(key))
     }
+
+    /// 8 Nov.: an entrance played again when its screen comes back runs faster, and none moves under the
+    /// quiet-motion gate.
+    func testADrawPhaseShownAgainSpeedsItsEntranceUp() {
+        let draw = NoopMotion.ringDraw
+        XCTAssertEqual(NoopDrawPhase(drawn: true, still: false).motion(draw), draw,
+                       "the first showing keeps the full tempo")
+        XCTAssertNotEqual(NoopDrawPhase(drawn: true, still: false, quick: true).motion(draw), draw,
+                          "a showing again plays at the replay speed")
+        XCTAssertNil(NoopDrawPhase(drawn: true, still: true, quick: true).motion(draw))
+        XCTAssertGreaterThan(NoopMotion.replaySpeed, 1)
+    }
 }

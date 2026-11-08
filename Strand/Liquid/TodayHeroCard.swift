@@ -119,7 +119,7 @@ struct TodayRingRow: View {
     /// Nil draws "no data".
     var value: String?
     var caption: String?
-    /// The number behind `value`, slammed in on its first appearance and on a change (fork chantier 12,
+    /// The number behind `value`, slammed in on its entrance and counted on a change (fork chantier 12,
     /// effect B); nil draws `value` as plain text (a calibration "1/4").
     var number: Double? = nil
     var format: ((Double) -> String)? = nil

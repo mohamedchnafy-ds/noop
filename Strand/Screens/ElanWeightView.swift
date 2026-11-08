@@ -374,7 +374,7 @@ struct ElanWeighInSheet: View {
                         entry
                     }
                 }
-                .padding(NoopMetrics.pagePadding)
+                .padding(NoopVisualStyle.pagePadding)
             }
             .background(StrandPalette.surfaceBase.ignoresSafeArea())
             .navigationTitle(Text("Morning weigh-in"))

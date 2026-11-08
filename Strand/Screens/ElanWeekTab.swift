@@ -24,7 +24,7 @@ struct ElanWeekTabView: View {
     private var key: String { "elan.week.\(showing)" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.itemGap) {
+        VStack(alignment: .leading, spacing: NoopVisualStyle.itemGap) {
             if let missed = state.missedYesterday {
                 alertCard(missed)
             }

@@ -40,7 +40,7 @@ struct ElanView: View {
 
     var body: some View {
         ScreenScaffold(title: "Élan") {
-            VStack(alignment: .leading, spacing: NoopMetrics.itemGap) {
+            VStack(alignment: .leading, spacing: NoopVisualStyle.itemGap) {
                 Text(verbatim: ElanFormat.longDate(Date()))
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -126,7 +126,7 @@ struct ElanView: View {
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
-                .padding(NoopMetrics.pagePadding)
+                .padding(NoopVisualStyle.pagePadding)
             }
         }
     }

@@ -16,7 +16,7 @@ struct ElanReadTabView: View {
     private var language: String { ElanFormat.languageCode }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.itemGap) {
+        VStack(alignment: .leading, spacing: NoopVisualStyle.itemGap) {
             dailyCard
             filters
             Text("The essentials · readable offline")

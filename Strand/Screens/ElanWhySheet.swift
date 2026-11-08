@@ -84,7 +84,7 @@ struct ElanWhySheet: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(NoopMetrics.pagePadding)
+                .padding(NoopVisualStyle.pagePadding)
             }
             .background(StrandPalette.surfaceBase.ignoresSafeArea())
             .navigationTitle(Text("My why"))

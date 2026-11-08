@@ -169,7 +169,7 @@ extension ElanFigures {
         let latest = repo.days.filter { $0.day <= Repository.localDayKey(now) }.last
         func whole(_ v: Double?) -> Int? { v.map { Int($0.rounded()) } }
         if let hrv = whole(latest?.avgHrv) { figures.values[.hrvLastNight] = String(localized: "\(hrv) ms") }
-        if let rhr = whole(latest?.restingHr) { figures.values[.restingHrLastNight] = String(localized: "\(rhr) bpm") }
+        if let rhr = latest?.restingHr { figures.values[.restingHrLastNight] = String(localized: "\(rhr) bpm") }
         if let spo2 = whole(latest?.spo2Pct) { figures.values[.spo2LastNight] = String(spo2) + " %" }
         if let rate = latest?.respRateBpm {
             figures.values[.respiratoryRateLastNight] = String(localized: "\(UnitFormatter.decimal(rate, places: 1)) /min")

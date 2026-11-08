@@ -24,7 +24,7 @@ struct ElanProgressTabView: View {
     private var key: String { "elan.progress.\(showing)" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.itemGap) {
+        VStack(alignment: .leading, spacing: NoopVisualStyle.itemGap) {
             comparisonCard
             weightCard
             ElanSectionTitle("What you have built")

@@ -298,6 +298,10 @@ public enum StrandPalette {
         Color(light: "#007AFF", dark: "#0A84FF"),
         Color(light: "#8944AB", dark: "#BF5AF2"),
     ]
+    /// Élan (fork chantier 10): the sand of the motivation section alone (its icon, « Jamais deux fois de
+    /// suite », the victories, « À essayer »), so it reads as its own voice beside the data colours; one
+    /// colour = one meaning (choice of 5 Nov.). Nothing else uses it.
+    public static let elanSand = Color(light: "#9A6A2E", dark: "#E0B072")
     /// The Map's « worse than your normal » (fork chantier 14, Carte v2): one orange in both chart styles,
     /// where `statusWarning` turns yellow under Classic. Also its location warnings.
     public static let deviationOrange = Color(light: "#C93400", dark: "#FF9F0A")

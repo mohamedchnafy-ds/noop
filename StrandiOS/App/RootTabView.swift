@@ -594,6 +594,11 @@ struct RootTabView: View {
                         MoreProfileCardHost(avatarImageData: profile.avatarImageData)
                     }
                     .buttonStyle(.plain)
+                    // Personal fork, chantier 10: Élan, reached only here (mockup v2.1, 5 Nov.).
+                    NavigationLink(value: MoreDestination.elan) {
+                        ElanMoreRowHost()
+                    }
+                    .buttonStyle(.plain)
                     MoreSheetRows()
                 }
             }
@@ -735,6 +740,8 @@ private enum MoreDestination: Hashable {
     case live, workouts, liftLog, nutrition, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
+    /// Personal fork, chantier 10: the Élan section (motivation), from the row under the profile card.
+    case elan
     /// A More group's row: Nutrition opens its screen directly, the others their list of entries.
     case hub(MoreHubGroup)
 
@@ -819,6 +826,7 @@ private enum MoreDestination: Hashable {
         case .siriShortcuts:   SiriShortcutsSettingsView()
         case .powerSaving:     PowerSavingView()
         case .settings:        SettingsView()
+        case .elan:            ElanView()
         }
     }
 }

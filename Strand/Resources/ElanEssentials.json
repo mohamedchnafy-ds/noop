@@ -1,0 +1,755 @@
+{
+  "version": 1,
+  "essentials": [
+    {
+      "id": "hrv",
+      "theme": "heart",
+      "minutes": 4,
+      "figures": [
+        "hrvLastNight",
+        "hrvNormal"
+      ],
+      "title": {
+        "fr": "Pourquoi ta VFC bouge d'une nuit à l'autre",
+        "en": "Why your HRV moves from one night to the next"
+      },
+      "points": {
+        "fr": [
+          "La VFC mesure les petits écarts entre deux battements : plus ils sont grands au repos, plus ton système nerveux est en mode récupération.",
+          "L'alcool et une nuit écourtée la font baisser ; une séance intense aussi, pendant 24 à 48 heures.",
+          "Compare-la à ta propre normale, jamais à celle d'un autre : elle varie de 10 à 20 % d'un jour à l'autre."
+        ],
+        "en": [
+          "HRV measures the tiny gaps between two heartbeats: the larger they are at rest, the more your nervous system is in recovery mode.",
+          "Alcohol and a shortened night lower it; so does a hard session, for 24 to 48 hours.",
+          "Compare it with your own normal, never with someone else's: it moves by 10 to 20 % from one day to the next."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "Ce que la VFC mesure",
+            "en": "What HRV measures"
+          },
+          "body": {
+            "fr": "Ton cœur ne bat pas comme un métronome : entre deux battements, l'intervalle change de quelques millisecondes, et c'est cette variation que mesure la variabilité de la fréquence cardiaque (VFC). Elle reflète l'équilibre entre les deux branches du système nerveux autonome : la sympathique, qui accélère, et la parasympathique, le nerf vague, qui freine et répare. L'indice le plus courant, le RMSSD, suit surtout cette activité vagale. Un niveau optimal de VFC va de pair avec la santé et la capacité d'adaptation. Elle diminue avec l'âge, remonte avec la condition physique, baisse quand la santé se dégrade, et dépend aussi de l'appareil et de la durée de mesure.",
+            "en": "Your heart does not beat like a metronome. Between two beats, the interval shifts by a few milliseconds, and that shift is what heart rate variability (HRV) measures. It reflects the balance between the two branches of the autonomic nervous system: the sympathetic branch, which speeds things up, and the parasympathetic branch, the vagus nerve, which slows and repairs. The most common index, RMSSD, mainly tracks that vagal activity. An optimal level of HRV goes with health and adaptability; it declines with age, rises with aerobic fitness and drops when health deteriorates. The numbers also depend on the device and on how long the recording lasts."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "L'alcool et la nuit écourtée",
+            "en": "Alcohol and the shortened night"
+          },
+          "body": {
+            "fr": "Une étude menée sur près de 21 000 adultes équipés d'un capteur a comparé, chez chaque personne, ses nuits avec et sans alcool. Plus la quantité bue est élevée, plus la VFC de la nuit baisse et plus la fréquence cardiaque au repos monte, avec un sommeil plus court et moins d'activité le lendemain. L'effet apparaît déjà pour de faibles quantités et il est plus marqué chez les jeunes et chez les femmes. Deux détails utiles : boire plus tôt dans la journée atténue la baisse, et dormir plus longtemps après avoir bu aussi. La longueur de ta nuit pèse donc directement sur la VFC que tu lis le matin.",
+            "en": "A study of nearly 21,000 adults wearing a sensor compared, within each person, nights with and without alcohol. The more that was drunk, the lower the night's HRV and the higher the resting heart rate, along with shorter sleep and less activity the next day. The effect already shows at low amounts and is stronger in younger people and in women. Two useful details: drinking earlier in the day softens the drop, and so does sleeping longer after drinking. In other words, the length of your night weighs directly on the HRV you read in the morning."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Compare-toi à toi-même",
+            "en": "Compare yourself with yourself"
+          },
+          "body": {
+            "fr": "Chez les sportifs suivis au quotidien, la VFC varie de 10 à 20 % d'un jour à l'autre, simplement parce que la charge d'entraînement change. Une séance intense fait chuter les indices vagaux pendant 24 à 48 heures, le temps que l'organisme retrouve son équilibre. Une valeur isolée ne veut donc rien dire : ce qui compte, c'est l'écart avec ta variation habituelle, lu en tenant compte de ce que tu as fait la veille. Une baisse qui dure plusieurs jours peut précéder une fatigue qui s'accumule. C'est pour cela que NOOP compare ta nuit à ta propre normale plutôt qu'à une moyenne de population.",
+            "en": "In athletes monitored daily, HRV moves by 10 to 20 % from one day to the next, simply because training load changes. An intense session lowers the vagal indices for 24 to 48 hours, the time the body needs to find its balance again. A single value therefore says nothing: what matters is the gap from your usual variation, read with yesterday's training in mind. A drop that lasts several days can precede accumulating fatigue. That is why NOOP compares your night with your own normal rather than with a population average."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Pendant deux semaines, note le soir ce qui a pu peser sur ta nuit (un verre, une séance dure, un coucher tardif) et regarde le lendemain dans quel sens ta VFC a bougé par rapport à ta normale.",
+        "en": "For two weeks, jot down each evening what might weigh on your night (a drink, a hard session, a late bedtime) and check the next morning which way your HRV moved against your normal."
+      },
+      "sources": [
+        {
+          "title": "An Overview of Heart Rate Variability Metrics and Norms",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5624990/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2017
+        },
+        {
+          "title": "Real-world effects of alcohol on heart rate, sleep, and physical activity by age and sex",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12970902/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2026
+        },
+        {
+          "title": "Monitoring training status with HR measures: do all roads lead to Rome?",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3936188/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2014
+        }
+      ]
+    },
+    {
+      "id": "resting_hr",
+      "theme": "heart",
+      "minutes": 4,
+      "figures": [
+        "restingHrLastNight",
+        "restingHrNormal"
+      ],
+      "title": {
+        "fr": "Ta fréquence cardiaque au repos, un baromètre lent",
+        "en": "Your resting heart rate, a slow barometer"
+      },
+      "points": {
+        "fr": [
+          "Des mois d'entraînement d'endurance la font baisser de quelques battements par minute.",
+          "Sur une nuit, l'alcool ou une infection qui démarre la font monter de plusieurs battements.",
+          "Lis la tendance sur des semaines, et lis le sursaut d'une nuit comme un signal à écouter."
+        ],
+        "en": [
+          "Months of endurance training lower it by a few beats per minute.",
+          "Over one night, alcohol or an infection setting in raise it by several beats.",
+          "Read the trend over weeks, and read a one-night jump as a signal worth hearing."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "Ce qui la fait baisser",
+            "en": "What lowers it"
+          },
+          "body": {
+            "fr": "Une revue de 191 études a mesuré l'effet du sport sur la fréquence cardiaque au repos. Tous les types d'activité la font baisser, mais seuls l'endurance et le yoga le font nettement chez les hommes comme chez les femmes : après un programme d'endurance, les participants se retrouvent en moyenne 2,7 à 5,8 battements par minute plus bas que les groupes témoins. La baisse est plus grande chez ceux qui partaient d'une fréquence élevée et chez les plus jeunes. La musculation seule n'a pas montré d'effet significatif. Le mécanisme reste discuté : les auteurs évoquent une baisse de la fréquence propre du cœur plutôt qu'un simple frein nerveux.",
+            "en": "A review of 191 intervention studies measured the effect of exercise on resting heart rate. Every type of activity lowers it, but only endurance training and yoga do so clearly in both men and women: after an endurance programme, participants end up on average 2.7 to 5.8 beats per minute lower than control groups. The drop is larger in people who started high and in younger people. Strength training alone showed no significant effect. The exact mechanism is still debated: the authors point to a lower intrinsic rate of the heart itself rather than a simple nervous brake."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Ce qui la fait monter",
+            "en": "What raises it overnight"
+          },
+          "body": {
+            "fr": "Chez près de 21 000 adultes suivis par un capteur, chaque verre bu au-delà de l'habitude personnelle, comparé à un verre de moins, s'accompagne d'une fréquence cardiaque nocturne plus haute d'environ 2,8 battements par minute chez les femmes et 2,4 chez les hommes. La VFC baisse en miroir, la nuit est plus courte et le lendemain moins actif. L'effet est plus fort chez les plus jeunes. Trois comportements l'atténuent : boire plus tôt dans la journée, dormir plus longtemps ensuite, et éviter une grosse séance le jour où l'on boit, car une activité plus intense que d'habitude ce jour-là amplifie la réponse du cœur.",
+            "en": "In nearly 21,000 adults followed with a sensor, each drink beyond the personal average, compared with one drink less, came with a nighttime heart rate about 2.8 beats per minute higher in women and 2.4 in men. HRV falls in mirror image, the night is shorter and the next day less active. The effect is stronger in younger adults. Three behaviours soften it: drinking earlier in the day, sleeping longer afterwards, and avoiding a big session on a drinking day, because more activity than usual that day amplifies the heart's response."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Fièvre et début d'infection",
+            "en": "Fever and early infection"
+          },
+          "body": {
+            "fr": "Quand le corps lutte contre une infection, le cœur accélère : une hausse de 1 °C de la température augmente la fréquence cardiaque d'environ 8,5 battements par minute. Dans une étude sur 2 745 personnes testées positives à la Covid-19 et équipées d'un bracelet, la fréquence cardiaque et la fréquence respiratoire étaient élevées pendant la maladie, et la VFC abaissée ; ces indicateurs pouvaient bouger quelques jours avant les premiers symptômes. La fréquence cardiaque redescendait ensuite, pour revenir à sa valeur de base environ trois semaines après le début des symptômes. Une nuit avec un cœur plus rapide sans explication, ni alcool ni séance, mérite donc d'être notée.",
+            "en": "When the body fights an infection, the heart speeds up: a 1 °C rise in body temperature raises heart rate by about 8.5 beats per minute on average. In a study of 2,745 people who tested positive for COVID-19 and wore a wristband, heart rate and breathing rate were elevated during the illness and HRV was lowered; these indicators could move a few days before the first symptoms. Heart rate then came back down, returning to its baseline about three weeks after symptoms began. A night with a faster heart and no explanation, neither alcohol nor a session, is therefore worth noting."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Si ta fréquence au repos dépasse ta normale de plusieurs battements sans raison évidente, allège la séance du jour et regarde si elle redescend la nuit suivante.",
+        "en": "If your resting rate sits several beats above your normal with no obvious reason, lighten the day's session and see whether it comes back down the following night."
+      },
+      "sources": [
+        {
+          "title": "Effects of Exercise on the Resting Heart Rate: A Systematic Review and Meta-Analysis of Interventional Studies",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6306777/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2018
+        },
+        {
+          "title": "Real-world effects of alcohol on heart rate, sleep, and physical activity by age and sex",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12970902/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2026
+        },
+        {
+          "title": "Assessment of physiological signs associated with COVID-19 measured using wearable devices",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7705652/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2020
+        }
+      ]
+    },
+    {
+      "id": "spo2",
+      "theme": "heart",
+      "minutes": 4,
+      "figures": [
+        "spo2LastNight"
+      ],
+      "title": {
+        "fr": "Oxygène dans le sang la nuit : que dit le chiffre ?",
+        "en": "Overnight blood oxygen: what the number says"
+      },
+      "points": {
+        "fr": [
+          "Au repos, 95 % ou plus est la valeur attendue chez une personne en bonne santé.",
+          "Un creux après un séjour en altitude peut durer quelques semaines ; des creux répétés avec ronflements et fatigue font penser aux apnées du sommeil.",
+          "Un capteur au poignet ne pose pas de diagnostic : seul un enregistrement du sommeil le fait."
+        ],
+        "en": [
+          "At rest, 95 % or more is the expected value in a healthy person.",
+          "A dip after time at altitude can last a few weeks; repeated dips with snoring and tiredness point towards sleep apnoea.",
+          "A wrist sensor does not diagnose anything: only a sleep recording does."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "La valeur attendue",
+            "en": "The expected value"
+          },
+          "body": {
+            "fr": "La saturation en oxygène (SpO2) indique la part de l'hémoglobine de ton sang qui transporte de l'oxygène. Au repos, une personne en bonne santé se situe à 95 % ou plus : c'est le repère que la Haute Autorité de santé retient pour considérer qu'un patient respire correctement et peut être suivi à domicile. En dessous, le médecin renforce la surveillance, au besoin avec un oxymètre pincé au bout du doigt. Ton bracelet applique le même principe au poignet, toute la nuit, sans la rigueur d'un examen médical. Lis donc le résultat comme une tendance : ta moyenne habituelle, et les nuits qui s'en écartent.",
+            "en": "Oxygen saturation (SpO2) tells you what share of the haemoglobin in your blood is carrying oxygen. At rest, breathing room air, a healthy person sits at 95 % or more: that is the reference the French Haute Autorité de santé uses to consider that a patient is breathing properly and can be followed at home. Below it, the doctor steps up monitoring, if needed with a pulse oximeter clipped on a fingertip. Your strap applies the same principle at the wrist, all night long, without the rigour of a medical examination. So read the result as a trend: your usual average, and the nights that clearly stray from it."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Altitude et nuits particulières",
+            "en": "Altitude and unusual nights"
+          },
+          "body": {
+            "fr": "Pour chercher des apnées du sommeil, le médecin part des symptômes, des facteurs de risque et des antécédents familiaux, puis oriente vers un enregistrement du sommeil, en centre ou à domicile : c'est lui qui tranche. Il demande aussi si tu as séjourné récemment au-dessus d'environ 1 800 m, car un environnement pauvre en oxygène peut provoquer des symptômes semblables pendant quelques semaines après le voyage. Il vérifie enfin les médicaments, comme les opioïdes, et certaines maladies qui pèsent sur la respiration nocturne. Un chiffre bas isolé après une nuit en montagne ne vaut donc pas un chiffre bas chez toi, semaine après semaine.",
+            "en": "To look for sleep apnoea, the doctor starts with symptoms, risk factors and family history, then refers you for a sleep recording, at a centre or at home: that recording is what settles it. The doctor also asks whether you have recently stayed above about 1,800 m (6,000 feet), because a low-oxygen environment can cause similar symptoms for a few weeks after the trip. Medicines such as opioids, and some conditions that weigh on breathing at night, are checked too. One isolated low reading after a night in the mountains therefore does not mean the same as a low reading at home, week after week."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Quand penser aux apnées",
+            "en": "When to think of sleep apnoea"
+          },
+          "body": {
+            "fr": "Le syndrome d'apnées du sommeil toucherait une personne sur dix. Pendant le sommeil, les muscles de la gorge se relâchent et le pharynx se ferme, au moins 5 fois par heure et 10 à 30 secondes ; la respiration s'interrompt et des micro-réveils inaperçus s'enchaînent. Les signes : ronflements, pauses respiratoires remarquées par l'entourage, envies d'uriner la nuit, puis fatigue et somnolence le jour. L'âge, le surpoids, l'alcool, le tabac et dormir sur le dos favorisent ces épisodes. Le diagnostic repose sur un enregistrement du sommeil avec un oxymètre au doigt ; en cas de surpoids, perdre 10 à 15 % du poids réduit la sévérité.",
+            "en": "Sleep apnoea syndrome is thought to affect one person in ten worldwide. During sleep, the throat muscles relax and the pharynx closes, at least 5 times an hour and for 10 to 30 seconds each time; breathing stops and unnoticed micro-awakenings follow. The signs: snoring, breathing pauses noticed by a partner, needing to urinate at night, then tiredness and sleepiness by day. Age, excess weight, alcohol, smoking and sleeping on your back make these episodes more likely. Diagnosis rests on a sleep recording with a finger oximeter; when weight is a factor, losing 10 to 15 % of body weight clearly reduces severity."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Si ta SpO2 de nuit baisse plusieurs nuits de suite sans voyage en altitude, et surtout si on te dit que tu ronfles ou que tu t'arrêtes de respirer, note-le et parles-en à ton médecin : ce n'est pas au bracelet de trancher.",
+        "en": "If your overnight SpO2 drops several nights in a row with no trip to altitude, and especially if someone says you snore or stop breathing, write it down and talk to your doctor: it is not the strap's call to make."
+      },
+      "sources": [
+        {
+          "title": "Covid-19 : Point sur la prise en charge des patients en ambulatoire",
+          "url": "https://has-sante.fr/jcms/p_3310186/fr/covid-19-point-sur-la-prise-en-charge-des-patients-en-ambulatoire",
+          "host": "has-sante.fr",
+          "year": 2022
+        },
+        {
+          "title": "Sleep Apnea - Diagnosis",
+          "url": "https://www.nhlbi.nih.gov/health/sleep-apnea/diagnosis",
+          "host": "www.nhlbi.nih.gov",
+          "year": 2025
+        },
+        {
+          "title": "Syndrome d'apnées du sommeil",
+          "url": "https://www.inserm.fr/dossier/apnee-sommeil/",
+          "host": "www.inserm.fr",
+          "year": 2024
+        }
+      ]
+    },
+    {
+      "id": "respiratory_rate",
+      "theme": "heart",
+      "minutes": 4,
+      "figures": [
+        "respiratoryRateLastNight"
+      ],
+      "title": {
+        "fr": "Ta fréquence respiratoire de nuit, un chiffre très stable",
+        "en": "Your overnight breathing rate, a very steady number"
+      },
+      "points": {
+        "fr": [
+          "Chez l'adulte en bonne santé, 90 % des nuits se situent entre 11,8 et 19,2 respirations par minute.",
+          "D'une nuit à l'autre, ta valeur ne bouge que de 4 à 6 % : c'est le signal le plus calme du bracelet.",
+          "Une hausse de 3 respirations par minute ou plus par rapport à ta normale peut être un signe précoce d'infection."
+        ],
+        "en": [
+          "In healthy adults, 90 % of nights fall between 11.8 and 19.2 breaths per minute.",
+          "From one night to the next, your value moves by only 4 to 6 %: it is the strap's calmest signal.",
+          "A rise of 3 breaths per minute or more above your normal can be an early sign of infection."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "La plage normale",
+            "en": "The normal range"
+          },
+          "body": {
+            "fr": "Un bracelet qui lit le cœur peut aussi compter la respiration, car chaque inspiration accélère légèrement le cœur et chaque expiration le ralentit. Chez l'adulte en bonne santé, 90 % des valeurs tombent entre 11,8 et 19,2 respirations par minute, autour d'une moyenne de 15,4. La fréquence est un peu plus haute chez les femmes avant 50 ans et monte avec la fréquence cardiaque de la nuit ; la mesure la plus fidèle vient du sommeil profond. Elle bouge quand une infection arrive : autour des premiers symptômes de la Covid-19, plus d'un tiers des personnes respiraient au moins 3 fois par minute de plus que d'habitude.",
+            "en": "A strap that reads the heart can also count breaths: each inhalation speeds the heart slightly, each exhalation slows it, and that rhythm shows up in the gaps between beats. In healthy adults, 90 % of values fall between 11.8 and 19.2 breaths per minute, with a mean of 15.4. The rate is a little higher in women under 50, drops slightly with age and rises with the night's heart rate; the most representative reading comes from deep sleep. When an infection arrives, the same measure moves: around the first COVID-19 symptoms, more than a third of people were breathing at least 3 times a minute more than their average."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Pourquoi elle varie si peu",
+            "en": "Why it varies so little"
+          },
+          "body": {
+            "fr": "La nuit est le moment où la respiration dépend le moins de toi. Pendant le sommeil, on respire moins souvent et moins profondément, on prend moins d'oxygène, et dès le sommeil lent la pression artérielle et la fréquence cardiaque baissent : le système parasympathique tient les commandes. Aucune parole, aucun effort, aucune émotion ne brouille la mesure, contrairement à la journée. C'est ce qui rend la fréquence respiratoire nocturne si régulière d'une nuit à l'autre, et un écart facile à repérer. Ces mêmes changements expliquent pourquoi l'asthme gêne davantage en fin de nuit, et pourquoi les personnes atteintes de bronchopneumopathie chronique respirent moins bien en dormant.",
+            "en": "Night is when breathing depends least on you. During sleep you breathe less often and less deeply and take in less oxygen, and from non-REM sleep onwards blood pressure and heart rate fall: the parasympathetic system is in charge. No talking, no effort, no emotion blurs the measurement, unlike during the day. That is what makes the overnight breathing rate so regular from one night to the next, and a deviation easy to spot. The same changes explain why some respiratory diseases, asthma for instance, are worse in the early morning hours, and why people with chronic obstructive pulmonary disease breathe less well while asleep."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Un signal précoce d'infection",
+            "en": "An early sign of infection"
+          },
+          "body": {
+            "fr": "Quand une infection s'installe, le corps accélère : la respiration et le cœur montent, la VFC baisse. Dans une étude sur 2 745 personnes testées positives à la Covid-19, la fréquence respiratoire est l'indicateur qui a le plus bougé et qui a mis le plus de temps à revenir à la normale ; ces écarts pouvaient apparaître quelques jours avant les premiers symptômes. Les auteurs rappellent que la respiration s'élève aussi avec la fièvre, et qu'une hausse de 1 °C fait monter le cœur d'environ 8,5 battements par minute. Ce n'est ni un test ni un diagnostic : c'est une raison de lever le pied et d'écouter ton corps.",
+            "en": "When an infection takes hold, the body speeds up: breathing and heart rate climb, HRV falls. In a study of 2,745 people who tested positive for COVID-19, breathing rate was the indicator that moved the most and took the longest to return to normal; these deviations could appear a few days before the first symptoms. The authors also note that breathing rises with fever, and that a 1 °C rise pushes the heart up by about 8.5 beats per minute. This is neither a test nor a diagnosis: it is a reason to ease off and listen to what your body says next."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Si ta fréquence respiratoire de nuit dépasse ta normale de 2 ou 3 respirations par minute, regarde si la fréquence cardiaque au repos a monté aussi et si la VFC a baissé : trois signaux dans le même sens, c'est le moment de lever le pied un jour ou deux.",
+        "en": "If your overnight breathing rate sits 2 or 3 breaths per minute above your normal, check whether resting heart rate has risen too and HRV has fallen: three signals pointing the same way is the moment to ease off for a day or two."
+      },
+      "sources": [
+        {
+          "title": "Measurement of respiratory rate using wearable devices and applications to COVID-19 detection",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8443549/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2021
+        },
+        {
+          "title": "How Sleep Works - Why Is Sleep Important?",
+          "url": "https://www.nhlbi.nih.gov/health/sleep/why-sleep-important",
+          "host": "www.nhlbi.nih.gov",
+          "year": 2022
+        },
+        {
+          "title": "Assessment of physiological signs associated with COVID-19 measured using wearable devices",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7705652/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2020
+        }
+      ]
+    },
+    {
+      "id": "sleep_stages",
+      "theme": "sleep",
+      "minutes": 4,
+      "figures": [
+        "sleepLastNight",
+        "sleepNeed"
+      ],
+      "title": {
+        "fr": "Léger, profond, paradoxal : à quoi sert chaque phase",
+        "en": "Light, deep, REM: what each sleep stage does"
+      },
+      "points": {
+        "fr": [
+          "Une nuit, c'est 3 à 6 cycles de 60 à 120 minutes, chacun passant du sommeil lent au sommeil paradoxal.",
+          "Le sommeil profond domine le début de nuit ; le paradoxal s'allonge vers le matin.",
+          "Chez l'adulte, le profond fait environ 16 à 20 % de la nuit et le paradoxal 20 à 25 %."
+        ],
+        "en": [
+          "A night is 3 to 6 cycles of 60 to 120 minutes, each moving from non-REM to REM sleep.",
+          "Deep sleep dominates the start of the night; REM lengthens towards morning.",
+          "In adults, deep sleep is about 16 to 20 % of the night and REM 20 to 25 %."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "L'architecture d'une nuit",
+            "en": "The architecture of a night"
+          },
+          "body": {
+            "fr": "Le sommeil s'organise en 3 à 6 cycles de 60 à 120 minutes. Chaque cycle commence par du sommeil lent : une transition de quelques minutes (N1), puis le sommeil léger (N2), où les muscles se détendent et où température, pression et cœur ralentissent, puis un sommeil de plus en plus profond (N3). Vient ensuite le sommeil paradoxal : cerveau presque aussi actif qu'éveillé, yeux qui bougent sous les paupières, muscles relâchés, et les rêves dont on se souvient. Chez l'adulte : 4 à 5 % de transition, 45 à 55 % de léger, 16 à 20 % de profond, 20 à 25 % de paradoxal.",
+            "en": "Sleep is organised in 3 to 6 cycles of 60 to 120 minutes. Each cycle begins with non-REM sleep: a transition of a few minutes (N1), then light sleep (N2), where muscles relax and temperature, blood pressure and heart activity fall, then progressively deeper sleep (N3), unresponsive to your surroundings. Then comes REM sleep: a brain almost as active as when awake, eyes moving under the lids, slack muscles, and the dreams you remember. In adults, the night splits into 4 to 5 % transition, 45 to 55 % light, 16 to 20 % deep and 20 to 25 % REM."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Profond d'abord, paradoxal ensuite",
+            "en": "Deep first, REM later"
+          },
+          "body": {
+            "fr": "Le sommeil profond, dit à ondes lentes, occupe surtout le début de la nuit ; le paradoxal s'allonge au fil des cycles et domine les dernières heures. Un cycle complet recommence toutes les 80 à 100 minutes, quatre à six fois par nuit, avec parfois un bref réveil entre deux. Un réveil avancé coupe donc d'abord dans la partie la plus riche en paradoxal. La répartition change avec l'âge : la part de profond culmine dans l'enfance, chute à l'adolescence, puis continue de diminuer à l'âge adulte. Le paradoxal se fait plus rare quand il fait froid, car le corps y régule mal sa température.",
+            "en": "Not all cycles look alike. Deep sleep, also called slow-wave sleep, fills mostly the start of the night; REM sleep lengthens cycle after cycle and dominates the last hours. A full cycle restarts every 80 to 100 minutes, four to six times a night, sometimes with a brief awakening in between. An early wake-up therefore cuts first into the part of the night richest in REM. The split also changes with age: the share of deep sleep peaks in childhood, drops sharply in the teenage years, then keeps declining through adulthood. REM becomes scarcer in the cold, because the body does not regulate its temperature properly during it."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Ce que le corps en fait",
+            "en": "What the body does with it"
+          },
+          "body": {
+            "fr": "Dès le sommeil lent, la pression artérielle et la fréquence cardiaque descendent et le système parasympathique prend le relais : le cœur travaille moins qu'éveillé. En sommeil paradoxal et au réveil, le système sympathique se réactive et ramène cœur et tension à leur niveau de veille. Le sommeil soutient l'apprentissage et la formation des souvenirs durables ; une nuit insuffisante se paie en concentration et en clarté d'esprit. Il joue aussi sur l'immunité : certaines cellules immunitaires travaillent davantage pendant que tu dors, d'où plus de rhumes chez les petits dormeurs. Les hormones de l'appétit et la réponse à l'insuline dépendent aussi de la nuit.",
+            "en": "From non-REM sleep onwards, blood pressure and heart rate come down and the parasympathetic system takes over: the heart works less than when you are awake. In REM sleep and on waking, the sympathetic system switches back on and brings heart and blood pressure back to their waking levels. Sleep supports learning and the forming of long-term memories; a short or poor night costs you focus and clear thinking. It also shapes immunity: some immune cells work harder while you sleep, which partly explains why short sleepers catch colds more easily. Finally, the appetite hormones and the response to insulin also depend on the night."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Regarde ta nuit en deux moitiés : si le réveil arrive bien avant ton heure habituelle, c'est surtout le sommeil paradoxal qui manque ; essaie une semaine avec la même heure de réveil, week-end compris.",
+        "en": "Look at your night in two halves: if you wake well before your usual time, it is mostly REM sleep that is missing; try a week with the same wake-up time, weekend included."
+      },
+      "sources": [
+        {
+          "title": "Sommeil",
+          "url": "https://www.inserm.fr/dossier/sommeil/",
+          "host": "www.inserm.fr",
+          "year": 2024
+        },
+        {
+          "title": "How Sleep Works - Sleep Phases and Stages",
+          "url": "https://www.nhlbi.nih.gov/health/sleep/stages-of-sleep",
+          "host": "www.nhlbi.nih.gov",
+          "year": 2022
+        },
+        {
+          "title": "How Sleep Works - Why Is Sleep Important?",
+          "url": "https://www.nhlbi.nih.gov/health/sleep/why-sleep-important",
+          "host": "www.nhlbi.nih.gov",
+          "year": 2022
+        }
+      ]
+    },
+    {
+      "id": "sleep_debt",
+      "theme": "sleep",
+      "minutes": 4,
+      "figures": [
+        "sleepDebt",
+        "sleepAverage7",
+        "sleepNeed"
+      ],
+      "title": {
+        "fr": "La dette de sommeil s'accumule sans bruit",
+        "en": "Sleep debt builds up quietly"
+      },
+      "points": {
+        "fr": [
+          "Dormir moins que son besoin plusieurs nuits de suite se paie en attention, en humeur et en appétit.",
+          "En France, les adultes dorment en moyenne 6 h 42 en semaine, sous les 7 heures recommandées ; faire la grasse matinée le week-end décale l'horloge interne.",
+          "Donne-toi d'abord le temps de dormir, puis garde la même heure de coucher et de lever chaque jour, à une heure près."
+        ],
+        "en": [
+          "Sleeping less than you need several nights running costs you attention, mood and appetite.",
+          "In France, adults sleep 6 h 42 on average on weekdays, below the recommended 7 hours; sleeping in at the weekend shifts the body clock.",
+          "First give yourself time to sleep, then keep the same bedtime and wake-up time every day, within about an hour."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "Ce que coûte une nuit courte",
+            "en": "What a short night costs"
+          },
+          "body": {
+            "fr": "La privation de sommeil, c'est dormir moins que ce dont tu as besoin ; le déficit de sommeil est plus large : dormir au mauvais moment, mal, ou sans passer par toutes les phases. Les effets se voient vite : apprendre, se concentrer et réagir deviennent plus difficiles, on lit moins bien les émotions des autres, on se sent frustré ou irritable. À la longue, le manque de sommeil est associé aux maladies cardiaques, à l'hypertension, au diabète, à l'obésité et à la dépression, et il multiplie les accidents, au volant en particulier. L'idée qu'on peut s'habituer à dormir peu sans conséquence est un mythe : les recherches montrent l'inverse.",
+            "en": "Sleep deprivation means sleeping less than you need; sleep deficiency is broader: sleeping at the wrong time, badly, or without going through all the stages. The effects show quickly: learning, focusing and reacting get harder, you read other people's emotions less well, you feel frustrated or cranky. Over time, lack of sleep is linked to heart disease, high blood pressure, diabetes, obesity and depression, and it multiplies accidents, at the wheel in particular. The idea that you can get used to little sleep with no consequences is a myth: research shows the opposite."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Appétit, sucre et immunité",
+            "en": "Appetite, sugar and immunity"
+          },
+          "body": {
+            "fr": "Quand le sommeil manque, les hormones qui règlent l'appétit (leptine, ghréline, orexine) se dérèglent et l'appétit augmente ; avec la fatigue du jour, qui réduit la dépense, le risque de prise de poids monte. La nuit écourtée perturbe aussi le rythme du cortisol et de l'hormone de croissance, impliqués dans la gestion du glucose, ce qui favorise une intolérance au glucose, même sans grossir. L'immunité en souffre : le nombre et la nature de certaines cellules immunitaires changent après une privation de sommeil. En France, les adultes dorment 6 h 42 en semaine, sous les 7 heures recommandées, et plus d'un tiers dorment moins de 6 heures.",
+            "en": "When sleep runs short, the hormones that regulate appetite (leptin, ghrelin, orexin) go off balance and appetite rises. Add daytime tiredness and sleepiness, which cut energy expenditure, and the risk of weight gain climbs. A shortened night also disturbs the rhythm of cortisol and growth hormone, both involved in handling glucose, which favours glucose intolerance independently of weight. Immunity suffers too: the number and nature of some immune cells change after sleep deprivation. In France, adults sleep on average 6 h 42 on weekdays, below the 7 hours usually recommended, and more than a third sleep less than 6 hours."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Rattraper, oui, mais régulièrement",
+            "en": "Catching up, yes, but regularly"
+          },
+          "body": {
+            "fr": "D'abord, te donner le temps de dormir. Ensuite, la régularité : te coucher et te lever à la même heure chaque jour, et garder le même rythme en semaine et le week-end, à une heure près, car la grasse matinée décale l'horloge interne. Pour le reste : une heure calme avant le coucher sans écran lumineux ni sport intense, pas de gros repas ni d'alcool juste avant, pas de caféine l'après-midi, ses effets durent jusqu'à 8 heures, et une chambre sombre, fraîche et silencieuse. Une sieste aide à tenir la journée ; garde-la courte, 20 minutes au plus, et pas trop tard.",
+            "en": "The first lever is giving yourself time to sleep. The second is regularity: going to bed and getting up at the same time every day, and keeping the same rhythm on weekdays and weekends, within about an hour. Staying up late and sleeping in at the weekend shifts the body clock. For the rest: a quiet hour before bed without bright screens or intense exercise, no heavy meal or alcohol just before, no caffeine in the afternoon, since its effects last up to 8 hours, and a dark, cool, quiet bedroom. A nap helps you through the day; keep it short, 20 minutes at most, and not too late."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Pendant sept jours, fixe une heure de lever et tiens-la, week-end compris ; avance l'heure du coucher pour approcher ton besoin, et regarde ta dette sur la semaine plutôt que nuit par nuit.",
+        "en": "For seven days, set a wake-up time and keep it, weekend included; bring bedtime forward to get closer to your need, and look at your debt over the week rather than night by night."
+      },
+      "sources": [
+        {
+          "title": "Sleep Deprivation and Deficiency - What Are Sleep Deprivation and Deficiency?",
+          "url": "https://www.nhlbi.nih.gov/health/sleep-deprivation",
+          "host": "www.nhlbi.nih.gov",
+          "year": 2022
+        },
+        {
+          "title": "Sommeil",
+          "url": "https://www.inserm.fr/dossier/sommeil/",
+          "host": "www.inserm.fr",
+          "year": 2024
+        },
+        {
+          "title": "Sleep Deprivation and Deficiency - Healthy Sleep Habits",
+          "url": "https://www.nhlbi.nih.gov/health/sleep-deprivation/healthy-sleep-habits",
+          "host": "www.nhlbi.nih.gov",
+          "year": 2022
+        }
+      ]
+    },
+    {
+      "id": "charge_effort",
+      "theme": "sleep",
+      "minutes": 4,
+      "figures": [
+        "chargeToday",
+        "effortToday"
+      ],
+      "title": {
+        "fr": "Charge et Effort : ce que ces deux scores estiment",
+        "en": "Charge and Effort: what the two scores estimate"
+      },
+      "points": {
+        "fr": [
+          "L'Effort résume la charge d'une journée à partir de la fréquence cardiaque et de la durée, sur une échelle de 0 à 100.",
+          "La Charge compare ta nuit (VFC, fréquence cardiaque au repos, sommeil) à ta propre normale.",
+          "Ce sont des estimations : une tendance sur plusieurs jours vaut plus qu'un chiffre isolé."
+        ],
+        "en": [
+          "Effort sums up a day's load from heart rate and duration, on a 0 to 100 scale.",
+          "Charge compares your night (HRV, resting heart rate, sleep) with your own normal.",
+          "Both are estimates: a trend over several days is worth more than a single number."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "Mesurer la charge d'entraînement",
+            "en": "Measuring training load"
+          },
+          "body": {
+            "fr": "Pour suivre ce qu'un entraînement coûte, on combine un indicateur d'intensité avec la durée. L'intensité se décrit de l'extérieur (distance, puissance, répétitions) ou de l'intérieur : consommation d'oxygène, fréquence cardiaque, lactate, effort perçu. La fréquence cardiaque combinée au temps donne le « training impulse » ; l'effort perçu multiplié par la durée en donne une autre version. L'Effort de NOOP appartient à cette famille : une mesure interne, fondée sur le temps passé à chaque niveau de fréquence cardiaque. Il rend comparables une sortie longue et facile et une séance courte et dure ; ces mesures renseignent surtout sur les séances à dominante aérobie.",
+            "en": "To track what a workout costs, you combine an intensity indicator with duration. Intensity can be described from the outside (distance, power, repetitions) or from the inside, by what the body does: oxygen uptake, heart rate, lactate, perceived exertion. Heart rate combined with time gives the training impulse, the oldest method; perceived exertion multiplied by duration gives another. NOOP's Effort belongs to this family: an internal measure built on the time spent at each heart rate level. Its value is that it makes a long easy outing and a short hard session comparable; such measures mainly inform about aerobic-oriented sessions."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Lire la récupération dans la nuit",
+            "en": "Reading recovery in the night"
+          },
+          "body": {
+            "fr": "Les chercheurs construisent depuis longtemps des indices de récupération à partir de la VFC de la nuit. Dans une étude finlandaise sur 4 098 salariés portant un enregistreur cardiaque au quotidien, un « état de récupération physiologique » dérivé de la VFC des trois premières heures de sommeil a été comparé, chez chaque personne, entre ses jours avec et sans alcool. Il baissait en moyenne de 9, 24 et 39 points selon que la consommation était faible, modérée ou forte, avec une activation sympathique plus marquée. La Charge de NOOP suit la même logique : une nuit lue par rapport à tes propres nuits, pas à une norme.",
+            "en": "Researchers have long built recovery indices from the night's HRV. In a Finnish study of 4,098 employees who wore a heart recorder in everyday life, a physiological recovery state derived from the HRV of the first three hours of sleep was compared, within each person, between days with and without alcohol. It fell on average by 9, 24 and 39 points for low, moderate and high intake, together with weaker parasympathetic braking and stronger sympathetic activation. NOOP's Charge follows the same logic: a night read against your own nights, not against a norm."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Des estimations, pas des verdicts",
+            "en": "Estimates, not verdicts"
+          },
+          "body": {
+            "fr": "Un score construit sur la VFC hérite de ses limites. La VFC dépend de l'âge, de la condition physique, de la santé, mais aussi de la façon de mesurer : capteur optique ou électrocardiogramme, durée de l'enregistrement, nettoyage des artefacts. Les normes publiées varient d'une étude à l'autre, et les mesures courtes sont les plus sensibles au contexte. Un niveau optimal de VFC va de pair avec la santé et l'adaptabilité, mais une seule nuit ne dit rien de tout cela. Lis la Charge comme une tendance sur plusieurs jours, et l'Effort comme un ordre de grandeur de ce que tu as demandé à ton corps.",
+            "en": "A score built on HRV inherits its limits. HRV depends on age, fitness and health, but also on how it is measured: optical sensor or electrocardiogram, recording length, artefact cleaning. Published norms differ from one study to the next for these reasons, and the authors note that short recordings are the most sensitive to context. An optimal level of HRV goes with health, self-regulation and adaptability; but a single night says nothing about any of that. Read Charge as a trend over several days, and Effort as an order of magnitude of what you asked of your body."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Pendant deux semaines, regarde chaque matin la Charge à côté de l'Effort de la veille : un gros Effort suivi d'une Charge basse, c'est attendu ; une Charge qui reste basse plusieurs jours malgré un Effort modéré, c'est le signe d'alléger la semaine.",
+        "en": "For two weeks, look each morning at Charge next to yesterday's Effort: a big Effort followed by a low Charge is expected; a Charge that stays low for several days despite moderate Effort is the sign to lighten the week."
+      },
+      "sources": [
+        {
+          "title": "Monitoring training status with HR measures: do all roads lead to Rome?",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3936188/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2014
+        },
+        {
+          "title": "Acute Effect of Alcohol Intake on Cardiovascular Autonomic Regulation During the First Hours of Sleep in a Large Real-World Sample of Finnish Employees: Observational Study",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5878366/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2018
+        },
+        {
+          "title": "An Overview of Heart Rate Variability Metrics and Norms",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5624990/",
+          "host": "pmc.ncbi.nlm.nih.gov",
+          "year": 2017
+        }
+      ]
+    },
+    {
+      "id": "deficit",
+      "theme": "nutrition",
+      "minutes": 4,
+      "figures": [
+        "intakeGoal",
+        "intakeToday",
+        "sessionsThisWeek"
+      ],
+      "title": {
+        "fr": "Perdre du gras sans perdre ta force",
+        "en": "Losing fat without losing your strength"
+      },
+      "points": {
+        "fr": [
+          "Un déficit modéré et régulier : la HAS parle de 1 à 2 kg par mois, pas de régime choc.",
+          "Toute perte de poids coûte du muscle ; l'entraînement d'endurance et de force limite cette perte.",
+          "Les régimes restrictifs répétés favorisent la reprise, surtout sous forme de graisse."
+        ],
+        "en": [
+          "A moderate, steady deficit: the French HAS talks of 1 to 2 kg a month, not a crash diet.",
+          "Any weight loss costs muscle; endurance and strength training limit that loss.",
+          "Repeated restrictive diets favour regain, mostly as fat."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "Pourquoi modéré vaut mieux qu'agressif",
+            "en": "Why moderate beats aggressive"
+          },
+          "body": {
+            "fr": "La Haute Autorité de santé recommande au médecin de fixer des objectifs réalistes, en moyenne 1 à 2 kg par mois, et de mettre en garde contre les régimes trop restrictifs et déséquilibrés. Elle alerte aussi sur les régimes successifs, à l'origine de fluctuations de poids dangereuses pour la santé, et rappelle qu'un excès de poids demande une éducation diététique, des conseils d'activité physique et un suivi, pas un sprint. Cela veut dire un déficit modeste tenu longtemps plutôt qu'une coupe brutale, avec au moins 2 h 30 d'activité modérée par semaine : la HAS décrit l'activité physique quotidienne comme indispensable, au même titre que le sommeil.",
+            "en": "The French Haute Autorité de santé advises doctors to set realistic goals, on average 1 to 2 kg a month, and to warn against overly restrictive, unbalanced diets. It also warns about successive diets, which cause weight swings that can be dangerous to health, and reminds us that excess weight calls for dietary education, physical activity advice, psychological support and follow-up, not a sprint. For you, that means a modest calorie deficit held for a long time rather than a brutal cut, with at least 2 h 30 of moderate activity a week: the HAS describes daily physical activity as indispensable, on a par with sleep."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Le muscle part avec le gras",
+            "en": "Muscle goes with the fat"
+          },
+          "body": {
+            "fr": "Quand une perte de poids progressive vient d'une alimentation moins dense en énergie ou de portions réduites, la perte totale sur six mois correspond en moyenne à 70 % de masse grasse et 30 % de masse musculaire. Ajouter de l'endurance et du renforcement change peu le chiffre sur la balance, mais limite la perte de muscle. Cela protège aussi de la reprise : l'activité maintient la dépense de base et favorise l'utilisation des graisses. La HAS vise au moins 150 minutes d'endurance modérée par semaine, avec quelques séances de renforcement, puis 200 à 300 minutes et du renforcement au moins deux fois par semaine pour maintenir.",
+            "en": "When gradual weight loss comes from less energy-dense food or smaller portions, the total lost over six months is on average 70 % fat mass and 30 % muscle mass. Adding regular endurance and strength training during this phase barely changes the number on the scale, but it limits the loss of muscle. It also protects against regain: activity keeps basal energy expenditure up and favours the use of fat. The HAS aims for at least 150 minutes of moderate endurance a week during the loss, with a few strength sessions, then 200 to 300 minutes plus strength work at least twice a week to maintain."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Le piège des régimes répétés",
+            "en": "The trap of repeated diets"
+          },
+          "body": {
+            "fr": "Pour l'Anses, l'amaigrissement ne puise pas seulement dans la graisse, il affaiblit vite par une perte de muscle, quel que soit l'apport en protéines. Après un régime, les apports qui maintiennent le poids sont plus bas qu'avant, ce qui favorise la reprise, surtout en masse grasse ; 80 % des personnes ont repris du poids après un an. Le principal facteur de stabilisation est l'activité physique, dès le début du régime et après. Les régimes très hypocaloriques exposent à des troubles du rythme cardiaque, et maigrir coûte aussi de l'os : 1 à 2 % de densité osseuse pour 10 % de poids perdu.",
+            "en": "The French agency Anses reviewed popular weight-loss diets. Its conclusion: slimming does not draw only on fat reserves, it quickly weakens you through loss of muscle mass, whatever the level of protein intake. After a diet, the intake that maintains weight is lower than before, which favours regain, preferentially as fat mass; 80 % of people had regained weight after one year. The main stabilising factor is physical activity, from the start of the restriction and afterwards. Very-low-calorie diets also expose you to heart rhythm disturbances, and weight loss costs bone too: 1 to 2 % of bone mineral density for every 10 % of weight lost."
+          },
+          "source": 3
+        }
+      ],
+      "tryIt": {
+        "fr": "Fixe ton objectif d'apport un peu sous ta dépense, garde tes séances de force dans la semaine, et juge le résultat sur un mois : si la balance baisse de 1 à 2 kg et que tes charges tiennent, le déficit est bon.",
+        "en": "Set your intake goal a little below what you burn, keep your strength sessions in the week, and judge the result over a month: if the scale drops 1 to 2 kg and your lifts hold, the deficit is right."
+      },
+      "sources": [
+        {
+          "title": "Surpoids et obésité de l'adulte : prise en charge médicale de premier recours",
+          "url": "https://www.has-sante.fr/jcms/c_964938/fr/surpoids-et-obesite-de-l-adulte-prise-en-charge-medicale-de-premier-recours",
+          "host": "www.has-sante.fr",
+          "year": 2011
+        },
+        {
+          "title": "Surpoids et obésité de l'adulte : prescription d'activité physique (synthèse)",
+          "url": "https://has-sante.fr/upload/docs/application/pdf/2022-08/synthese_aps_surpoids_obesite_vf.pdf",
+          "host": "has-sante.fr",
+          "year": 2022
+        },
+        {
+          "title": "Risques sanitaires liés aux pratiques alimentaires d'amaigrissement (dossier de presse)",
+          "url": "https://www.anses.fr/fr/system/files/PRES2010CPA17.pdf",
+          "host": "www.anses.fr",
+          "year": 2010
+        }
+      ]
+    },
+    {
+      "id": "protein",
+      "theme": "nutrition",
+      "minutes": 4,
+      "figures": [
+        "proteinGoal",
+        "intakeToday"
+      ],
+      "title": {
+        "fr": "Combien de protéines quand tu soulèves ?",
+        "en": "How much protein when you lift?"
+      },
+      "points": {
+        "fr": [
+          "La référence pour un adulte est 0,83 g par kilo et par jour ; pour un sportif de force, 1,3 à 1,5 g/kg.",
+          "Jusqu'à 2,2 g/kg/j, l'apport est jugé satisfaisant ; les phases à 2 ou 2,5 g/kg pour prendre du muscle restent courtes, six mois au plus.",
+          "Les deux tiers au moins viennent de l'assiette ; les compléments ne sont qu'un appoint."
+        ],
+        "en": [
+          "The reference for an adult is 0.83 g per kilo per day; for a strength athlete, 1.3 to 1.5 g/kg.",
+          "Up to 2.2 g/kg/day the intake is considered satisfactory; phases at 2 to 2.5 g/kg to build muscle stay short, six months at most.",
+          "At least two thirds come from the plate; supplements are only a top-up."
+        ]
+      },
+      "sections": [
+        {
+          "heading": {
+            "fr": "La référence de base",
+            "en": "The baseline reference"
+          },
+          "body": {
+            "fr": "Les protéines servent au muscle, à la peau, aux ongles et aux cheveux, à l'immunité, au transport de l'oxygène et à la digestion. Pour un adulte en bonne santé, l'Anses fixe la référence à 0,83 g par kilo et par jour, soit 10 à 20 % de l'apport énergétique total. Les protéines animales (viande, poisson, œufs, laitages) sont généralement plus riches en acides aminés indispensables et un peu mieux digérées ; les végétales (légumes secs, oléagineux, céréales) peuvent manquer d'un acide aminé. En France, les apports couvrent les références et les sources sont assez variées pour ne pas devoir combiner céréales et légumineuses à chaque repas.",
+            "en": "Proteins serve muscle development, the renewal of skin, nails and hair, the immune response, oxygen transport and digestion. For a healthy adult, the French agency Anses sets the reference at 0.83 g per kilo of body weight per day, that is 10 to 20 % of total energy intake. Animal proteins (meat, fish, eggs, dairy) are generally richer in essential amino acids and slightly better digested; plant proteins (pulses, nuts and seeds, cereals) can be short of one amino acid, cereals of lysine, legumes of sulphur amino acids. In France, intakes meet the references and sources are varied enough that cereals and legumes need not be combined at every meal."
+          },
+          "source": 1
+        },
+        {
+          "heading": {
+            "fr": "Ce que change la force",
+            "en": "What lifting changes"
+          },
+          "body": {
+            "fr": "Chez les athlètes confirmés en force, l'Afssa, devenue Anses, estime les apports conseillés entre 1,3 et 1,5 g par kilo et par jour de protéines, pour entretenir le muscle ; les besoins des femmes sont en général 15 à 20 % plus bas. Pour en développer, 2 à 2,5 g/kg/j peuvent être proposés, sans dépasser 2,5 ni six mois. Les deux tiers doivent venir d'une alimentation équilibrée, le dernier tiers pouvant venir de compléments. Après l'effort, l'association de glucides et de protéines relance les synthèses protéiques, et les glucides réduisent l'oxydation des acides aminés pendant l'exercice. L'exercice de force seul, sans apport, ne rend pas le bilan positif.",
+            "en": "For established strength athletes, the Afssa, now Anses, puts the advised intake at 1.3 to 1.5 g per kilo per day of good-quality protein to maintain muscle mass; women's needs are generally 15 to 20 % lower. To build muscle, 2 to 2.5 g/kg/day can be proposed, never above 2.5 and for no more than six months. Two thirds should come from a balanced diet, the last third may come from supplements. After training, combining carbohydrate and protein restarts protein synthesis, and carbohydrate reduces the oxidation of amino acids during exercise. Strength exercise on its own, without intake, does not turn the balance positive."
+          },
+          "source": 2
+        },
+        {
+          "heading": {
+            "fr": "Pas besoin d'excès",
+            "en": "No need for excess"
+          },
+          "body": {
+            "fr": "Le même rapport situe la zone satisfaisante pour un adulte de moins de 60 ans entre 0,83 et 2,2 g/kg/j, soit environ 10 à 27 % de l'énergie. Entre 2,2 et 3,5, l'apport est qualifié d'élevé ; au-delà de 3,5, de très élevé, car on approche la capacité du foie à éliminer l'azote. La répartition dans la journée compte moins qu'on ne le dit chez l'adulte jeune : concentrer 80 % des protéines sur un repas améliore la rétention d'azote chez la femme âgée, mais pas chez des sujets plus jeunes. Vise donc d'abord le total de la journée avec des sources de qualité ; le reste est affaire d'organisation.",
+            "en": "The same report places the satisfactory zone for an adult under 60 between 0.83 and 2.2 g/kg/day, roughly 10 to 27 % of energy. Between 2.2 and 3.5 g/kg/day the intake is called high; above 3.5, very high, because it approaches the liver's capacity to clear nitrogen. Spreading protein through the day matters less than is often said in younger adults: concentrating 80 % of protein in one meal improves nitrogen retention in older women, but that effect was not found in younger subjects. In other words, aim first for the day's total from quality sources; the rest is a matter of organisation."
+          },
+          "source": 2
+        }
+      ],
+      "tryIt": {
+        "fr": "Multiplie ton poids en kilos par 1,3 puis par 1,5 : c'est ta fourchette de grammes par jour ; regarde dans Nutrition si tes journées d'entraînement l'atteignent et, sinon, ajoute une source de protéines au repas qui en manque le plus.",
+        "en": "Multiply your weight in kilos by 1.3 and then by 1.5: that is your range in grams per day; check in Nutrition whether your training days reach it and, if not, add a protein source to the meal that lacks it most."
+      },
+      "sources": [
+        {
+          "title": "Protéines : rôle, sources et apports recommandés",
+          "url": "https://www.anses.fr/fr/content/proteines-role-sources-et-apports-recommandes",
+          "host": "www.anses.fr",
+          "year": 2025
+        },
+        {
+          "title": "Apport en protéines : consommation, qualité, besoins et recommandations",
+          "url": "https://www.anses.fr/fr/system/files/NUT-Ra-Proteines.pdf",
+          "host": "www.anses.fr",
+          "year": 2007
+        }
+      ]
+    }
+  ]
+}

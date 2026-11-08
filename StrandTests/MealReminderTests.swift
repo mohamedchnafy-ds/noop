@@ -1,8 +1,9 @@
 import XCTest
 @testable import Strand
 
-/// The meal reminders (personal fork, chantier 8): which one, when, and never two the same day. Pure: no
-/// notification center.
+/// The meal reminders (personal fork, chantier 8; unified with Élan's in chantier 10 PR C): which ones are
+/// proposed and when. Pure: no notification center. The budget (never two the same day) is the shared
+/// planner's, tested in `ReminderPlannerTests`.
 final class MealReminderTests: XCTestCase {
 
     private var calendar: Calendar = {
@@ -17,11 +18,11 @@ final class MealReminderTests: XCTestCase {
     }
 
     private func plan(now: Date, training: Set<Int> = [3], meals: [Date] = [], ends: [Date] = [],
-                      fired: Date? = nil) -> [MealReminder.Reminder] {
+                      kinds: Set<MealReminder.Kind> = [.trainingDay, .afterSession]) -> [MealReminder.Reminder] {
         MealReminder.planMealReminders(
-            now: now, calendar: calendar, minutes: MealReminder.defaultMinutes,
+            now: now, calendar: calendar, minutes: MealReminder.defaultMinutes, kinds: kinds,
             isTrainingDay: { training.contains(self.calendar.component(.day, from: $0)) },
-            mealTimesToday: meals, sessionEndsToday: ends, firedToday: fired)
+            mealTimesToday: meals, sessionEndsToday: ends)
     }
 
     func testATrainingDayWithoutAMealGetsTheFixedTime() {
@@ -36,9 +37,11 @@ final class MealReminderTests: XCTestCase {
         XCTAssertTrue(plan(now: at(9), training: []).isEmpty)
     }
 
-    func testAfterASessionAnHourLaterGoesFirstAndAloneThatDay() {
+    func testAfterASessionAnHourLaterIsProposedBesideTheFixedTime() {
         let reminders = plan(now: at(10, 15), ends: [at(10)])
-        XCTAssertEqual(reminders, [MealReminder.Reminder(kind: .afterSession, fireAt: at(11))])
+        XCTAssertEqual(reminders, [MealReminder.Reminder(kind: .afterSession, fireAt: at(11)),
+                                   MealReminder.Reminder(kind: .trainingDay, fireAt: at(12, 30))],
+                       "both proposed; the planner keeps the earlier")
         // A meal since the end cancels it; a meal before does not.
         XCTAssertTrue(plan(now: at(10, 15), meals: [at(10, 5)], ends: [at(10)]).isEmpty)
         XCTAssertEqual(plan(now: at(18), meals: [at(8)], ends: [at(17, 30)]),
@@ -47,27 +50,49 @@ final class MealReminderTests: XCTestCase {
         XCTAssertTrue(plan(now: at(18), training: [], ends: [at(16)]).isEmpty)
     }
 
-    func testNeverTwoTheSameDay() {
-        // The 12:30 one went off: no after-session one later that day.
-        XCTAssertTrue(plan(now: at(17), ends: [at(16, 30)], fired: at(12, 30)).isEmpty)
-        // A fire time still to come is not "already went".
-        XCTAssertEqual(plan(now: at(9), fired: at(12, 30)).count, 1)
-        // Yesterday's does not count.
-        XCTAssertEqual(plan(now: at(9), fired: at(12, 30, day: 2)).count, 1)
-    }
-
     func testTheNextPlannedDaysAreScheduledAtTheFixedTime() {
         let reminders = plan(now: at(20), training: [3, 5, 9, 10])
         XCTAssertEqual(reminders.map(\.fireAt), [at(12, 30, day: 5), at(12, 30, day: 9)])
         XCTAssertTrue(reminders.allSatisfy { $0.kind == .trainingDay })
     }
 
-    func testOneRequestPerDayWithTheWording() {
-        let requests = MealReminder.mealReminderRequests(
-            [MealReminder.Reminder(kind: .afterSession, fireAt: at(11)),
-             MealReminder.Reminder(kind: .trainingDay, fireAt: at(12, 30, day: 5))], calendar: calendar)
-        XCTAssertEqual(requests.map(\.identifier), ["meal-reminder-2026-11-3", "meal-reminder-2026-11-5"])
-        XCTAssertEqual(requests[0].content.title, MealReminder.mealReminderText(.afterSession).title)
-        XCTAssertFalse(requests[1].content.body.isEmpty)
+    func testTheEveningReminderEveryDayWhileNothingIsLogged() {
+        let reminders = plan(now: at(9), training: [], kinds: [.evening])
+        XCTAssertEqual(reminders.count, MealReminder.daysAhead)
+        XCTAssertEqual(reminders.first?.fireAt, at(21))
+        XCTAssertTrue(reminders.allSatisfy { $0.kind == .evening })
+        // Something logged today: tomorrow's is the first.
+        XCTAssertEqual(plan(now: at(9), training: [], meals: [at(8)], kinds: [.evening]).first?.fireAt, at(21, 0, day: 4))
+        // Every kind off: nothing.
+        XCTAssertTrue(plan(now: at(9), kinds: []).isEmpty)
+    }
+
+    func testTheKindsAreWordedAndCarriedToThePlanner() {
+        let candidate = MealReminder.mealCandidate(MealReminder.Reminder(kind: .afterSession, fireAt: at(11)))
+        XCTAssertEqual(candidate.kind, .mealAfterSession)
+        XCTAssertEqual(candidate.title, MealReminder.mealReminderText(.afterSession).title)
+        XCTAssertFalse(MealReminder.mealReminderText(.evening).body.isEmpty)
+        XCTAssertEqual(MealReminder.Kind.trainingDay.reminderKind, .mealTrainingDay)
+        XCTAssertEqual(MealReminder.Kind.evening.reminderKind, .mealEvening)
+    }
+
+    func testTheLegacySwitchIsCarriedOverOnce() {
+        let name = "MealReminderTests-\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: name)!
+        d.removePersistentDomain(forName: name)
+        // Never set: the new defaults (training day and after session on, evening off).
+        XCTAssertEqual(MealReminder.enabledKinds(d), [.trainingDay, .afterSession])
+        // The chantier 8 switch left OFF on another install: its two kinds stay off.
+        let off = UserDefaults(suiteName: name + "-off")!
+        off.removePersistentDomain(forName: name + "-off")
+        off.set(false, forKey: MealReminder.legacyEnabledKey)
+        XCTAssertEqual(MealReminder.enabledKinds(off), [])
+        // Carried once: turning a kind on afterwards sticks.
+        off.set(true, forKey: MealReminder.trainingDayKey)
+        XCTAssertEqual(MealReminder.enabledKinds(off), [.trainingDay])
+        XCTAssertEqual(MealReminder.reminderMinutes(d), MealReminder.defaultMinutes)
+        XCTAssertEqual(MealReminder.eveningMinutes(d), MealReminder.defaultEveningMinutes)
+        d.removePersistentDomain(forName: name)
+        off.removePersistentDomain(forName: name + "-off")
     }
 }

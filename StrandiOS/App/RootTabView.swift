@@ -251,6 +251,13 @@ struct RootTabView: View {
             // from this shell, so a screen More holds is pushed in the sheet, and anything else closes
             // the sheet before it is routed.
             if showMore, let dest {
+                if dest == .elan {
+                    // Élan asked for while the sheet is up (a notification's action): the sheet comes back
+                    // to Élan rather than stacking a second one.
+                    openElanScreen()
+                    router.requestedDestination = nil
+                    return
+                }
                 if let pushed = MoreDestination(routed: dest) {
                     morePath.append(pushed)
                     router.requestedDestination = nil
@@ -291,6 +298,10 @@ struct RootTabView: View {
                 path.append(MoreDestination.trends)
                 morePath = path
                 showMore = true
+                router.requestedDestination = nil
+            case .elan:
+                // Élan lives at the head of the More sheet (fork chantier 10): the sheet, opened on it.
+                openElanScreen()
                 router.requestedDestination = nil
             case .activeWorkout:
                 // The Today active-workout indicator opens Live through the quick-action Live sheet; once
@@ -363,6 +374,30 @@ struct RootTabView: View {
         }
     }
 
+    /// The More sheet opened on Élan (personal fork, chantier 10 PR C): over whatever sheet the shell had
+    /// up, which must be gone before another can be presented; a sheet already up only changes its path.
+    private func openElanScreen() {
+        var path = NavigationPath()
+        path.append(MoreDestination.elan)
+        if showMore {
+            morePath = path
+            return
+        }
+        let hadSheet = showDevices || routedPillar != nil || quickAction != nil
+        showDevices = false
+        routedPillar = nil
+        quickAction = nil
+        if hadSheet {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                morePath = path
+                showMore = true
+            }
+        } else {
+            morePath = path
+            showMore = true
+        }
+    }
+
     /// Launches what a session widget's Start asked for, over any sheet the shell had up, on the Training
     /// tab: the program's Lift Log session (its sheet, as the Start sheet opens it), or the live workout of
     /// the cardio's sport.
@@ -381,7 +416,8 @@ struct RootTabView: View {
             try? await Task.sleep(nanoseconds: 500_000_000)
             switch start {
             case .program(let id, let name):
-                await session.beginProgramSession(programId: id, programName: name, repo: store)
+                // Élan's short version when it was accepted for today (fork chantier 10), else the program.
+                await session.beginTodayProgramSession(programId: id, programName: name, repo: store)
             case .cardio(let sport):
                 widgetCardio = sport
             }
@@ -786,6 +822,7 @@ private enum MoreDestination: Hashable {
         case .fusedRecord: self = .fusedRecord
         case .rhythm: self = .rhythm
         case .alarms: self = .alarms
+        case .elan: self = .elan
         case .devices, .activeWorkout, .liveSession, .journal, .coach: return nil
         }
     }

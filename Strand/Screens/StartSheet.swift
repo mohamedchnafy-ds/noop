@@ -23,6 +23,10 @@ struct StartSheet: View {
     @State private var cardioToStart: String?
     @State private var choosingSport = false
     @State private var addingPastSession = false
+    /// Élan's short session accepted for today (personal fork, chantier 10 PR C): the planned row of its
+    /// program shows it and starts it; nil when none was accepted.
+    @State private var elanShort: ElanShortSessionPlan?
+    @AppStorage(ElanShortSessionChoice.revisionKey) private var elanRevision = 0
 
     private enum StartChoice: Equatable {
         case program(id: String, name: String)
@@ -96,7 +100,7 @@ struct StartSheet: View {
                 }
             }
         }
-        .task(id: "\(repo.refreshSeq)-\(session.savedSessions)") { await load() }
+        .task(id: "\(repo.refreshSeq)-\(session.savedSessions)-\(elanRevision)") { await load() }
     }
 
     // MARK: - Planned today
@@ -119,23 +123,52 @@ struct StartSheet: View {
         }
     }
 
+    /// A planned program: its name and line; Élan's short version when it was accepted for today (the
+    /// mockup's « Full body B · version courte · 2 supersets · ≈ 20 min · ajoutée par Élan », with « Retirer »).
     private func plannedProgramRow(_ program: TrainingProgramSummary) -> some View {
-        HStack(spacing: 12) {
+        let short = elanShort?.programId == program.id ? elanShort : nil
+        return HStack(spacing: 12) {
             rowIcon("dumbbell.fill", tint: StrandPalette.effortColor)
             VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: program.name)
+                Text(verbatim: short?.title ?? program.name)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                let line = TrainingText.plannedLine(program)
-                if !line.isEmpty {
-                    Text(verbatim: line)
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .lineLimit(2)
+                if let short {
+                    HStack(spacing: 4) {
+                        let line = ElanShortSession.elanPlannedLine(short)
+                        if !line.isEmpty {
+                            Text(verbatim: line + " ·")
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                        Text("added by Élan")
+                            .foregroundStyle(StrandPalette.elanSand)
+                    }
+                    .font(StrandFont.footnote)
+                    .lineLimit(2)
+                } else {
+                    let line = TrainingText.plannedLine(program)
+                    if !line.isEmpty {
+                        Text(verbatim: line)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .lineLimit(2)
+                    }
                 }
             }
             Spacer(minLength: 8)
-            Button { startLift(.program(id: program.id, name: program.name)) } label: {
+            if short != nil, !session.isActive {
+                Button { withdrawElanShort() } label: {
+                    Text("Withdraw")
+                        .font(StrandFont.subhead.weight(.semibold))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 40)
+                        .background(StrandPalette.surfaceOverlay, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Button { startLift(.plannedProgram(id: program.id, name: program.name)) } label: {
                 Group {
                     if session.isActive {
                         Text("Running")
@@ -391,7 +424,10 @@ struct StartSheet: View {
     // MARK: - Start and load
 
     private enum LiftStart {
+        /// A program chosen from the pills: the whole of it.
         case program(id: String, name: String)
+        /// Today's planned program: Élan's short version when it was accepted for today, else the whole of it.
+        case plannedProgram(id: String, name: String)
         case freehand
     }
 
@@ -406,10 +442,18 @@ struct StartSheet: View {
             switch start {
             case .program(let id, let name):
                 await controller.beginProgramSession(programId: id, programName: name, repo: store)
+            case .plannedProgram(let id, let name):
+                await controller.beginTodayProgramSession(programId: id, programName: name, repo: store)
             case .freehand:
                 controller.beginFreehandSession()
             }
         }
+    }
+
+    /// « Retirer »: Élan's short session leaves today, and is not proposed again that day. The plan reloads
+    /// through the revision the choice bumps.
+    private func withdrawElanShort() {
+        ElanShortSessionChoice.withdraw(day: TrainingCalendar.trainingDayKey(Date(), calendar: calendar))
     }
 
     private func load() async {
@@ -418,6 +462,12 @@ struct StartSheet: View {
                                                                  historyDays: StartSheetLogic.sportWindowDays,
                                                                  effortScale: scale) {
             snapshot = read
+        }
+        let today = TrainingCalendar.trainingDayKey(Date(), calendar: calendar)
+        if let id = ElanShortSessionChoice.acceptedProgramId(day: today) {
+            elanShort = await ElanShortSession.loadElanShortSession(repo: repo, programId: id)
+        } else {
+            elanShort = nil
         }
     }
 }

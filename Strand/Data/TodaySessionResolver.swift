@@ -63,7 +63,20 @@ enum TodaySessionResolver {
         func length(_ row: LiftSessionRow, end: Int) -> Int {
             TrainingDays.liftSessionSeconds(startTs: row.startTs, endTs: end, workout: split.lift[row.startTs])
         }
-        let plan = TrainingWeekPlan.loadWeekPlan().keepingPrograms(Set(withItems.map(\.id)))
+        let plan = TrainingWeekPlan.loadWeekPlan(now: now).keepingPrograms(Set(withItems.map(\.id)))
+        // Élan's short session accepted for today (personal fork, chantier 10 PR C): the plan above already
+        // holds its program on today; its shape and length are the short session's (`ElanShortSession`).
+        var elanShort: ElanShortSessionPlan?
+        if isToday, let id = ElanShortSessionChoice.acceptedProgramId(day: TrainingCalendar.trainingDayKey(now, calendar: .current)),
+           let program = withItems.first(where: { $0.id == id }) {
+            var lastByExercise: [String: [LiftSetRow]] = [:]
+            for line in ElanShortSession.elanShortLines(itemsByProgram[id] ?? []).flatMap({ $0 })
+            where lastByExercise[line.exercise] == nil {
+                lastByExercise[line.exercise] = (try? await store.lastLiftSets(deviceId: owner, exercise: line.exercise)) ?? []
+            }
+            elanShort = ElanShortSession.elanShortPlan(programId: id, name: program.name, items: itemsByProgram[id] ?? [],
+                                                       lastSets: { lastByExercise[$0] ?? [] })
+        }
         var resolution = TodaySessionResolution(
             session: nil, programId: nil, programItems: [], hasPrograms: !programs.isEmpty,
             performed: performed, liftWorkouts: split.lift, otherWorkouts: split.others, plan: plan,
@@ -74,8 +87,17 @@ enum TodaySessionResolver {
             resolution.programItems = programId.flatMap { itemsByProgram[$0] } ?? []
             return resolution
         }
-        /// A program still to do: its shape and its usual length.
+        /// A program still to do: its shape and its usual length; Élan's short version when it was
+        /// accepted for today, with its own two blocks as the lines the widget draws.
         func nextSession(_ next: LiftProgramRow) -> TodaySessionResolution {
+            if let elanShort, elanShort.programId == next.id {
+                var result = named(.init(name: next.name, state: .next, supersets: elanShort.supersets,
+                                         singles: elanShort.singles, typicalMinutes: elanShort.estimatedMinutes,
+                                         elanShort: true),
+                                   programId: next.id)
+                result.programItems = elanShort.lines.map(\.item)
+                return result
+            }
             let s = shape(next.id)
             let finished = performed.map { $0.row }.filter { $0.programId == next.id }
                 .compactMap { row in row.endTs.map { (startTs: row.startTs, endTs: row.startTs + length(row, end: $0)) } }

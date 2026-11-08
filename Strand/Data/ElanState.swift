@@ -69,6 +69,13 @@ struct ElanMissedSession: Equatable {
     var day: String
 }
 
+/// The program Élan's short session is built from (PR C): today's planned session when the plan sets one,
+/// else the one missed yesterday.
+struct ElanShortTarget: Equatable {
+    var programId: String
+    var name: String
+}
+
 /// « Cette semaine »: the seven days, the tally, Nutrition held, the average night and the weigh-ins.
 struct ElanWeekRecap: Equatable {
     var days: [ElanWeekDay]
@@ -121,6 +128,9 @@ struct ElanState: Equatable {
     var today: String
     /// Yesterday's planned program left undone, whatever the wearer chose about it.
     var missedYesterday: ElanMissedSession?
+    /// The program the short session is built from, the day after a miss (`ElanResolver.elanShortTarget`);
+    /// nil when nothing was missed.
+    var shortTarget: ElanShortTarget? = nil
     /// « Pas aujourd'hui » was tapped today.
     var shortSessionDismissed: Bool
     /// The program whose short version was accepted for tonight, when one was.
@@ -205,6 +215,19 @@ enum ElanResolver {
         guard let yesterday, yesterday.isMissed, let id = yesterday.openProgramIds.first else { return nil }
         return ElanMissedSession(programId: id, name: programNames[id] ?? String(localized: "Session"),
                                  day: yesterday.key)
+    }
+
+    /// The program the short session is built from, the day after a miss: never two sessions proposed the
+    /// same day (Mohamed, 5 Nov.), so a day the plan sets a session gets the short version of THAT session
+    /// (its first program still to do, Élan's own addition left out), a rest day the missed program's.
+    static func elanShortTarget(missed: ElanMissedSession?, today: TrainingDay?,
+                                programNames: [String: String]) -> ElanShortTarget? {
+        guard let missed else { return nil }
+        if let planned = today?.planned.first(where: { !$0.isDone && !$0.isExtra && $0.item.programId != nil }),
+           let id = planned.item.programId {
+            return ElanShortTarget(programId: id, name: programNames[id] ?? missed.name)
+        }
+        return ElanShortTarget(programId: missed.programId, name: missed.name)
     }
 
     /// Days since the last session day on or before `today` (0 = a session today); nil without one.
@@ -337,6 +360,9 @@ enum ElanShortSessionChoice {
     static let dismissedDayKey = "elan.shortSession.dismissedDay"
     static let acceptedDayKey = "elan.shortSession.acceptedDay"
     static let acceptedProgramKey = "elan.shortSession.acceptedProgramId"
+    /// Bumped by every choice (PR C), so the screens that read the plan reload and the day widgets and the
+    /// reminders are re-planned (`DayWidgetsRefreshHooks`), as after a saved week plan.
+    static let revisionKey = "elan.shortSession.revision"
 
     static func isDismissed(day: String, _ d: UserDefaults = .standard) -> Bool {
         d.string(forKey: dismissedDayKey) == day
@@ -344,6 +370,7 @@ enum ElanShortSessionChoice {
 
     static func dismiss(day: String, _ d: UserDefaults = .standard) {
         d.set(day, forKey: dismissedDayKey)
+        bumpRevision(d)
     }
 
     /// The program accepted for `day`, nil when none (or another day's acceptance).
@@ -356,6 +383,7 @@ enum ElanShortSessionChoice {
         d.set(day, forKey: acceptedDayKey)
         d.set(programId, forKey: acceptedProgramKey)
         d.removeObject(forKey: dismissedDayKey)
+        bumpRevision(d)
     }
 
     /// « Retirer »: the accepted session is dropped and not proposed again that day.
@@ -363,6 +391,11 @@ enum ElanShortSessionChoice {
         d.removeObject(forKey: acceptedDayKey)
         d.removeObject(forKey: acceptedProgramKey)
         d.set(day, forKey: dismissedDayKey)
+        bumpRevision(d)
+    }
+
+    private static func bumpRevision(_ d: UserDefaults) {
+        d.set(d.integer(forKey: revisionKey) + 1, forKey: revisionKey)
     }
 }
 
@@ -424,8 +457,11 @@ extension ElanResolver {
         let accepted = ElanShortSessionChoice.acceptedProgramId(day: today, defaults)
         let weight = ElanWeight.weightSummary(weighIns: weighIns, targetKg: ElanWeight.targetKg(defaults))
         ElanWeight.syncProfileWeight(weight, profile: profile, defaults: defaults)
+        let missed = elanMissedYesterday(yesterday, programNames: programNames)
         return ElanState(today: today,
-                         missedYesterday: elanMissedYesterday(yesterday, programNames: programNames),
+                         missedYesterday: missed,
+                         shortTarget: elanShortTarget(missed: missed, today: week.first(where: \.isToday),
+                                                      programNames: programNames),
                          shortSessionDismissed: ElanShortSessionChoice.isDismissed(day: today, defaults),
                          shortSessionAccepted: accepted,
                          daysSinceLastSession: elanDaysSinceLastSession(sessionDays: ledger.sessionDays, today: today),

@@ -21,6 +21,20 @@ enum ElanRoute: Hashable {
     case weight
     case reading(String)
     case progression
+    /// The unified Rappels screen (PR C), from the bell.
+    case reminders
+}
+
+extension View {
+    /// The success haptic of an accepted short session or a logged weigh-in (the mockup's « vibration de
+    /// succès »), where `sensoryFeedback` exists; a no-op on the macOS 13 target.
+    @ViewBuilder func elanSuccessHaptic(trigger: some Equatable) -> some View {
+        if #available(iOS 17.0, macOS 14.0, *) {
+            self.sensoryFeedback(.success, trigger: trigger)
+        } else {
+            self
+        }
+    }
 }
 
 enum ElanFormat {

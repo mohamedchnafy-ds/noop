@@ -5,8 +5,8 @@ import StrandDesign
 //
 // The recap tab: « Jamais deux fois de suite » the day after a missed session, « Mon pourquoi », « Cette
 // semaine » and the Victoires. Every figure comes from `ElanState` and `ElanVictories`, resolved once by
-// `ElanResolver`; the tab only words them. The short session itself arrives with PR C: until then the
-// alert card offers « Pas aujourd'hui » only, and the primary action appears when a handler is given.
+// `ElanResolver`; the tab only words them. The alert card's primary action opens the short session
+// (`ElanShortSessionSheet`, PR C) when the screen could build one, and « Pas aujourd'hui » folds the card.
 
 struct ElanWeekTabView: View {
     let state: ElanState
@@ -17,9 +17,11 @@ struct ElanWeekTabView: View {
     var animated: Bool = true
     let onEditWhy: () -> Void
     let onDismissShort: () -> Void
-    /// Nil hides the short-session action (PR C wires it).
+    /// Nil hides the short-session action (the short plan could not be built).
     var onShortSession: (() -> Void)? = nil
     var onWithdrawShort: (() -> Void)? = nil
+    /// The short session's length, for its button (« Séance courte · 20 min »); nil until built.
+    var shortMinutes: Int? = nil
 
     private var key: String { "elan.week.\(showing)" }
 
@@ -47,7 +49,7 @@ struct ElanWeekTabView: View {
                         iconBadge("checkmark")
                         VStack(alignment: .leading, spacing: 3) {
                             ElanSandLabel(text: Text("Added to today"))
-                            Text("\(missed.name) · short version · tonight")
+                            Text("\(state.shortTarget?.name ?? missed.name) · short version · tonight")
                                 .font(StrandFont.headline)
                                 .foregroundStyle(StrandPalette.textPrimary)
                             Text("Done tonight, it counts in your week.")
@@ -56,7 +58,7 @@ struct ElanWeekTabView: View {
                         }
                     }
                     if let onWithdrawShort {
-                        ElanActionButton(title: Text("Remove"), look: .secondary, action: onWithdrawShort)
+                        ElanActionButton(title: Text("Withdraw"), look: .secondary, action: onWithdrawShort)
                     }
                 }
             }
@@ -90,8 +92,14 @@ struct ElanWeekTabView: View {
                     }
                     HStack(spacing: 8) {
                         if let onShortSession {
-                            ElanActionButton(title: Text("Short session · 20 min"), look: .primary, action: onShortSession)
-                                .layoutPriority(1)
+                            if let shortMinutes, shortMinutes > 0 {
+                                ElanActionButton(title: Text("Short session · \(shortMinutes) min"), look: .primary,
+                                                 action: onShortSession)
+                                    .layoutPriority(1)
+                            } else {
+                                ElanActionButton(title: Text("Short session"), look: .primary, action: onShortSession)
+                                    .layoutPriority(1)
+                            }
                         }
                         ElanActionButton(title: Text("Not today"), look: .secondary, action: onDismissShort)
                     }

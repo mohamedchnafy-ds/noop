@@ -162,6 +162,25 @@ struct StrandiOSApp: App {
             }
         }
         NotificationPresenter.shared.onFastingTapped = { [weak router] in router?.openFasting() }
+        // Personal fork, chantier 10 PR C: Élan's reminders carry actions (the first categories of the app);
+        // what they ask is done here, in NOOP's process, with or without a screen.
+        ElanReminder.registerCategories()
+        NotificationPresenter.shared.onElanAction = { [weak router] action in
+            switch action {
+            case .notToday:
+                ElanShortSessionChoice.dismiss(day: TrainingCalendar.trainingDayKey(Date(), calendar: .current))
+            case .weighLater:
+                Task { await ElanReminder.snoozeWeighIn() }
+            case .openShortSession:
+                router?.openElan(.shortSession)
+            case .openWeighIn:
+                router?.openElan(.weighIn)
+            case .openElan:
+                router?.openElan()
+            case .openNutrition:
+                router?.openWidgetRoute(.nutrition)
+            }
+        }
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being

@@ -21,10 +21,6 @@ struct NutritionGoalsView: View {
     @AppStorage(NutritionGoals.manualKcalKey) private var manualKcalRaw = 0
     /// Personal fork: a new barcode is looked up on Open Food Facts (`OpenFoodFacts`).
     @AppStorage(OpenFoodFacts.enabledKey) private var openFoodFactsOn = true
-    /// Personal fork, chantier 8: the meal reminders (`MealReminder`), off by default.
-    @AppStorage(MealReminder.enabledKey) private var remindersOn = false
-    @AppStorage(MealReminder.minutesKey) private var reminderMinutes = MealReminder.defaultMinutes
-    @State private var remindersDenied = false
 
     var body: some View {
         ScreenScaffold(title: "Goals") {
@@ -40,53 +36,36 @@ struct NutritionGoalsView: View {
         }
     }
 
-    /// The meal reminders: the switch (asking for notifications when it turns on) and the training-day time.
+    /// The reminders (personal fork, chantier 8; unified with Élan's in chantier 10 PR C): the one Rappels
+    /// screen, the same Élan's bell opens.
     private var remindersSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Reminders").strandOverline()
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle(isOn: Binding(get: { remindersOn }, set: { on in
-                    MealReminder.setMealRemindersEnabled(on, repo: repo) { granted in
-                        remindersDenied = on && !granted
+            NavigationLink {
+                RemindersView()
+            } label: {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Meal and Élan reminders")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text("At most one a day, Élan and meals together. Nothing is sent: the reminders are planned on the phone.")
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                })) {
-                    Text("Remind me to log my meals")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
                 }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                if remindersOn {
-                    DatePicker("On a training day, at", selection: reminderTime, displayedComponents: .hourAndMinute)
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                Text("At most one a day: on a day the week plan sets a session, at this time if no meal is logged yet; an hour after a session if no meal is logged since. Nothing is sent: the reminders are planned on the phone.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if remindersDenied {
-                    Text("Notifications are off for NOOP: turn them on in the Settings app.")
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.statusWarning)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .padding(16)
+                .background(NoopPanelSurface(cornerRadius: 26))
+                .contentShape(Rectangle())
             }
-            .padding(16)
-            .background(NoopPanelSurface(cornerRadius: 26))
+            .buttonStyle(.plain)
         }
-    }
-
-    /// The training-day time as a date today, written back as minutes since midnight.
-    private var reminderTime: Binding<Date> {
-        Binding(get: {
-            let minutes = min(max(reminderMinutes, 0), 24 * 60 - 1)
-            return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
-        }, set: { date in
-            let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
-            reminderMinutes = (parts.hour ?? 12) * 60 + (parts.minute ?? 30)
-            Task { await MealReminder.refreshMealReminders(repo: repo) }
-        })
     }
 
     private var barcodeSection: some View {

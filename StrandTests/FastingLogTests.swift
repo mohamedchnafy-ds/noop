@@ -128,4 +128,41 @@ final class FastingLogTests: XCTestCase {
         let fixed = try XCTUnwrap(fixedRow)
         XCTAssertEqual(fixed.startedAt, fixed.endedAt, "a start after the end is pulled back to the end")
     }
+
+    // MARK: - A meal during a fast (PR C)
+
+    func testAMealDuringARunningFastAsksToEndItAtTheMealTime() throws {
+        let fast = row(start: t0, end: nil)
+        let meal = t0.addingTimeInterval(16 * 3600)
+        let q = try XCTUnwrap(FastingLog.mealEndQuestion(newest: fast, eatenAt: meal, kcal: 600,
+                                                         now: meal.addingTimeInterval(90 * 60)))
+        XCTAssertTrue(q.wasRunning)
+        XCTAssertEqual(q.endAt, meal, "a meal logged later still ends the fast at its own time")
+        XCTAssertEqual(q.minutesAtEnd, 960)
+    }
+
+    func testACalorieFreeDrinkAMealBeforeTheStartOrAFutureMealAsksNothing() {
+        let fast = row(start: t0, end: nil)
+        let now = t0.addingTimeInterval(10 * 3600)
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: now, kcal: FastingLog.mealFreeKcal, now: now),
+                     "10 kcal or less (black coffee, tea) is not a meal")
+        XCTAssertNotNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: now, kcal: FastingLog.mealFreeKcal + 1, now: now))
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: t0, kcal: 500, now: now), "eaten at the start")
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: t0.addingTimeInterval(-3600), kcal: 500, now: now))
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: now.addingTimeInterval(120), kcal: 500, now: now),
+                     "a meal planned later does not end the fast now")
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: nil, eatenAt: now, kcal: 500, now: now))
+    }
+
+    func testAMealInsideAFastAlreadyOverAsksToMoveItsEndBack() throws {
+        let end = t0.addingTimeInterval(18 * 3600)
+        let fast = row(start: t0, end: end)
+        let now = end.addingTimeInterval(3600)
+        let q = try XCTUnwrap(FastingLog.mealEndQuestion(newest: fast, eatenAt: end.addingTimeInterval(-90 * 60),
+                                                         kcal: 450, now: now))
+        XCTAssertFalse(q.wasRunning)
+        XCTAssertEqual(q.minutesAtEnd, 16 * 60 + 30)
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: end, kcal: 450, now: now), "at the end: nothing to move")
+        XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: end.addingTimeInterval(600), kcal: 450, now: now))
+    }
 }

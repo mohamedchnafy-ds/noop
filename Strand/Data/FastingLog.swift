@@ -35,6 +35,19 @@ struct FastingState: Equatable {
     var phaseId: String { FastingTimeline.phaseIds[phaseIndex] }
 }
 
+/// The question a meal logged during a fast raises (chantier 15 PR C): « End the fast at 12:30? ». The
+/// meal is already saved; answering yes moves the fast's real end to the meal's time.
+struct FastingMealQuestion: Identifiable, Equatable {
+    /// The fast the meal falls in: the one running, or the newest one, already over.
+    var fast: FastRow
+    /// The meal's time: the end the fast would get.
+    var endAt: Date
+    var id: String { fast.id }
+    var wasRunning: Bool { fast.endedAt == nil }
+    /// The fast's duration with the meal's time as its end.
+    var minutesAtEnd: Int { max(0, (Int(endAt.timeIntervalSince1970) - fast.startedAt) / 60) }
+}
+
 enum FastingLog {
 
     /// UserDefaults counter bumped on every write, so the screens that cache a state reload. Read by
@@ -138,6 +151,47 @@ enum FastingLog {
         row.updatedAt = Int(now.timeIntervalSince1970)
         try? await store.upsertFast(row)
         await fastingDidChange(store)
+    }
+
+    // MARK: A meal during a fast (chantier 15 PR C)
+
+    /// A meal of this many kilocalories or fewer (water, black coffee, tea, a zero drink) never ends a
+    /// fast: it raises no question. The owner's choice, 8 Nov 2026.
+    static let mealFreeKcal = 10
+
+    /// The question a NEW meal eaten at `eatenAt` with `kcal` raises, given the newest fast. PURE: tested
+    /// on its own (`FastingLogTests`). A question when the meal falls inside that fast: after the start and
+    /// not in the future for a running fast, before the real end for one over (the end then moves back).
+    /// None for a calorie-free drink, a meal before the start, or no fast at all.
+    static func mealEndQuestion(newest: FastRow?, eatenAt: Date, kcal: Int, now: Date) -> FastingMealQuestion? {
+        guard kcal > mealFreeKcal, let fast = newest else { return nil }
+        let eat = Int(eatenAt.timeIntervalSince1970)
+        guard eat > fast.startedAt else { return nil }
+        if let end = fast.endedAt {
+            guard eat < end else { return nil }
+        } else {
+            guard eat <= Int(now.timeIntervalSince1970) else { return nil }
+        }
+        return FastingMealQuestion(fast: fast, endAt: eatenAt)
+    }
+
+    /// The question the meal just saved raises, read against the newest stored fast. Called by the meal
+    /// editor and the add sheet after a new meal is saved.
+    static func mealFastQuestion(_ store: WhoopStore, eatenAt: Date, lines: [MealItemRow],
+                                 now: Date = Date()) async -> FastingMealQuestion? {
+        let kcal = MealMath.totals(lines.map(\.nutrients)).kcal
+        let newest = await recentFastRows(store, limit: 1).first
+        return mealEndQuestion(newest: newest, eatenAt: eatenAt, kcal: kcal, now: now)
+    }
+
+    /// « End at 12:30 »: the fast of `question` ends at the meal's time (a running fast stops, a fast
+    /// over has its end moved back).
+    static func endFastAtMeal(_ store: WhoopStore, _ question: FastingMealQuestion, now: Date = Date()) async {
+        if question.wasRunning {
+            await endFast(store, question.fast, endedAt: question.endAt, now: now)
+        } else {
+            await amendFast(store, question.fast, endedAt: question.endAt, now: now)
+        }
     }
 
     /// Forget one fast.

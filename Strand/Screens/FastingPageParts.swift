@@ -10,9 +10,10 @@ import StrandAnalytics
 
 // MARK: Buttons
 
-/// A full-width action of the page: white for the main one, inset for the others, soft red to stop.
+/// A full-width action of the page: white for the main one, inset for the others, soft red to stop,
+/// green to end a fast at a meal (chantier 15 PR C).
 struct FastingActionButton: View {
-    enum Look { case primary, secondary, stop }
+    enum Look { case primary, secondary, stop, done }
     let title: Text
     var look: Look = .secondary
     let action: () -> Void
@@ -21,12 +22,13 @@ struct FastingActionButton: View {
         switch look {
         case .primary: return StrandPalette.textPrimary
         case .secondary, .stop: return StrandPalette.surfaceInset
+        case .done: return StrandPalette.fastingDone
         }
     }
 
     private var foreground: Color {
         switch look {
-        case .primary: return StrandPalette.surfaceBase
+        case .primary, .done: return StrandPalette.surfaceBase
         case .secondary: return StrandPalette.textPrimary
         case .stop: return StrandPalette.fastingRemaining
         }
@@ -35,7 +37,7 @@ struct FastingActionButton: View {
     var body: some View {
         Button(action: action) {
             title
-                .font(StrandFont.body.weight(look == .primary ? .bold : .semibold))
+                .font(StrandFont.body.weight(look == .primary || look == .done ? .bold : .semibold))
                 .foregroundStyle(foreground)
                 .frame(maxWidth: .infinity, minHeight: 50)
                 .background(fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))

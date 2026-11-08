@@ -26,6 +26,9 @@ struct StrandApp: App {
         let router = NavRouter()
         _router = StateObject(wrappedValue: router)
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
+        // Personal fork, chantier 15: the fast's end and halfway notifications follow every write to a fast.
+        FastingLog.onFastingChanged = { store in await FastingNotifier.replanFastingNotifications(store) }
+        NotificationPresenter.shared.onFastingTapped = { [weak router] in router?.openFastingPage() }
     }
 
     @StateObject private var model = AppModel()

@@ -46,7 +46,7 @@ struct FastingView: View {
     static let dismissedDoneKey = "fasting.dismissedDoneId"
 
     private enum Sheet: Identifiable {
-        case startTime, plannedEnd, stop, phase, caffeine, waterCorrect
+        case startTime, plannedEnd, stop, phase, caffeine, waterCorrect, settings
         var id: Int {
             switch self {
             case .startTime: return 0
@@ -55,6 +55,7 @@ struct FastingView: View {
             case .phase: return 3
             case .caffeine: return 4
             case .waterCorrect: return 5
+            case .settings: return 7
             }
         }
     }
@@ -75,7 +76,7 @@ struct FastingView: View {
     private var todayKey: String { Repository.logicalDayKey(now) }
 
     var body: some View {
-        ScreenScaffold(title: "Fasting") {
+        ScreenScaffold(title: "Fasting", trailing: { settingsButton }) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 ringCard
                 FastingPhasesCard(state: state) { index in
@@ -115,8 +116,26 @@ struct FastingView: View {
                 NavigationStack { HydrationView() }
                     .environmentObject(repo)
                     .environmentObject(profile)
+            case .settings:
+                FastingSettingsSheet()
+                    .environmentObject(repo)
             }
         }
+    }
+
+    /// The gear (PR C): the end and halfway notifications, the Lock Screen banner.
+    private var settingsButton: some View {
+        Button {
+            sheet = .settings
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 36, height: 36)
+                .background(StrandPalette.surfaceInset, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Fasting settings"))
     }
 
     // MARK: Ring card

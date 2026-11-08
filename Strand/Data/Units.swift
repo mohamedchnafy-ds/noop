@@ -142,6 +142,15 @@ enum UnitPrefs {
             ? true : UserDefaults.standard.bool(forKey: liftLiveActivityKey)
     }
 
+    /// Whether the fast's Live Activity may show, iOS only (personal fork, chantier 15). Its own switch, in
+    /// Settings → Live notifications and behind the gear of the Jeûne page (one key, so the two agree).
+    /// Defaults to ON, read default-true like its siblings.
+    static let fastingLiveActivityKey = "liveActivity.fasting.enabled"
+    static func fastingLiveActivityEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: fastingLiveActivityKey) == nil
+            ? true : UserDefaults.standard.bool(forKey: fastingLiveActivityKey)
+    }
+
     /// Resolve temperature, following body measurements when no explicit override is set.
     static func resolveTemperature(system: UnitSystem, override raw: String) -> TemperatureUnit {
         if let explicit = TemperatureUnit(rawValue: raw) { return explicit }

@@ -32,6 +32,9 @@ struct StrandiOSApp: App {
     /// activity is suppressed rather than stacked beside it. Built in `init`, where the strap log it
     /// writes to exists.
     @State private var liftActivity: LiftLiveActivityController
+    /// The fast's Lock Screen banner (personal fork, chantier 15), pushed after every write to a fast and
+    /// started again on each foreground (iOS ends it after eight hours).
+    @State private var fastingActivity: FastingLiveActivityController
     /// The live gym session. Owned HERE, at the app root, rather than by the screen that shows it:
     /// swiping the workout sheet away must not stop the clock, silence the strap or drop the
     /// double-tap handler. See `LiftSessionController`.
@@ -146,6 +149,23 @@ struct StrandiOSApp: App {
             Self.pushLiftBanner(session: liftSession, activity: liftActivity, model: model, system: system)
             await liftActivity.flushUpdate()
         }
+        // Personal fork, chantier 15: after every write to a fast, the end and halfway notifications are
+        // re-planned and the fast's banner pushed (or ended); the banner's Stop runs here too, in NOOP's
+        // process, and ends the fast through the one resolver. A tapped fasting notification opens the page.
+        let fastingActivity = FastingLiveActivityController()
+        _fastingActivity = State(initialValue: fastingActivity)
+        FastingLog.onFastingChanged = { [weak fastingActivity] store in
+            await FastingNotifier.replanFastingNotifications(store)
+            let state = await FastingLog.resolveFastingState(store)
+            fastingActivity?.update(figures: state.flatMap(FastingBannerFigures.fastingBannerFigures))
+            await fastingActivity?.flushUpdate()
+        }
+        FastingBannerActionRelay.handler = { [weak model] action in
+            guard action == .stop, let model, let store = await model.repo.storeHandle(),
+                  let fast = try? await store.runningFast() else { return }
+            await FastingLog.endFast(store, fast, endedAt: Date())
+        }
+        NotificationPresenter.shared.onFastingTapped = { [weak router] in router?.openFastingPage() }
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
@@ -338,6 +358,9 @@ struct StrandiOSApp: App {
                 .onOpenURL { url in
                     if url.host == "import-health" {
                         model.handleHealthImportURL(url)
+                    } else if url.host == "fasting" {
+                        // The fast's Lock Screen banner (personal fork, chantier 15): the Jeûne page.
+                        router.openFastingPage()
                     } else if let start = DayWidgetsSnapshot.Start(url: url) {
                         // A Start of the session widget (personal fork, widgets v2): launch it.
                         router.widgetStart = start
@@ -379,6 +402,9 @@ struct StrandiOSApp: App {
                 pushLiftActivity()
                 // Only the foreground may start the live heart rate banner: offer it now.
                 liveActivity.appBecameActive()
+                // Personal fork, chantier 15: the fast's banner, ended by iOS after eight hours or never
+                // started in the background, comes back while a fast runs (Mohamed, 8 Nov.).
+                Task { await refreshFastingBanner() }
                 // End a "Connecting…" sync island whose sync never came, rather than leave it greyed.
                 SyncLiveActivityController.shared.reconcile(live: model.live)
                 // Re-arm the strap's smart alarm on foreground: the firmware alarm is a single instant
@@ -453,6 +479,14 @@ struct StrandiOSApp: App {
     private func pushLiftActivity(alert: Bool = false) {
         Self.pushLiftBanner(session: liftSession, activity: liftActivity, model: model,
                             system: UnitSystem(rawValue: unitSystemRaw) ?? .metric, alert: alert)
+    }
+
+    /// The fast's banner from the one resolver (personal fork, chantier 15): started while a fast runs and
+    /// NOOP is on screen, ended when none does.
+    private func refreshFastingBanner() async {
+        guard let store = await model.repo.storeHandle() else { return }
+        let state = await FastingLog.resolveFastingState(store)
+        fastingActivity.update(figures: state.flatMap(FastingBannerFigures.fastingBannerFigures))
     }
 
     /// `pushLiftActivity`, reachable without a view: a banner button runs in a process iOS may have woken for

@@ -78,6 +78,25 @@ enum CoachFiche {
         var priorities: [LiftProgress.Priority] = []
         var unitSystem: UnitSystem = .metric
         var nutrition: Nutrition?
+        /// Chantier 15 PR C: the fast and the water, as the Jeûne page shows them.
+        var fasting: Fasting?
+    }
+
+    /// The fasting page's figures (personal fork, chantier 15 PR C): the fast running (or the last one over),
+    /// the last 7 days and today's water. Every figure comes from `FastingLog` (`resolveFastingState`,
+    /// `fastingHistory`) and the hydration store, the readers of the Jeûne page.
+    struct Fasting: Equatable {
+        /// The fast running, resolved at the question's time.
+        var running: FastingState?
+        /// The newest fast when none runs, already over.
+        var lastOver: FastingState?
+        /// The longest fast that ended each of the last 7 days, oldest first, today last (minutes, 0 = none).
+        var dayMinutes: [Int]
+        var summary: FastingTimeline.Summary
+        /// The goal the history is measured against (the running fast's, else the last one's).
+        var goalMinutes: Int
+        var waterML: Int
+        var waterGoalML: Int
     }
 
     /// The meal journal (personal fork, Nutrition): today against the goals the Nutrition screen shows,
@@ -113,6 +132,7 @@ enum CoachFiche {
         if !normals.isEmpty { blocks.append(normals) }
         if let sleep = inputs.sleep { blocks.append(sleepBlock(sleep)) }
         if let nutrition = inputs.nutrition { blocks.append(nutritionBlock(nutrition)) }
+        if let fasting = inputs.fasting { blocks.append(fastingBlock(fasting)) }
         return blocks.joined(separator: "\n\n")
     }
 
@@ -268,6 +288,54 @@ enum CoachFiche {
         }
         return lines.joined(separator: "\n")
     }
+
+    /// The FASTING block: the fast running or the last one, the last 7 days, today's water. `zone` is the
+    /// wearer's (injected for the tests).
+    static func fastingBlock(_ f: Fasting, zone: TimeZone = .current) -> String {
+        func when(_ date: Date) -> String {
+            let fmt = DateFormatter()
+            fmt.locale = Locale(identifier: "en_US_POSIX")
+            fmt.timeZone = zone
+            fmt.dateFormat = "EEE yyyy-MM-dd HH:mm"
+            return fmt.string(from: date)
+        }
+        // The phase by its stable id and its hours (`FastingTimeline`), never a second copy of the bounds.
+        func phase(_ index: Int) -> String {
+            let ids = FastingTimeline.phaseIds, starts = FastingTimeline.phaseStartHours
+            guard ids.indices.contains(index), starts.indices.contains(index) else { return "?" }
+            let span = index + 1 < starts.count ? "\(starts[index])-\(starts[index + 1]) h" : "\(starts[index]) h+"
+            return "\(ids[index]) (\(span))"
+        }
+        func dur(_ minutes: Int) -> String { duration(Double(minutes)) }
+        var lines = ["FASTING (the Jeûne page's figures, intermittent fasting logged by the user; the phases are "
+                     + "indicative landmarks from the general literature, never medical advice):"]
+        if let r = f.running {
+            lines.append("  running: started \(when(r.startedAt)), \(dur(r.elapsedMinutes)) done out of a "
+                         + "\(dur(r.fast.goalMinutes)) goal, " + (r.goalReached ? "goal reached" : "\(dur(r.remainingMinutes)) left")
+                         + ", planned end \(when(r.plannedEnd)), phase: \(phase(r.phaseIndex))")
+        } else if let last = f.lastOver, let end = last.endedAt {
+            lines.append("  no fast running; the last one: \(when(last.startedAt)) → \(when(end)), "
+                         + "\(dur(last.elapsedMinutes)) out of \(dur(last.fast.goalMinutes)) ("
+                         + (last.goalReached ? "goal reached" : "goal not reached") + ")")
+        } else {
+            lines.append("  no fast logged yet")
+        }
+        let s = f.summary
+        if s.fastedCount > 0 {
+            lines.append("  the last 7 days (goal \(dur(f.goalMinutes))): \(s.fastedCount) day\(s.fastedCount == 1 ? "" : "s") "
+                         + "with a fast, goal kept \(s.keptCount), mean \(dur(s.averageMinutes)), streak \(s.streak) "
+                         + "day\(s.streak == 1 ? "" : "s")")
+            lines.append("  longest fast per day, oldest first, today last: "
+                         + f.dayMinutes.map { $0 > 0 ? dur($0) : "-" }.joined(separator: ", "))
+        } else {
+            lines.append("  the last 7 days: no fast")
+        }
+        lines.append("  water today: \(litres(f.waterML)) of a \(litres(f.waterGoalML)) goal")
+        return lines.joined(separator: "\n")
+    }
+
+    /// "1.25 L", always with a point: the coach reads it.
+    static func litres(_ ml: Int) -> String { String(format: "%.2f L", Double(max(0, ml)) / 1000) }
 
     /// The Lift Log's own verdict per exercise (`LiftProgress`), attention first, and the muscles it
     /// would prioritise. "" when nothing has been logged.

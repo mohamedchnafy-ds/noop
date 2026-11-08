@@ -1,6 +1,6 @@
 # Chantier 15 — Jeûne intermittent et eau (section de Nutrition) — fiche (7 nov. 2026)
 
-**État** : demande reçue le 7 nov. (nuit) ; **questions posées et répondues le 7 nov. (soir)** ; **maquette faite** (lien ci-dessous), **en attente de la validation de Mohamed**. **Rien de codé.** Étape suivante : ses retours sur la maquette, puis le code (PR depuis `main`), une IPA à la fin.
+**État** (8 nov., ~00:10 UTC) : **PR A #115 (données) et PR B #116 (écrans) fusionnées** (`main` 0779192) ; **IPA `build/jeune`** = `main` 0779192 en construction, à installer et valider (liste « À tester » ci-dessous) ; **PR C (extras) à faire dans une autre conversation** (prompt de démarrage en bas de la fiche).
 
 ## La demande (7 nov., mots de Mohamed résumés)
 - Une **nouvelle section dans Nutrition** : le **jeûne intermittent**. Mohamed ne sait pas encore où la placer : la maquette doit proposer l'emplacement.
@@ -53,6 +53,23 @@
 - Eau : **une bouteille graduée** sous le jeûne, branchée sur `HydrationStore` et `HydrationGoal`.
 - Extras de la 1re version : lien avec les repas (3), historique (5), notification de fin (6), Coach (9). Le reste plus tard.
 - Stockage des jeûnes : à trancher au moment du code (table avec migration iOS **v55** / Android **MIGRATION_46_47** et parité des données, ou stockage léger) ; vérifier le numéro juste avant.
+
+## À tester sur le téléphone (IPA `build/jeune` = `main` 0779192)
+- **Nutrition** : la carte Jeûne · Eau sous les 4 anneaux, avant Petit-déjeuner : sans jeûne « Pas de jeûne en cours · Commencer › », la ligne Eau avec le total du jour et l'objectif ; « + 250 ml » au bord droit ajoute l'eau (le total bouge, les anneaux de Nutrition ne bougent pas) ; un tap sur la carte ouvre la page Jeûne.
+- **Page Jeûne, pas de jeûne** : anneau gris, « Prêt pour 16 h », pastilles 14 · 16 · 18 · 20 h, « Autre durée » − / + (12 à 36 h), « Commencer maintenant · HH:MM » ; « Déjà commencé ? Régler l'heure de début » ouvre la roue date + heure (début 1 h avant) et démarre.
+- **En cours** : l'anneau se trace du début vers « maintenant » à chaque arrivée sur la page (vert fait, rouge doux reste), le point blanc respire, le chiffre central claque ; pastilles de phase sur l'anneau (passées vertes, en cours pleine, à venir rouge doux) ; pilule « phase · depuis … » ; Début et Fin prévue modifiables (roue ; pastilles + molette pour la fin) ; « Arrêter le jeûne » → roue de fin réelle + « Durée … sur … · ± … », bouton rouge doux ; l'anneau et la carte de Nutrition montrent la même chose.
+- **Terminé** : badge « objectif atteint » (anneau tout vert, étincelles, « + … au-delà de l'objectif ») ou « non atteint » (reste rouge doux) ; « Corriger la fin » ; « Nouveau jeûne » vide la page ; la carte de Nutrition dit « Terminé · … sur … » jusqu'au « Nouveau jeûne ».
+- **Phases** : la carte « Les phases du jeûne » (fait / en cours / dans n min) ; un tap sur une ligne ou une pastille → la feuille (nom, plage, « tu y es depuis… », Ce qui se passe, Ce que tu peux ressentir, ‹ ›) ; « Demander au Coach pour moi » (clé Anthropic) → bulle violette en quelques secondes ; sans clé, le bouton grisé l'explique ; « Continuer › » ouvre le Coach avec la question.
+- **Eau** : la bouteille se remplit (vague) à + 250 / + 500 / Perso, les litres roulent, pointillés = objectif du jour, « Annuler la dernière » retire la dernière entrée ; appui long → l'écran Hydratation ; « Café · thé » → la carte Caféine.
+- **Vos jeûnes** : 7 j | 30 j, barres qui montent à l'arrivée, moyenne, objectif tenu, série ; la barre d'aujourd'hui plus claire pendant un jeûne.
+- **Réduire les animations** (Réglages ou système) : tout s'affiche d'un coup, le point ne respire plus. **Captures et une courte vidéo à envoyer.**
+
+## Prompt de démarrage — PR C (pour une nouvelle conversation)
+> Chantier 15 — Jeûne intermittent et eau, **PR C (extras)**, fork NOOP. Lis `docs/fork/feuille-de-route.md` puis `docs/fork/chantier-15-jeune.md` (PR A #115 données, PR B #116 écrans fusionnées ; maquette validée https://claude.ai/artifact/7B61h2m4wtyxh28iKuzmdJ, planche 4 « Autour »).
+>
+> À coder depuis `main`, une préoccupation par PR si tu préfères les séparer : **1)** noter un repas pendant un jeûne (`MealJournal.saveMealEntry` et l'éditeur / la feuille d'ajout) propose « Terminer le jeûne à HH:MM ? » (heure du repas ; un repas noté à une heure antérieure recule la fin réelle ; les boissons sans calories ne posent pas la question) ; **2)** notification locale « 16 h de jeûne atteintes » à la fin prévue (réglage derrière un engrenage sur la page Jeûne : fin prévue allumée par défaut, mi-parcours éteinte), replanifiée à chaque changement de début / de but / d'arrêt ; Live Activity « Jeûne · fait / reste · Arrêter » sur le modèle de la bannière de séance (`LiveActivityIntent`, pas de widget : le lot est à 10) ; **3)** bloc FASTING dans la fiche du Coach (`CoachFiche.swift` + `ficheInputs()`, `CoachDataView`) : jeûne en cours, 7 derniers jours (`FastingLog.fastingHistory`), eau ; **4)** carte « Nuits de jeûne » sous l'historique de la page Jeûne : VFC, FC repos, sommeil des nuits suivies d'un jeûne (≥ 12 h) contre les autres, règle de « Ce qui ressort » de la Carte (écart affiché seulement au-delà de sa marge, « — » sinon, et un texte d'attente sous 5 nuits de chaque côté).
+>
+> Un seul résolveur : tout lit `FastingLog.resolveFastingState` / `fastingState(of:now:)` ; formats `FastingFormat` ; textes des phases `FastingPhaseText`. Règles : `.claude/rules/fork-noop.md` (questions par l'outil à choix multiples, vérifications avant de pousser, 10 langues, IPA par `build/<nom>` quand je le dis).
 
 ## Code — PR A (données), 7 nov. soir
 - **Table `fast`** : GRDB **v55-fasts** (`Packages/WhoopStore/.../FastStore.swift`, `FastRow` : `id`, `startedAt`, `endedAt` nil tant que ça dure, `goalMinutes`, `createdAt`, `updatedAt`, secondes unix ; index `idx_fast_startedAt`) ; Room **MIGRATION_46_47** (`FastEntities.kt`, version 47, export `roomSchemas/47.json` via `ci/room-schema-fasts`) ; `schema_oracle.json` (deux copies) : `roomVersion` 47, `v55-fasts`, table `fast` en `both`. La sauvegarde `.noopbak` copie la base entière : rien à déclarer.

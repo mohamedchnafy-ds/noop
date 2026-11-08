@@ -7,14 +7,17 @@ import WhoopStore
 // The three scores — Charge, Effort, Rest — once, as period means in their gauges, each with its change
 // against the previous period, and one sentence on how Charge and Effort moved together. Replaces the
 // old digest gauges AND the "Week in review" pip card, which printed the same three numbers twice.
+//
+// Motion (chantier 12 language): the three arcs trace in together under `NoopMotion.ringDraw` while
+// their numbers count up (`NoopRollingNumber`, `.count`); the chips and the sentence fade in once the
+// arcs have landed. Replays each time the screen is shown and on every new period (`entranceKey`);
+// still under the quiet-motion gate and when `data.animated` is false (a render).
 struct TrendsBilanCard: View {
     let data: TrendsPeriodData
     /// "vs previous week" — what the deltas are measured against.
     let comparisonLabel: String
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var drawn = false
 
     private var charge: Double? { TrendsOverview.mean(data.current) { $0.recovery } }
     private var effort: Double? { TrendsOverview.mean(data.current) { $0.strain } }
@@ -30,54 +33,61 @@ struct TrendsBilanCard: View {
         let reading = TrendsOverview.bilanReading(chargeDelta: chargeChange?.delta,
                                                   effortDelta: effortChange?.delta,
                                                   previousDays: data.previous.count)
-        NoopCard {
-            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Summary · period means").strandOverline()
-                    Spacer(minLength: NoopMetrics.space2)
-                    if !comparisonLabel.isEmpty {
-                        Text(comparisonLabel)
-                            .font(StrandFont.footnote)
-                            .foregroundStyle(StrandPalette.textTertiary)
-                            .lineLimit(1)
+        NoopFirstDraw(key: "\(data.entranceKey).bilan", armed: data.animated) { phase in
+            NoopCard {
+                VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Summary · period means").strandOverline()
+                        Spacer(minLength: NoopMetrics.space2)
+                        if !comparisonLabel.isEmpty {
+                            Text(comparisonLabel)
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .lineLimit(1)
+                        }
                     }
-                }
-                HStack(alignment: .top, spacing: NoopMetrics.space2) {
-                    gauge(title: "Charge", domain: .charge, value: charge, change: chargeChange,
-                          higherIsBetter: true, number: { TrendsFormat.int($0) })
-                    gauge(title: "Effort", domain: .effort, value: effort, change: effortChange,
-                          higherIsBetter: nil, number: { UnitFormatter.effortDisplay($0, scale: data.effortScale) })
-                    gauge(title: "Rest", domain: .rest, value: rest, change: restChange,
-                          higherIsBetter: true, number: { TrendsFormat.int($0) })
-                }
-                Divider().overlay(StrandPalette.hairline)
-                HStack(alignment: .top, spacing: NoopMetrics.space3) {
-                    Image(systemName: "sparkles")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.accent)
-                        .accessibilityHidden(true)
-                    Text(sentence(reading))
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .top, spacing: NoopMetrics.space2) {
+                        gauge(title: "Charge", domain: .charge, value: charge, change: chargeChange,
+                              higherIsBetter: true, phase: phase, index: 0,
+                              number: { TrendsFormat.int($0) })
+                        gauge(title: "Effort", domain: .effort, value: effort, change: effortChange,
+                              higherIsBetter: nil, phase: phase, index: 1,
+                              number: { UnitFormatter.effortDisplay($0, scale: data.effortScale) })
+                        gauge(title: "Rest", domain: .rest, value: rest, change: restChange,
+                              higherIsBetter: true, phase: phase, index: 2,
+                              number: { TrendsFormat.int($0) })
+                    }
+                    Divider().overlay(StrandPalette.hairline)
+                    HStack(alignment: .top, spacing: NoopMetrics.space3) {
+                        Image(systemName: "sparkles")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.accent)
+                            .accessibilityHidden(true)
+                        Text(sentence(reading))
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .opacity(phase.drawn ? 1 : 0)
+                    .animation(phase.motion(NoopMotion.strongEaseOut(0.5).delay(NoopMotion.ringDrawDuration * 0.6)),
+                               value: phase.drawn)
                 }
             }
-        }
-        .onAppear {
-            withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { drawn = true }
         }
         .accessibilityElement(children: .contain)
     }
 
-    /// One score: its gauge (the stored 0–100 value as the fill), the domain-coloured name, and the
-    /// change chip. The gauge's number follows the Effort scale toggle; its fill does not, so the three
-    /// arcs read against the same scale (#268).
+    /// One score: its gauge (the stored 0–100 value as the fill), the counting number over it, the
+    /// domain-coloured name, and the change chip. The number follows the Effort scale toggle; the fill
+    /// does not, so the three arcs read against the same scale (#268).
     @ViewBuilder
     private func gauge(title: LocalizedStringKey, domain: DomainTheme, value: Double?,
                        change: TrendsOverview.Change?, higherIsBetter: Bool?,
-                       number: (Double) -> String) -> some View {
+                       phase: NoopDrawPhase, index: Int,
+                       number: @escaping (Double) -> String) -> some View {
         let fraction = min(max((value ?? 0) / 100, 0), 1)
         let diameter: CGFloat = dynamicTypeSize.isAccessibilitySize ? 104 : 84
+        let delay = Double(index) * NoopMotion.ringStagger
         VStack(spacing: NoopMetrics.space2) {
             BevelGauge(fraction: fraction,
                        stops: domain.gradient.stops,
@@ -85,20 +95,41 @@ struct TrendsBilanCard: View {
                        numberText: value.map(number) ?? "—",
                        diameter: diameter,
                        lineWidth: NoopMetrics.space2,
-                       showsLabel: value != nil,
-                       animatedFraction: drawn ? fraction : 0)
+                       // The number is drawn by the rolling text below so it can count; the gauge keeps
+                       // only its dash when there is nothing to count.
+                       showsLabel: value == nil,
+                       animatedFraction: phase.drawn ? fraction : 0)
+                .animation(phase.motion(NoopMotion.ringDraw.delay(delay)), value: phase.drawn)
+                .overlay {
+                    if let value {
+                        NoopRollingNumber(value: value, format: number,
+                                          font: StrandFont.number(diameter * 0.31, weight: .bold),
+                                          color: StrandPalette.textPrimary,
+                                          entrance: .count, armed: data.animated,
+                                          launchKey: "\(data.entranceKey).bilan.\(index)", delay: delay,
+                                          haptic: false)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .frame(width: diameter * 0.7)
+                    }
+                }
             Text(title)
                 .font(StrandFont.subhead.weight(.semibold))
                 .foregroundStyle(domain.color)
                 .lineLimit(1)
-            if let change, let percent = change.percent {
-                TrendChip(text: TrendsFormat.signedPercent(percent),
-                          color: TrendsFormat.changeColor(change.delta, higherIsBetter: higherIsBetter))
-            } else {
-                // Keep the three columns the same height when one score has no previous period to
-                // compare with: an empty chip-sized slot, not a jump in the row.
-                Color.clear.frame(height: 22)
+            Group {
+                if let change, let percent = change.percent {
+                    TrendChip(text: TrendsFormat.signedPercent(percent),
+                              color: TrendsFormat.changeColor(change.delta, higherIsBetter: higherIsBetter))
+                } else {
+                    // Keep the three columns the same height when one score has no previous period to
+                    // compare with: an empty chip-sized slot, not a jump in the row.
+                    Color.clear.frame(height: 22)
+                }
             }
+            .opacity(phase.drawn ? 1 : 0)
+            .animation(phase.motion(NoopMotion.strongEaseOut(0.4).delay(NoopMotion.ringDrawDuration * 0.5 + delay)),
+                       value: phase.drawn)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)

@@ -29,6 +29,16 @@ Une seule période pour toute la page : pastilles **S · M · 3M · 6M · 1A** (
 
 Pied : deux lignes « Explorer une mesure › » (`TabRoute.metricExplorer`) et « Exporter le rapport › » (feuille PDF #436 inchangée).
 
+## Animations (demande de Mohamed, 8 nov. après-midi : « il faut aussi ajouter des animations »)
+Dans le langage du chantier 12 (jetons `NoopMotion`, briques `NoopFirstDraw` / `NoopRollingNumber`, rejeu à chaque affichage, rien au repos, tout coupé par Réduire les animations / `poseStill`) :
+- **Page** : `noopEntranceRoot()` sur l'écran (les entrées rejouent à chaque arrivée sur Tendances et au retour d'une mesure) ; **chaque période est une nouvelle entrée** (`TrendsPeriodData.entranceKey` = plage + début de fenêtre) ; ‹ › fait glisser les cartes (`noopDaySlide(offset)`, 28 pt du côté d'où vient la période) avec une vibration `selection` ; le titre de la période fond ; un changement de plage anime les hauteurs (`NoopMotion.card`).
+- **Bilan** : les trois arcs se tracent ensemble (`ringDraw`, 0,09 s d'écart) pendant que leurs chiffres comptent (`NoopRollingNumber` `.count` posé au centre du `BevelGauge`, label du gauge éteint) ; pastilles d'écart puis phrase en fondu.
+- **Équilibre** : les points sont dessinés **au-dessus** du graphique (positions par `proxy.position(forX:)`), un par un du plus ancien au plus récent (50 ms d'écart, compressé pour qu'un trimestre tienne en ~1 s), échelle 0,2 → 1 ; le jour cerclé et son étiquette en dernier ; pastilles et phrase après le dernier point.
+- **Forme** : Condition et Fatigue comptent, **Forme claque** (`.slam`, le chiffre principal de la carte) ; la courbe se trace de gauche à droite (`mask` sous `curveDraw`, 1,1 s) ; le point du ratio glisse du centre vers sa valeur ; en construction, les pastilles pleines s'allument en cascade.
+- **Signaux** : le point de chaque ligne glisse du centre de la piste vers la lecture, ligne après ligne (0,06 s), la pastille d'écart fond derrière.
+- **Jour par jour** : les cellules apparaissent colonne par colonne (35 ms, compressé pour 13 semaines), chaque ligne un souffle derrière ; la sélection (anneau blanc + ligne de lecture) suit `NoopMotion.value` avec une vibration `selection`.
+- Rendu / tests : toutes les cartes dessinent l'état final quand `animated` est faux (par défaut) ; `TrendsView` passe `true`.
+
 ## Ce qui part
 Digest hebdomadaire (jauges + ‹ › semaine), carte « Résumé de la semaine », courbe Charge, courbes VFC / FC repos / Effort, carte « Charge d'entraînement » (remplacée par Forme), calendrier annuel, grande carte Exporter. `WeeklyDigestView.swift`, `TrainingLoadCard.swift` et `TrainingLoadChart.swift` restent dans le dépôt (le digest sert ailleurs ; `TrainingLoadCard.modelKey` sert de clé de cache à Forme et a son test).
 
@@ -48,3 +58,4 @@ Digest hebdomadaire (jauges + ‹ › semaine), carte « Résumé de la semaine 
 - Jour par jour : L M M J V S D, D en blanc ; toucher une colonne → ligne « dim. 8 nov. · Charge 36 · Effort 53 · … » ; M → « Semaine par semaine » avec « nov. » au-dessus de la 1re semaine du mois ; 1A → « Mois par mois ».
 - Pied : « Explorer une mesure » → Explorer ; « Exporter le rapport » → feuille PDF.
 - Rien ne dépasse de l'écran en français (titres des cartes, pastilles).
+- **Animations (en vidéo)** : à l'arrivée sur Tendances : les 3 arcs du Bilan se tracent et les chiffres comptent, les points du nuage tombent un à un (le cerclé en dernier), les pastilles 9 / 14 s'allument en cascade, les points des Signaux glissent ligne après ligne, la grille se remplit colonne par colonne. ‹ : les cartes glissent depuis la gauche et tout rejoue pour la nouvelle semaine ; › depuis la droite. Retour d'une mesure (tap sur une ligne des Signaux) : tout rejoue. Faire défiler et remonter : rien ne rejoue. Réduire les animations : tout est posé d'un coup, valeurs justes. Dès que la Forme est active : la courbe s'écrit de gauche à droite, le chiffre Forme claque, le point du ratio glisse.

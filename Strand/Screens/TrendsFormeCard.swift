@@ -17,6 +17,10 @@ import WhoopStore
 struct TrendsFormeCard: View {
     let days: [DailyMetric]
     let window: TrendsOverview.Window?
+    /// Names the period for the entrance ledger (`TrendsPeriodData.entranceKey`).
+    var entranceKey = "trends.forme"
+    /// True in the app: the tiles count, the curves trace in, the ratio's dot slides. False in a render.
+    var animated = false
 
     /// Cached model + readiness, keyed on the same fingerprint `TrainingLoadCard` used: a full-history
     /// EWMA and the Readiness synthesis must not re-run on every redraw.
@@ -28,21 +32,29 @@ struct TrendsFormeCard: View {
     private static let minimumDays = TrainingLoadEngine.Configuration.standard.minimumDays
 
     var body: some View {
-        NoopCard {
-            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-                TrendsCardHeader(
-                    title: "Form", overline: "Fitness · Fatigue · Form",
-                    infoLabel: "How it is computed",
-                    infoText: "Fitness is your Effort averaged over 42 days (what you can absorb); fatigue over 7 days (what you just did). Form is fitness minus fatigue. The acute / chronic ratio compares the last 7 days with the last 28: between 0.8 and 1.3 the load builds without outrunning you.")
-                if result.isAvailable {
-                    tiles
-                    chart
-                        .frame(height: 190)
-                    Divider().overlay(StrandPalette.hairline)
-                    ratioRows
-                } else {
-                    tilesPlaceholder
-                    building
+        NoopFirstDraw(key: "\(entranceKey).forme", armed: animated) { phase in
+            NoopCard {
+                VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                    TrendsCardHeader(
+                        title: "Form", overline: "Fitness · Fatigue · Form",
+                        infoLabel: "How it is computed",
+                        infoText: "Fitness is your Effort averaged over 42 days (what you can absorb); fatigue over 7 days (what you just did). Form is fitness minus fatigue. The acute / chronic ratio compares the last 7 days with the last 28: between 0.8 and 1.3 the load builds without outrunning you.")
+                    if result.isAvailable {
+                        tiles(phase)
+                        chart
+                            .frame(height: 190)
+                            // Traced in from the left under the curve timing, like the Sleep curves.
+                            .mask(alignment: .leading) {
+                                Rectangle()
+                                    .scaleEffect(x: phase.drawn ? 1 : 0.001, y: 1, anchor: .leading)
+                                    .animation(phase.motion(NoopMotion.curveDraw), value: phase.drawn)
+                            }
+                        Divider().overlay(StrandPalette.hairline)
+                        ratioRows(phase)
+                    } else {
+                        tilesPlaceholder
+                        building(phase)
+                    }
                 }
             }
         }
@@ -64,41 +76,54 @@ struct TrendsFormeCard: View {
 
     // MARK: Tiles
 
-    private var tiles: some View {
+    /// Fitness and fatigue count up in step with the curve; form, the card's headline, slams (effect B).
+    private func tiles(_ phase: NoopDrawPhase) -> some View {
         HStack(spacing: NoopMetrics.space2) {
             tile(title: "Fitness", swatch: StrandPalette.effortColor,
-                 value: result.ctl.map(TrendsFormat.int) ?? "—", caption: String(localized: "42 days"))
+                 value: result.ctl, format: TrendsFormat.int, caption: String(localized: "42 days"),
+                 entrance: .count, index: 0)
             tile(title: "Fatigue", swatch: StrandPalette.metricAmber,
-                 value: result.atl.map(TrendsFormat.int) ?? "—", caption: String(localized: "7 days"))
+                 value: result.atl, format: TrendsFormat.int, caption: String(localized: "7 days"),
+                 entrance: .count, index: 1)
             tile(title: "Form", swatch: formColor.opacity(0.5),
-                 value: result.tsb.map { TrendsFormat.signed($0) } ?? "—",
-                 caption: formCaption, valueColor: formColor)
+                 value: result.tsb, format: { TrendsFormat.signed($0) },
+                 caption: formCaption, valueColor: formColor, entrance: .slam, index: 2)
         }
     }
 
     private var tilesPlaceholder: some View {
         HStack(spacing: NoopMetrics.space2) {
-            tile(title: "Fitness", swatch: StrandPalette.textTertiary, value: "—",
+            tile(title: "Fitness", swatch: StrandPalette.textTertiary, value: nil, format: TrendsFormat.int,
                  caption: String(localized: "42 days"), valueColor: StrandPalette.textTertiary)
-            tile(title: "Fatigue", swatch: StrandPalette.textTertiary, value: "—",
+            tile(title: "Fatigue", swatch: StrandPalette.textTertiary, value: nil, format: TrendsFormat.int,
                  caption: String(localized: "7 days"), valueColor: StrandPalette.textTertiary)
-            tile(title: "Form", swatch: StrandPalette.textTertiary, value: "—",
+            tile(title: "Form", swatch: StrandPalette.textTertiary, value: nil, format: TrendsFormat.int,
                  caption: String(localized: "the gap"), valueColor: StrandPalette.textTertiary)
         }
     }
 
-    private func tile(title: LocalizedStringKey, swatch: Color, value: String, caption: String,
-                      valueColor: Color = StrandPalette.textPrimary) -> some View {
+    private func tile(title: LocalizedStringKey, swatch: Color, value: Double?,
+                      format: @escaping (Double) -> String, caption: String,
+                      valueColor: Color = StrandPalette.textPrimary,
+                      entrance: NoopNumberEntrance = .count, index: Int = 0) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
             HStack(spacing: NoopMetrics.space1 + 2) {
                 Capsule().fill(swatch).frame(width: 10, height: 3)
                 Text(title).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
             }
-            Text(value)
-                .font(StrandFont.number(28, weight: .bold))
-                .foregroundStyle(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            if let value {
+                NoopRollingNumber(value: value, format: format,
+                                  font: StrandFont.number(28, weight: .bold), color: valueColor,
+                                  entrance: entrance, armed: animated,
+                                  launchKey: "\(entranceKey).forme.tile.\(index)",
+                                  delay: Double(index) * NoopMotion.ringStagger)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            } else {
+                Text(verbatim: "—")
+                    .font(StrandFont.number(28, weight: .bold))
+                    .foregroundStyle(valueColor)
+            }
             Text(caption).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary).lineLimit(1)
         }
         .padding(NoopMetrics.space3)
@@ -106,7 +131,7 @@ struct TrendsFormeCard: View {
         .background(NoopPanelSurface(cornerRadius: 14))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(title))
-        .accessibilityValue(Text("\(value), \(caption)"))
+        .accessibilityValue(Text("\(value.map(format) ?? "—"), \(caption)"))
     }
 
     /// Form reads in the load's own units: ten points under is fresh fatigue, ten over is fresh legs.
@@ -209,7 +234,7 @@ struct TrendsFormeCard: View {
     private static let ratioAxisMax = 2.0
     private static let ratioZone = 0.8...1.3
 
-    private var ratioRows: some View {
+    private func ratioRows(_ phase: NoopDrawPhase) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.space2) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Acute / chronic ratio")
@@ -221,9 +246,11 @@ struct TrendsFormeCard: View {
                     .foregroundStyle(ratioColor)
             }
             if let acwr {
-                TrendsBandTrack(position: min(0.97, max(0.03, acwr / Self.ratioAxisMax)),
+                TrendsBandTrack(position: phase.drawn ? min(0.97, max(0.03, acwr / Self.ratioAxisMax)) : 0.5,
                                 bandRange: (Self.ratioZone.lowerBound / Self.ratioAxisMax)...(Self.ratioZone.upperBound / Self.ratioAxisMax),
                                 bandTint: StrandPalette.chargeColor, dotColor: ratioColor, height: 22)
+                    .animation(phase.motion(NoopMotion.valueChange.delay(NoopMotion.curveDrawDuration * 0.5)),
+                               value: phase.drawn)
                 GeometryReader { geo in
                     let w = geo.size.width
                     Text(verbatim: UnitFormatter.decimal(Self.ratioZone.lowerBound, places: 1))
@@ -277,7 +304,7 @@ struct TrendsFormeCard: View {
 
     // MARK: Building state
 
-    private var building: some View {
+    private func building(_ phase: NoopDrawPhase) -> some View {
         let have = min(result.contiguousDays, Self.minimumDays)
         let need = Self.minimumDays
         return VStack(alignment: .leading, spacing: NoopMetrics.space2) {
@@ -295,6 +322,10 @@ struct TrendsFormeCard: View {
                     Capsule()
                         .fill(i < have ? StrandPalette.effortColor : StrandPalette.surfaceOverlay)
                         .frame(height: 8)
+                        // The filled pips light up one after another, like a PipBar's cascade.
+                        .opacity(i < have && !phase.drawn ? 0.25 : 1)
+                        .animation(phase.motion(NoopMotion.strongEaseOut(0.35).delay(Double(i) * NoopMotion.ringStagger / 2)),
+                                   value: phase.drawn)
                 }
             }
             .accessibilityHidden(true)

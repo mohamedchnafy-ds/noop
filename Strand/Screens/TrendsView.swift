@@ -100,16 +100,18 @@ struct TrendsView: View {
         let band = bandWindow.map { TrendsOverview.days(repo.days, in: $0) } ?? repo.days
         return TrendsPeriodData(range: range, window: w, current: current, previous: previous,
                                 bandDays: band, restByDay: sleepPerfByDay, sleepNeedMin: sleepNeedMin,
-                                effortScale: effortScale, today: today)
+                                effortScale: effortScale, today: today, animated: true)
     }
 
     var body: some View {
         // On macOS the .trends detail pane has NO enclosing NavigationStack (RootView), so — exactly like
         // MetricExplorerView (#753) — wrap the scaffold in one here so the row pushes get Back chrome.
+        // The screen's entrances (gauges, numbers, points, curves) replay each time it is shown: pushed from
+        // Plus → Analyses, or popped back to from a metric detail (the rule of chantier 12, 6 Nov.).
         #if os(macOS)
-        NavigationStack { scaffold.tabRouteDestinations() }
+        NavigationStack { scaffold.noopEntranceRoot().tabRouteDestinations() }
         #else
-        scaffold
+        scaffold.noopEntranceRoot()
         #endif
     }
 
@@ -142,7 +144,8 @@ struct TrendsView: View {
                         }
                         // Long-horizon by nature: the model runs over the FULL history and the card only
                         // frames the period, so it stays on the page even when the period itself is empty.
-                        TrendsFormeCard(days: repo.days, window: data.window)
+                        TrendsFormeCard(days: repo.days, window: data.window,
+                                        entranceKey: data.entranceKey, animated: data.animated)
                             .staggeredAppear(index: 3)
                         if !data.current.isEmpty {
                             TrendsSignalsCard(data: data)
@@ -154,6 +157,10 @@ struct TrendsView: View {
                             .staggeredAppear(index: 6)
                     }
                 }
+                // A step back with ‹ slides the cards in from the past, › from the future; a range change
+                // settles the new heights under the card spring. Both still under the quiet-motion gate.
+                .noopDaySlide(offset)
+                .animation(NoopMotion.card, value: range)
             }
         })
         // #436 — present the offline trends-report exporter (range picker + PDF export).
@@ -208,7 +215,10 @@ struct TrendsView: View {
             SegmentedPillControl(Range.pills, selection: $range,
                                  adaptsToAvailableWidth: true, fillsAvailableWidth: true) { $0.label }
             HStack(spacing: NoopMetrics.cardInnerSpacing) {
-                Button { offset = min(maxOffset, offset + 1) } label: {
+                Button {
+                    StrandHaptic.selection.play()
+                    offset = min(maxOffset, offset + 1)
+                } label: {
                     Image(systemName: "chevron.left").font(StrandFont.headline.weight(.semibold))
                         .frame(width: NoopMetrics.controlHeight - 4, height: NoopMetrics.controlHeight - 4)
                 }
@@ -229,9 +239,17 @@ struct TrendsView: View {
                         .minimumScaleFactor(0.85)
                 }
                 .multilineTextAlignment(.center)
+                // The label crossfades to the new period rather than snapping.
+                .id("\(range.rawValue)-\(offset)")
+                .transition(.opacity)
+                .animation(NoopMotion.value, value: offset)
+                .animation(NoopMotion.value, value: range)
                 Spacer(minLength: 0)
 
-                Button { offset = max(0, offset - 1) } label: {
+                Button {
+                    StrandHaptic.selection.play()
+                    offset = max(0, offset - 1)
+                } label: {
                     Image(systemName: "chevron.right").font(StrandFont.headline.weight(.semibold))
                         .frame(width: NoopMetrics.controlHeight - 4, height: NoopMetrics.controlHeight - 4)
                 }
@@ -347,8 +365,15 @@ struct TrendsPeriodData {
     let sleepNeedMin: Double?
     let effortScale: EffortScale
     let today: String
+    /// True in the app: the cards play their entrance (fork chantier 12). False in a render or a test, so
+    /// a one-frame capture draws the final state.
+    var animated = false
 
     func rest(_ d: DailyMetric) -> Double? { restByDay[d.day] }
+
+    /// Names this period for `NoopLaunchOnce`: a new period is a new entrance, the same period shown
+    /// again replays through `noopEntranceGeneration`.
+    var entranceKey: String { "trends.\(range.rawValue).\(window?.start ?? "all")" }
 }
 
 // MARK: - Formatting shared by the cards

@@ -48,22 +48,29 @@ struct TrendsSignalsCard: View {
     }
 
     var body: some View {
-        NoopCard {
-            VStack(alignment: .leading, spacing: NoopMetrics.space2) {
-                TrendsCardHeader(
-                    title: "Signals vs your normal", overline: bandOverline,
-                    infoLabel: "How it is computed",
-                    infoText: "The band is your own normal: the mean over a longer window (30 days for a week, up to a year for longer periods), plus or minus half a standard deviation. The dot is this period's mean; the chip is its change against the previous period. Sleep is compared with your sleep need.")
-                .padding(.bottom, NoopMetrics.space1)
-                ForEach(Array(signals.enumerated()), id: \.offset) { _, s in
-                    row(s)
+        // Motion: each row's dot slides from the band's centre to the period's reading, one row after the
+        // other, and its chip fades in behind it.
+        NoopFirstDraw(key: "\(data.entranceKey).signals", armed: data.animated) { phase in
+            NoopCard {
+                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
+                    TrendsCardHeader(
+                        title: "Signals vs your normal", overline: bandOverline,
+                        infoLabel: "How it is computed",
+                        infoText: "The band is your own normal: the mean over a longer window (30 days for a week, up to a year for longer periods), plus or minus half a standard deviation. The dot is this period's mean; the chip is its change against the previous period. Sleep is compared with your sleep need.")
+                    .padding(.bottom, NoopMetrics.space1)
+                    ForEach(Array(signals.enumerated()), id: \.offset) { i, s in
+                        row(s, index: i, phase: phase)
+                    }
+                    Divider().overlay(StrandPalette.hairline)
+                    legend
                 }
-                Divider().overlay(StrandPalette.hairline)
-                legend
             }
         }
         .accessibilityElement(children: .contain)
     }
+
+    /// The gap between two rows' entrances.
+    private static let rowStagger = 0.06
 
     private var bandOverline: LocalizedStringKey {
         switch data.range {
@@ -77,7 +84,7 @@ struct TrendsSignalsCard: View {
     // MARK: Row
 
     @ViewBuilder
-    private func row(_ s: Signal) -> some View {
+    private func row(_ s: Signal, index: Int, phase: NoopDrawPhase) -> some View {
         let mean = TrendsOverview.mean(data.current, s.value)
         let previous = TrendsOverview.mean(data.previous, s.value)
         let band = TrendsOverview.band(data.bandDays.compactMap(s.value))
@@ -106,12 +113,17 @@ struct TrendsSignalsCard: View {
                 }
                 .frame(width: 108, alignment: .leading)
                 TrendsBandTrack(
-                    position: position,
+                    position: phase.drawn ? position : 0.5,
                     bandRange: band.map { TrendsOverview.axisPosition($0.low, band: $0)...TrendsOverview.axisPosition($0.high, band: $0) },
                     bandTint: s.tint,
                     dotColor: mean == nil ? StrandPalette.surfaceOverlay : dotColor)
+                    .animation(phase.motion(NoopMotion.valueChange.delay(Double(index) * Self.rowStagger)),
+                               value: phase.drawn)
                 chip(mean: mean, previous: previous, signal: s, isSleep: isSleep)
                     .frame(width: 64, alignment: .trailing)
+                    .opacity(phase.drawn ? 1 : 0)
+                    .animation(phase.motion(NoopMotion.strongEaseOut(0.4).delay(Double(index) * Self.rowStagger + 0.3)),
+                               value: phase.drawn)
             }
             .frame(minHeight: NoopMetrics.controlHeight - 4)
             .contentShape(Rectangle())

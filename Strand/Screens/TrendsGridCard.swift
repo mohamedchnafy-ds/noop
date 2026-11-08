@@ -56,25 +56,37 @@ struct TrendsGridCard: View {
 
     var body: some View {
         let cols = columns
-        NoopCard {
-            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-                TrendsCardHeader(title: gridTitle, overline: "Tap a column to read it")
-                if let i = selected, cols.indices.contains(i) {
-                    selectionLine(cols[i])
+        // Motion: the cells pop in column by column, oldest first, each row a beat behind the one above;
+        // the selection ring and the read-out line follow the value spring.
+        NoopFirstDraw(key: "\(data.entranceKey).grid", armed: data.animated) { phase in
+            NoopCard {
+                VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                    TrendsCardHeader(title: gridTitle, overline: "Tap a column to read it")
+                    if let i = selected, cols.indices.contains(i) {
+                        selectionLine(cols[i])
+                            .transition(.opacity)
+                    }
+                    if cols.isEmpty {
+                        Text("Not enough data for this window.")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    } else {
+                        grid(cols, phase: phase)
+                    }
+                    Divider().overlay(StrandPalette.hairline)
+                    legend
                 }
-                if cols.isEmpty {
-                    Text("Not enough data for this window.")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                } else {
-                    grid(cols)
-                }
-                Divider().overlay(StrandPalette.hairline)
-                legend
+                .animation(NoopMotion.value, value: selected)
             }
         }
         .onChange(of: data.window) { _ in selected = nil }
         .accessibilityElement(children: .contain)
+    }
+
+    /// The gap between two columns' entrances: 35 ms for a week, compressed so 13 weeks land in under half
+    /// a second.
+    private static func columnStagger(_ count: Int) -> Double {
+        min(0.035, 0.45 / Double(max(count, 1)))
     }
 
     private var gridTitle: LocalizedStringKey {
@@ -87,10 +99,11 @@ struct TrendsGridCard: View {
 
     // MARK: Grid
 
-    private func grid(_ cols: [TrendsOverview.Column]) -> some View {
+    private func grid(_ cols: [TrendsOverview.Column], phase: NoopDrawPhase) -> some View {
         let bands = lines.map { line in
             line.kind == .signal ? TrendsOverview.band(data.bandDays.compactMap(line.value)) : nil
         }
+        let stagger = Self.columnStagger(cols.count)
         return Grid(alignment: .center, horizontalSpacing: cols.count > 13 ? 2 : 4, verticalSpacing: 4) {
             GridRow {
                 Color.clear.frame(width: 1, height: 1)
@@ -112,8 +125,16 @@ struct TrendsGridCard: View {
                         .gridColumnAlignment(.leading)
                     ForEach(cols.indices, id: \.self) { ci in
                         let mean = TrendsOverview.columnMean(data.current, column: cols[ci], line.value)
-                        Button { selected = selected == ci ? nil : ci } label: {
+                        Button {
+                            StrandHaptic.selection.play()
+                            selected = selected == ci ? nil : ci
+                        } label: {
                             TrendsGridCell(color: cellColor(mean, line: line, band: bands[li]), selected: selected == ci)
+                                .scaleEffect(phase.drawn ? 1 : 0.6)
+                                .opacity(phase.drawn ? 1 : 0)
+                                .animation(phase.motion(NoopMotion.strongEaseOut(0.4)
+                                                            .delay(Double(ci) * stagger + Double(li) * 0.02)),
+                                           value: phase.drawn)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(Text(line.title))

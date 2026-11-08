@@ -5,7 +5,8 @@ import SwiftUI
 /// the K10 Coach brief widget (stored morning brief on Lock Screen / Home Screen), the
 /// heart-rate trace widget (#1957), the stress curve widget (#2040), the Lift Log session
 /// Live Activity, the strap-sync Live Activity, and the three day widgets — today's session, nutrition and
-/// sleep (personal fork, chantier 6).
+/// sleep (personal fork, chantier 6), and the fasting Live Activity (chantier 15). Ten entries: the
+/// `WidgetBundleBuilder` limit; an eleventh needs a nested bundle.
 @main
 struct NOOPWidgetBundle: WidgetBundle {
     var body: some Widget {
@@ -19,5 +20,6 @@ struct NOOPWidgetBundle: WidgetBundle {
         DaySessionWidget()
         DayNutritionWidget()
         DaySleepWidget()
+        FastingLiveActivity()
     }
 }

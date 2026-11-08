@@ -44,10 +44,29 @@ enum FastingLog {
     /// UserDefaults: the goal of the last fast started, minutes; the next "Start" offers it again.
     static let lastGoalKey = "fasting.lastGoalMinutes"
 
+    /// What follows a change to the fasts, outside the screens (chantier 15 PR C): the end notification and
+    /// the Lock Screen banner, both re-planned from `resolveFastingState`. Registered by the iOS app root
+    /// (`StrandiOSApp.init`); nil elsewhere (macOS, tests), where a write only bumps the revision.
+    @MainActor static var onFastingChange: (@MainActor (WhoopStore) async -> Void)?
+
     @MainActor
     private static func bumpFastingRevision() {
         let defaults = UserDefaults.standard
         defaults.set(defaults.integer(forKey: revisionKey) &+ 1, forKey: revisionKey)
+    }
+
+    /// Every write ends here: the screens reload (revision), the notification and the banner follow.
+    @MainActor
+    private static func fastingDidChange(_ store: WhoopStore) async {
+        bumpFastingRevision()
+        await refreshFastingSurroundings(store)
+    }
+
+    /// Re-plan the notification and the banner without a write: a setting changed, the app came back to the
+    /// foreground (a banner iOS ended after its 8 h comes back then).
+    @MainActor
+    static func refreshFastingSurroundings(_ store: WhoopStore) async {
+        await onFastingChange?(store)
     }
 
     // MARK: Resolver
@@ -93,7 +112,7 @@ enum FastingLog {
                           createdAt: nowSec, updatedAt: nowSec)
         try? await store.upsertFast(row)
         UserDefaults.standard.set(goal, forKey: lastGoalKey)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
         return row
     }
 
@@ -104,7 +123,7 @@ enum FastingLog {
         row.endedAt = max(row.startedAt, Int(endedAt.timeIntervalSince1970))
         row.updatedAt = Int(now.timeIntervalSince1970)
         try? await store.upsertFast(row)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
     }
 
     /// Correct a fast after the fact: a new start, a new goal (clamped), or a new end for a fast that
@@ -118,13 +137,13 @@ enum FastingLog {
         if let end = row.endedAt, end < row.startedAt { row.startedAt = end }
         row.updatedAt = Int(now.timeIntervalSince1970)
         try? await store.upsertFast(row)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
     }
 
     /// Forget one fast.
     static func deleteFastRecord(_ store: WhoopStore, id: String) async {
         try? await store.deleteFast(id: id)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
     }
 
     // MARK: Reads

@@ -998,3 +998,78 @@ struct FastingPhaseSheet: View {
         }
     }
 }
+
+// MARK: Reminders (chantier 15 PR C)
+
+/// The gear of the page: the planned-end notification (on by default), the halfway one (off) and, on iPhone,
+/// the Lock Screen banner (off). Each change re-plans at once through `onChange`.
+struct FastingRemindersSheet: View {
+    @AppStorage(FastingNotifier.endEnabledKey) private var endOn = true
+    @AppStorage(FastingNotifier.halfEnabledKey) private var halfOn = false
+    @AppStorage(FastingNotifier.liveActivityKey) private var bannerOn = false
+    let onChange: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    NoopCard(padding: 16) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            row(title: "Planned end",
+                                detail: "A notification when the goal is reached: « 16 h of fasting reached ».",
+                                isOn: $endOn)
+                            Divider().overlay(StrandPalette.hairline)
+                            row(title: "Halfway",
+                                detail: "A notification at half the goal.",
+                                isOn: $halfOn)
+                            #if os(iOS)
+                            Divider().overlay(StrandPalette.hairline)
+                            row(title: "Lock Screen",
+                                detail: "Time fasted and time left on the Lock Screen and in the Dynamic Island, with Stop. iOS keeps it 8 h at most: it comes back when NOOP is opened.",
+                                isOn: $bannerOn)
+                            #endif
+                        }
+                    }
+                    Text("Local notifications, on \(Platform.deviceNounPhrase) only. Nothing is sent anywhere.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 4)
+                }
+                .padding(.horizontal, NoopMetrics.screenHPadding)
+                .padding(.vertical, 12)
+            }
+            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .navigationTitle(Text("Fasting reminders"))
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Close", action: onClose)
+                }
+            }
+            .onChange(of: endOn) { _ in onChange() }
+            .onChange(of: halfOn) { _ in onChange() }
+            .onChange(of: bannerOn) { _ in onChange() }
+        }
+        #if os(iOS)
+        .presentationDetents([.medium, .large])
+        #endif
+    }
+
+    private func row(title: LocalizedStringKey, detail: LocalizedStringKey, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(StrandFont.body.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(detail)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}

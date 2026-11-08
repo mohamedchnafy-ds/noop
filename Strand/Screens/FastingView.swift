@@ -37,6 +37,8 @@ struct FastingView: View {
     // History.
     @State private var historyDays = 7
     @State private var history: (durations: [Int], summary: FastingTimeline.Summary)?
+    /// Chantier 15 PR C: the fasting nights against the others (nil while reading).
+    @State private var nights: FastingNightsResult?
     // Sheets and what they edit.
     @State private var sheet: Sheet?
     @State private var editDate = Date()
@@ -104,6 +106,8 @@ struct FastingView: View {
                                    goalMinutes: state?.fast.goalMinutes ?? pickedGoalMinutes,
                                    todayRunning: running != nil, days: $historyDays,
                                    loading: history == nil, animated: loaded)
+                FastingNightsCard(result: nights)
+                    .animation(NoopMotion.gated(NoopMotion.card, reduced: still), value: nights)
                 Text("Indicative landmarks from the general literature, on \(Platform.deviceNounPhrase) only. Not medical advice.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -113,6 +117,9 @@ struct FastingView: View {
         .noopEntranceRoot()
         .task(id: revision) { await reloadFasts() }
         .task(id: "\(historyDays)-\(revision)-\(todayKey)") { await reloadHistory() }
+        .task(id: "\(revision)-\(repo.refreshSeq)-\(todayKey)") {
+            nights = await FastingNights.loadFastingNights(repo: repo)
+        }
         .task(id: "\(waterTick)-\(repo.refreshSeq)-\(todayKey)") { await reloadWater() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
         .sheet(item: $sheet, onDismiss: { Task { await reloadWater() } }) { which in

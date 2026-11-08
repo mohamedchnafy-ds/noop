@@ -1075,3 +1075,116 @@ struct FastingRemindersSheet: View {
         }
     }
 }
+
+// MARK: Fasting nights (chantier 15 PR C)
+
+/// « Fasting nights », under the history: HRV, resting heart rate and sleep of the nights spent inside a
+/// fast of 12 h or more against the other nights of the last 30 days (`FastingNights`). A difference shows
+/// only past its margin, « — » otherwise; under 5 nights on either side the card says it is waiting.
+struct FastingNightsCard: View {
+    /// Nil while reading.
+    let result: FastingNightsResult?
+
+    var body: some View {
+        NoopCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Fasting nights")
+                        .font(StrandFont.headline)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Spacer(minLength: 8)
+                    if let result {
+                        Text("Last \(FastingNights.windowDays) days · \(result.fastingCount) vs \(result.otherCount) nights")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                if let result {
+                    if result.waiting {
+                        Text("Waiting for at least \(FastingNights.minNightsEachSide) nights on each side: nights inside a fast of \(FastingFormat.duration(minutes: FastingNights.minFastMinutes)) or more, and the others. For now \(result.fastingCount) and \(result.otherCount).")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        HStack(alignment: .top, spacing: 8) {
+                            ForEach(result.figures, id: \.metric) { tile($0) }
+                        }
+                    }
+                } else {
+                    Text("Reading the nights…")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                Text("A difference shows only beyond its margin of error, « — » otherwise. It compares nights; it does not say why.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func label(_ metric: FastingNightMetric) -> Text {
+        switch metric {
+        case .hrv: return Text("HRV")
+        case .restingHR: return Text("Resting HR")
+        case .sleep: return Text("Sleep")
+        }
+    }
+
+    /// « 68 ms », « 52 bpm », « 7 h 12 min ».
+    private func amount(_ value: Double, _ metric: FastingNightMetric) -> String {
+        let whole = Int(value.rounded())
+        switch metric {
+        case .hrv: return String(localized: "\(whole) ms")
+        case .restingHR: return String(localized: "\(whole) bpm")
+        case .sleep: return FastingFormat.duration(minutes: whole)
+        }
+    }
+
+    /// « + 7 ms », « − 2 bpm ».
+    private func signed(_ delta: Double, _ metric: FastingNightMetric) -> String {
+        (delta >= 0 ? "+ " : "− ") + amount(abs(delta), metric)
+    }
+
+    private func tint(_ figure: FastingNightFigure) -> Color {
+        guard figure.shown else { return StrandPalette.textSecondary }
+        return figure.verdict == .better ? StrandPalette.fastingDone : StrandPalette.deviationOrange
+    }
+
+    /// Under the big figure: both means when the difference shows, else why it does not.
+    private func detail(_ figure: FastingNightFigure) -> String {
+        if figure.shown, let a = figure.fastingMean, let b = figure.otherMean {
+            return String(localized: "\(amount(a, figure.metric)) vs \(amount(b, figure.metric))")
+        }
+        switch figure.verdict {
+        case .tooFew: return String(localized: "too few nights")
+        case .none: return String(localized: "no data")
+        default: return String(localized: "within the margin")
+        }
+    }
+
+    private func tile(_ figure: FastingNightFigure) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            label(figure.metric)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(verbatim: figure.shown ? signed(figure.delta ?? 0, figure.metric) : "—")
+                .font(StrandFont.rounded(19))
+                .foregroundStyle(tint(figure))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(verbatim: detail(figure))
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}

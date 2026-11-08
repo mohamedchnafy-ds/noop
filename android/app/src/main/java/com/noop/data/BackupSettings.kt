@@ -73,6 +73,10 @@ object BackupSettingsCodec {
         // SCOPE: NAMES only — the wire carries no kind/group, so a numeric custom behaviour restores as a
         // plain .bool toggle (identical on both platforms; historical entries keep their DB numericValue).
         "journal.customBehaviors" to Kind.STRING,
+        // Personal fork, chantier 10 (Élan): « Mon pourquoi », the wearer's own words, written on iPhone
+        // (`ElanWhy.textKey`). Same canonical key on both platforms, String kind; Android has no Élan screen,
+        // so the bridge only keeps the value in prefs for the round trip.
+        "elan.why" to Kind.STRING,
     )
 
     /**
@@ -179,6 +183,11 @@ object BackupSettingsBridge {
             }.getOrDefault(emptyList())
             if (names.isNotEmpty()) values["journal.customBehaviors"] = names.joinToString("\n")
         }
+        // Personal fork, chantier 10 (Élan): « Mon pourquoi », kept in prefs under its canonical key (Android has
+        // no Élan screen) so a backup made here after an iPhone restore still carries it.
+        if (noop.contains("elan.why")) {
+            noop.getString("elan.why", null)?.let { values["elan.why"] = it }
+        }
         return BackupSettingsCodec.encode(values)
     }
 
@@ -218,6 +227,7 @@ object BackupSettingsBridge {
             editor.remove(JOURNAL_LEGACY_HIDDEN_PREF)
             editor.remove(JOURNAL_CATALOG_V2_PREF)
         }
+        (values["elan.why"] as? String)?.let { editor.putString("elan.why", it) }
         editor.apply()
     }
 }

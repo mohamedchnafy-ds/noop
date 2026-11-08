@@ -25,6 +25,7 @@ struct MetricDescriptor: Identifiable, Hashable {
         case "nutrition-csv": return String(localized: "Nutrition")
         case "noop-mood":    return String(localized: "Mood")
         case "noop-nutrition": return String(localized: "Meals")
+        case "noop-weight":  return String(localized: "Weigh-ins")
         default:             return "Whoop"   // "my-whoop" + on-device computed sources
         }
     }
@@ -178,6 +179,9 @@ enum MetricCatalog {
 
         // ── Health / Body
         d("weight", String(localized: "Weight"), "Health", "kg", "apple-health", "scalemass", 1, nil),
+        // Personal fork, chantier 10 (Élan): the morning weigh-ins (`ElanWeight`, one per day, source
+        // "noop-weight"), so Analyses reads the same series as the Poids page.
+        d("weight", String(localized: "Weight"), "Health", "kg", "noop-weight", "scalemass", 1, nil),
         d("body_fat", String(localized: "Body Fat"), "Health", "%", "apple-health", "percent", 1, false),
         d("lean_mass", String(localized: "Lean Body Mass"), "Health", "kg", "apple-health", "figure.arms.open", 1, true),
         d("bmi", "BMI", "Health", "", "apple-health", "figure", 1, nil),

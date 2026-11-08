@@ -38,6 +38,8 @@ struct NutritionAddSheet: View {
     @State private var picked: NutritionFoodHit?
     @State private var offState: OffState = .idle
     @State private var saving = false
+    /// Chantier 15 PR C: « End the fast at 12:30? » after a meal saved during a fast.
+    @State private var fastQuestion: FastingMealQuestion?
     @FocusState private var searchFocused: Bool
 
     /// The Open Food Facts line: not asked yet, asking, its products for the words asked, or no answer.
@@ -103,6 +105,7 @@ struct NutritionAddSheet: View {
         #else
         .frame(minWidth: 460, idealWidth: 520, minHeight: 600, idealHeight: 680)
         #endif
+        .fastingMealQuestion($fastQuestion, repo: repo) { dismiss() }
         .task {
             if focusSearch { searchFocused = true }
             guard let store = await repo.storeHandle() else { return }
@@ -307,10 +310,10 @@ struct NutritionAddSheet: View {
         Task {
             defer { saving = false }
             guard let store = await repo.storeHandle() else { return }
-            let saved = try? await MealJournal.saveMealEntry(
+            guard let saved = try? await MealJournal.saveMealEntry(
                 store, name: hit.name, origin: NutritionFoodSearch.hitOrigin(hit), eatenAt: when, slot: slot,
-                lines: [NutritionFoodSearch.hitLine(hit, grams: grams)])
-            if saved != nil { dismiss() }
+                lines: [NutritionFoodSearch.hitLine(hit, grams: grams)]) else { return }
+            await closeOrAskAboutFast(store, saved)
         }
     }
 
@@ -322,7 +325,18 @@ struct NutritionAddSheet: View {
         Task {
             defer { saving = false }
             guard let store = await repo.storeHandle() else { return }
-            if (try? await MealJournal.addMealAgain(store, entry, eatenAt: when, slot: slot)) != nil { dismiss() }
+            guard let saved = try? await MealJournal.addMealAgain(store, entry, eatenAt: when, slot: slot) else { return }
+            await closeOrAskAboutFast(store, saved)
+        }
+    }
+
+    /// Chantier 15 PR C: a meal saved during a fast asks « End the fast at 12:30? » before the sheet closes.
+    private func closeOrAskAboutFast(_ store: WhoopStore, _ saved: MealEntry) async {
+        let eatenAt = Date(timeIntervalSince1970: TimeInterval(saved.meal.eatenAt))
+        if let question = await FastingLog.mealFastQuestion(store, eatenAt: eatenAt, lines: saved.items) {
+            fastQuestion = question
+        } else {
+            dismiss()
         }
     }
 }

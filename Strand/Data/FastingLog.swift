@@ -35,6 +35,19 @@ struct FastingState: Equatable {
     var phaseId: String { FastingTimeline.phaseIds[phaseIndex] }
 }
 
+/// The question a meal logged during a fast raises (chantier 15 PR C): « End the fast at 12:30? ». The
+/// meal is already saved; answering yes moves the fast's real end to the meal's time.
+struct FastingMealQuestion: Identifiable, Equatable {
+    /// The fast the meal falls in: the one running, or the newest one, already over.
+    var fast: FastRow
+    /// The meal's time: the end the fast would get.
+    var endAt: Date
+    var id: String { fast.id }
+    var wasRunning: Bool { fast.endedAt == nil }
+    /// The fast's duration with the meal's time as its end.
+    var minutesAtEnd: Int { max(0, (Int(endAt.timeIntervalSince1970) - fast.startedAt) / 60) }
+}
+
 enum FastingLog {
 
     /// UserDefaults counter bumped on every write, so the screens that cache a state reload. Read by
@@ -44,10 +57,29 @@ enum FastingLog {
     /// UserDefaults: the goal of the last fast started, minutes; the next "Start" offers it again.
     static let lastGoalKey = "fasting.lastGoalMinutes"
 
+    /// What follows a change to the fasts, outside the screens (chantier 15 PR C): the end notification and
+    /// the Lock Screen banner, both re-planned from `resolveFastingState`. Registered by the iOS app root
+    /// (`StrandiOSApp.init`); nil elsewhere (macOS, tests), where a write only bumps the revision.
+    @MainActor static var onFastingChange: (@MainActor (WhoopStore) async -> Void)?
+
     @MainActor
     private static func bumpFastingRevision() {
         let defaults = UserDefaults.standard
         defaults.set(defaults.integer(forKey: revisionKey) &+ 1, forKey: revisionKey)
+    }
+
+    /// Every write ends here: the screens reload (revision), the notification and the banner follow.
+    @MainActor
+    private static func fastingDidChange(_ store: WhoopStore) async {
+        bumpFastingRevision()
+        await refreshFastingSurroundings(store)
+    }
+
+    /// Re-plan the notification and the banner without a write: a setting changed, the app came back to the
+    /// foreground (a banner iOS ended after its 8 h comes back then).
+    @MainActor
+    static func refreshFastingSurroundings(_ store: WhoopStore) async {
+        await onFastingChange?(store)
     }
 
     // MARK: Resolver
@@ -93,7 +125,7 @@ enum FastingLog {
                           createdAt: nowSec, updatedAt: nowSec)
         try? await store.upsertFast(row)
         UserDefaults.standard.set(goal, forKey: lastGoalKey)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
         return row
     }
 
@@ -104,7 +136,7 @@ enum FastingLog {
         row.endedAt = max(row.startedAt, Int(endedAt.timeIntervalSince1970))
         row.updatedAt = Int(now.timeIntervalSince1970)
         try? await store.upsertFast(row)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
     }
 
     /// Correct a fast after the fact: a new start, a new goal (clamped), or a new end for a fast that
@@ -118,13 +150,54 @@ enum FastingLog {
         if let end = row.endedAt, end < row.startedAt { row.startedAt = end }
         row.updatedAt = Int(now.timeIntervalSince1970)
         try? await store.upsertFast(row)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
+    }
+
+    // MARK: A meal during a fast (chantier 15 PR C)
+
+    /// A meal of this many kilocalories or fewer (water, black coffee, tea, a zero drink) never ends a
+    /// fast: it raises no question. The owner's choice, 8 Nov 2026.
+    static let mealFreeKcal = 10
+
+    /// The question a NEW meal eaten at `eatenAt` with `kcal` raises, given the newest fast. PURE: tested
+    /// on its own (`FastingLogTests`). A question when the meal falls inside that fast: after the start and
+    /// not in the future for a running fast, before the real end for one over (the end then moves back).
+    /// None for a calorie-free drink, a meal before the start, or no fast at all.
+    static func mealEndQuestion(newest: FastRow?, eatenAt: Date, kcal: Int, now: Date) -> FastingMealQuestion? {
+        guard kcal > mealFreeKcal, let fast = newest else { return nil }
+        let eat = Int(eatenAt.timeIntervalSince1970)
+        guard eat > fast.startedAt else { return nil }
+        if let end = fast.endedAt {
+            guard eat < end else { return nil }
+        } else {
+            guard eat <= Int(now.timeIntervalSince1970) else { return nil }
+        }
+        return FastingMealQuestion(fast: fast, endAt: eatenAt)
+    }
+
+    /// The question the meal just saved raises, read against the newest stored fast. Called by the meal
+    /// editor and the add sheet after a new meal is saved.
+    static func mealFastQuestion(_ store: WhoopStore, eatenAt: Date, lines: [MealItemRow],
+                                 now: Date = Date()) async -> FastingMealQuestion? {
+        let kcal = MealMath.totals(lines.map(\.nutrients)).kcal
+        let newest = await recentFastRows(store, limit: 1).first
+        return mealEndQuestion(newest: newest, eatenAt: eatenAt, kcal: kcal, now: now)
+    }
+
+    /// « End at 12:30 »: the fast of `question` ends at the meal's time (a running fast stops, a fast
+    /// over has its end moved back).
+    static func endFastAtMeal(_ store: WhoopStore, _ question: FastingMealQuestion, now: Date = Date()) async {
+        if question.wasRunning {
+            await endFast(store, question.fast, endedAt: question.endAt, now: now)
+        } else {
+            await amendFast(store, question.fast, endedAt: question.endAt, now: now)
+        }
     }
 
     /// Forget one fast.
     static func deleteFastRecord(_ store: WhoopStore, id: String) async {
         try? await store.deleteFast(id: id)
-        await bumpFastingRevision()
+        await fastingDidChange(store)
     }
 
     // MARK: Reads

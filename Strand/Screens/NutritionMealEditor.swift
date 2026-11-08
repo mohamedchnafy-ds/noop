@@ -71,6 +71,8 @@ struct NutritionMealEditor: View {
     @State private var recents: [MealEntry] = []
     @State private var saving = false
     @State private var confirmDelete = false
+    /// Chantier 15 PR C: « End the fast at 12:30? » after a new meal saved during a fast.
+    @State private var fastQuestion: FastingMealQuestion?
     /// The Ciqual search that adds a food to a weighed meal.
     @State private var showFoodSearch = false
     @FocusState private var focused: Bool
@@ -244,6 +246,7 @@ struct NutritionMealEditor: View {
         .sheet(isPresented: $showFoodSearch) {
             NutritionFoodSearchSheet { food in addFood(food) }
         }
+        .fastingMealQuestion($fastQuestion, repo: repo) { dismiss() }
     }
 
     /// A food picked in the Ciqual search, added to the weighed meal at 100 g (editable at once).
@@ -629,7 +632,12 @@ struct NutritionMealEditor: View {
                 let saved = try await MealJournal.saveMealEntry(store, id: id, name: name, origin: origin, eatenAt: when,
                                                                 favorite: favorite, slot: slot, lines: lines)
                 onSaved?(saved)
-                dismiss()
+                // A new meal only: an edit was already answered when it was logged.
+                if id == nil, let question = await FastingLog.mealFastQuestion(store, eatenAt: when, lines: lines) {
+                    fastQuestion = question
+                } else {
+                    dismiss()
+                }
             } catch {
                 // Nothing was written: the form stays open with what was typed.
             }
@@ -643,7 +651,12 @@ struct NutritionMealEditor: View {
         Task {
             defer { saving = false }
             guard let store = await repo.storeHandle() else { return }
-            if (try? await MealJournal.addMealAgain(store, entry, eatenAt: when, slot: slot)) != nil { dismiss() }
+            guard let saved = try? await MealJournal.addMealAgain(store, entry, eatenAt: when, slot: slot) else { return }
+            if let question = await FastingLog.mealFastQuestion(store, eatenAt: when, lines: saved.items) {
+                fastQuestion = question
+            } else {
+                dismiss()
+            }
         }
     }
 

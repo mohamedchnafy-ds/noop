@@ -1680,6 +1680,8 @@ final class AICoachEngine: ObservableObject {
 
         // The meal journal (personal fork, Nutrition): today against the goals, then the 7 days before.
         inputs.nutrition = await nutritionFiche(spent: split)
+        // The fast (personal fork, chantier 15): the one running or the last one, the week, today's water.
+        inputs.fasting = await fastingFiche()
 
         // The Lift Log's statuses and priorities, read as the Progression screen reads them.
         let step = system == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg

@@ -283,6 +283,21 @@ public enum StrandPalette {
     public static let stressModerate = Color(light: "#B28600", dark: "#FFD60A")
     public static let stressHigh = Color(light: "#D70015", dark: "#FF453A")
     public static let stressMoving = Color(light: "#C7C7CC", dark: "#48484A")
+    /// The fast (fork chantier 15): the part done in a vivid green, the part left in a soft red (not the
+    /// alarm red of `statusCritical`), so the ring reads as progress, never as a warning. Told apart by
+    /// lightness as well as hue.
+    public static let fastingDone = Color(light: "#248A3D", dark: "#30D158")
+    public static let fastingRemaining = Color(light: "#D9655D", dark: "#F28B82")
+    /// One tint per fasting phase, in `FastingTimeline.phaseIds` order: digestion grey, insulin drop
+    /// yellow, glycogen orange, fat burning green, ketosis blue, autophagy purple.
+    public static let fastingPhaseTints: [Color] = [
+        Color(light: "#6E6E73", dark: "#8E8E93"),
+        Color(light: "#B28600", dark: "#FFD60A"),
+        Color(light: "#C93400", dark: "#FF9F0A"),
+        Color(light: "#248A3D", dark: "#30D158"),
+        Color(light: "#007AFF", dark: "#0A84FF"),
+        Color(light: "#8944AB", dark: "#BF5AF2"),
+    ]
     /// The Map's « worse than your normal » (fork chantier 14, Carte v2): one orange in both chart styles,
     /// where `statusWarning` turns yellow under Classic. Also its location warnings.
     public static let deviationOrange = Color(light: "#C93400", dark: "#FF9F0A")

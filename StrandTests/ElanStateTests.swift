@@ -107,6 +107,15 @@ final class ElanStateTests: XCTestCase {
         XCTAssertEqual(noGoal.logged, 1)
     }
 
+    // MARK: - The last seven days of Nutrition
+
+    func testTheNutritionWeekMarksHeldMissedAndEmptyDays() {
+        let l = ledger(kcalByDay: ["2026-11-05": 2000, "2026-11-04": 1500, "2026-10-30": 2100])
+        let week = ElanResolver.elanNutritionWeek(l, today: today)
+        XCTAssertEqual(week.map(\.day), ["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05"])
+        XCTAssertEqual(week.map(\.status), [.held, .none, .none, .none, .none, .missed, .held])
+    }
+
     // MARK: - Week recap
 
     func testTheWeekRecapReadsTheSevenDaysOnly() {

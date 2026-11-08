@@ -16,6 +16,8 @@ struct CoachDataView: View {
     @State private var loadingExact = false
     /// Personal fork, chantier 14: the same setting as « The Coach can read it » in Places.
     @AppStorage(PlaceTrackingSettings.coachReadsKey) private var coachReadsPlaces = false
+    /// Personal fork, chantier 10: the same switch as « The Coach may read it » in Élan's « Mon pourquoi ».
+    @AppStorage(ElanWhy.coachReadsKey) private var coachReadsWhy = false
 
     var body: some View {
         ScreenScaffold(title: "What the coach reads",
@@ -41,6 +43,7 @@ struct CoachDataView: View {
                 onDemandCard
                 labReportCard
                 placesCard
+                whyCard
             }
             CoachSectionTitle("Never sent")
             Text("Raw beats, second-by-second readings, your location. Your key only goes to \(coach.provider.displayName).")
@@ -166,6 +169,22 @@ struct CoachDataView: View {
                 Toggle("", isOn: $coachReadsPlaces)
                     .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                     .accessibilityLabel("Let the coach read my places")
+            }
+        }
+        .opacity(coach.dataConsent ? 1 : 0.45)
+    }
+
+    /// « Mon pourquoi » (personal fork, chantier 10): the wearer's own words from Élan, the same switch as in
+    /// its editor. Rides « Use my data »; only the text goes, when there is one.
+    private var whyCard: some View {
+        NoopCard(padding: 14) {
+            HStack(spacing: 12) {
+                CoachDataRow(symbol: "flame.fill", tint: StrandPalette.elanSand,
+                             title: "My why (Élan)",
+                             detail: String(localized: "The words you wrote in Élan about why you train, so the coach can bring them up when motivation is the subject."))
+                Toggle("", isOn: $coachReadsWhy)
+                    .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                    .accessibilityLabel("Let the coach read my why")
             }
         }
         .opacity(coach.dataConsent ? 1 : 0.45)

@@ -103,6 +103,19 @@ struct ElanComparison: Equatable {
     var recent: ElanWindow
 }
 
+/// Sessions done and planned over one week of the calendar (`TrainingDays.sessionTally`).
+struct ElanWeekTally: Equatable {
+    var done: Int
+    var planned: Int
+}
+
+/// One of the last seven days on the Poids page: held, not held, or nothing logged.
+struct ElanNutritionDay: Equatable {
+    enum Status: Equatable { case held, missed, none }
+    var day: String
+    var status: Status
+}
+
 /// What Élan states, resolved once.
 struct ElanState: Equatable {
     var today: String
@@ -118,6 +131,10 @@ struct ElanState: Equatable {
     var comparison: ElanComparison
     var weight: ElanWeightSummary
     var why: String?
+    /// The last `ElanResolver.tallyWeeks` weeks, oldest first, the current week last (Victoires' streak).
+    var recentWeeks: [ElanWeekTally] = []
+    /// The last seven days, oldest first (the Poids page's « Jours Nutrition tenus »).
+    var nutritionWeek: [ElanNutritionDay] = []
 }
 
 /// The day-keyed inputs the pure rules read: what was done, eaten, slept and weighed, by local day.
@@ -154,6 +171,8 @@ enum ElanResolver {
     static let cardioMinimumMinutes = 15
     /// How much history the loader reads.
     static let historyDays = 190
+    /// Weeks of tallies kept for Victoires' streak.
+    static let tallyWeeks = 26
 
     // MARK: Rules
 
@@ -270,6 +289,18 @@ enum ElanResolver {
         return ElanComparison(launched: nil, recent: recent)
     }
 
+    /// The last seven days ending on `today`, oldest first, against the ledger's meals and goal.
+    static func elanNutritionWeek(_ ledger: ElanLedger, today: String) -> [ElanNutritionDay] {
+        (0..<7).reversed().map { back in
+            let day = ElanDays.elanDay(today, adding: -back)
+            guard let kcal = ledger.kcalByDay[day] else { return ElanNutritionDay(day: day, status: .none) }
+            if let goal = ledger.goalKcal, elanNutritionHeld(kcal: kcal, goalKcal: goal) {
+                return ElanNutritionDay(day: day, status: .held)
+            }
+            return ElanNutritionDay(day: day, status: .missed)
+        }
+    }
+
     /// The ledger from the store's rows, by the calendar's local day. `nights` are the banked days' sleep
     /// (`DailyMetric.totalSleepMin`); a day without one is left out.
     static func elanLedger(lifts: [TrainingLiftDone], activities: [TrainingActivityDone], recordTimestamps: [Int],
@@ -343,7 +374,8 @@ extension ElanResolver {
     /// when the store is not open.
     @MainActor
     static func loadElanState(repo: Repository, profile: ProfileStore, now: Date = Date(),
-                              calendar: Calendar = .current, defaults: UserDefaults = .standard) async -> ElanState? {
+                              calendar: Calendar = .current, defaults: UserDefaults = .standard,
+                              progress preloaded: LiftProgressData? = nil) async -> ElanState? {
         guard let snapshot = await TrainingSnapshot.loadTrainingSnapshot(repo: repo, historyDays: historyDays,
                                                                          effortScale: .hundred, now: now)
         else { return nil }
@@ -359,7 +391,12 @@ extension ElanResolver {
         let programNames = Dictionary(snapshot.programs.map { ($0.id, $0.name) },
                                       uniquingKeysWith: { first, _ in first })
 
-        let progress = await LiftProgressData.load(repo: repo, stepKg: LiftProgression.metricStepKg)
+        let progress: LiftProgressData?
+        if let preloaded {
+            progress = preloaded
+        } else {
+            progress = await LiftProgressData.load(repo: repo, stepKg: LiftProgression.metricStepKg)
+        }
         var recordTimestamps: [Int] = []
         for exercise in progress?.exercises ?? [] {
             for point in exercise.points where point.isRecord { recordTimestamps.append(point.startTs) }
@@ -374,6 +411,16 @@ extension ElanResolver {
                                 goalKcal: goal,
                                 nights: repo.days.map { (day: $0.day, minutes: $0.totalSleepMin) },
                                 weighIns: weighIns, calendar: calendar)
+        // The last weeks' tallies, oldest first, for Victoires' streak.
+        var recentWeeks: [ElanWeekTally] = []
+        for back in (0..<tallyWeeks).reversed() {
+            guard let weekMonday = calendar.date(byAdding: .day, value: -7 * back, to: monday) else { continue }
+            let days = TrainingDays.buildTrainingDays(TrainingCalendar.weekDates(from: weekMonday, calendar: calendar),
+                                                      plan: snapshot.plan, lifts: snapshot.lifts,
+                                                      activities: snapshot.activities, now: now, calendar: calendar)
+            let tally = TrainingDays.sessionTally(days)
+            recentWeeks.append(ElanWeekTally(done: tally.done, planned: tally.planned))
+        }
         let accepted = ElanShortSessionChoice.acceptedProgramId(day: today, defaults)
         let weight = ElanWeight.weightSummary(weighIns: weighIns, targetKg: ElanWeight.targetKg(defaults))
         ElanWeight.syncProfileWeight(weight, profile: profile, defaults: defaults)
@@ -385,6 +432,8 @@ extension ElanResolver {
                          week: elanWeekRecap(days: week, ledger: ledger, shortAccepted: accepted != nil),
                          comparison: elanComparison(ledger, today: today),
                          weight: weight,
-                         why: ElanWhy.text(defaults))
+                         why: ElanWhy.text(defaults),
+                         recentWeeks: recentWeeks,
+                         nutritionWeek: elanNutritionWeek(ledger, today: today))
     }
 }

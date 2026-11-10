@@ -25,7 +25,7 @@ Branches CI temporaires (jamais fusionnées, à supprimer seulement sur accord) 
 **Contexte du chantier 8** : `docs/fork/dossier-claude-code.md` (audit, localisateurs à revérifier) et `docs/fork/audit-delais-builds.md` (accélérer la boucle modification → IPA).
 **Chantier en cours** : **8 — dossier Claude Code** (`docs/fork/chantier-8-design.md`). **Code terminé** : lots 1, 2a, 2b, plus #46, #47 ; lot 3 : #48, #49, #51, #52, #53, #54 ; lot 4 : planning (#55) et écran de séance en cours (#57) ; lot 5 : corps cliquable (#58) ; virgule décimale (#59). **Ensuite** : **une seule IPA** (`build/<nom>` depuis `main`, avec les 3 rappels), puis la validation sur le téléphone ; la refonte (7) se valide avec elle.
 
-**Chantier préparé (10 nov.) : 17 — Réglages, « Avancé » et les écrans oubliés.** Plan validé par Mohamed, fiche `docs/fork/chantier-17-coherence.md` (audit, choix, règles communes, 8 étapes avec un prompt de démarrage chacune). Une conversation par étape ; la maquette d'abord. **PR #134** (animations, `build/animations-4`) ouverte et en avance d'un commit sur `main` : à traiter avant l'étape 1, qui touche le même fichier d'Aujourd'hui.
+**Chantier préparé (10 nov.) : 17 — Réglages, « Avancé » et les écrans oubliés.** Plan validé par Mohamed, fiche `docs/fork/chantier-17-coherence.md` (audit, choix, règles communes, 8 étapes avec un prompt de démarrage chacune). Une conversation par étape ; la maquette d'abord. **PR #134** (animations, `build/animations-4`) ouverte et en avance d'un commit sur `main` : elle attend la validation de Mohamed (IPA `build/animations-4`) ; l'étape 1 part de `main`.
 
 ## Ordre
 | # | Chantier | Fiches | État |

@@ -1,6 +1,6 @@
 # Chantier 17 — Réglages, « Avancé » et les écrans oubliés (10 nov. 2026)
 
-**État** (10 nov.) : **plan validé par Mohamed**, aucun code. Prochaine étape : l'étape 1 (ordre d'Aujourd'hui, sans maquette), puis la maquette de l'étape 2 (Réglages et feuille Plus).
+**État** (10 nov.) : **plan validé par Mohamed** (fiche dans `main` par la PR #135) ; **étape 1 codée, PR #136** (Stress avant la Synthèse), à fusionner quand sa CI est verte. Prochaine étape, dans une nouvelle conversation : la maquette de l'étape 2 (Réglages et feuille Plus).
 
 Numéro : Mohamed a dit « chantier 16 » ; le 16 est déjà pris par Tendances (fusionné le 8 nov.), ce chantier est donc le **17**.
 
@@ -115,3 +115,7 @@ Ordre : celui de la demande (Réglages d'abord, puis « Avancé » page par page
 
 ## Journal
 - **10 nov.** : demande de Mohamed, trois audits du code (Réglages ; les 15 écrans « Avancé » ; le reste de l'app), quatre choix, plan en 8 étapes. Trouvé en avance sur `main` : la PR #134 (`build/animations-4`, un commit d'animations), choix de Mohamed : elle attend sa validation de l'IPA `build/animations-4`, l'étape 1 part de `main`. Fiche mise dans `main` par une PR de documentation ; étape 1 codée dans la même conversation, les suivantes dans une conversation chacune.
+- **10 nov., étape 1 (PR #136)** : `TodayLayoutPrefs.liquidV5Order` retire le Stress de l'ordre enregistré et le replace juste avant la Synthèse ; appliqué une fois (`today.liquidLayoutV5`, `LiquidTodayView.applyLayoutV5IfNeeded`, après v2, v3, v4) ; `liquidDefaultOrderRaw` (page neuve et « Réinitialiser » de Personnaliser) donne anneaux → FC → Stress → Synthèse → Métriques. Une carte Stress masquée reste masquée (la visibilité est stockée à part). Test `testLayoutV5PutsStressAboveSynthesisAndKeepsTheRest`. Aucune clé de traduction, aucune donnée stockée nouvelle ; Android inchangé (ordre du Liquid Today, iPhone seulement).
+
+## À tester (prochaine IPA)
+- **Étape 1** : Aujourd'hui dans l'ordre anneaux → Fréquence cardiaque → Stress → Synthèse → Métriques, sans rien toucher ; Personnaliser Aujourd'hui → l'ordre montre Stress au-dessus de Synthèse ; un ordre que tu as changé toi-même ailleurs est gardé ; si tu redescends le Stress à la main, il y reste aux lancements suivants.

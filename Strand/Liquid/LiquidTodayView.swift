@@ -486,6 +486,7 @@ struct LiquidTodayView: View {
             applyLayoutV2IfNeeded()
             applyLayoutV3IfNeeded()
             applyLayoutV4IfNeeded()
+            applyLayoutV5IfNeeded()
             await load()
         }
         .sheet(item: $guideSection) { section in
@@ -1940,6 +1941,14 @@ struct LiquidTodayView: View {
         guard !defaults.bool(forKey: TodayLayoutPrefs.liquidLayoutV4Key) else { return }
         sectionOrderRaw = TodayLayoutPrefs.liquidV4Order(sectionOrderRaw)
         defaults.set(true, forKey: TodayLayoutPrefs.liquidLayoutV4Key)
+    }
+
+    /// Moves stress above Synthesis in the saved order (chantier 17), once, after v4.
+    private func applyLayoutV5IfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: TodayLayoutPrefs.liquidLayoutV5Key) else { return }
+        sectionOrderRaw = TodayLayoutPrefs.liquidV5Order(sectionOrderRaw)
+        defaults.set(true, forKey: TodayLayoutPrefs.liquidLayoutV5Key)
     }
 
     /// Re-read the indexed first-beat bounds on each load, so a new labelled sync clears the note.

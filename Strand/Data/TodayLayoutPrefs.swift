@@ -210,9 +210,30 @@ extension TodayLayoutPrefs {
         order.insert(.heartRate, at: at)
         return encode(order)
     }
+}
+
+// MARK: - Liquid Today, layout v5 (personal fork, chantier 17)
+//
+// Stress moves above Synthesis: rings → heart rate → stress → Synthesis → Metrics. Applied once on top of
+// v4, and it moves stress only, so any other rearrangement the wearer made is kept. A hidden Stress card
+// stays hidden: visibility is stored apart from the order.
+
+extension TodayLayoutPrefs {
+    /// Set once the saved order has been moved to the v5 layout.
+    static let liquidLayoutV5Key = "today.liquidLayoutV5"
+
+    /// `raw` with Stress directly above Synthesis, every other section keeping its place. `decodeOrder`
+    /// always returns every section, so Synthesis is always found.
+    static func liquidV5Order(_ raw: String) -> String {
+        var order = decodeOrder(raw)
+        order.removeAll { $0 == .stress }
+        let at = order.firstIndex(of: .synthesis) ?? order.count
+        order.insert(.stress, at: at)
+        return encode(order)
+    }
 
     /// The order a wearer who never rearranged Today sees, and what « Reset » in Customize Today restores.
-    static var liquidDefaultOrderRaw: String { liquidV4Order(liquidV3Order("")) }
+    static var liquidDefaultOrderRaw: String { liquidV5Order(liquidV4Order(liquidV3Order(""))) }
 }
 
 /// The blocks that left the Liquid Today in chantier 9, each still at its new home, and which the wearer

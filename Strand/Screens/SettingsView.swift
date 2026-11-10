@@ -1869,8 +1869,8 @@ extension SettingsView {
             .frame(minHeight: 44)))
         }
         #if os(iOS)
-        rows.append(entry(d, "shortcutsExport", String(localized: "Export for Shortcuts"),
-                          linkRow(String(localized: "Export for Shortcuts")) { ShortcutExportSettingsView() }))
+        // The export switch, inline (it used to be a screen of one switch).
+        rows.append(entry(d, "shortcutsExport", String(localized: "Export for Shortcuts"), ShortcutExportRow()))
         #endif
         rows.append(entry(d, "places", String(localized: "Places and location tracking"),
                           linkRow(String(localized: "Places and location tracking")) { PlacesSettingsView() }))

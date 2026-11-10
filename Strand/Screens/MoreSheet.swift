@@ -24,10 +24,18 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    /// The fifteen screens « Advanced » holds, in the mockup's order.
+    /// The six screens « Advanced » still holds. Fork chantier 17, step 2: nine others left the sheet (see
+    /// `leftTheSheet`); these six wait for their own step (Explorer and Compare become « My chart »,
+    /// What moves you / Intelligence / Insights become the Journal, Apple Health joins Data Sources).
     static let advanced: [MoreSheetEntry] = [
-        .rhythm, .explore, .compare, .insightsHub, .intelligence, .insights,
-        .fusedRecord, .appleHealth, .miBand, .shortcutsExport, .noopLimitations,
+        .explore, .compare, .insightsHub, .intelligence, .insights, .appleHealth,
+    ]
+
+    /// The nine screens that left the sheet in step 2. Their files stay; Settings opens most of them
+    /// (Automations, Power saving, Siri, What NOOP reads, Test Centre, the Shortcuts export), Automations
+    /// links to Rhythm, and the two with no use for this strap (Fused data, Mi Band) are no longer offered.
+    static let leftTheSheet: [MoreSheetEntry] = [
+        .rhythm, .fusedRecord, .miBand, .shortcutsExport, .noopLimitations,
         .automations, .siriShortcuts, .powerSaving, .testCentre,
     ]
 

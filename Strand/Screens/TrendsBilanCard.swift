@@ -1,5 +1,6 @@
 import SwiftUI
 import StrandDesign
+import StrandAnalytics
 import WhoopStore
 
 // MARK: - Bilan (fork chantier 16)
@@ -16,6 +17,9 @@ struct TrendsBilanCard: View {
     let data: TrendsPeriodData
     /// "vs previous week" — what the deltas are measured against.
     let comparisonLabel: String
+    /// Days in a row with a Charge score (fork chantier 17: the Streak left Settings and sits here).
+    /// nil = no line (the shared image, a profile with no scored day).
+    var streak: StreakCalculator.Streaks? = nil
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -71,10 +75,41 @@ struct TrendsBilanCard: View {
                     .opacity(phase.drawn ? 1 : 0)
                     .animation(phase.motion(NoopMotion.strongEaseOut(0.5).delay(NoopMotion.ringDrawDuration * 0.6)),
                                value: phase.drawn)
+                    if let streak, streak.longest > 0 {
+                        streakLine(streak)
+                            .opacity(phase.drawn ? 1 : 0)
+                            .animation(phase.motion(NoopMotion.strongEaseOut(0.5).delay(NoopMotion.ringDrawDuration * 0.7)),
+                                       value: phase.drawn)
+                    }
                 }
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// « Streak 12 days in a row · Longest: 30 days »: the run of days with a Charge score, as the old
+    /// Settings card said it (`StreakCalculator`, the Swift / Kotlin twin).
+    private func streakLine(_ streak: StreakCalculator.Streaks) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space2) {
+            Text("Streak")
+                .font(StrandFont.footnote.weight(.semibold))
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text(verbatim: "\(streak.current)")
+                .font(StrandFont.number(22))
+                .foregroundStyle(StrandPalette.accent)
+            if streak.current == 1 {
+                Text("day in a row").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            } else {
+                Text("days in a row").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+            Spacer(minLength: NoopMetrics.space2)
+            if streak.longest == 1 {
+                Text("Longest: 1 day").font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+            } else {
+                Text("Longest: \(streak.longest) days").font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     /// One score: its gauge (the stored 0–100 value as the fill), the counting number over it, the

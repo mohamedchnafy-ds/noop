@@ -137,7 +137,7 @@ struct TrendsView: View {
                                 message: "Step to another period with the arrows above to see its review.")
                             .staggeredAppear(index: 1)
                         } else {
-                            TrendsBilanCard(data: data, comparisonLabel: comparisonLabel)
+                            TrendsBilanCard(data: data, comparisonLabel: comparisonLabel, streak: streak)
                                 .staggeredAppear(index: 1)
                             TrendsBalanceCard(data: data)
                                 .staggeredAppear(index: 2)
@@ -179,6 +179,17 @@ struct TrendsView: View {
     }
 
     // MARK: Header share
+
+    /// Days in a row with a Charge score, from the merged daily metrics (a day qualifies when it has a
+    /// `recovery` value). Fork chantier 17: this is where the old Settings « Streak » card went.
+    private var streak: StreakCalculator.Streaks {
+        let days = repo.days
+        let today = AnalyticsEngine.dayString(Int(Date().timeIntervalSince1970),
+                                              offsetSec: TimeZone.current.secondsFromGMT())
+        return StreakCalculator.streaks(dayKeys: days.map { $0.day },
+                                        qualified: days.map { $0.recovery != nil },
+                                        today: today)
+    }
 
     /// Shares the Bilan as an image: the same off-screen render path as the old weekly recap, so the
     /// PNG is the card the page shows. Hidden while there is nothing to share.

@@ -86,7 +86,7 @@ Constat commun aux trois audits : **les vieux écrans ont déjà le fond noir, l
 
 ## Étape 2 — Réglages et feuille Plus : maquette et décisions (10 nov.)
 
-Maquette : https://claude.ai/artifact/MKquxtH5nZ2mzzyhqDDbkX (planche 1 Réglages par domaine, planche 2 feuille Plus, planche 3 « ce qui part, où ça va » ligne par ligne). **Reste à valider par Mohamed avant tout code.**
+Maquette : https://claude.ai/artifact/MKquxtH5nZ2mzzyhqDDbkX (planches 1 Réglages par domaine, 1b les dix domaines dépliés, 1c les écrans absorbés refaits, 2 feuille Plus, 3 « ce qui part, où ça va » ligne par ligne). **Reste à valider par Mohamed avant tout code.**
 
 **Choix de Mohamed (10 nov., outil à choix multiples)**
 1. **Structure** : une page, dix domaines, **un seul déplié à la fois** (accordéon sur place). La recherche et les liens contextuels (Nutrition › Objectifs, Santé › Âge de forme) ouvrent le bon domaine déjà déplié.
@@ -101,7 +101,8 @@ Maquette : https://claude.ai/artifact/MKquxtH5nZ2mzzyhqDDbkX (planche 1 Réglage
 - **Un seul endroit** : journal du bracelet → Centre de test ; Recalibrer la Charge → Sommeil et récupération ; Re-scan / Déconnecter → Bracelet (FC en direct y renverra à l'étape 5). Les réglages qui vivent ailleurs (Rappels, Alarmes, Réglages du Coach, Lieux, Sources, Sauvegarde, Objectif d'apport) sont des **liens**, jamais des copies.
 - Les trois boutons de sauvegarde en fichier restent dans Données jusqu'à l'étape 7 (un seul écran pour fichier et dossier). Quatre systèmes d'heures calmes : nommés dans leur domaine, pas unifiés.
 - **Feuille Plus** : les 12 lignes principales ne bougent pas ; « Avancé » passe de 15 à **6 écrans** (Explorer, Comparer → étape 3 ; Ce qui te fait bouger, Intelligence, Perspectives → étape 4 ; Apple Santé → étape 7). Neuf quittent la feuille : Rythme (lien depuis Automatisations), Données fusionnées, Mi Band, et six rangés dans Réglages (Export Raccourcis → Données ; Limites → Aide ; Automatisations, Siri et Raccourcis, Économie d'énergie → Bracelet ; Centre de test → Aide).
-- PR prévues : (1) structure de Réglages + recherche + lignes retirées ; (2) écrans absorbés (Bracelet, Aide, Données) ; (3) feuille Plus + ligne Série de Tendances. Textes : les clés du catalogue qui changent de libellé gardent les 10 langues.
+- **Retour de Mohamed (10 nov.)** : « une fois que l'on clique sur une section, elle garde l'ancienne version ». Un domaine ne doit pas ouvrir un écran à l'ancien look. Maquette complétée : planche 1b (les dix domaines dépliés) et planche 1c (**Automatisations, Économie d'énergie, Siri et Raccourcis, Ce que NOOP lit refaits** en lignes de domaine, ⓘ, tutoiement ; groupes d'alerte repérés dans Automatisations). Export Raccourcis devient une ligne de Données. Restent à l'ancien look jusqu'à leur étape : Alarmes, Rappels, Réglages du Coach, Lieux, Sources, Sauvegarde, Carnet de labo (étapes 7 et suivantes) ; Centre de test et État de l'iPhone gardent leur forme utilitaire.
+- PR prévues : (1) structure de Réglages + recherche + lignes retirées ; (2) écrans absorbés refaits (Automatisations, Économie d'énergie, Siri, Ce que NOOP lit) ; (3) feuille Plus + ligne Série de Tendances. Textes : les clés du catalogue qui changent de libellé gardent les 10 langues.
 
 ## Plan : une conversation par étape
 Chaque étape : lire cette fiche → **maquette** (artefact claude.ai, planches « l'écran », « ce qui part, où ça va ») → questions en un lot (outil à choix multiples) → validation → **code** (une préoccupation par PR, depuis `main`) → CI verte → fusion → mise à jour de cette fiche et de la feuille de route. **IPA** : quand Mohamed le dit ; proposée après les étapes 2, 3 et 5.

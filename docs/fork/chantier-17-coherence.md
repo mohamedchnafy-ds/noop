@@ -1,6 +1,6 @@
 # Chantier 17 — Réglages, « Avancé » et les écrans oubliés (10 nov. 2026)
 
-**État** (10 nov.) : **plan validé par Mohamed**, aucun code. Prochaine étape : l'étape 1 (ordre d'Aujourd'hui, sans maquette), puis la maquette de l'étape 2 (Réglages et feuille Plus).
+**État** (10 nov.) : **plan validé par Mohamed**, aucun code. Étape 2 : **maquette faite** (https://claude.ai/artifact/MKquxtH5nZ2mzzyhqDDbkX, 3 planches), 4 choix de Mohamed notés ci-dessous ; reste sa validation de la maquette, puis le code. L'étape 1 (ordre d'Aujourd'hui, sans maquette) est dans une autre conversation.
 
 Numéro : Mohamed a dit « chantier 16 » ; le 16 est déjà pris par Tendances (fusionné le 8 nov.), ce chantier est donc le **17**.
 
@@ -84,6 +84,25 @@ Constat commun aux trois audits : **les vieux écrans ont déjà le fond noir, l
 - **Rien n'est supprimé sans accord** : un écran qui quitte la feuille garde son fichier ; un réglage retiré de l'écran garde sa clé stockée.
 - Aucune donnée stockée nouvelle n'est prévue, sauf les graphiques enregistrés de l'étape 3 (UserDefaults sur l'appareil, hors `.noopbak` par défaut ; à confirmer dans sa maquette). Android : inchangé (écrans iPhone seulement), sauf si une clé entre dans la liste blanche du `.noopbak`.
 
+## Étape 2 — Réglages et feuille Plus : maquette et décisions (10 nov.)
+
+Maquette : https://claude.ai/artifact/MKquxtH5nZ2mzzyhqDDbkX (planche 1 Réglages par domaine, planche 2 feuille Plus, planche 3 « ce qui part, où ça va » ligne par ligne). **Reste à valider par Mohamed avant tout code.**
+
+**Choix de Mohamed (10 nov., outil à choix multiples)**
+1. **Structure** : une page, dix domaines, **un seul déplié à la fois** (accordéon sur place). La recherche et les liens contextuels (Nutrition › Objectifs, Santé › Âge de forme) ouvrent le bon domaine déjà déplié.
+2. **Lignes d'upstream** : on retire Rechercher les mises à jour, Vérifier automatiquement, Page du projet et Nouveautés de l'écran ; reste « Version » dans Aide et à propos.
+3. **Alertes** (batterie, maladie, objectif d'Effort, inactivité) : **elles restent des alertes**, hors du budget de `ReminderPlanner` ; un lien « Alertes du bracelet » les range dans Notifications et rappels (il ouvre Automatisations).
+4. **Carte Série** : une ligne dans **Tendances › Bilan**, avec la période de la page ; elle quitte Réglages.
+
+**Décisions prises dans la maquette (défauts, à corriger si Mohamed le dit)**
+- Dix domaines : Profil et corps · Bracelet · Sommeil et récupération · Sport · Aujourd'hui · Coach · Notifications et rappels · **Langue, unités et apparence** (les unités y vont) · Données · Aide et à propos. Chaque en-tête dit ce qu'il contient (« Alarmes, VFC, phases, Charge ») et porte une valeur à droite quand elle aide.
+- Une ligne = un libellé + sa valeur ; toute explication en ⓘ (popover) ; étiquette « Expérimental » sur les essais ; lignes selon le matériel masquées (diviseur de pas 5.0/MG, nom du bracelet 4.0, SpO₂, Oura).
+- **Retirées de l'écran** (clé gardée, l'app lit la valeur sûre) : Couleurs des graphiques (toujours « Par défaut »), Graphiques de tendance, Liquid Today (toujours « allumé »), Suivi de l'hydratation, Données Apple Watch.
+- **Un seul endroit** : journal du bracelet → Centre de test ; Recalibrer la Charge → Sommeil et récupération ; Re-scan / Déconnecter → Bracelet (FC en direct y renverra à l'étape 5). Les réglages qui vivent ailleurs (Rappels, Alarmes, Réglages du Coach, Lieux, Sources, Sauvegarde, Objectif d'apport) sont des **liens**, jamais des copies.
+- Les trois boutons de sauvegarde en fichier restent dans Données jusqu'à l'étape 7 (un seul écran pour fichier et dossier). Quatre systèmes d'heures calmes : nommés dans leur domaine, pas unifiés.
+- **Feuille Plus** : les 12 lignes principales ne bougent pas ; « Avancé » passe de 15 à **6 écrans** (Explorer, Comparer → étape 3 ; Ce qui te fait bouger, Intelligence, Perspectives → étape 4 ; Apple Santé → étape 7). Neuf quittent la feuille : Rythme (lien depuis Automatisations), Données fusionnées, Mi Band, et six rangés dans Réglages (Export Raccourcis → Données ; Limites → Aide ; Automatisations, Siri et Raccourcis, Économie d'énergie → Bracelet ; Centre de test → Aide).
+- PR prévues : (1) structure de Réglages + recherche + lignes retirées ; (2) écrans absorbés (Bracelet, Aide, Données) ; (3) feuille Plus + ligne Série de Tendances. Textes : les clés du catalogue qui changent de libellé gardent les 10 langues.
+
 ## Plan : une conversation par étape
 Chaque étape : lire cette fiche → **maquette** (artefact claude.ai, planches « l'écran », « ce qui part, où ça va ») → questions en un lot (outil à choix multiples) → validation → **code** (une préoccupation par PR, depuis `main`) → CI verte → fusion → mise à jour de cette fiche et de la feuille de route. **IPA** : quand Mohamed le dit ; proposée après les étapes 2, 3 et 5.
 
@@ -115,3 +134,4 @@ Ordre : celui de la demande (Réglages d'abord, puis « Avancé » page par page
 
 ## Journal
 - **10 nov.** : demande de Mohamed, trois audits du code (Réglages ; les 15 écrans « Avancé » ; le reste de l'app), quatre choix, plan en 8 étapes. Trouvé en avance sur `main` : la PR #134 (`build/animations-4`, un commit d'animations), choix de Mohamed : elle attend sa validation de l'IPA `build/animations-4`, l'étape 1 part de `main`. Fiche mise dans `main` par une PR de documentation ; étape 1 codée dans la même conversation, les suivantes dans une conversation chacune.
+- **10 nov. (étape 2)** : audit relu dans le code (`SettingsView`, `MoreSheet`, `RootTabView`), maquette en 3 planches, 4 choix de Mohamed (voir « Étape 2 »). Aucun code avant sa validation de la maquette.

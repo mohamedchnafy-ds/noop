@@ -1,6 +1,6 @@
 # Chantier 17 — Réglages, « Avancé » et les écrans oubliés (10 nov. 2026)
 
-**État** (10 nov.) : **plan validé par Mohamed**, aucun code. Prochaine étape : l'étape 1 (ordre d'Aujourd'hui, sans maquette), puis la maquette de l'étape 2 (Réglages et feuille Plus).
+**État** (10 nov.) : **plan validé par Mohamed** (fiche dans `main` par la PR #135) ; **étape 1 fusionnée : PR #136, `main` 6b3a80d** (Stress avant la Synthèse), à valider sur le téléphone avec la prochaine IPA. Prochaine étape, dans une nouvelle conversation : la maquette de l'étape 2 (Réglages et feuille Plus).
 
 Numéro : Mohamed a dit « chantier 16 » ; le 16 est déjà pris par Tendances (fusionné le 8 nov.), ce chantier est donc le **17**.
 
@@ -122,3 +122,10 @@ Maquette validée par Mohamed (« go », 10 nov.) : https://claude.ai/artifact/M
 
 ## Journal
 - **10 nov.** : demande de Mohamed, trois audits du code (Réglages ; les 15 écrans « Avancé » ; le reste de l'app), quatre choix, plan en 8 étapes. Trouvé en avance sur `main` : la PR #134 (`build/animations-4`, un commit d'animations), choix de Mohamed : elle attend sa validation de l'IPA `build/animations-4`, l'étape 1 part de `main`. Fiche mise dans `main` par une PR de documentation ; étape 1 codée dans la même conversation, les suivantes dans une conversation chacune.
+- **10 nov., étape 1 (PR #136)** : `TodayLayoutPrefs.liquidV5Order` retire le Stress de l'ordre enregistré et le replace juste avant la Synthèse ; appliqué une fois (`today.liquidLayoutV5`, `LiquidTodayView.applyLayoutV5IfNeeded`, après v2, v3, v4) ; `liquidDefaultOrderRaw` (page neuve et « Réinitialiser » de Personnaliser) donne anneaux → FC → Stress → Synthèse → Métriques. Une carte Stress masquée reste masquée (la visibilité est stockée à part). Test `testLayoutV5PutsStressAboveSynthesisAndKeepsTheRest`. Aucune clé de traduction, aucune donnée stockée nouvelle ; Android inchangé (ordre du Liquid Today, iPhone seulement).
+
+## À tester (prochaine IPA)
+- **Étape 1** : Aujourd'hui dans l'ordre anneaux → Fréquence cardiaque → Stress → Synthèse → Métriques, sans rien toucher ; Personnaliser Aujourd'hui → l'ordre montre Stress au-dessus de Synthèse ; un ordre que tu as changé toi-même ailleurs est gardé ; si tu redescends le Stress à la main, il y reste aux lancements suivants.
+
+## Journal (suite)
+- **10 nov., fusion de l'étape 1** : sur la tête 870f26b de la PR #136, 4 vérifications sur 5 vertes (build iOS, i18n, lint, Tools Python) ; la jambe macOS + StrandTests annulée deux fois sans runner (`macos-15` saturé, `runner_id` 0, aucune étape). Choix de Mohamed : **preuve Intel**. Branche temporaire `ci/c17-step1-intel` (tête de la PR + `tmp-c17-step1-intel.yml`, jamais fusionnée, à supprimer sur accord) : build macOS vert, **2 926 StrandTests, 0 échec, 2 ignorés** (sans les 14 classes de rendu, sans `-testLanguage fr`) sur `macos-15-intel`. #136 fusionnée (`main` 6b3a80d).

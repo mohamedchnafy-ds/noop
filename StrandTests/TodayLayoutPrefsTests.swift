@@ -135,7 +135,8 @@ final class TodayLayoutPrefsTests: XCTestCase {
     }
 
     func testLayoutV4PutsHeartRateAboveSynthesisAndKeepsTheRest() {
-        let fresh = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidDefaultOrderRaw)
+        let v4Raw = TodayLayoutPrefs.liquidV4Order(TodayLayoutPrefs.liquidV3Order(""))
+        let fresh = TodayLayoutPrefs.decodeOrder(v4Raw)
         XCTAssertEqual(Array(fresh.prefix(5)), [.hero, .heartRate, .synthesis, .stress, .keyMetrics])
         XCTAssertEqual(Set(fresh), Set(TodaySection.allCases))
         // A wearer's own v3 rearrangement keeps every other section where it was.
@@ -143,8 +144,30 @@ final class TodayLayoutPrefsTests: XCTestCase {
         let named: Set<TodaySection> = [.hero, .keyMetrics, .synthesis, .stress, .heartRate, .journal]
         let moved = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV4Order(own)).filter { named.contains($0) }
         XCTAssertEqual(moved, [.hero, .keyMetrics, .heartRate, .synthesis, .stress, .journal])
-        let visible = TodayLayoutPrefs.liquidVisibleOrder(orderRaw: TodayLayoutPrefs.liquidDefaultOrderRaw, hiddenRaw: "")
+        let visible = TodayLayoutPrefs.liquidVisibleOrder(orderRaw: v4Raw, hiddenRaw: "")
         XCTAssertEqual(Array(visible.prefix(5)), [.hero, .heartRate, .synthesis, .stress, .keyMetrics])
+    }
+
+    // MARK: Chantier 17 (personal fork)
+
+    func testLayoutV5PutsStressAboveSynthesisAndKeepsTheRest() {
+        let fresh = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidDefaultOrderRaw)
+        XCTAssertEqual(Array(fresh.prefix(5)), [.hero, .heartRate, .stress, .synthesis, .keyMetrics])
+        XCTAssertEqual(Set(fresh), Set(TodaySection.allCases))
+        XCTAssertEqual(fresh.count, TodaySection.allCases.count)
+        // A wearer's own rearrangement keeps every other section where it was; only stress moves.
+        let own = "hero,keyMetrics,heartRate,synthesis,journal,stress"
+        let named: Set<TodaySection> = [.hero, .keyMetrics, .heartRate, .synthesis, .journal, .stress]
+        let moved = TodayLayoutPrefs.decodeOrder(TodayLayoutPrefs.liquidV5Order(own)).filter { named.contains($0) }
+        XCTAssertEqual(moved, [.hero, .keyMetrics, .heartRate, .stress, .synthesis, .journal])
+        // Applying it again changes nothing.
+        let once = TodayLayoutPrefs.liquidV5Order(own)
+        XCTAssertEqual(TodayLayoutPrefs.liquidV5Order(once), once)
+        // A hidden Stress card stays hidden, in its new slot.
+        let visible = TodayLayoutPrefs.liquidVisibleOrder(orderRaw: TodayLayoutPrefs.liquidDefaultOrderRaw, hiddenRaw: "")
+        XCTAssertEqual(Array(visible.prefix(5)), [.hero, .heartRate, .stress, .synthesis, .keyMetrics])
+        let hidden = TodayLayoutPrefs.liquidVisibleOrder(orderRaw: TodayLayoutPrefs.liquidDefaultOrderRaw, hiddenRaw: "stress")
+        XCTAssertEqual(Array(hidden.prefix(4)), [.hero, .heartRate, .synthesis, .keyMetrics])
     }
 
     func testRestoredBlocksAreOffByDefaultAndRoundTrip() {

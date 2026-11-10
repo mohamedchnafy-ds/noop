@@ -731,8 +731,7 @@ private struct MoreGroupScreen: View {
             MoreRow("Intelligence", "brain.head.profile", .intelligence)
             // K3: Coach promoted to a top-level tab — no longer listed under More.
             MoreRow("Insights", "lightbulb.fill", .insights)
-            MoreRow("Explore", "square.grid.2x2.fill", .explore)
-            MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
+            MoreRow("My chart", "chart.xyaxis.line", .explore)
         case .data:
             MoreRow("Your Data, Fused", "square.stack.3d.up.fill", .fusedRecord)
             MoreRow("Apple Health", "heart.fill", .appleHealth)
@@ -838,8 +837,7 @@ private enum MoreDestination: Hashable {
         case .intelligence:    IntelligenceView()
         case .coach:           CoachView()
         case .insights:        InsightsView()
-        case .explore:         MetricExplorerView()
-        case .compare:         CompareView()
+        case .explore, .compare: MyChartView()
         case .live:            LiveView()
         case .workouts:        WorkoutsView()
         case .liftLog:         LiftLogView()

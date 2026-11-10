@@ -264,7 +264,7 @@ struct MetricSheetView: View {
 
     // MARK: What moves with it
 
-    @ViewBuilder private func related(_ current: MyChartModel) -> some View {
+    private func relatedRows(_ current: MyChartModel) -> [RelatedRow] {
         let mine = data.series[metric.id] ?? []
         var found: [RelatedRow] = []
         for other in neighbours {
@@ -273,7 +273,11 @@ struct MetricSheetView: View {
                 found.append(RelatedRow(metric: other, r: r))
             }
         }
-        let rows = Array(found.sorted { abs($0.r) > abs($1.r) }.prefix(3))
+        return Array(found.sorted { abs($0.r) > abs($1.r) }.prefix(3))
+    }
+
+    @ViewBuilder private func related(_ current: MyChartModel) -> some View {
+        let rows = relatedRows(current)
         if !rows.isEmpty {
             NoopCard {
                 VStack(alignment: .leading, spacing: NoopMetrics.space2) {

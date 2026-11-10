@@ -1,6 +1,6 @@
 # Chantier 17 — Réglages, « Avancé » et les écrans oubliés (10 nov. 2026)
 
-**État** (10 nov.) : **plan validé par Mohamed** (fiche dans `main` par la PR #135) ; **étape 1 codée, PR #136** (Stress avant la Synthèse), à fusionner quand sa CI est verte. Prochaine étape, dans une nouvelle conversation : la maquette de l'étape 2 (Réglages et feuille Plus).
+**État** (10 nov.) : **plan validé par Mohamed** (fiche dans `main` par la PR #135) ; **étape 1 fusionnée : PR #136, `main` 6b3a80d** (Stress avant la Synthèse), à valider sur le téléphone avec la prochaine IPA. Prochaine étape, dans une nouvelle conversation : la maquette de l'étape 2 (Réglages et feuille Plus).
 
 Numéro : Mohamed a dit « chantier 16 » ; le 16 est déjà pris par Tendances (fusionné le 8 nov.), ce chantier est donc le **17**.
 
@@ -119,3 +119,6 @@ Ordre : celui de la demande (Réglages d'abord, puis « Avancé » page par page
 
 ## À tester (prochaine IPA)
 - **Étape 1** : Aujourd'hui dans l'ordre anneaux → Fréquence cardiaque → Stress → Synthèse → Métriques, sans rien toucher ; Personnaliser Aujourd'hui → l'ordre montre Stress au-dessus de Synthèse ; un ordre que tu as changé toi-même ailleurs est gardé ; si tu redescends le Stress à la main, il y reste aux lancements suivants.
+
+## Journal (suite)
+- **10 nov., fusion de l'étape 1** : sur la tête 870f26b de la PR #136, 4 vérifications sur 5 vertes (build iOS, i18n, lint, Tools Python) ; la jambe macOS + StrandTests annulée deux fois sans runner (`macos-15` saturé, `runner_id` 0, aucune étape). Choix de Mohamed : **preuve Intel**. Branche temporaire `ci/c17-step1-intel` (tête de la PR + `tmp-c17-step1-intel.yml`, jamais fusionnée, à supprimer sur accord) : build macOS vert, **2 926 StrandTests, 0 échec, 2 ignorés** (sans les 14 classes de rendu, sans `-testLanguage fr`) sur `macos-15-intel`. #136 fusionnée (`main` 6b3a80d).

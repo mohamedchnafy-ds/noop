@@ -37,8 +37,6 @@ struct StrandApp: App {
     @Environment(\.scenePhase) private var scenePhase
     /// Appearance preference (System/Light/Dark). Default follows the OS; the Settings picker writes it.
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
-    /// Chart data-colour style (Titanium / Classic throwback). Re-colours gauges + charts.
-    @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
 
     var body: some Scene {
         WindowGroup {
@@ -61,7 +59,9 @@ struct StrandApp: App {
                 // Keep date/number words on the same bundle language as every localized string. A pending
                 // Settings change intentionally becomes active only after the documented reopen.
                 .environment(\.locale, AppLanguage.activeLocale)
-                .chartStyle(chartStyleRaw)
+                // Fork chantier 17: the « Chart colours » setting is gone from Settings (« Classic » recoloured the
+                // sleep phases against « violets everywhere »). The app always reads Default; the stored key stays.
+                .chartStyle(ChartStyle.titanium.rawValue)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the
                 // fixed-geometry tiles/gauges stay legible at the largest accessibility sizes rather than
                 // clipping; the common Larger-Text range still scales fully.

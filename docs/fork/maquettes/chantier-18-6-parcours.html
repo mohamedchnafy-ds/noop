@@ -64,6 +64,27 @@ h1{font-size:20px;margin:0 0 4px}
 .row{display:flex;justify-content:space-between;align-items:center}
 .nav{display:flex;gap:8px;margin-top:14px}
 .nav button{flex:1;height:44px;border:0;border-radius:14px;background:var(--card2);color:#fff;font-size:14px;cursor:pointer;font-family:inherit}
+.exl{display:flex;flex-direction:column;gap:4px}
+.exr{display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:14px;padding:8px 10px;font-size:14px}
+.exr .nm{flex:1;min-width:0}.exr small{display:block;color:var(--pmut);font-size:11px}
+.exr .ib{width:30px;height:30px;border-radius:9px;border:0;background:#3a3a3c;color:#fff;cursor:pointer;font-family:inherit;font-size:14px}
+.new{font-size:10px;font-weight:700;color:var(--blue);background:rgba(10,132,255,.18);border-radius:6px;padding:2px 5px;margin-left:6px}
+.btnrow{display:flex;gap:8px}
+.btnrow .go{flex:1}
+.plus{height:54px;padding:0 16px;border:0;border-radius:20px;background:var(--card2);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.tgl{border:0;background:none;color:var(--blue);font-size:13px;cursor:pointer;font-family:inherit;padding:0;text-align:left}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0 auto;max-width:390px;background:#242426;color:#fff;border-radius:28px 28px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));max-height:80vh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+.sheet h3{margin:0 0 8px;font-size:18px}
+.sheet input{width:100%;box-sizing:border-box;height:42px;border-radius:12px;border:0;background:#3a3a3c;color:#fff;padding:0 12px;font-size:15px;font-family:inherit;margin-bottom:8px}
+.chp{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chp button{border:0;background:#3a3a3c;color:#fff;border-radius:999px;padding:6px 11px;font-size:13px;cursor:pointer;font-family:inherit}
+.chp button.on{background:#fff;color:#000}
+.pick{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:#2c2c2e;color:#fff;border-radius:14px;padding:10px 12px;margin-bottom:4px;font-size:15px;cursor:pointer;font-family:inherit;text-align:left}
+.pick small{color:var(--pmut);font-size:12px;display:block}
+.pick span:last-child{font-size:22px;color:#fff}
+.scr{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:19}
+.row2{display:flex;gap:8px;margin-top:6px}
+.row2 button{flex:1;height:42px;border:0;border-radius:14px;background:#3a3a3c;color:#fff;font-size:14px;cursor:pointer;font-family:inherit}
 button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 </style>
 <div class="wrap">
@@ -84,8 +105,8 @@ button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
 <script>
 var $=function(i){return document.getElementById(i)};
-var step=0,done=1,fromTxt=[
- ['<span class="tag">B</span>séance du jour en grand, bande compacte, « i » et calendrier','<span class="tag">B</span>Progression en une ligne, Programmes ›, Autre séance','<span class="tag">A</span>FC de la dernière séance dans l’historique'],
+var step=0,done=1,open=false,sheet=false,mus='Tous',q='',exs=[['Squat',4,8,'60 kg',0],['Développé couché',4,8,'60 kg',0],['Tirage poitrine',3,10,'45 kg',0],['Rowing barre',3,10,'50 kg',0],['Développé militaire',3,10,'30 kg',0],['Curl biceps',3,12,'14 kg',0]],cat=[['Dips','Pectoraux',3,10,'poids du corps'],['Fentes marchées','Jambes',3,12,'20 kg'],['Élévations latérales','Épaules',3,15,'8 kg'],['Extension triceps','Triceps',3,12,'25 kg'],['Soulevé de terre roumain','Dos',3,8,'70 kg'],['Gainage','Abdos',3,1,'45 s']],fromTxt=[
+ ['<span class="tag">B</span>séance du jour en grand, bande compacte, « i » et calendrier','<span class="tag">B</span>liste des exercices dépliable et « + Exercice » sur la carte du jour : ajout pour aujourd’hui seulement, sans changer d’onglet','<span class="tag">B</span>Progression en une ligne, Programmes ›, Autre séance','<span class="tag">A</span>FC de la dernière séance dans l’historique'],
  ['<span class="tag">A</span>poids de la série 1 répété, valeurs préremplies, − / + et roulette','<span class="tag">A</span>bandeau FC avec zone, récupération, comparaison','<span class="tag">C</span>« + verre » dans la barre de repos','<span class="tag">D</span>bandeau « fin de série détectée » (option, éteinte par défaut)'],
  ['<span class="tag">A</span>courbe de FC de toute la séance, comparaison, temps par zone','<span class="tag">C</span>eau pendant la séance sur la fiche'],
  ['<span class="tag">B</span>Progression et Régularité sur 12 semaines','<span class="tag">C</span>bloc Ce qui influence mes séances (Expérimental)']];
@@ -99,7 +120,9 @@ function render(){
   if(step===0){
     h='<div class="hd"><h2>Entraînement</h2><span class="k">i · ▦</span></div>'
     +'<div class="week"><div class="d"><span>L</span><b>2</b></div><div class="d"><span>M</span><b>3</b></div><div class="d s"><span>M</span><b>4</b></div><div class="d"><span>J</span><b>5</b></div><div class="d"><span>V</span><b>6</b></div><div class="d"><span>S</span><b>7</b></div><div class="d"><span>D</span><b>8</b></div></div>'
-    +'<div class="card"><div class="k">Aujourd’hui · mer. 4 nov. · prévue</div><h3 style="margin:0;font-size:26px">Full body A</h3><div class="meta">6 exercices · 18 séries · environ 55 min</div><div class="ups"><span><i>↑</i> Développé couché : 60 → 62,5 kg</span><span><i>↑</i> Tirage poitrine : 45 → 50 kg</span></div><button class="go" data-n="1">Démarrer</button></div>'
+    +'<div class="card"><div class="k">Aujourd’hui · mer. 4 nov. · prévue</div><h3 style="margin:0;font-size:26px">Full body A</h3><div class="meta">'+exs.length+' exercices · '+exs.reduce(function(a,e){return a+e[1]},0)+' séries · environ '+(40+exs.length*2)+' min</div>'
+    +(open?'<div class="exl">'+exs.map(function(e,i){return '<div class="exr"><span class="nm">'+e[0]+(e[4]?'<span class="new">Aujourd’hui</span>':'')+'<small>'+e[1]+' × '+e[2]+' · '+e[3]+'</small></span><button class="ib" data-up="'+i+'" aria-label="Monter">↑</button><button class="ib" data-rm="'+i+'" aria-label="Retirer">−</button></div>'}).join('')+'</div><button class="tgl" data-t="1">Réduire la liste</button>':'<div class="ups"><span><i>↑</i> Développé couché : 60 → 62,5 kg</span><span><i>↑</i> Tirage poitrine : 45 → 50 kg</span></div><button class="tgl" data-t="1">Voir les '+exs.length+' exercices</button>')
+    +'<div class="btnrow"><button class="go" data-n="1">Démarrer</button><button class="plus" data-p="1" aria-label="Ajouter un exercice à aujourd’hui">+ Exercice</button></div></div>'
     +'<button class="line"><span>Progression<small>2 charges à monter</small></span><span style="color:var(--pmut)">›</span></button>'
     +'<button class="line"><span>Programmes<small>3 programmes · Planifier la semaine</small></span><span style="color:var(--pmut)">›</span></button>'
     +'<button class="line" style="justify-content:center;background:var(--card2)">Autre séance</button>'
@@ -126,10 +149,23 @@ function render(){
     +'<div class="card f"><div class="row"><h3>Ce qui influence mes séances <span style="font-size:11px;color:var(--amber)">EXPÉRIMENTAL</span></h3></div><div class="row"><b style="font-size:14px">Sommeil · FC moyenne</b><span class="pill">−6 bpm</span></div><p>Chez toi, on observe une FC moyenne plus basse de 6 bpm les séances après 7 h 30 de sommeil que les autres. 9 séances contre 11.</p><div class="l"><span>Café : 4 sur 6 séances</span><span>pas encore assez</span></div></div>'
     +'<div class="nav"><button data-n="0">Recommencer ‹</button></div>';
   }
-  $('ph').innerHTML=h;
+  if(step===0&&sheet){var list=cat.filter(function(c){return(mus==='Tous'||c[1]===mus)&&c[0].toLowerCase().indexOf(q.toLowerCase())>=0});
+    h+='<div class="scr" data-x="1"></div><div class="sheet" role="dialog" aria-label="Ajouter un exercice"><h3>Ajouter à aujourd’hui</h3><input id="sq" placeholder="Rechercher un exercice" value="'+q+'"><div class="chp">'+['Tous','Pectoraux','Dos','Jambes','Épaules','Triceps','Abdos'].map(function(m){return '<button data-m="'+m+'" class="'+(m===mus?'on':'')+'">'+m+'</button>'}).join('')+'</div>'
+    +(q||mus!=='Tous'?'':'<div class="k" style="margin-bottom:6px">Récents</div>')
+    +list.map(function(c){var i=cat.indexOf(c);return '<button class="pick" data-add="'+i+'"><span>'+c[0]+'<small>'+c[1]+' · '+c[2]+' × '+c[3]+' · '+c[4]+' (dernière séance)</small></span><span>+</span></button>'}).join('')+(list.length?'':'<div class="k">Aucun résultat</div>')
+    +'<div class="row2"><button data-nw="1">Nouvel exercice</button><button data-ss="1">Superset…</button></div><div class="k" style="padding-top:8px">Ajouté pour aujourd’hui seulement. À la fin de la séance, l’app propose de le garder dans le programme.</div></div>';}
+  $('ph').innerHTML=h;var sq=$('sq');if(sq){sq.oninput=function(){q=sq.value;var p=sq.selectionStart;render();var n=$('sq');n.focus();n.setSelectionRange(p,p)}}
 }
 document.addEventListener('click',function(e){var t=e.target.closest('button');if(!t)return;
-  if(t.dataset.s){step=+t.dataset.s;render()}
+  if(t.dataset.t){open=!open;render()}
+  else if(t.dataset.p){sheet=true;render()}
+  else if(t.dataset.x){sheet=false;render()}
+  else if(t.dataset.m){mus=t.dataset.m;render()}
+  else if(t.dataset.add!==undefined){var c=cat[+t.dataset.add];exs.push([c[0],c[2],c[3],c[4],1]);cat.splice(+t.dataset.add,1);sheet=false;open=true;q='';mus='Tous';render()}
+  else if(t.dataset.rm!==undefined){exs.splice(+t.dataset.rm,1);render()}
+  else if(t.dataset.up!==undefined){var i=+t.dataset.up;if(i>0){var x=exs[i];exs[i]=exs[i-1];exs[i-1]=x}render()}
+  else if(t.dataset.nw||t.dataset.ss){sheet=false;render()}
+  else if(t.dataset.s){step=+t.dataset.s;render()}
   else if(t.dataset.n==='f'){done=2;render()}
   else if(t.dataset.n==='r'){done=3;render()}
   else if(t.dataset.n){step=+t.dataset.n;if(step===1)done=1;render()}

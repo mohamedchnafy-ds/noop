@@ -52,9 +52,14 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 
 ## Maquettes et décisions
 
-### Maquette 1 — saisie rapide et poids répété (11 nov.) : en attente de validation
+### Maquette 1 — saisie rapide et poids répété (11 nov.) : **validée**
 - Lien : https://claude.ai/artifact/JkydKpfVF7QC1Np1isCFwG (source : `docs/fork/maquettes/chantier-18-1-saisie-rapide.html`).
 - Choix de Mohamed : correction par **roulette sans clavier + boutons − / +** ; **palier par exercice avec valeur par défaut devinée** (barre 2,5 kg, haltère 1 kg, machine 5 kg), réglable d'un tap et retenu ; **repos lancé seul** à « Fait » (− 15 s, + 15 s, Passer) ; **série en cours en grand** avec les autres séries en liste compacte dessous.
+
+### Maquette 2 — écran Entraînement épuré (11 nov.) : en attente de validation
+- Lien : https://claude.ai/artifact/Tp2M6d8EEMATwo2MxKusD3 ; source `docs/fork/maquettes/chantier-18-2-entrainement.html`.
+- Choix de Mohamed : **bande de 7 jours compacte**, légende dans un « i », **Mois** par un bouton calendrier ; **« Programmes › »** regroupe liste, Nouveau, Importer, Planifier ; **Progression** en une ligne seulement s'il y a une charge à monter, **Régularité** dans l'écran Progression ; **« Autre séance »** ouvre la feuille Démarrer.
+- Rappel de Mohamed : **la fréquence cardiaque doit apparaître en musculation** (courbe sur la carte d'une séance faite et dans l'historique de cet écran ; feuille de séance, séance en cours et fiche terminée dans la maquette 3, avec la comparaison aux dernières séances).
 
 ## Découpage du code
 | Lot | Contenu | IPA |

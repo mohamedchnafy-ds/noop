@@ -56,15 +56,19 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 - Lien : https://claude.ai/artifact/JkydKpfVF7QC1Np1isCFwG (source : `docs/fork/maquettes/chantier-18-1-saisie-rapide.html`).
 - Choix de Mohamed : correction par **roulette sans clavier + boutons − / +** ; **palier par exercice avec valeur par défaut devinée** (barre 2,5 kg, haltère 1 kg, machine 5 kg), réglable d'un tap et retenu ; **repos lancé seul** à « Fait » (− 15 s, + 15 s, Passer) ; **série en cours en grand** avec les autres séries en liste compacte dessous.
 
-### Maquette 2 — écran Entraînement épuré (11 nov.) : en attente de validation
+### Maquette 2 — écran Entraînement épuré (11 nov.) : **validée**
 - Lien : https://claude.ai/artifact/Tp2M6d8EEMATwo2MxKusD3 ; source `docs/fork/maquettes/chantier-18-2-entrainement.html`.
 - Choix de Mohamed : **bande de 7 jours compacte**, légende dans un « i », **Mois** par un bouton calendrier ; **« Programmes › »** regroupe liste, Nouveau, Importer, Planifier ; **Progression** en une ligne seulement s'il y a une charge à monter, **Régularité** dans l'écran Progression ; **« Autre séance »** ouvre la feuille Démarrer.
 - Rappel de Mohamed : **la fréquence cardiaque doit apparaître en musculation** (courbe sur la carte d'une séance faite et dans l'historique de cet écran ; feuille de séance, séance en cours et fiche terminée dans la maquette 3, avec la comparaison aux dernières séances).
 
-### Maquette 3 — FC en musculation (11 nov.) : en attente de validation
+### Maquette 3 — FC en musculation (11 nov.) : **validée**
 - Remarque de Mohamed : la maquette 2 ne montrait la FC qu'après la séance ; elle doit être visible **pendant** l'entraînement.
 - Lien : https://claude.ai/artifact/6FQ5eUz4vDz7RDeUUaVTxE ; source `docs/fork/maquettes/chantier-18-3-frequence-cardiaque.html`.
 - Choix de Mohamed : **bandeau FC sous le nom de l'exercice** (FC en direct, zone, courbe des 10 dernières minutes avec repos ambrés et fin de série marquée) ; **comparaison** = 2 dernières séances du même programme (cardio : même sport) en pointillés, interrupteur « Comparer » ; **chiffres** : moyenne, max, zone de FC, **récupération entre séries** (baisse pendant le repos). Fiche terminée : courbe complète, temps par zone, FC moyenne par exercice.
+
+### Maquette 4 — ce qui influence mes séances (11 nov.) : en attente de validation
+- Lien : https://claude.ai/artifact/P75GuGrAZ228vR9kEqmotf ; source `docs/fork/maquettes/chantier-18-4-influences.html`.
+- Choix de Mohamed : **bloc dédié dans l'écran Progression** (Expérimental, désactivable) ; **une carte par facteur** avec phrase déterministe « chez toi, on observe… », barres avec / sans, écart et nombre de séances ; **seuil 6 séances par groupe, 12 au total** (avant : « pas encore assez de données » + barre vers le seuil) ; **eau en séance** par un bouton « + verre » (25 cl) dans la barre de repos, total sur la fiche terminée.
 
 ## Découpage du code
 | Lot | Contenu | IPA |

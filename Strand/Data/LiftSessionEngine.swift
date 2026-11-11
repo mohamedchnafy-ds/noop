@@ -456,18 +456,30 @@ struct LiftSessionEngine: Equatable {
             .first
     }
 
-    /// The numbers a slot shows in grey, in order of preference: this exercise earlier in THIS
-    /// session, then the same set number LAST session, then the program's target.
+    /// The numbers a slot shows in grey. The WEIGHT and the REPS follow two different chains.
     ///
-    /// "Earlier in this session" means what that set COUNTS AS (`values(of:lastSession:)`), so set 2
-    /// follows set 1 whether or not anything was typed there, and moves again if set 1 is corrected.
+    /// WEIGHT (fork chantier 18, « le poids se répète »): the weight of a working set is the weight of the
+    /// working set before it in the same exercise — what that set counts as: typed into it once done, typed
+    /// into it in advance (`pendingWeights`), else its own grey weight. So the weight of set 1 repeats on
+    /// sets 2, 3, 4… until another is given, and a weight given to set n becomes the weight of the sets
+    /// after it, while the sets before it keep theirs. Set 1 (the first working set) takes the first working
+    /// weight of the exercise's last session, else the program's target. Each exercise has its own chain:
+    /// nothing is taken from another line. A warm-up is skipped by the chain, so a light first set does not
+    /// pull the working sets down, and keeps last time's weight for its set number, else the target.
+    ///
+    /// REPS, in order of preference: this exercise earlier in THIS session, then the same set number LAST
+    /// session, then the program's target. "Earlier in this session" means what that set COUNTS AS
+    /// (`values(of:lastSession:)`), so set 2 follows set 1 whether or not anything was typed there, and moves
+    /// again if set 1 is corrected.
     ///
     /// GREY STAYS GREY. Finishing a set records its timing and nothing else; a number becomes the
     /// set's own only when it is typed. What a set without typed numbers is worth is decided once,
     /// when the session is finished: the user completes all of them with these numbers or discards
     /// them (`LiftSessionController.setsToSave`). Both earlier rules lost something. Recording nothing
     /// let 19 sets from a real session save with no numbers at all, and writing the grey numbers in at
-    /// "set done" turned a suggestion into an entry the user then had to type over.
+    /// "set done" turned a suggestion into an entry the user then had to type over. So a done set whose
+    /// weight was never typed still follows a correction made to an EARLIER set; a weight given to a
+    /// LATER set never reaches back to it.
     ///
     /// RPE is NOT carried. Weight and reps are a plan, knowable in advance; RPE is how hard a set
     /// FELT, knowable only afterwards, and carrying one forward would invent the one figure nobody
@@ -476,18 +488,51 @@ struct LiftSessionEngine: Equatable {
     ///
     /// `lastSession` is this exercise's previous session by set number — the one layer the engine
     /// cannot know. The caller supplies it; a set number it lacks falls through to the target.
-    func carry(for slot: LiftSlot, lastSession: [Int: LiftSetCarry]) -> LiftSetCarry {
-        let previous = previousSetInSession(for: slot).map { values(of: $0.slot, lastSession: lastSession) }
+    /// `pendingWeights` and `warmups` are what the controller holds for sets not yet performed: a weight
+    /// typed in advance, a warm-up marked in advance.
+    func carry(for slot: LiftSlot, lastSession: [Int: LiftSetCarry],
+               pendingWeights: [LiftSlot: Double] = [:], warmups: Set<LiftSlot> = []) -> LiftSetCarry {
+        let previous = previousSetInSession(for: slot).map {
+            values(of: $0.slot, lastSession: lastSession, pendingWeights: pendingWeights, warmups: warmups)
+        }
         let last = lastSession[slot.setIndex]
         let item = planItem(for: slot)
         return LiftSetCarry(
-            weightKg: previous?.weightKg ?? last?.weightKg ?? item?.targetWeightKg,
+            weightKg: carriedWeight(for: slot, lastSession: lastSession,
+                                    pendingWeights: pendingWeights, warmups: warmups),
             reps: previous?.reps ?? last?.reps ?? item?.targetRepsLow)
     }
 
+    /// The weight chain of `carry(for:lastSession:pendingWeights:warmups:)`.
+    private func carriedWeight(for slot: LiftSlot, lastSession: [Int: LiftSetCarry],
+                               pendingWeights: [LiftSlot: Double], warmups: Set<LiftSlot>) -> Double? {
+        let item = planItem(for: slot)
+        if isWarmupSlot(slot, warmups: warmups) {
+            return lastSession[slot.setIndex]?.weightKg ?? item?.targetWeightKg
+        }
+        var earlier = slot.setIndex - 1
+        while earlier >= 1 {
+            let before = LiftSlot(exerciseIndex: slot.exerciseIndex, setIndex: earlier)
+            earlier -= 1
+            guard !isWarmupSlot(before, warmups: warmups) else { continue }
+            return recordedSet(for: before)?.weightKg ?? pendingWeights[before]
+                ?? carriedWeight(for: before, lastSession: lastSession,
+                                 pendingWeights: pendingWeights, warmups: warmups)
+        }
+        // The exercise's first working set: last session's first working weight, else the plan's.
+        let lastFirst = lastSession.keys.sorted().lazy.compactMap { lastSession[$0]?.weightKg }.first
+        return lastFirst ?? item?.targetWeightKg
+    }
+
+    /// Whether a slot is a warm-up: its record says so once done, the mark held in advance before.
+    private func isWarmupSlot(_ slot: LiftSlot, warmups: Set<LiftSlot>) -> Bool {
+        recordedSet(for: slot)?.isWarmup ?? warmups.contains(slot)
+    }
+
     /// What a slot counts as: each number typed into it, else its grey number.
-    func values(of slot: LiftSlot, lastSession: [Int: LiftSetCarry]) -> LiftSetCarry {
-        let grey = carry(for: slot, lastSession: lastSession)
+    func values(of slot: LiftSlot, lastSession: [Int: LiftSetCarry],
+                pendingWeights: [LiftSlot: Double] = [:], warmups: Set<LiftSlot> = []) -> LiftSetCarry {
+        let grey = carry(for: slot, lastSession: lastSession, pendingWeights: pendingWeights, warmups: warmups)
         guard let set = recordedSet(for: slot) else { return grey }
         return LiftSetCarry(weightKg: set.weightKg ?? grey.weightKg, reps: set.reps ?? grey.reps)
     }
@@ -586,6 +631,64 @@ struct LiftSessionEngine: Equatable {
         pushHistory()
         stage = .resting(slot, endsAt: max(endsAt, now) + seconds)
         return true
+    }
+
+    /// Bring the running rest's end forward by `seconds` — the "−15 s" of the quick-entry card (fork
+    /// chantier 18). Never before now: a rest cut past its end is simply over. False, and nothing changed,
+    /// when no rest is running or it is already over.
+    @discardableResult
+    mutating func shortenRest(by seconds: Int, now: Int) -> Bool {
+        let clock = clockNow(now)
+        guard seconds > 0, case .resting(let slot, let endsAt) = stage, endsAt > clock else { return false }
+        pushHistory()
+        stage = .resting(slot, endsAt: max(clock, endsAt - seconds))
+        return true
+    }
+
+    // MARK: - The quick-entry card (fork chantier 18)
+    //
+    // One tap per set: the card stands on the set coming up, already filled in, and « Done » records it.
+    // During a set that is the set being worked; during a rest, the set the session goes to next, so the
+    // card is ready before the rest is over.
+
+    /// The set the quick-entry card stands on: the set being worked, the one the session goes to next
+    /// during a rest, the first set during the warm-up. Nil once the session is finished, or when the rest
+    /// has nothing left to go to.
+    var quickEntrySlot: LiftSlot? {
+        switch stage {
+        case .working(let slot): return slot
+        case .warmup, .resting: return upcomingSlot
+        case .finished: return nil
+        }
+    }
+
+    /// « Done » on the quick-entry card: the set it stands on is recorded, and its rest starts — one undo
+    /// step. From a set being worked, that is `advance`. From a rest, the rest ends and the next set is
+    /// recorded at once: the set is taken to have begun when the rest ran out, or now when the rest was cut
+    /// short, so a set never claims time before its rest was over. Not from the warm-up, where nothing
+    /// says when the first set began: the card offers to start it instead. False when nothing changed.
+    @discardableResult
+    mutating func completeQuickSet(now: Int) -> Bool {
+        switch stage {
+        case .working(let slot):
+            pushHistory()
+            recordRound(slot, now: now)
+            return true
+        case .resting(let previous, let endsAt):
+            guard let next = slotAfter(previous) else { return false }
+            pushHistory()
+            let begun = max(stageStartedAt, min(now, endsAt))
+            let round = roundSlots(for: previous)
+            for i in sets.indices where round.contains(sets[i].slot) {
+                sets[i].restSec = max(0, begun - stageStartedAt)
+            }
+            stage = .working(next)
+            stageStartedAt = begun
+            recordRound(next, now: max(now, begun))
+            return true
+        case .warmup, .finished:
+            return false
+        }
     }
 
     /// The rest the block `index` belongs to takes after each of its rounds, for this session. It is

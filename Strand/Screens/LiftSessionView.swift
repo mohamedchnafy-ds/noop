@@ -66,6 +66,20 @@ struct LiftSessionView: View {
     /// Supersets et blocs: the blocks were run in another order than the program's, read with the set counts.
     @State private var orderChanged = false
 
+    /// Fork chantier 18: the wheel the quick-entry card opened, nil when none is open.
+    @State private var wheel: WheelTarget?
+    /// Fork chantier 18: each exercise's weight step, read once and changed from the card
+    /// (`LiftWeightStep`, kept on the device).
+    @State private var weightSteps: [String: Double] = [:]
+
+    /// What the quick-entry card's wheel is turning: the weight or the reps of one set.
+    private struct WheelTarget: Identifiable {
+        enum Kind { case weight, reps }
+        var kind: Kind
+        var slot: LiftSlot
+        var id: String { "\(kind)-\(slot.exerciseIndex)-\(slot.setIndex)" }
+    }
+
     private enum UnfinishedChoice: Hashable { case complete, discard }
     private enum ProgramChoice: Hashable { case update, keep }
 
@@ -140,6 +154,7 @@ struct LiftSessionView: View {
             draft = draft.filter { $0.key == now }
         }
         .sheet(isPresented: $showingFinish) { finishSheet }
+        .sheet(item: $wheel) { target in wheelSheet(target) }
     }
 
     // MARK: - The guided superset screens (personal fork)
@@ -266,9 +281,10 @@ struct LiftSessionView: View {
                 .padding(.horizontal, NoopMetrics.screenPadding)
                 .padding(.top, 18)
             }
-            .onChange(of: engine.currentSlot) { slot in
+            .onChange(of: engine.quickEntrySlot ?? engine.currentSlot) { slot in
                 // Follow the session down the sheet, but only when it moves on its own — scrolling
-                // back to read an earlier exercise must not be yanked away from.
+                // back to read an earlier exercise must not be yanked away from. Fork chantier 18: to the
+                // set the quick-entry card stands on, so the card is on screen during the rest before it.
                 guard let slot else { return }
                 // A superset member has no card of its own: scroll to the card it is drawn in.
                 withAnimation { proxy.scrollTo(engine.blockStart(of: slot.exerciseIndex), anchor: .top) }
@@ -448,12 +464,18 @@ struct LiftSessionView: View {
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
+                // Fork chantier 18: the set coming up, in big, ready for one tap.
+                if let quick = quickCardSlot(engine), quick.exerciseIndex == index {
+                    quickCard(engine, slot: quick, item: item)
+                }
+
                 columnHeadings
 
                 ForEach(engine.slots(forExercise: index), id: \.self) { slot in
                     setRow(engine, slot: slot)
-                    // The rest belongs BETWEEN two sets, because that is where it happens.
-                    if isRestingAfter(engine, slot: slot) { restBand(engine) }
+                    // The rest belongs BETWEEN two sets, because that is where it happens — unless the
+                    // quick-entry card already shows it, with its buttons: one rest, one place.
+                    if isRestingAfter(engine, slot: slot), quickCardSlot(engine) == nil { restBand(engine) }
                 }
 
                 setCountRow(engine, index: index, item: item)
@@ -784,6 +806,114 @@ struct LiftSessionView: View {
         unitSystem == .imperial ? "Lb" : "Kg"
     }
 
+    // MARK: - The quick-entry card (fork chantier 18)
+    //
+    // `LiftQuickEntryCard` draws; this view hands it the set the session stands on, with the numbers every
+    // other surface shows for it (typed, else grey: `enteredValues` over `carry`), and turns its taps into the
+    // same calls the rows make. Written into the set as it is held: a number given here before the set is
+    // done waits in `pendingValues`, and the sets after it follow its weight.
+
+    /// The set the card stands on, nil when no card is shown: none once the session is finished or when
+    /// nothing is left to do, and none for a superset, run on its own guided screens.
+    private func quickCardSlot(_ engine: LiftSessionEngine) -> LiftSlot? {
+        guard !reordering, let slot = engine.quickEntrySlot, !engine.isInSuperset(slot.exerciseIndex) else {
+            return nil
+        }
+        return slot
+    }
+
+    private func weightStep(for exercise: String) -> Double {
+        weightSteps[exercise] ?? LiftWeightStep.step(for: exercise)
+    }
+
+    /// The weight and reps the set shows: what was typed for it, else its grey numbers.
+    private func shownNumbers(_ slot: LiftSlot) -> LiftSetCarry {
+        let typed = session.enteredValues(for: slot)
+        let grey = session.carry(for: slot)
+        return LiftSetCarry(weightKg: typed.weightKg ?? grey.weightKg, reps: typed.reps ?? grey.reps)
+    }
+
+    private func quickCard(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> some View {
+        let shown = shownNumbers(slot)
+        let step = weightStep(for: item.exercise)
+        let unit = LiftFormat.weightUnit(unitSystem)
+        let restEndsAt: Int? = {
+            if case .resting(_, let endsAt) = engine.stage { return endsAt }
+            return nil
+        }()
+        let content = LiftQuickEntryCard.Content(
+            setNumber: slot.setIndex, setCount: item.targetSets,
+            lastTime: lastTimeText(exercise: item.exercise, setIndex: slot.setIndex),
+            weight: shown.weightKg.map { display($0) } ?? "—", weightUnit: unit,
+            reps: shown.reps,
+            step: "\(display(step)) \(unit)",
+            isWarmup: engine.stage == .warmup,
+            restEndsAt: restEndsAt)
+        let actions = LiftQuickEntryCard.Actions(
+            weight: { steps in
+                let now = shownNumbers(slot).weightKg ?? 0
+                let moved = LiftWeightStep.moved(now, by: steps, step: step)
+                write(slot) { $0.weightKg = moved }
+            },
+            reps: { delta in
+                let now = shownNumbers(slot).reps ?? 0
+                write(slot) { $0.reps = min(Self.maxReps, max(0, now + delta)) }
+            },
+            openWeightWheel: { wheel = WheelTarget(kind: .weight, slot: slot) },
+            openRepsWheel: { wheel = WheelTarget(kind: .reps, slot: slot) },
+            cycleStep: {
+                let next = LiftWeightStep.nextStep(after: step)
+                LiftWeightStep.setStep(next, for: item.exercise)
+                weightSteps[item.exercise] = next
+            },
+            done: { session.completeQuickSet() },
+            shortenRest: { session.shortenRest() },
+            extendRest: { session.extendRest(by: LiftSessionController.restStepSec) },
+            skipRest: { session.skipRest() })
+        return LiftQuickEntryCard(content: content, actions: actions,
+                                  restRemaining: { engine.restRemaining(now: $0) ?? 0 })
+    }
+
+    /// The most reps the card's wheel and + offer for one set.
+    private static let maxReps = 100
+
+    /// "60 × 8": the same set number last session, or nothing when the exercise has no such set.
+    private func lastTimeText(exercise: String, setIndex: Int) -> String? {
+        guard let row = lastRows[exercise]?.first(where: { !$0.isWarmup && $0.setIndex == setIndex }) else {
+            return nil
+        }
+        switch (row.weightKg, row.reps) {
+        case (let w?, let r?): return "\(display(w)) × \(r)"
+        case (let w?, nil):    return "\(display(w)) \(LiftFormat.weightUnit(unitSystem))"
+        case (nil, let r?):    return String(localized: "\(r) reps")
+        case (nil, nil):       return nil
+        }
+    }
+
+    /// The wheel for one number of one set: the weight on the exercise's step, or the reps one by one.
+    @ViewBuilder
+    private func wheelSheet(_ target: WheelTarget) -> some View {
+        let shown = shownNumbers(target.slot)
+        switch target.kind {
+        case .weight:
+            let exercise = engine?.planItem(for: target.slot)?.exercise ?? ""
+            let current = shown.weightKg ?? 0
+            LiftNumberWheelSheet(
+                title: String(localized: "Weight (\(LiftFormat.weightUnit(unitSystem)))"),
+                values: LiftWeightStep.wheelValues(step: weightStep(for: exercise), current: current),
+                format: { display($0) },
+                initial: current,
+                onPick: { kg in write(target.slot) { $0.weightKg = kg } })
+        case .reps:
+            LiftNumberWheelSheet(
+                title: String(localized: "Reps"),
+                values: (0...Self.maxReps).map(Double.init),
+                format: { String(Int($0)) },
+                initial: Double(shown.reps ?? 0),
+                onPick: { reps in write(target.slot) { $0.reps = Int(reps) } })
+        }
+    }
+
     // MARK: - One set row
 
     /// `tag` ("A1") marks a row in a superset card, where rows of different exercises alternate: it is
@@ -1069,11 +1199,15 @@ struct LiftSessionView: View {
                         Text("Resume").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.noopPrimary)
-                } else {
+                } else if quickCardSlot(engine) == nil {
                     Button { session.advance() } label: {
                         Text(actionLabel(engine)).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.noopPrimary)
+                } else {
+                    // Fork chantier 18: the quick-entry card holds the one action; a second button here
+                    // would offer another step for the same moment.
+                    Spacer(minLength: 0)
                 }
 
                 Button {

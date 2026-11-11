@@ -1,0 +1,138 @@
+<title>Parcours de la séance</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one phone-sized mock walked through four screens, with a legend column of what comes from which lot. */
+:root{--bg:#f2f2f7;--panel:#fff;--fg:#1c1c1e;--mut:#6c6c70;--line:#d8d8de;--ph:#000;--card:#1c1c1e;--card2:#2c2c2e;--pmut:#8e8e93;--amber:#ffb020;--blue:#0a84ff;--green:#30d158;--pink:#ff375f;--cyan:#64d2ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+h1{font-size:20px;margin:0 0 4px}
+.rules{flex:1 1 280px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.rules p,.rules li{font-size:14px;line-height:1.5;color:var(--mut);margin:0}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.box h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--mut)}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.sw button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;background:var(--line);color:var(--fg);margin-right:4px}
+.phone{width:100%;max-width:390px;background:var(--ph);color:#fff;border-radius:38px;padding:18px 14px 26px;box-sizing:border-box;min-height:800px;border:1px solid #333}
+.hd{display:flex;justify-content:space-between;align-items:center;padding:2px 6px 8px}
+.hd h2{font-size:28px;margin:0;letter-spacing:-.01em}
+.hd .k{font-size:13px;color:var(--pmut)}
+.card{background:var(--card);border-radius:22px;padding:14px;margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.k{font-size:12px;color:var(--pmut)}
+.meta{font-size:13px;color:var(--pmut)}
+.ups{font-size:14px;display:flex;flex-direction:column;gap:3px}.ups i{font-style:normal;color:var(--green)}
+.go{height:54px;border:0;border-radius:20px;background:#fff;color:#000;font-weight:700;font-size:17px;cursor:pointer;font-family:inherit}
+.line{display:flex;justify-content:space-between;background:var(--card);border-radius:18px;padding:13px 14px;margin-top:10px;font-size:15px;border:0;color:#fff;width:100%;font-family:inherit;text-align:left;cursor:pointer}
+.line small{display:block;color:var(--pmut);font-size:12px;margin-top:2px}
+.week{display:flex;gap:4px;padding-bottom:4px}
+.d{flex:1;text-align:center;font-size:12px;color:var(--pmut);display:flex;flex-direction:column;gap:4px;align-items:center}
+.d b{font-size:15px;width:30px;height:30px;line-height:30px;border-radius:50%;color:#fff}
+.d.s b{background:#fff;color:#000}
+.fc{background:var(--card2);border-radius:18px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.fch{display:flex;justify-content:space-between;align-items:flex-end}
+.bpm{font:700 34px/1 ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.bpm small{font-size:12px;color:var(--pmut);margin-left:4px}
+.zone{font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;background:#3a3a3c}
+.fc svg{width:100%;height:70px;display:block}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.chip{background:#3a3a3c;border-radius:12px;padding:6px 8px}.chip b{display:block;font:700 16px ui-rounded,system-ui,sans-serif}.chip small{font-size:11px;color:var(--pmut)}
+.big .l,.l{display:flex;justify-content:space-between;font-size:13px;color:var(--pmut)}
+.l b{color:#fff}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fld{background:var(--card2);border-radius:18px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.fld .cap{font-size:11px;color:var(--pmut)}
+.fld .v{font:700 36px/1 ui-rounded,system-ui,sans-serif}
+.pm{display:flex;gap:6px;width:100%}.pm span{flex:1;height:38px;border-radius:12px;background:#3a3a3c;text-align:center;line-height:38px;font-size:20px}
+.rest{background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.45);border-radius:18px;padding:8px 12px;display:flex;align-items:center;gap:8px;color:var(--amber);font-size:13px}
+.rest b{font:700 24px ui-rounded,system-ui,sans-serif}
+.rest button{border:0;background:rgba(255,176,32,.2);color:var(--amber);border-radius:11px;height:32px;padding:0 10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:12px}
+.rest .sp{flex:1}
+.auto{background:rgba(10,132,255,.15);border:1px solid rgba(10,132,255,.5);border-radius:14px;padding:6px 10px;font-size:12px;color:#8fc0ff;display:flex;justify-content:space-between}
+.list{display:flex;flex-direction:column;gap:4px;font-size:14px;font-variant-numeric:tabular-nums}
+.rw{display:flex;justify-content:space-between;background:var(--card);border-radius:12px;padding:8px 12px}
+.rw.ok span:last-child{color:var(--green)}.rw.td{color:var(--pmut)}
+.bars{display:flex;gap:4px;align-items:flex-end;height:64px}
+.bars i{flex:1;background:var(--blue);border-radius:3px 3px 0 0}
+.f p{margin:0;font-size:13px;line-height:1.45;color:#d1d1d6}
+.f h3{margin:0;font-size:15px}
+.pill{font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px;background:rgba(48,209,88,.18);color:var(--green)}
+.row{display:flex;justify-content:space-between;align-items:center}
+.nav{display:flex;gap:8px;margin-top:14px}
+.nav button{flex:1;height:44px;border:0;border-radius:14px;background:var(--card2);color:#fff;font-size:14px;cursor:pointer;font-family:inherit}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+<div class="wrap">
+<div class="rules">
+  <h1>Parcours de la séance</h1>
+  <p>Maquette globale du chantier 18. Elle réunit les cinq maquettes validées en un seul parcours. Touche les boutons principaux de l'écran, ou choisis une étape.</p>
+  <div class="sw" id="sw" role="group" aria-label="Étape"></div>
+  <div class="box"><h2>D'où vient chaque élément</h2><ul id="from"></ul></div>
+  <div class="box"><h2>Ordre du code</h2><ul>
+    <li><span class="tag">A</span>poids répété, saisie rapide, FC en séance et comparaison</li>
+    <li><span class="tag">B</span>écran Entraînement épuré, Progression, Régularité</li>
+    <li><span class="tag">C</span>ce qui influence mes séances, eau en séance</li>
+    <li><span class="tag">D</span>fin de série automatique (IPA séparée, après test bracelet)</li>
+  </ul></div>
+</div>
+<div class="phone" id="ph"></div>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var step=0,done=1,fromTxt=[
+ ['<span class="tag">B</span>séance du jour en grand, bande compacte, « i » et calendrier','<span class="tag">B</span>Progression en une ligne, Programmes ›, Autre séance','<span class="tag">A</span>FC de la dernière séance dans l’historique'],
+ ['<span class="tag">A</span>poids de la série 1 répété, valeurs préremplies, − / + et roulette','<span class="tag">A</span>bandeau FC avec zone, récupération, comparaison','<span class="tag">C</span>« + verre » dans la barre de repos','<span class="tag">D</span>bandeau « fin de série détectée » (option, éteinte par défaut)'],
+ ['<span class="tag">A</span>courbe de FC de toute la séance, comparaison, temps par zone','<span class="tag">C</span>eau pendant la séance sur la fiche'],
+ ['<span class="tag">B</span>Progression et Régularité sur 12 semaines','<span class="tag">C</span>bloc Ce qui influence mes séances (Expérimental)']];
+var names=['Entraînement','En séance','Fiche','Progression'];
+function hr(h){var p=[],i,w=340;for(i=0;i<=40;i++){p.push((i?'L':'M')+(i*w/40).toFixed(1)+' '+(h-8-((100+28*Math.abs(Math.sin(i/6))+(i%12<4?20:0))-80)/100*(h-14)).toFixed(1))}
+ return '<svg viewBox="0 0 340 '+h+'" preserveAspectRatio="none"><rect x="90" y="0" width="40" height="'+h+'" fill="rgba(255,176,32,.14)"/><rect x="220" y="0" width="40" height="'+h+'" fill="rgba(255,176,32,.14)"/><path d="M0 '+(h*0.6)+' C60 '+(h*0.4)+' 110 '+(h*0.55)+' 170 '+(h*0.35)+' S280 '+(h*0.45)+' 340 '+(h*0.5)+'" fill="none" stroke="#8e8e93" stroke-width="1" stroke-dasharray="3 3"/><path d="'+p.join(' ')+'" fill="none" stroke="#ff375f" stroke-width="2"/></svg>'}
+function render(){
+  var sw='';names.forEach(function(n,i){sw+='<button data-s="'+i+'" aria-pressed="'+(step===i)+'">'+(i+1)+' · '+n+'</button>'});$('sw').innerHTML=sw;
+  $('from').innerHTML=fromTxt[step].map(function(t){return '<li>'+t+'</li>'}).join('');
+  var h='';
+  if(step===0){
+    h='<div class="hd"><h2>Entraînement</h2><span class="k">i · ▦</span></div>'
+    +'<div class="week"><div class="d"><span>L</span><b>2</b></div><div class="d"><span>M</span><b>3</b></div><div class="d s"><span>M</span><b>4</b></div><div class="d"><span>J</span><b>5</b></div><div class="d"><span>V</span><b>6</b></div><div class="d"><span>S</span><b>7</b></div><div class="d"><span>D</span><b>8</b></div></div>'
+    +'<div class="card"><div class="k">Aujourd’hui · mer. 4 nov. · prévue</div><h3 style="margin:0;font-size:26px">Full body A</h3><div class="meta">6 exercices · 18 séries · environ 55 min</div><div class="ups"><span><i>↑</i> Développé couché : 60 → 62,5 kg</span><span><i>↑</i> Tirage poitrine : 45 → 50 kg</span></div><button class="go" data-n="1">Démarrer</button></div>'
+    +'<button class="line"><span>Progression<small>2 charges à monter</small></span><span style="color:var(--pmut)">›</span></button>'
+    +'<button class="line"><span>Programmes<small>3 programmes · Planifier la semaine</small></span><span style="color:var(--pmut)">›</span></button>'
+    +'<button class="line" style="justify-content:center;background:var(--card2)">Autre séance</button>'
+    +'<div class="card"><div class="row"><b>Historique</b><span class="k">Tout ›</span></div><div class="row"><span>Full body C · lun. 2 nov.<br><span class="k">48 min · 16 séries</span></span><span class="k" style="color:var(--pink)">♥ moy. 118 · max 158</span></div></div>';
+  }else if(step===1){
+    var w=done>=2;
+    h='<div class="hd"><div><div class="k">Full body A · 34:12</div><h2 style="font-size:24px">Développé couché</h2></div><span class="k">♥ '+(w?104:142)+'</span></div>'
+    +'<div class="fc"><div class="fch"><div class="bpm"><span style="color:var(--pink)">♥</span> '+(w?104:142)+'<small>bpm</small></div><span class="zone" style="color:'+(w?'#8e8e93':'#ffd60a')+'">'+(w?'Z1 · récupération':'Z3 · effort')+'</span></div>'+hr(70)
+    +'<div class="chips"><div class="chip"><b>121</b><small>Moyenne</small></div><div class="chip"><b>164</b><small>Max</small></div><div class="chip"><b>−22</b><small>Récup.</small></div></div></div>'
+    +'<div class="card"><div class="l"><b>Série '+Math.min(done+1,4)+' sur 4</b><span>Dernière fois : 60 × 8</span></div>'
+    +'<div class="fields"><div class="fld"><span class="cap">Poids · palier 2,5</span><span class="v">60</span><div class="pm"><span>−</span><span>+</span></div></div><div class="fld"><span class="cap">Répétitions</span><span class="v">8</span><div class="pm"><span>−</span><span>+</span></div></div></div>'
+    +(w?'<div class="rest"><b>1:12</b><span>Repos</span><span class="sp"></span><button>+ verre</button><button data-n="r">Passer</button></div>':'<div class="auto"><span>Fin de série automatique : éteinte</span><span>marge 6 s</span></div><button class="go" data-n="f">Fait</button>')
+    +'</div><div class="list" style="margin-top:10px"><div class="rw ok"><span>1 · 60 kg × 8</span><span>fait</span></div><div class="rw '+(done>=2?'ok':'td')+'"><span>2 · 60 kg × 8 <span style="color:var(--blue);font-size:11px">= série 1</span></span><span>'+(done>=2?'fait':'')+'</span></div><div class="rw td"><span>3 · 60 kg × 8</span><span></span></div></div>'
+    +'<div class="nav"><button data-n="2">Terminer la séance ›</button></div>';
+  }else if(step===2){
+    h='<div class="hd"><div><div class="k">Fiche de séance · mer. 4 nov.</div><h2>Full body A</h2></div></div>'
+    +'<div class="card"><div class="fc"><div class="fch"><div class="bpm"><span style="color:var(--pink)">♥</span> 121<small>moy. · max 164</small></div></div>'+hr(90)+'<div class="l"><span>0 min</span><span>pointillé : séances précédentes</span><span>52 min</span></div></div>'
+    +'<div class="l"><b>Temps par zone</b><span>52 min</span></div><div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px"><i style="flex:18;background:#8e8e93"></i><i style="flex:44;background:#30d158"></i><i style="flex:28;background:#ffd60a"></i><i style="flex:9;background:#ff9f0a"></i></div>'
+    +'<div class="l"><span>Eau pendant la séance</span><span style="color:var(--cyan)">50 cl</span></div><div class="l"><span>Durée · séries · Effort</span><span style="color:#fff">52 min · 18 · 7,4</span></div></div>'
+    +'<div class="nav"><button data-n="3">Voir la Progression ›</button></div>';
+  }else{
+    h='<div class="hd"><div><div class="k">Entraînement ›</div><h2>Progression</h2></div></div>'
+    +'<div class="card"><div class="l"><b>Régularité</b><span>12 semaines</span></div><div class="bars"><i style="height:50%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:85%"></i><i style="height:40%"></i><i style="height:75%"></i><i style="height:90%"></i><i style="height:65%"></i><i style="height:80%"></i><i style="height:70%"></i><i style="height:95%"></i><i style="height:60%"></i></div><div class="l"><span>Séries par semaine</span><span>moy. 15</span></div></div>'
+    +'<div class="card f"><div class="row"><h3>Ce qui influence mes séances <span style="font-size:11px;color:var(--amber)">EXPÉRIMENTAL</span></h3></div><div class="row"><b style="font-size:14px">Sommeil · FC moyenne</b><span class="pill">−6 bpm</span></div><p>Chez toi, on observe une FC moyenne plus basse de 6 bpm les séances après 7 h 30 de sommeil que les autres. 9 séances contre 11.</p><div class="l"><span>Café : 4 sur 6 séances</span><span>pas encore assez</span></div></div>'
+    +'<div class="nav"><button data-n="0">Recommencer ‹</button></div>';
+  }
+  $('ph').innerHTML=h;
+}
+document.addEventListener('click',function(e){var t=e.target.closest('button');if(!t)return;
+  if(t.dataset.s){step=+t.dataset.s;render()}
+  else if(t.dataset.n==='f'){done=2;render()}
+  else if(t.dataset.n==='r'){done=3;render()}
+  else if(t.dataset.n){step=+t.dataset.n;if(step===1)done=1;render()}
+});
+render();
+</script>

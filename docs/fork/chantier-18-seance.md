@@ -70,9 +70,25 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 - Lien : https://claude.ai/artifact/P75GuGrAZ228vR9kEqmotf ; source `docs/fork/maquettes/chantier-18-4-influences.html`.
 - Choix de Mohamed : **bloc dédié dans l'écran Progression** (Expérimental, désactivable) ; **une carte par facteur** avec phrase déterministe « chez toi, on observe… », barres avec / sans, écart et nombre de séances ; **seuil 6 séances par groupe, 12 au total** (avant : « pas encore assez de données » + barre vers le seuil) ; **eau en séance** par un bouton « + verre » (25 cl) dans la barre de repos, total sur la fiche terminée.
 
-### Maquette 5 — fin de série automatique, lot D (11 nov.) : en attente de validation
+### Maquette 5 — fin de série automatique, lot D (11 nov.) : **validée**
 - Lien : https://claude.ai/artifact/Btt9NmKtquw9ZAgQc7YDRA ; source `docs/fork/maquettes/chantier-18-5-fin-de-serie.html`.
 - Choix de Mohamed : réglage dans **Paramètres › Entraînement, section Expérimental** (éteint par défaut, marge 5–10 s, 6 s par défaut) ; pendant la marge, **compte à rebours + Annuler** ; option éteinte = l'app propose « Fin de série ? » et note ce qu'elle aurait fait ; **repères** : phase d'apprentissage de **10 séries** (boutons Début / Fin), puis la détection tourne seule, relançable ; sur l'appareil, hors `.noopbak`.
+
+### Maquette globale — parcours de la séance (11 nov.) : en attente de validation
+- Lien : https://claude.ai/artifact/5yrUL69fFHYHRSZomiMLus ; source `docs/fork/maquettes/chantier-18-6-parcours.html`. Réunit les maquettes 1 à 5 en 4 écrans : Entraînement, séance en cours, fiche terminée, Progression ; chaque écran indique le lot d'où vient chaque élément.
+
+## Définition de fin de chantier (proposée)
+**Lots A, B, C (IPA 1) — le chantier est fini quand :**
+1. Chaque lot est fusionné dans `main` (une PR par préoccupation), CI à 0 non-succès sur la tête de chaque PR (macOS + iOS + StrandTests + Tools Python + i18n + parité).
+2. IPA `build/seance` = `main`, installée par-dessus l'app, validée par Mohamed sur le téléphone avec captures : séance réelle avec poids répété, saisie en un tap, roulette, repos seul ; bandeau FC en séance et sur la fiche, comparaison masquable ; écran Entraînement épuré (bande, Mois, Programmes ›, Progression, Autre séance) ; Régularité ; bloc « Ce qui influence mes séances » (désactivable, « pas encore assez de données » avant 6 / 12 séances) ; « + verre ».
+3. Données stockées nouvelles (eau en séance) : migration numérotée + jumeau Kotlin + deux `schema_oracle.json`, sauvegarde `.noopbak` vérifiée.
+4. 10 langues pour toutes les nouvelles chaînes ; `i18n_audit`, `doc_comment_lint`, `Tools/` verts.
+5. Fiche du chantier et feuille de route mises à jour (état, décisions prises au code, liste « À tester »).
+
+**Lot D (IPA 2, à part) :** fusionné et construit seulement après un test sur le bracelet en séance réelle (enregistrement sans action d'abord, puis option allumée) ; résultats du test écrits dans la fiche ; option éteinte par défaut ; la détection n'est jamais présentée comme validée tant que le test n'a pas suivi des séries variées.
+
+## Prompt de la conversation de code (proposé)
+« Chantier 18 : la séance de musculation et l'écran Entraînement. Lis la feuille de route puis `docs/fork/chantier-18-seance.md` (maquettes validées, liens dans la fiche). Pars de `main`, vérifie qu'aucune branche `build/*` ou `feat/*` n'est en avance (règle 1). Code en lots, une PR par préoccupation, dans l'ordre : A (poids répété, saisie rapide à roulette et − / +, palier par exercice, repos lancé seul ; bandeau FC en séance et fiche, comparaison 2 séances), B (écran Entraînement épuré ; Progression ; Régularité), C (Ce qui influence mes séances ; « + verre »). Passe par les résolveurs existants (durée, pause, planning, séance du jour, séance courte d'Élan, éditeur par blocs, bannière, widgets). Donnée stockée nouvelle (eau en séance) : migration + parité Kotlin + oracles. Avant chaque push : `i18n_audit`, `doc_comment_lint`, `Tools/`, parité. Fusionne chaque PR dès que la CI est verte ; une seule IPA `build/seance` après C avec les 3 rappels. Le lot D (fin de série) est une conversation à part, après un test sur le bracelet. Questions à Mohamed par choix multiples, réponses courtes en français. »
 
 ## Découpage du code
 | Lot | Contenu | IPA |

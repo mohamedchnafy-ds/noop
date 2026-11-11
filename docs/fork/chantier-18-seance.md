@@ -50,6 +50,12 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 - **Animations reportées** (chantier 12) : barre de séance réduite, éditeur par blocs, Progression, carte du corps et autres effets listés dans `chantier-12-animations.md`.
 - **Restent dans leur fiche** : chantier 17 étapes 3 à 8 hors Progression, Coach (cache de prompt + 10 questions test), restes de la refonte, validations sur le téléphone des IPA `elan`, `elan-2`, `jeune-2`, `carte-3`, `animations-3`, `animations-4`.
 
+## Maquettes et décisions
+
+### Maquette 1 — saisie rapide et poids répété (11 nov.) : en attente de validation
+- Lien : https://claude.ai/artifact/JkydKpfVF7QC1Np1isCFwG (source : `docs/fork/maquettes/chantier-18-1-saisie-rapide.html`).
+- Choix de Mohamed : correction par **roulette sans clavier + boutons − / +** ; **palier par exercice avec valeur par défaut devinée** (barre 2,5 kg, haltère 1 kg, machine 5 kg), réglable d'un tap et retenu ; **repos lancé seul** à « Fait » (− 15 s, + 15 s, Passer) ; **série en cours en grand** avec les autres séries en liste compacte dessous.
+
 ## Découpage du code
 | Lot | Contenu | IPA |
 |---|---|---|

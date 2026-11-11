@@ -79,6 +79,11 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 
 - **Ajout d'exercices depuis l'écran Entraînement (remarque de Mohamed, 11 nov.)** : on doit pouvoir ajouter ce qu'on veut à la séance du jour sans changer d'onglet. Choix : bouton **« + Exercice »** sur la carte du jour, à côté de Démarrer ; la carte a une **liste d'exercices dépliable** (nom, séries × reps, charge ; ↑ pour monter, − pour retirer ; étiquette « Aujourd'hui » sur un ajout) ; l'ajout vaut **pour aujourd'hui seulement**, le programme reste intact, et la question existante « mettre à jour le programme ? » de fin de séance propose de le garder ; l'ajout passe par une **feuille avec recherche, récents, filtre par muscle**, séries / reps / charge repris de la dernière séance, « Nouvel exercice » et « Superset… » en bas. Ajouté au lot B (code) ; à passer par les mêmes résolveurs que la séance courte d'Élan (items d'un jour).
 
+## Sans maquette, dans le code (choix de Mohamed, 11 nov.)
+Pas de maquette supplémentaire. Ces points se codent directement, en suivant le style des maquettes validées et les jetons du design system, et Mohamed valide sur captures :
+- **Lot B** : refonte de l'écran Progression, bloc **Régularité** (séries par semaine sur 12 semaines, calendrier), fiches de séance (chantier 17, étape « Progression et fiches de séance »), **« + Exercice »** dans la séance en cours (même feuille que sur la carte du jour).
+- **Après A, B, C** (quand on en a besoin, une PR chacune) : **Élan PR D** (lecture du jour, Coach + recherche web, détail dans `elan-design.md`) ; **animations reportées** du chantier 12 (barre de séance réduite, éditeur par blocs, Progression, carte du corps).
+
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**
 1. Chaque lot est fusionné dans `main` (une PR par préoccupation), CI à 0 non-succès sur la tête de chaque PR (macOS + iOS + StrandTests + Tools Python + i18n + parité).

@@ -1,0 +1,139 @@
+<title>FC en musculation</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: phone-sized mock with two views (in session / finished) and a rules column. */
+:root{--bg:#f2f2f7;--panel:#fff;--fg:#1c1c1e;--mut:#6c6c70;--line:#d8d8de;--ph:#000;--card:#1c1c1e;--card2:#2c2c2e;--pmut:#8e8e93;--amber:#ffb020;--blue:#0a84ff;--green:#30d158;--pink:#ff375f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+h1{font-size:20px;margin:0 0 4px}
+.rules{flex:1 1 280px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.rules p,.rules li{font-size:14px;line-height:1.5;color:var(--mut);margin:0}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.box h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--mut)}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.sw button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+.phone{width:100%;max-width:390px;background:var(--ph);color:#fff;border-radius:38px;padding:18px 14px 24px;box-sizing:border-box;min-height:790px;border:1px solid #333}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--pmut);padding:2px 6px 8px}
+.top b{color:#fff;font-size:15px}
+.ex{padding:2px 6px 10px}
+.ex h2{font-size:24px;margin:0;font-weight:700}
+.ex small{color:var(--pmut);font-size:13px}
+.fc{background:var(--card);border-radius:22px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:8px}
+.fch{display:flex;justify-content:space-between;align-items:flex-end}
+.bpm{font:700 40px/1 ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.bpm small{font-size:13px;color:var(--pmut);font-weight:600;margin-left:4px}
+.bpm .h{color:var(--pink);font-size:22px;display:inline-block;margin-right:4px}
+@keyframes b{50%{transform:scale(1.15)}}
+.bpm .h{animation:b .9s infinite}
+@media (prefers-reduced-motion:reduce){.bpm .h{animation:none}}
+.zone{font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--card2)}
+.fc svg{width:100%;height:96px;display:block}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.chip{background:var(--card2);border-radius:14px;padding:7px 8px}
+.chip b{display:block;font:700 17px ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.chip small{font-size:11px;color:var(--pmut)}
+.tgl{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--pmut)}
+.tgl button{border:0;background:var(--card2);color:#fff;border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+.tgl button[aria-pressed=true]{background:#fff;color:#000}
+.big{background:var(--card);border-radius:22px;padding:12px;margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.big .l{display:flex;justify-content:space-between;font-size:13px;color:var(--pmut)}
+.big .l b{color:#fff}
+.vals{display:flex;gap:8px}
+.vals div{flex:1;background:var(--card2);border-radius:16px;padding:8px;text-align:center;font:700 26px ui-rounded,system-ui,sans-serif}
+.vals small{display:block;font:500 11px -apple-system,system-ui,sans-serif;color:var(--pmut)}
+.done{height:56px;border:0;border-radius:20px;background:#fff;color:#000;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit}
+.rest{background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.45);border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;color:var(--amber);font-size:13px}
+.rest b{font:700 26px ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.rest button{margin-left:auto;border:0;background:rgba(255,176,32,.2);color:var(--amber);border-radius:12px;height:34px;padding:0 12px;font-weight:600;cursor:pointer;font-family:inherit}
+.zb{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px}
+.zl{display:flex;justify-content:space-between;font-size:11px;color:var(--pmut);margin-top:4px}
+.sub{font-size:12px;color:var(--pmut)}
+.fin h3{margin:0;font-size:24px}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+<div class="wrap">
+<div class="rules">
+  <h1>Fréquence cardiaque en musculation</h1>
+  <p>Maquette 3 du chantier 18. La FC bouge en direct. Les valeurs sont simulées.</p>
+  <div class="sw" id="sw" role="group" aria-label="Vue"></div>
+  <div class="box"><h2>À essayer</h2><ul>
+    <li><b>Fait</b> : le repos démarre, la FC redescend, la récupération s'affiche (« −22 bpm »). <b>Passer</b> repart.</li>
+    <li><b>Comparer</b> montre ou cache les 2 dernières séances du même programme, en pointillés.</li>
+    <li>Sur la fiche terminée, la courbe couvre toute la séance, avec le temps passé par zone.</li>
+  </ul></div>
+  <div class="box"><h2>Règles</h2><ul>
+    <li>Bandeau FC <b>sous le nom de l'exercice</b>, sur la feuille de séance, l'écran superset, la barre réduite (chiffre seul) et la fiche terminée.</li>
+    <li>Courbe des 10 dernières minutes en séance. Les barres ambrées sont les repos, les traits blancs la fin de chaque série.</li>
+    <li>Moyenne, max, zone en cours (seuils d'Aujourd'hui), récupération entre séries.</li>
+    <li>Comparaison : 2 dernières séances du même programme (cardio : même sport), alignées sur le temps écoulé. Interrupteur mémorisé.</li>
+    <li>Sans bracelet connecté, le bandeau explique qu'il attend la FC.</li>
+  </ul></div>
+</div>
+
+<div class="phone" id="ph"></div>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var view='live',cmp=true,phase='work',N=120,hr=[],mark=[],restAt=-1,peak=0,setNo=3,restSec=0,recov=[22,19],t=0;
+for(var i=0;i<N;i++){hr.push(100+Math.round(28*Math.abs(Math.sin(i/9))));}
+mark=[[22,'s'],[34,'r'],[58,'s'],[70,'r'],[95,'s']];
+function zone(b){return b<114?'Z1':b<133?'Z2':b<152?'Z3':b<171?'Z4':'Z5'}
+function zcol(b){return b<114?'#8e8e93':b<133?'#30d158':b<152?'#ffd60a':b<171?'#ff9f0a':'#ff375f'}
+function cur(){return hr[hr.length-1]}
+function y(v,h){return h-(v-80)/(180-80)*(h-8)-4}
+function path(a,w,h,off){return a.map(function(v,i){return(i?'L':'M')+(i*(w/(N-1))).toFixed(1)+' '+y(v,h).toFixed(1)}).join(' ')}
+function cmpPath(seed,amp){var a=[];for(var i=0;i<N;i++)a.push(110+amp*Math.sin(i/(8+seed))+(i%24<9?14:0)+seed*2);return a}
+function chart(w,h){
+  var g='';[114,133,152].forEach(function(v){g+='<line x1="0" x2="'+w+'" y1="'+y(v,h)+'" y2="'+y(v,h)+'" stroke="#48484a" stroke-width=".6" stroke-dasharray="2 3"/>'});
+  var bands='';mark.forEach(function(m,k){if(m[1]==='r'){var x=m[0]*(w/(N-1));bands+='<rect x="'+x+'" y="0" width="'+(14*(w/(N-1)))+'" height="'+h+'" fill="rgba(255,176,32,.14)"/>'}else{var x2=m[0]*(w/(N-1));bands+='<line x1="'+x2+'" x2="'+x2+'" y1="0" y2="'+h+'" stroke="#fff" stroke-opacity=".35" stroke-width="1"/>'}});
+  var c='';if(cmp){c='<path d="'+path(cmpPath(1,18),w,h)+'" fill="none" stroke="#8e8e93" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"/><path d="'+path(cmpPath(3,22),w,h)+'" fill="none" stroke="#636366" stroke-width="1.2" stroke-dasharray="1 4" opacity=".9"/>'}
+  var last=hr.length-1,lx=last*(w/(N-1));
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-label="Courbe de fréquence cardiaque">'+g+bands+c+'<path d="'+path(hr,w,h)+'" fill="none" stroke="#ff375f" stroke-width="2.2" stroke-linejoin="round"/><circle cx="'+lx+'" cy="'+y(cur(),h)+'" r="4" fill="#ff375f"/></svg>';
+}
+function stats(){var s=0,m=0;hr.forEach(function(v){s+=v;if(v>m)m=v});return{avg:Math.round(s/hr.length),max:m}}
+function mmss(s){return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
+function render(){
+  var sw='';[['live','En séance'],['fin','Séance terminée']].forEach(function(x){sw+='<button data-v="'+x[0]+'" aria-pressed="'+(view===x[0])+'">'+x[1]+'</button>'});$('sw').innerHTML=sw;
+  var st=stats(),b=cur();
+  if(view==='live'){
+    var rec=phase==='rest'?Math.max(0,peak-b):recov[0];
+    $('ph').innerHTML='<div class="top"><span>Séance · Full body A</span><b>34:12</b><span>♥ '+b+'</span></div>'
+    +'<div class="ex"><h2>Développé couché</h2><small>Exercice 1 sur 6 · série '+setNo+' sur 4</small></div>'
+    +'<div class="fc"><div class="fch"><div class="bpm"><span class="h" style="color:'+zcol(b)+'">♥</span><span id="b">'+b+'</span><small>bpm</small></div><span class="zone" style="color:'+zcol(b)+'">'+zone(b)+' · '+(phase==='rest'?'récupération':'effort')+'</span></div>'
+    +'<div id="chart">'+chart(340,96)+'</div>'
+    +'<div class="tgl"><span>10 dernières minutes</span><button data-c="1" aria-pressed="'+cmp+'">Comparer aux 2 dernières séances</button></div>'
+    +'<div class="chips"><div class="chip"><b>'+st.avg+'</b><small>Moyenne</small></div><div class="chip"><b>'+st.max+'</b><small>Max</small></div><div class="chip"><b>−'+rec+'</b><small>Récup. '+(phase==='rest'?'en cours':'dernière')+'</small></div></div></div>'
+    +'<div class="big"><div class="l"><b>Série '+setNo+' sur 4</b><span>Dernière fois : 60 × 8</span></div><div class="vals"><div>60<small>kg</small></div><div>8<small>reps</small></div></div>'
+    +(phase==='rest'?'<div class="rest"><b>'+mmss(Math.max(0,120-restSec))+'</b><span>Repos</span><button data-a="skip">Passer</button></div>':'<button class="done" data-a="done">Fait</button>')+'</div>';
+  }else{
+    var w=340,h=110,full=[];for(var i=0;i<N;i++)full.push(hr[i]);
+    $('ph').innerHTML='<div class="fin"><div class="top"><span>Fiche de séance</span><span>mer. 4 nov.</span></div><div class="ex"><h2>Full body A</h2><small>52 min · 18 séries · Effort 7,4</small></div></div>'
+    +'<div class="fc"><div class="fch"><div class="bpm"><span class="h" style="color:var(--pink)">♥</span>'+st.avg+'<small>bpm moy. · max '+st.max+'</small></div></div>'
+    +chart(w,h)
+    +'<div class="tgl"><span>0 min → 52 min</span><button data-c="1" aria-pressed="'+cmp+'">Comparer</button></div>'
+    +'<div class="chips"><div class="chip"><b>'+st.avg+'</b><small>Moyenne</small></div><div class="chip"><b>'+st.max+'</b><small>Max</small></div><div class="chip"><b>−21</b><small>Récup. moy. 60 s</small></div></div></div>'
+    +'<div class="big"><div class="l"><b>Temps par zone</b><span>52 min</span></div><div class="zb"><i style="flex:18;background:#8e8e93"></i><i style="flex:44;background:#30d158"></i><i style="flex:28;background:#ffd60a"></i><i style="flex:9;background:#ff9f0a"></i><i style="flex:1;background:#ff375f"></i></div><div class="zl"><span>Z1 9 min</span><span>Z2 23</span><span>Z3 15</span><span>Z4 5</span></div></div>'
+    +'<div class="big"><div class="l"><b>Par exercice</b><span>FC moyenne</span></div><div class="l"><span>Développé couché</span><span style="color:#fff">128 bpm</span></div><div class="l"><span>Tirage poitrine</span><span style="color:#fff">121 bpm</span></div><div class="l"><span>Squat</span><span style="color:#fff">139 bpm</span></div></div>';
+  }
+}
+document.addEventListener('click',function(e){var t=e.target.closest('button');if(!t)return;
+  if(t.dataset.v){view=t.dataset.v;render()}
+  else if(t.dataset.c){cmp=!cmp;render()}
+  else if(t.dataset.a==='done'){phase='rest';restSec=0;peak=cur();setNo=Math.min(4,setNo+1);render()}
+  else if(t.dataset.a==='skip'){phase='work';render()}
+});
+var rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+setInterval(function(){
+  t++;var c=cur(),tg=phase==='rest'?102:148,n=c+(tg-c)*0.12+(Math.random()*3-1.5);
+  if(phase==='rest')restSec++;
+  hr.push(Math.round(n));if(hr.length>N)hr.shift();
+  if(view==='live'){var ch=$('chart');if(ch)ch.innerHTML=chart(340,96);var bb=$('b');if(bb)bb.textContent=cur();if(t%4===0)render();}
+},rm?4000:1000);
+render();
+</script>

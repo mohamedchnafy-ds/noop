@@ -61,6 +61,11 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 - Choix de Mohamed : **bande de 7 jours compacte**, légende dans un « i », **Mois** par un bouton calendrier ; **« Programmes › »** regroupe liste, Nouveau, Importer, Planifier ; **Progression** en une ligne seulement s'il y a une charge à monter, **Régularité** dans l'écran Progression ; **« Autre séance »** ouvre la feuille Démarrer.
 - Rappel de Mohamed : **la fréquence cardiaque doit apparaître en musculation** (courbe sur la carte d'une séance faite et dans l'historique de cet écran ; feuille de séance, séance en cours et fiche terminée dans la maquette 3, avec la comparaison aux dernières séances).
 
+### Maquette 3 — FC en musculation (11 nov.) : en attente de validation
+- Remarque de Mohamed : la maquette 2 ne montrait la FC qu'après la séance ; elle doit être visible **pendant** l'entraînement.
+- Lien : https://claude.ai/artifact/6FQ5eUz4vDz7RDeUUaVTxE ; source `docs/fork/maquettes/chantier-18-3-frequence-cardiaque.html`.
+- Choix de Mohamed : **bandeau FC sous le nom de l'exercice** (FC en direct, zone, courbe des 10 dernières minutes avec repos ambrés et fin de série marquée) ; **comparaison** = 2 dernières séances du même programme (cardio : même sport) en pointillés, interrupteur « Comparer » ; **chiffres** : moyenne, max, zone de FC, **récupération entre séries** (baisse pendant le repos). Fiche terminée : courbe complète, temps par zone, FC moyenne par exercice.
+
 ## Découpage du code
 | Lot | Contenu | IPA |
 |---|---|---|

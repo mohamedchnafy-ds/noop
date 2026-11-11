@@ -1,0 +1,119 @@
+<title>Fin de série automatique</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: phone-sized mock with a view switcher, rules column beside it. */
+:root{--bg:#f2f2f7;--panel:#fff;--fg:#1c1c1e;--mut:#6c6c70;--line:#d8d8de;--ph:#000;--card:#1c1c1e;--card2:#2c2c2e;--pmut:#8e8e93;--amber:#ffb020;--blue:#0a84ff;--green:#30d158;--pink:#ff375f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+h1{font-size:20px;margin:0 0 4px}
+.rules{flex:1 1 280px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.rules p,.rules li{font-size:14px;line-height:1.5;color:var(--mut);margin:0}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.box h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--mut)}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.sw button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+.phone{width:100%;max-width:390px;background:var(--ph);color:#fff;border-radius:38px;padding:18px 14px 26px;box-sizing:border-box;min-height:790px;border:1px solid #333}
+.hd{padding:2px 6px 8px}
+.hd .k{font-size:13px;color:var(--pmut)}
+.hd h2{font-size:26px;margin:2px 0 0;letter-spacing:-.01em}
+.exp{display:inline-block;font-size:11px;font-weight:700;background:var(--card2);color:var(--amber);border-radius:999px;padding:3px 8px;margin-left:6px;vertical-align:middle}
+.card{background:var(--card);border-radius:22px;padding:14px;margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px}
+.row small{color:var(--pmut);font-size:12px;display:block;line-height:1.4;margin-top:2px}
+.tg{width:48px;height:28px;border-radius:14px;background:var(--green);position:relative;border:0;cursor:pointer;flex:none}
+.tg::after{content:"";position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s}
+.tg[aria-pressed=false]{background:#48484a}.tg[aria-pressed=false]::after{left:3px}
+.rg{width:100%;accent-color:#fff}
+.val{font:700 22px ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.big{background:var(--card);border-radius:22px;padding:14px;margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.vals{display:flex;gap:8px}
+.vals div{flex:1;background:var(--card2);border-radius:16px;padding:8px;text-align:center;font:700 26px ui-rounded,system-ui,sans-serif}
+.vals small{display:block;font:500 11px -apple-system,system-ui,sans-serif;color:var(--pmut)}
+.act{height:56px;border:0;border-radius:20px;background:#fff;color:#000;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit}
+.sim{height:44px;border:1px dashed #636366;border-radius:16px;background:none;color:#d1d1d6;font-size:14px;cursor:pointer;font-family:inherit}
+.cd{background:rgba(10,132,255,.15);border:1px solid rgba(10,132,255,.5);border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;color:#64a8ff;font-size:14px}
+.cd b{font:700 28px ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.cd button{margin-left:auto;border:0;background:rgba(10,132,255,.25);color:#9cc8ff;border-radius:12px;height:36px;padding:0 14px;font-weight:600;cursor:pointer;font-family:inherit}
+.sug{background:var(--card2);border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:14px}
+.sug button{margin-left:auto;border:0;background:#fff;color:#000;border-radius:12px;height:36px;padding:0 14px;font-weight:700;cursor:pointer;font-family:inherit}
+.rest{background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.45);border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;color:var(--amber);font-size:13px}
+.rest b{font:700 26px ui-rounded,system-ui,sans-serif}
+.note{font-size:12px;color:var(--pmut);line-height:1.5;padding:4px 6px}
+.prog{height:6px;background:var(--card2);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--blue)}
+.two{display:flex;gap:8px}
+.two button{flex:1;height:52px;border:0;border-radius:18px;background:var(--card2);color:#fff;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit}
+.two button.on{background:var(--green);color:#000}
+.log{font-size:13px;color:var(--pmut);line-height:1.6}
+.log b{color:#fff;font-weight:600}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+<div class="wrap">
+<div class="rules">
+  <h1>Fin de série automatique</h1>
+  <p>Maquette 5 du chantier 18, lot D. Le comportement est simulé. Choisis une vue, puis essaie le bouton « Simuler ».</p>
+  <div class="sw" id="sw" role="group" aria-label="Vue"></div>
+  <div class="box"><h2>Règles</h2><ul>
+    <li><b>Désactivée par défaut</b>, dans Paramètres → Entraînement, section Expérimental.</li>
+    <li><b>Option éteinte</b> : l'app propose « Fin de série ? » sans rien arrêter. Le chrono continue, l'app note ce qu'elle aurait fait.</li>
+    <li><b>Option allumée</b> : à la fin de la marge sans mouvement (5 à 10 s, 6 s par défaut), la série s'arrête et le repos démarre. « Annuler » pendant la marge.</li>
+    <li><b>Repères</b> : pendant une phase d'apprentissage de 10 séries, tu touches Début et Fin. Ils servent de vérité de terrain pour régler la détection sur toi. Sur l'appareil, hors <code>.noopbak</code>.</li>
+    <li>Le mouvement du WHOOP 4.0 est rare : d'abord on enregistre sans agir, puis on valide sur le bracelet en séance réelle.</li>
+  </ul></div>
+</div>
+<div class="phone" id="ph"></div>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var view='reglage',on=false,margin=6,learn=true,learned=4,t0=0,ph='work',cdLeft=0,cd=null,logs=[],marking=null;
+function render(){
+  var sw='';[['reglage','Réglage'],['seance','En séance'],['appr','Apprentissage']].forEach(function(x){sw+='<button data-v="'+x[0]+'" aria-pressed="'+(view===x[0])+'">'+x[1]+'</button>'});$('sw').innerHTML=sw;
+  var h='';
+  if(view==='reglage'){
+    h='<div class="hd"><div class="k">Paramètres › Entraînement</div><h2>Fin de série<span class="exp">EXPÉRIMENTAL</span></h2></div>'
+    +'<div class="card"><div class="row"><span>Arrêter la série automatiquement<small>'+(on?'À la fin de la marge sans mouvement, la série s’arrête et le repos démarre.':'Éteint : l’app propose la fin de série sans l’arrêter et note ce qu’elle aurait fait.')+'</small></span><button class="tg" id="tg" aria-pressed="'+on+'" aria-label="Activer"></button></div></div>'
+    +'<div class="card"><div class="row"><span>Marge sans mouvement</span><span class="val" id="mv">'+margin+' s</span></div><input class="rg" id="rg" type="range" min="5" max="10" step="1" value="'+margin+'" aria-label="Marge"><div class="note" style="padding:0">Entre 5 et 10 s. Plus court : repos plus tôt, plus de risque de couper une série.</div></div>'
+    +'<div class="card"><div class="row"><span>Repères d’apprentissage<small>'+(learn?'En cours : '+learned+' séries sur 10':'Terminé · 10 séries marquées')+'</small></span><button class="sim" style="height:36px;padding:0 12px" data-a="relearn">'+(learn?'Voir':'Relancer')+'</button></div><div class="prog"><i style="width:'+(learn?learned*10:100)+'%"></i></div></div>'
+    +'<div class="note">Tout reste sur l’iPhone. Les repères ne sont pas dans la sauvegarde .noopbak. Valider d’abord sur ton bracelet en séance réelle.</div>';
+  }else if(view==='seance'){
+    h='<div class="hd"><div class="k">Séance · Full body A</div><h2>Développé couché</h2></div>'
+    +'<div class="big"><div class="row"><b>Série 2 sur 4</b><span style="color:var(--pmut);font-size:13px">'+(ph==='work'?'en cours · 0:'+('0'+t0).slice(-2):'terminée')+'</span></div><div class="vals"><div>60<small>kg</small></div><div>8<small>reps</small></div></div>';
+    if(ph==='work')h+='<button class="sim" data-a="still">Simuler : le poignet s’immobilise</button><button class="act" data-a="done">Fait</button>';
+    else if(ph==='detect'&&on)h+='<div class="cd"><b>'+cdLeft+'</b><span>Fin de série détectée</span><button data-a="cancel">Annuler</button></div><button class="act" data-a="done">Fait</button>';
+    else if(ph==='detect')h+='<div class="sug"><span>Fin de série ?</span><button data-a="done">Oui</button></div><div class="note" style="padding:0">Option éteinte : le chrono continue. L’app note qu’elle aurait arrêté la série.</div>';
+    else h+='<div class="rest"><b>2:00</b><span>Repos lancé seul</span></div>';
+    h+='</div><div class="card"><div class="row"><span>Option</span><span style="color:var(--pmut)">'+(on?'allumée · marge '+margin+' s':'éteinte')+'</span></div></div>';
+    if(logs.length)h+='<div class="card"><div class="log">'+logs.map(function(l){return l}).join('<br>')+'</div></div>';
+  }else{
+    h='<div class="hd"><div class="k">Apprentissage · '+learned+' séries sur 10</div><h2>Marque ta série</h2></div>'
+    +'<div class="big"><div class="prog"><i style="width:'+learned*10+'%"></i></div><div class="vals"><div>60<small>kg</small></div><div>8<small>reps</small></div></div>'
+    +'<div class="two"><button data-a="start" class="'+(marking==='start'?'on':'')+'">Début</button><button data-a="end" class="'+(marking==='end'?'on':'')+'">Fin</button></div>'
+    +'<div class="note" style="padding:0">Touche Début quand tu commences à pousser, Fin quand tu reposes la barre. Après 10 séries, l’apprentissage s’arrête et la détection tourne seule.</div></div>'
+    +'<div class="card"><div class="row"><span>Ce que fait la détection<small>Elle compare ses estimations à tes repères et règle sa sensibilité sur toi. Rien ne quitte l’iPhone.</small></span></div></div>';
+  }
+  $('ph').innerHTML=h;
+  var rg=$('rg');if(rg)rg.oninput=function(){margin=+rg.value;$('mv').textContent=margin+' s'};
+}
+function startCd(){
+  cdLeft=margin;ph='detect';render();
+  if(!on){logs.unshift('<b>Noté</b> : aurait arrêté la série à 0:'+('0'+(t0)).slice(-2));render();return}
+  if(cd)clearInterval(cd);cd=setInterval(function(){cdLeft--;if(cdLeft<=0){clearInterval(cd);ph='rest';logs.unshift('<b>Arrêtée</b> : fin détectée, repos lancé');}render()},1000);
+}
+document.addEventListener('click',function(e){var t=e.target.closest('button');if(!t)return;
+  if(t.dataset.v){view=t.dataset.v;render()}
+  else if(t.id==='tg'){on=!on;render()}
+  else if(t.dataset.a==='still'){t0=34;startCd()}
+  else if(t.dataset.a==='cancel'){if(cd)clearInterval(cd);ph='work';logs.unshift('<b>Annulée</b> : série reprise');render()}
+  else if(t.dataset.a==='done'){if(cd)clearInterval(cd);ph='rest';render()}
+  else if(t.dataset.a==='relearn'){view='appr';render()}
+  else if(t.dataset.a==='start'){marking='start';render()}
+  else if(t.dataset.a==='end'){marking=null;learned=Math.min(10,learned+1);if(learned>=10)learn=false;render()}
+});
+render();
+</script>

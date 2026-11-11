@@ -66,9 +66,13 @@ Fiche ouverte le 11 nov. 2026. État : **changements listés avec Mohamed, maque
 - Lien : https://claude.ai/artifact/6FQ5eUz4vDz7RDeUUaVTxE ; source `docs/fork/maquettes/chantier-18-3-frequence-cardiaque.html`.
 - Choix de Mohamed : **bandeau FC sous le nom de l'exercice** (FC en direct, zone, courbe des 10 dernières minutes avec repos ambrés et fin de série marquée) ; **comparaison** = 2 dernières séances du même programme (cardio : même sport) en pointillés, interrupteur « Comparer » ; **chiffres** : moyenne, max, zone de FC, **récupération entre séries** (baisse pendant le repos). Fiche terminée : courbe complète, temps par zone, FC moyenne par exercice.
 
-### Maquette 4 — ce qui influence mes séances (11 nov.) : en attente de validation
+### Maquette 4 — ce qui influence mes séances (11 nov.) : **validée**
 - Lien : https://claude.ai/artifact/P75GuGrAZ228vR9kEqmotf ; source `docs/fork/maquettes/chantier-18-4-influences.html`.
 - Choix de Mohamed : **bloc dédié dans l'écran Progression** (Expérimental, désactivable) ; **une carte par facteur** avec phrase déterministe « chez toi, on observe… », barres avec / sans, écart et nombre de séances ; **seuil 6 séances par groupe, 12 au total** (avant : « pas encore assez de données » + barre vers le seuil) ; **eau en séance** par un bouton « + verre » (25 cl) dans la barre de repos, total sur la fiche terminée.
+
+### Maquette 5 — fin de série automatique, lot D (11 nov.) : en attente de validation
+- Lien : https://claude.ai/artifact/Btt9NmKtquw9ZAgQc7YDRA ; source `docs/fork/maquettes/chantier-18-5-fin-de-serie.html`.
+- Choix de Mohamed : réglage dans **Paramètres › Entraînement, section Expérimental** (éteint par défaut, marge 5–10 s, 6 s par défaut) ; pendant la marge, **compte à rebours + Annuler** ; option éteinte = l'app propose « Fin de série ? » et note ce qu'elle aurait fait ; **repères** : phase d'apprentissage de **10 séries** (boutons Début / Fin), puis la détection tourne seule, relançable ; sur l'appareil, hors `.noopbak`.
 
 ## Découpage du code
 | Lot | Contenu | IPA |

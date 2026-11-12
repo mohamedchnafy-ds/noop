@@ -450,13 +450,16 @@ struct StrapLinkSummary: Equatable {
     /// - Parameters:
     ///   - deviceName: the active device's display name.
     ///   - connected: the radio link is up.
-    ///   - trusted: the link is fully usable (a bonded strap, or a streaming ring).
+    ///   - trusted: the link is usable (a bonded strap, or a streaming ring).
+    ///   - liveHeartRateOnly: a WHOOP streaming HR without the encrypted bond (#69): buzz, alarm and history
+    ///     sync do not work on it.
     ///   - liveHeartRate: a live bpm is on screen right now.
     ///   - syncing: the history offload is running.
     ///   - batteryPercent: the ACTIVE device's charge, when it reported one.
     ///   - lastSyncLabel: "2 min ago", already formatted (nil = never synced).
-    static func strapLinkSummary(deviceName: String, connected: Bool, trusted: Bool, liveHeartRate: Bool,
-                                 syncing: Bool, batteryPercent: Int?, lastSyncLabel: String?) -> StrapLinkSummary {
+    static func strapLinkSummary(deviceName: String, connected: Bool, trusted: Bool, liveHeartRateOnly: Bool = false,
+                                 liveHeartRate: Bool, syncing: Bool, batteryPercent: Int?,
+                                 lastSyncLabel: String?) -> StrapLinkSummary {
         var parts: [String] = []
         if liveHeartRate { parts.append(String(localized: "live heart rate arriving")) }
         if syncing {
@@ -473,6 +476,11 @@ struct StrapLinkSummary: Equatable {
         if !trusted {
             return StrapLinkSummary(level: .warning,
                                     title: String(localized: "Connected to \(deviceName), secure link not established"),
+                                    detail: detail)
+        }
+        if liveHeartRateOnly {
+            return StrapLinkSummary(level: .warning,
+                                    title: String(localized: "Connected to \(deviceName): live heart rate only"),
                                     detail: detail)
         }
         return StrapLinkSummary(level: .good, title: String(localized: "Connected to \(deviceName)"), detail: detail)

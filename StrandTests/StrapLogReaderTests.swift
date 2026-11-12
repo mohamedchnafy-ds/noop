@@ -111,5 +111,10 @@ final class StrapLogReaderTests: XCTestCase {
                                                      lastSyncLabel: nil)
         XCTAssertEqual(half.level, .warning)
         XCTAssertEqual(half.detail, "fetching the history")
+        let shortcut = StrapLinkSummary.strapLinkSummary(deviceName: "WHOOP 5.0", connected: true, trusted: true,
+                                                         liveHeartRateOnly: true, liveHeartRate: true, syncing: false,
+                                                         batteryPercent: nil, lastSyncLabel: nil)
+        XCTAssertEqual(shortcut.level, .warning)
+        XCTAssertEqual(shortcut.title, "Connected to WHOOP 5.0: live heart rate only")
     }
 }

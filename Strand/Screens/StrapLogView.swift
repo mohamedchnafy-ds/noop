@@ -78,6 +78,7 @@ struct StrapLinkSummaryRow: View {
         }
         return StrapLinkSummary.strapLinkSummary(
             deviceName: name, connected: live.connected, trusted: trusted,
+            liveHeartRateOnly: isWhoop && live.bonded && !live.encryptedBond,
             liveHeartRate: live.connected && model.bpm != nil, syncing: live.backfilling,
             batteryPercent: live.connected ? battery : nil, lastSyncLabel: lastSync)
     }

@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; **lots A, B, C fusionnés** (#142 à #147, `main` deb5971) ; **IPA `build/seance`** = `main` deb5971, à installer et valider (liste « À tester (IPA `build/seance`) ») ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; **lots A, B, C fusionnés** (#142 à #147, `main` deb5971) ; IPA `build/seance` = `main` deb5971 essayée → correctif des supersets **#149** fusionné ; **IPA `build/seance-2`** = `main` 938aa7c, à installer et valider (listes « À tester (IPA `build/seance`) » et « À tester (IPA `build/seance-2`) ») ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -162,6 +162,13 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 ### Retour de Mohamed sur l'IPA `build/seance` (12 nov., matin)
 - Capture de l'écran « Superset A · Bloc 1 / 4 » : **ni roulette ni FC**. Cause : A1 réservait la carte de saisie rapide aux exercices seuls, et le bandeau FC (A2) n'était que sur les écrans de tour et de repos d'un superset, pas sur son écran de départ ; or les programmes de Mohamed sont surtout en supersets.
 - **Correctif** : sur les écrans de superset, les cases poids / répétitions ne sont plus des champs à clavier ; un tap ouvre la **roulette** (même feuille que la carte : − / + d'un palier, bouton **Palier**, OK), qui écrit les mêmes chiffres tenus d'avance, donc le poids se répète sur les tours suivants. Un chiffre non donné reste gris (celui de la série d'avant). Le **bandeau FC** est aussi sur l'**écran de départ** du bloc, sous la carte du bracelet. La roulette de la carte de saisie rapide gagne les mêmes − / + et Palier.
+
+### Correctif des supersets fusionné, IPA `build/seance-2` (12 nov.)
+- **#149** fusionnée (`main` 938aa7c). **IPA `build/seance-2`** = `main` 938aa7c (release `ipa-build-seance-2`), envoyée à Mohamed.
+
+### À tester (IPA `build/seance-2`)
+Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App Extensions (Use Main Profile) »). En plus de la liste `build/seance` :
+- **Supersets (#149)** : un bloc superset d'un programme. Écran de départ « Superset A · Bloc 1 / n » : **bandeau FC** sous la carte du bracelet. Écran d'un tour : toucher une case poids ou répétitions → **roulette** (pas de clavier), − / + d'un palier, bouton **Palier**, OK ; un chiffre non touché reste gris (celui de la série d'avant) ; le poids donné au tour 1 se répète aux tours suivants. Carte de saisie rapide (exercice seul) : la roulette a aussi − / + et Palier.
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

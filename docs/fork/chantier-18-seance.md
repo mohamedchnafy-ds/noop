@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** (lot A, PR A1 : saisie rapide et poids répété ; voir « Chantier 18 — le code »).
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A, PR A1 fusionnée (#142, `main` 040ab3f) ; PR A2 (fréquence cardiaque) ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -95,6 +95,16 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - **Le gros bouton de la barre du bas** est caché quand la carte est là (une action par moment) ; Reprendre (pause) et Terminer restent. La bande de repos entre deux lignes est cachée aussi (le repos est dans la carte). Le défilement suit la série de la carte.
 - **Palier par exercice** : `LiftWeightStep` (UserDefaults `lift.weightStep.v1`, nom d'exercice → kg ; 1, 2, 2,5, 5 kg en boucle), deviné par le nom (haltère / dumbbell → 1 kg, machine / poulie / câble / tirage / presse… → 5 kg, sinon barre 2,5 kg). Réglage de l'appareil, **hors `.noopbak`** (pas de jumeau Android). Le pas de la règle de progression (`LiftProgression`, « ↑ 62,5 kg ») **ne change pas**, pour que la séance, Entraînement et le Coach ne se contredisent pas. − / + retombent sur la grille du palier (61 → 62,5 → 65).
 - Tests : `StrandTests/LiftQuickEntryTests.swift` ; `testLastSessionIsUsed…` attend 52,5 kg en série 3 (nouvelle règle).
+
+### Lot A, PR A1 fusionnée (12 nov.)
+- **#142** fusionnée (`main` 040ab3f), 6/6 sur sa tête (macOS + StrandTests, iOS, Android, Tools, doc, linux-capture). La branche `claude/magical-franklin-hhb7rv` repart de `main` pour A2 (choix de Mohamed : « fais le mieux »).
+
+### Lot A, PR A2 : fréquence cardiaque en séance, sur la fiche et en cardio (12 nov.)
+- **Calcul pur** `LiftHeartRateMath` : courbe par seaux (10 s en séance, comme la séance cardio), **récupération** d'une série = pic de FC du début de la série à 10 s après sa fin, moins le plus bas pendant son repos (repos ≥ 20 s ; le repos en cours se lit jusqu'à maintenant) ; **comparaison** = courbes des séances d'avant posées sur le **temps écoulé** depuis leur début (les pauses ne sont pas retirées : c'est un repère, pas une mesure) ; FC moyenne par exercice sur ses propres séries. Rien n'est stocké, rien ne nourrit un score.
+- **Bandeau en séance** (`LiftLiveHeartRateBand`) au-dessus de la carte de saisie rapide (sous le nom de l'exercice) et sous les tuiles des écrans de superset : ♥ bpm, zone (`hrZoneSet`, la même que les tuiles), « en série » / « récup. », courbe des 10 dernières minutes avec les repos en ambre et un trait à la fin de chaque série, les **2 dernières séances du même programme** en pointillés gris, interrupteur « Comparer aux 2 dernières séances » **mémorisé** (`lift.hr.compare`, partagé avec le cardio), puis Moyenne · Max · Récup. (en cours, sinon la dernière). Relecture des échantillons toutes les 10 s ; séances d'avant lues une fois (programme identique, 120 jours). Séance libre : pas de comparaison. Sans FC : « En attente de la fréquence cardiaque du bracelet. » Sur les écrans de superset, la **moyenne n'est pas répétée** (déjà dans la tuile kcal : deux lectures du même fait, deux rafraîchissements).
+- **Fiche terminée** (`LiftSessionHeartRateSection`, section « Fréquence cardiaque » sous les chiffres) : courbe de toute la séance (≈ 120 points), comparaison, Moyenne · Max · Récup. moyenne (sans en-tête : la moyenne n'est dite qu'une fois), temps par zone (5 segments + minutes), FC moyenne par exercice.
+- **Cardio** : la courbe des 10 dernières minutes de la séance en direct dessine les **2 dernières séances du même sport** (même règle d'alignement), avec le même interrupteur.
+- Tests : `StrandTests/LiftHeartRateMathTests.swift`.
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

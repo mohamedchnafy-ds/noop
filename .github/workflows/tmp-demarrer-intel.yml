@@ -1,0 +1,64 @@
+# TEMPORARY (fork, Démarrer tools, PR #156, never merged): the macOS leg of app-build on an Intel runner
+# while the macos-15 arm64 runners are saturated. Builds Strand (macOS) and runs StrandTests without
+# the PNG render classes (no GPU on Intel). Then builds NOOPiOS for the iOS Simulator, since the macos-26 leg could not get a runner either.
+name: TMP macOS build on Intel (fork, ci/demarrer-intel)
+
+on:
+  push:
+    branches: ['ci/demarrer-intel']
+
+concurrency:
+  group: tmp-demarrer-intel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select the newest Xcode 26
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          test -n "$X" || { echo "::error::no Xcode 26 on this image"; exit 1; }
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build Strand (macOS)
+        run: >-
+          set -o pipefail; xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee mac.log
+      - name: Build NOOPiOS (iOS Simulator)
+        run: >-
+          set -o pipefail; xcodebuild -scheme NOOPiOS -configuration Debug -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee ios.log
+      - name: StrandTests (without the PNG render classes)
+        run: >-
+          set -o pipefail; xcodebuild -scheme Strand -configuration Debug -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          -only-testing:StrandTests
+          -skip-testing:StrandTests/CoachCardsRenderTests -skip-testing:StrandTests/DayWidgetsRenderTests
+          -skip-testing:StrandTests/LabReportRenderTests -skip-testing:StrandTests/LiftProgramMuscleRenderTests
+          -skip-testing:StrandTests/LiftProgressRenderTests -skip-testing:StrandTests/LiftSupersetRenderTests
+          -skip-testing:StrandTests/LiquidVesselStillTests -skip-testing:StrandTests/LiveHRBannerRenderTests
+          -skip-testing:StrandTests/LiveWorkoutRenderTests -skip-testing:StrandTests/MoreHubRenderTests
+          -skip-testing:StrandTests/NutritionRenderTests -skip-testing:StrandTests/SleepScreenRenderTests
+          -skip-testing:StrandTests/TodayScreenRenderTests -skip-testing:StrandTests/TrainingRenderTests
+          test 2>&1 | tee test.log
+      - name: Surface errors and the layout test result as annotations
+        if: always()
+        run: |
+          for f in mac.log ios.log test.log; do
+            [ -f "$f" ] || continue
+            grep -E "error:|Test Case .* failed|with [0-9]+ failures" "$f" | sort -u | head -60 | while IFS= read -r line; do
+              echo "::error::$f: ${line:0:900}"
+            done
+          done
+          if [ -f test.log ]; then
+            grep -E "Executed [0-9]+ tests" test.log | tail -6 | while IFS= read -r line; do
+              echo "::notice::${line:0:900}"
+            done
+          fi

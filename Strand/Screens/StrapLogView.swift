@@ -27,6 +27,8 @@ final class StrapLogReadingCache {
 struct StrapLinkSummaryRow: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var live: LiveState
+    /// Off where the screen states battery and history itself (the Live header), so no fact shows twice.
+    var showsDetail = true
 
     var body: some View {
         let summary = Self.currentSummary(model: model, live: live)
@@ -41,7 +43,7 @@ struct StrapLinkSummaryRow: View {
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let detail = summary.detail {
+                if showsDetail, let detail = summary.detail {
                     Text(detail)
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)

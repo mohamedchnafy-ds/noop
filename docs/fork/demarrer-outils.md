@@ -38,6 +38,25 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   un problème »). Le Centre de tests garde son propre journal brut.
 - Android : inchangé (écrans iPhone, aucune donnée stockée nouvelle).
 
+## FC en direct (PR 2)
+- Titre « FC en direct » (comme son entrée), sous-titre « Ton cœur en ce moment, battement par battement. »
+- En-tête : la ligne d'état du résolveur `StrapLinkSummary` (titre seul, sans détail, pour ne pas dire deux
+  fois batterie et historique), puis trois colonnes **Batterie · Au poignet · Historique** ; l'erreur de
+  synchro (`lastSyncError`) dessous, en orange. Partis : la pastille « Associé · diffusion en cours », les
+  badges FULL BOND / SYNCING n, la colonne Appareil (le nom est dans la ligne d'état).
+- Cadran : plus de « HEART RATE » en capitales ; « Zone 1 » ; la phrase sous le cadran ne s'affiche que si
+  elle apprend quelque chose (FC seule sans association complète, en attente, hors ligne).
+- « VFC du moment » remplace « Physiologie en direct » et RMSSD : la valeur n'est montrée que si elle est
+  crédible (**≤ 250 ms**, `LiveHRVReadout.ceilingMs`), sinon « — » et « Trop agitée pour un chiffre fiable ».
+  La courbe des battements reste, « Temps entre les battements : … ms ». Les tuiles R-R / Trame / Événement
+  partent (le journal du bracelet les garde).
+- **La grille « Confiance du signal » (6 tuiles) part** : chacune répétait l'en-tête ou le cadran.
+- Boutons : « Démarrer l'entraînement » en grand, puis « Mesurer ma VFC » et « Synchroniser maintenant »
+  (`BLEManager.syncNow`, le même que Santé). « Rafraîchir » part (la batterie est relue à l'ouverture).
+  Vibrer, Rechercher, Déconnecter restent dans la rangée du bas, inchangés.
+- « Gérer les appareils » → « Appareils · Associer ou changer de bracelet ».
+- Écart avec la maquette : pas de ligne Moyenne / Max sur 10 min / FC repos sous le cadran (aucune source
+  sur 10 min à l'écran aujourd'hui ; à faire à part si Mohamed la veut).
 ## Respirer (PR 3)
 - Sous-titre : « Le bracelet vibre pour te guider : une vibration pour inspirer, deux pour expirer. Tu peux
   fermer les yeux. » Onglets **Respirer · Mon rythme · Me calmer** (clé « My pace » ; « Calm me » en fr).
@@ -60,7 +79,10 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
 
 ## Journal
 - **12 nov. (soir)** : audit des 4 écrans, maquette en 5 planches, 4 questions, réponses = les choix
-  recommandés. PR 1 (journal du bracelet) codée : 96 clés dans les 10 langues, `StrapLogReaderTests`.
+  recommandés. PR 1 (journal du bracelet) codée : 97 clés dans les 10 langues, `StrapLogReaderTests` ;
+  PR #156. PR 2 (FC en direct) codée, empilée sur la PR 1 : 13 clés, `LiveHRVReadoutTests`. PR 3
+  (Respirer, 5 clés + 17 textes français) et PR 4 (Intervalles, 4 clés, `IntervalTimerTextTests`) codées
+  depuis `main`.
 
 ## À tester (prochaine IPA)
 - **Journal du bracelet** : FC en direct → en bas, carte « Ce que fait le bracelet » (4 phrases, heure à
@@ -71,3 +93,16 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   orange…) ; « Lignes techniques » montre la ligne brute sous chaque phrase et les blocs de lignes sans
   phrase ; Copier / Enregistrer donnent le même fichier qu'avant ; Centre de tests s'ouvre. **Captures à
   envoyer**, et le journal brut copié si une ligne fréquente reste sans phrase.
+- **FC en direct** : titre « FC en direct » ; en-tête = « Connecté au WHOOP 4.0 » + Batterie · Au poignet ·
+  Historique en entier (rien de coupé) ; plus de grille de 6 tuiles ; « Zone 1 » sous le chiffre ; VFC du
+  moment : un chiffre plausible, sinon « — » et « Trop agitée… » (fini les 454 ms) ; « Temps entre les
+  battements » ; boutons Démarrer l'entraînement, Mesurer ma VFC, Synchroniser maintenant (la synchro se
+  lance, le journal dit « Synchronisation demandée ») ; Vibrer / Rechercher / Déconnecter en bas ;
+  « Appareils ». **Capture à envoyer.**
+- **Respirer** : onglets Respirer · Mon rythme · Me calmer ; avant le départ, pastilles Prêt · Vibrations
+  activées puis « 0:00 sur 10:00 · 0 respirations » sans coupure ; le rond montre la FC en petit, pendant la
+  séance « Inspire… / Expire… » ; « 5,5 resp/min » ; « Sans fin · 5 min · 10 min · 15 min » ; « Carré » ;
+  onglet Mon rythme et Me calmer au tutoiement. **Capture à envoyer.**
+- **Intervalles** : titre « Intervalles » ; « Effort » et « Tour 1 sur 8 » ; « Prêt » avant de commencer,
+  « En pause » après une pause ; « Recommencer » ; « 30 s · 15 s · 8 · 5:45 » ; « De 5 s à 10 min, par pas de
+  5 s » ; une séance de muscu avec superset dit « Tour 2 sur 3 ». **Capture à envoyer.**

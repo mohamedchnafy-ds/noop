@@ -58,6 +58,10 @@ struct LiftLogView: View {
     @State private var showsLegend = false
     /// Fork chantier 18: « Other session » opens the « Start » sheet.
     @State private var showStart = false
+    /// Fork chantier 18 (« + Exercise »): today's additions by program, and the program being added to.
+    @State private var dayAdditions: [String: [LiftDayAddition]] = [:]
+    @State private var addingTo: ProgramAddTarget?
+    @AppStorage(LiftDayAdditions.revisionKey) private var additionsRevision = 0
     /// The chosen day; the week and the month shown are the ones holding it.
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
 
@@ -113,6 +117,21 @@ struct LiftLogView: View {
         .sheet(item: $viewing) { target in
             LiftSessionDetailSheet(session: target.session) { await load() }
         }
+        .sheet(item: $addingTo) { target in
+            LiftSessionExerciseSheet(destination: .today) { name, primary, secondaries in
+                LiftDayAdditions.add(LiftDayAddition(id: UUID().uuidString, exercise: name,
+                                                     primaryMuscle: primary, secondaryMuscles: secondaries),
+                                     day: todayKey, programId: target.id)
+                readDayAdditions()
+            }
+        }
+        .onChange(of: additionsRevision) { _ in readDayAdditions() }
+    }
+
+    private var todayKey: String { TrainingCalendar.trainingDayKey(Date(), calendar: calendar) }
+
+    private func readDayAdditions() {
+        dayAdditions = LiftDayAdditions.additionsByProgram(day: todayKey)
     }
 
     // MARK: - Sections
@@ -238,6 +257,12 @@ struct LiftLogView: View {
                                        if let row = sessionsById[lift.sessionId] {
                                            viewing = SessionDetailTarget(id: row.id, session: row)
                                        }
+                                   },
+                                   additions: dayAdditions,
+                                   onAddExercise: { id in addingTo = ProgramAddTarget(id: id) },
+                                   onRemoveAddition: { programId, additionId in
+                                       LiftDayAdditions.remove(id: additionId, day: todayKey, programId: programId)
+                                       readDayAdditions()
                                    })
             }
         }
@@ -354,6 +379,7 @@ struct LiftLogView: View {
         } else {
             elanShort = nil
         }
+        readDayAdditions()
         loaded = true
     }
 }
@@ -430,6 +456,11 @@ private struct TrainingProgramsScreen: View {
             TrainingPlanSheet(programs: summaries, plan: plan) { saved in savePlan(saved) }
         }
     }
+}
+
+/// The program « + Exercise » adds to, for today (fork chantier 18).
+private struct ProgramAddTarget: Identifiable {
+    let id: String
 }
 
 private struct SessionDetailTarget: Identifiable {

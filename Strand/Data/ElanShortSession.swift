@@ -219,11 +219,15 @@ extension LiftSessionController {
                                 programItemId: nil,
                                 supersetGroup: labels[index])
         }
+        // Fork chantier 18: exercises added for today from the Training screen join the short session too.
+        let added = await dayAdditionItems(programId: plan.programId, repo: repo, store: store)
         guard !isActive else {
             isPresented = true
             return
         }
-        start(plan: items, programId: plan.programId, programName: plan.title)
+        LiftDayAdditions.takeAdditions(day: TrainingCalendar.trainingDayKey(Date(), calendar: .current),
+                                       programId: plan.programId)
+        start(plan: items + added, programId: plan.programId, programName: plan.title)
     }
 
     /// The one start every « Start » of a planned program shares (the Training day card, the « Start »

@@ -386,12 +386,18 @@ struct StartSheet: View {
         .contentShape(Rectangle())
     }
 
-    /// The former quick actions, each opening its screen in this sheet.
+    /// The former quick actions, each opening its screen in this sheet. Fork chantier 18: Intervals too, since
+    /// the Training screen's « Other session » opens this sheet in place of its list of activities.
     private var smallButtons: some View {
-        HStack(spacing: 8) {
-            smallButton { LiveView() } label: { Text("Live HR") }
-            smallButton { BreathingView() } label: { Text("Breathe") }
-            smallButton { InsightsView() } label: { Text("Journal") }
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                smallButton { LiveView() } label: { Text("Live HR") }
+                smallButton { IntervalTimerView() } label: { Text("Intervals") }
+            }
+            HStack(spacing: 8) {
+                smallButton { BreathingView() } label: { Text("Breathe") }
+                smallButton { InsightsView() } label: { Text("Journal") }
+            }
         }
     }
 

@@ -145,6 +145,10 @@ struct CoachDataView: View {
         CoachDataRow(symbol: "dumbbell.fill", tint: StrandPalette.effortColor, title: "Lift Log",
                      detail: String(localized: "8 weeks of sets, programs, Progression statuses, week plan"))
         divider
+        // Chantier 18: the comparisons of « What shapes my sessions », only while its switch is on.
+        CoachDataRow(symbol: "chart.bar.xaxis", tint: StrandPalette.metricAmber, title: "What shapes my sessions",
+                     detail: String(localized: "Your sessions with and without each factor, with the counts. Only while the Experimental analysis is on in Progression."))
+        divider
         CoachDataRow(symbol: "figure.run", tint: StrandPalette.metricAmber, title: "Workouts",
                      detail: String(localized: "The last 6 in 30 days: sport, duration, heart rate, calories"))
         divider

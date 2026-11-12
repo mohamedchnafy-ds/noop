@@ -71,9 +71,9 @@ struct LiftInfluencesSection: View {
         }
         .task(id: "\(enabled)-\(data.sessions.count)") {
             guard enabled else { return }
-            let goal = NutritionDayReader.currentPlan(profile: profile).proteinG
-            facts = await LiftInfluencesReader.liftInfluenceFacts(data: data, repo: repo, limit: Self.maxSessions,
-                                                                  proteinGoalG: goal > 0 ? goal : nil)
+            facts = await LiftInfluencesReader.liftInfluenceFacts(
+                data: data, repo: repo, limit: Self.maxSessions,
+                proteinGoalG: LiftInfluencesReader.liftInfluenceProteinGoal(profile: profile))
             loaded = true
         }
     }
@@ -241,9 +241,16 @@ struct LiftInfluencesSection: View {
     }
 }
 
-/// Reads the facts of the latest sessions for `LiftInfluences`.
+/// Reads the facts of the latest sessions for `LiftInfluences`: this block and the Coach's (fork chantier 18).
 @MainActor
 enum LiftInfluencesReader {
+    /// The protein goal the day before is judged against: the current one (`NutritionDayReader.currentPlan`),
+    /// nil when there is none.
+    static func liftInfluenceProteinGoal(profile: ProfileStore) -> Int? {
+        let goal = NutritionDayReader.currentPlan(profile: profile).proteinG
+        return goal > 0 ? goal : nil
+    }
+
     static func liftInfluenceFacts(data: LiftProgressData, repo: Repository, limit: Int,
                                    proteinGoalG: Int? = nil) async -> [LiftInfluences.SessionFacts] {
         let sessions = data.sessions

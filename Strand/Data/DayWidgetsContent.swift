@@ -84,7 +84,7 @@ enum DayWidgetsContent {
             lineMedium = [line, String(localized: "planned")].compactMap { $0 }.joined(separator: " · ")
         }
         // Fork chantier 18: the lines left out for today from the Training day card are not shown.
-        let blocks = resolution.programId.map { id in
+        let blocks: [String] = resolution.programId.map { id -> [String] in
             let leftOut = LiftDayAdditions.removedLineIds(day: TrainingCalendar.trainingDayKey(today, calendar: calendar),
                                                           programId: id)
             return TrainingDays.programSummary(id: id, name: session?.name ?? "",

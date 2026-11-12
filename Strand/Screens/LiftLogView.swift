@@ -355,7 +355,7 @@ struct LiftLogView: View {
     /// (`TrainingDays.dayProgramSummary`, the rule the start applies); another day, as they are.
     private func dayPrograms(_ day: TrainingDay) -> [TrainingProgramSummary] {
         guard day.isToday else { return summaries }
-        return summaries.map { summary in
+        return summaries.map { summary -> TrainingProgramSummary in
             if let short = elanShort, summary.id == short.programId {
                 return ElanShortSession.elanProgramSummary(short)
             }

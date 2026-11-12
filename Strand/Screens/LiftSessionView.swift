@@ -71,6 +71,8 @@ struct LiftSessionView: View {
     /// Fork chantier 18: each exercise's weight step, read once and changed from the card
     /// (`LiftWeightStep`, kept on the device).
     @State private var weightSteps: [String: Double] = [:]
+    /// Fork chantier 18, lot C: the water logged since the session began (the water log's own entries).
+    @State private var sessionWaterMl = 0
 
     /// What the quick-entry card's wheel is turning: the weight or the reps of one set.
     private struct WheelTarget: Identifiable {
@@ -145,6 +147,7 @@ struct LiftSessionView: View {
         .task(id: engine?.plan.map(\.exercise)) { await loadLastTime() }
         .task(id: engine?.startTs) {
             guard let start = engine?.startTs else { return }
+            readSessionWater(since: start)
             recordBook = await LiftRecordBook.loadLiftRecordBook(repo: repo, before: start)
         }
         // Release a field's draft once the user leaves it, so the row returns to the canonical
@@ -857,7 +860,8 @@ struct LiftSessionView: View {
             reps: shown.reps,
             step: "\(display(step)) \(unit)",
             isWarmup: engine.stage == .warmup,
-            restEndsAt: restEndsAt)
+            restEndsAt: restEndsAt,
+            waterMl: sessionWaterMl)
         let actions = LiftQuickEntryCard.Actions(
             weight: { steps in
                 let now = shownNumbers(slot).weightKg ?? 0
@@ -878,7 +882,13 @@ struct LiftSessionView: View {
             done: { session.completeQuickSet() },
             shortenRest: { session.shortenRest() },
             extendRest: { session.extendRest(by: LiftSessionController.restStepSec) },
-            skipRest: { session.skipRest() })
+            skipRest: { session.skipRest() },
+            addWater: {
+                Task { @MainActor in
+                    await repo.logHydration(amountMl: Self.glassMl)
+                    readSessionWater(since: engine.startTs)
+                }
+            })
         return LiftQuickEntryCard(content: content, actions: actions,
                                   restRemaining: { engine.restRemaining(now: $0) ?? 0 })
     }
@@ -897,6 +907,15 @@ struct LiftSessionView: View {
         }()
         return LiftLiveHeartRateBand.Session(startTs: engine.startTs, programId: session.programId,
                                              isResting: resting, sets: spans)
+    }
+
+    /// « + glass »: 25 cl (maquette 4).
+    private static let glassMl = 250
+
+    /// The water logged today since the session began, from the water log, where each glass keeps its time.
+    private func readSessionWater(since start: Int) {
+        let from = Date(timeIntervalSince1970: TimeInterval(start))
+        sessionWaterMl = repo.hydrationEntries().filter { $0.loggedAt >= from }.reduce(0) { $0 + $1.amountMl }
     }
 
     /// The most reps the card's wheel and + offer for one set.

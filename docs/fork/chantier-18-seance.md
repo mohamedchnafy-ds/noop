@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; **lots A, B, C fusionnés** (#142 à #147, `main` deb5971) ; IPA `build/seance` = `main` deb5971 essayée → correctif des supersets **#149** fusionné ; **IPA `build/seance-2`** = `main` 938aa7c, à installer et valider (listes « À tester (IPA `build/seance`) » et « À tester (IPA `build/seance-2`) ») ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; **lots A, B, C fusionnés** (#142 à #147, `main` deb5971) ; IPA `build/seance` = `main` deb5971 essayée → correctif des supersets **#149** fusionné ; IPA `build/seance-2` = `main` 938aa7c **validée** (« tout est bon ») ; **suite fusionnée** : #151 liste du programme, #152 « Superset » à l'ajout, #153 protéines de la veille + VFC de la nuit suivante, #154 le Coach explique (`main` 466db0d) ; **prochaine IPA `build/seance-3`** quand Mohamed le dit (liste « À tester (IPA `build/seance-3`) ») ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -194,6 +194,7 @@ Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App 
 - Tests : `StrandTests/LiftInfluencesTests.swift`.
 
 ### Fusions de la suite (12 nov.)
+- **#154** le Coach explique (`main` 466db0d) : iOS vert sur la PR, jambe macOS annulée 2 fois → même preuve Intel (la tête de #154 fusionnée dans `ci/c18-influences-intel`), build macOS + **2 969 StrandTests, 0 échec**.
 - **#151** liste du programme (`main` 8eb7a24, 6/6) ; **#152** « Superset » à l'ajout (`main` 8712554, 6/6 après 3 relances de la jambe macOS) ; **#153** facteurs (`main` 62de34e) : iOS vert sur la PR, jambe macOS annulée 3 fois (macos-15 saturé dès 11:30 UTC) → **preuve Intel** choisie par Mohamed : branche `ci/c18-influences-intel` + `tmp-c18-influences-intel.yml`, build macOS + **2 968 StrandTests, 0 échec** (sans les classes de rendu PNG). Branche temporaire jamais fusionnée, à supprimer sur accord.
 
 ### Le Coach explique « Ce qui influence » (12 nov.)
@@ -201,6 +202,13 @@ Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App 
 - Mêmes chiffres que le bloc de Progression : `LiftInfluencesReader.liftInfluenceFacts` (60 dernières séances) puis **tous les facteurs × toutes les mesures** (`LiftInfluences.liftInfluenceComparisons`) ; objectif de protéines par `liftInfluenceProteinGoal` (un seul résolveur pour l'écran et le Coach). Par facteur : les mesures qui ont assez de séances (moyennes avec / sans, nombres, « clear difference, reads better / worse with » ou « no clear difference »), sinon une ligne « not enough data yet (n with, m without) ». L'en-tête rappelle les seuils et la règle : « in your sessions, we observe… », jamais une cause.
 - « Ce que lit le Coach » : ligne « Ce qui influence mes séances ».
 - Tests : `StrandTests/CoachFicheTests.swift`.
+
+### À tester (IPA `build/seance-3`)
+Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App Extensions (Use Main Profile) »). **Captures à envoyer.**
+- **Liste du programme (#151)** : Entraînement → carte du jour → « + n autres ⌄ » (ou « Tous les exercices ⌄ ») → toutes les lignes, étiquettes A1, A2… ; « − » retire une ligne pour aujourd'hui (barrée, « ↺ » la remet, note « Retiré pour aujourd'hui seulement ») ; la dernière ligne n'a pas de « − » ; la forme (« 2 supersets + 1 exercice ») et les « ↑ » suivent ; Démarrer → la ligne retirée n'est pas dans la séance ; fin de séance : rien ne change dans le programme ; le lendemain, tout est revenu. Feuille Démarrer : « Prévu aujourd'hui » suit aussi.
+- **« Superset » à l'ajout (#152)** : « + Exercice » → « Un exercice | Superset » → cocher 2 ou 3 exercices (A1, A2…) → « Ajouter le superset (n) » → une ligne « Curl · Dips · Superset · Aujourd'hui », « − » la retire en entier ; Démarrer → bloc lié à la fin de la séance (écrans guidés du superset), 1:30 de repos après le tour ; fin de séance « mettre à jour le programme ? » → Oui : le programme a un superset de plus, lié.
+- **Ce qui influence (#153)** : Progression → Régularité → bloc allumé : 4e carte « Protéines de la veille » (« n g ou plus » / « moins de n g », objectif de Nutrition), pastille « VFC de la nuit suivante » ; une veille sans repas noté n'est comptée nulle part.
+- **Le Coach (#154)** : bloc allumé, demander « Qu'est-ce qui influence mes séances ? » → il cite les écarts et les nombres de séances, sans dire « cause » ; bloc éteint → il ne les a pas. « Ce que lit le Coach » : ligne « Ce qui influence mes séances ».
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

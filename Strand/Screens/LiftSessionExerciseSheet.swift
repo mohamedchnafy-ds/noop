@@ -9,7 +9,12 @@ import WhoopStore
 // max RPE are not asked here: they belong to the program editor, later.
 
 struct LiftSessionExerciseSheet: View {
-    /// Handed the exercise once it is remembered; the session adds it.
+    /// Where the exercise goes (fork chantier 18): the running session, or today's program from the
+    /// Training screen's day card. The same sheet either way; only its note and button say which.
+    enum Destination { case session, today }
+
+    var destination: Destination = .session
+    /// Handed the exercise once it is remembered; the session (or today's list) adds it.
     let onAdd: (_ name: String, _ primary: LiftMuscle?, _ secondaries: [LiftMuscle]) -> Void
 
     @EnvironmentObject var repo: Repository
@@ -23,6 +28,8 @@ struct LiftSessionExerciseSheet: View {
     /// Set when the vocabulary is full, so the refusal is explained rather than silent.
     @State private var vocabularyFullLimit: Int?
     @State private var adding = false
+    /// Fork chantier 18: the exercises done before, narrowed to one primary muscle; nil shows them all.
+    @State private var muscleFilter: LiftMuscle?
 
     @FocusState private var focused: Field?
     private enum Field: Hashable { case exercise }
@@ -38,8 +45,15 @@ struct LiftSessionExerciseSheet: View {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 exerciseSection
                 LiftMusclePicker(primary: $primary, secondaries: $secondaries)
-                Text("It joins this session with one set, its weight and reps at 0 until you type what you lift. Finishing asks whether the program keeps it.")
-                    .font(StrandFont.footnote)
+                Group {
+                    switch destination {
+                    case .session:
+                        Text("It joins this session with one set, its weight and reps at 0 until you type what you lift. Finishing asks whether the program keeps it.")
+                    case .today:
+                        Text("For today only: it joins today's session with as many sets as last time, at last time's numbers. The program does not change; finishing the session asks whether it keeps it.")
+                    }
+                }
+                .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
                 footer
@@ -72,7 +86,9 @@ struct LiftSessionExerciseSheet: View {
     }
 
     private var exerciseSection: some View {
-        let suggestions = LiftExerciseVocabulary.suggestions(vocabulary, matching: exercise, limit: 8)
+        let narrowed = muscleFilter.map { muscle in vocabulary.filter { $0.primaryMuscle == muscle } } ?? vocabulary
+        let suggestions = LiftExerciseVocabulary.suggestions(narrowed, matching: exercise,
+                                                             limit: muscleFilter == nil ? 8 : 20)
         return VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Exercise", overline: "Movement")
             NoopCard {
@@ -82,6 +98,7 @@ struct LiftSessionExerciseSheet: View {
                         .font(StrandFont.body)
                         .foregroundStyle(StrandPalette.textPrimary)
                         .focused($focused, equals: .exercise)
+                    muscleChips
                     if !suggestions.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Used before").strandOverline()
@@ -96,6 +113,31 @@ struct LiftSessionExerciseSheet: View {
         }
     }
 
+    /// The primary muscles of the exercises done before, as chips: one tap narrows the list to it, a
+    /// second shows them all again (fork chantier 18).
+    @ViewBuilder
+    private var muscleChips: some View {
+        let muscles = LiftMuscle.allCases.filter { muscle in vocabulary.contains { $0.primaryMuscle == muscle } }
+        if muscles.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: NoopMetrics.space2) {
+                    ForEach(muscles, id: \.self) { muscle in
+                        let on = muscleFilter == muscle
+                        Button { muscleFilter = on ? nil : muscle } label: {
+                            Text(verbatim: muscle.displayName)
+                                .font(StrandFont.caption.weight(.semibold))
+                                .foregroundStyle(on ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
+                                .padding(.horizontal, NoopMetrics.space3)
+                                .frame(minHeight: 32)
+                                .background(on ? StrandPalette.textPrimary : StrandPalette.surfaceInset, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
     private var footer: some View {
         HStack {
             Button("Cancel") { dismiss() }
@@ -103,7 +145,9 @@ struct LiftSessionExerciseSheet: View {
                 .font(StrandFont.body)
                 .foregroundStyle(StrandPalette.textSecondary)
             Spacer()
-            Button("Add to session") { Task { await add() } }
+            Button { Task { await add() } } label: {
+                if destination == .today { Text("Add for today") } else { Text("Add to session") }
+            }
                 .buttonStyle(.noopPrimary)
                 .frame(maxWidth: 200)
                 .disabled(!canAdd)

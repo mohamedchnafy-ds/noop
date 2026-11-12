@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B en cours (PR B1 : écran Entraînement épuré) ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B en cours (B1 #144 fusionnée, `main` 4b6ff77 ; PR B2 : « + Exercice ») ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -114,6 +114,16 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - **Bande des 7 jours** sans flèches : un **balayage** horizontal change de semaine.
 - **Lignes** (`TrainingLineLabel`) dans l'ordre de « Personnaliser Entraînement » (gardé) : **Progression** (« n charges à monter » + ↑ ; sinon « Par exercice et par muscle »). **Écart à la maquette, assumé** : la ligne reste visible sans charge à monter, sinon l'écran Progression (Régularité, et le bloc du lot C) n'aurait plus d'entrée depuis Entraînement. **Programmes ›** (« n programmes · Planifier la semaine ») ouvre un écran Programmes avec la carte existante (liste, Nouveau, Importer, Planifier) et ses feuilles. **Autre séance (cardio, autre sport)** ouvre la feuille **Démarrer** ; la feuille Démarrer gagne **Intervalles** (à côté de FC en direct). **Historique** en une ligne avec la dernière séance. La séance Bêta reste une ligne quand elle est activée.
 - Retirés de l'écran : la carte Progression aux quatre zéros, la carte des programmes, la carte « Autres activités » (Démarrer une activité → feuille Démarrer, Intervalles et FC en direct → feuille Démarrer).
+
+### Lot B, PR B1 fusionnée (12 nov.)
+- **#144** fusionnée (`main` 4b6ff77), 6/6 sur sa tête.
+
+### Lot B, PR B2 : « + Exercice » sur la carte du jour (12 nov.)
+- **Ajouts du jour** (`LiftDayAdditions`, UserDefaults `lift.dayAdditions.v1`) : exercices ajoutés à **un programme pour un jour**, sur l'appareil, hors `.noopbak` ; un autre jour n'est jamais lu (effacé à l'écriture suivante). Le programme n'est pas touché.
+- **Carte du jour** : bouton **« + Exercice »** à côté de Démarrer (pas pendant une séance en cours) ; les ajouts sous les blocs du programme, étiquette **« Aujourd'hui »**, **«−»** pour retirer.
+- **Au démarrage** : tout Démarrer d'un programme passe par `beginProgramSession` (et la séance courte d'Élan par `beginElanShortSession`) qui ajoute les lignes du jour à la fin, en **lignes ajoutées pendant la séance** (`addedInSession`, id propre) avec le **nombre de séries de travail de la dernière fois** (3 pour un exercice jamais fait) ; poids et répétitions = les gris de la dernière séance. Les ajouts sont alors **pris par la séance** (effacés). En fin de séance, la question existante « mettre à jour le programme ? » propose de les garder.
+- **Même feuille** que « Ajouter un exercice » de la séance en cours (`LiftSessionExerciseSheet`, `destination: .today`) : recherche, exercices déjà faits, **filtre par muscle** (pastilles des muscles principaux connus, aussi dans la séance), texte et bouton propres à « pour aujourd'hui ».
+- **Pas fait** (à ajouter si Mohamed le veut) : « Superset… » dans la feuille, liste dépliable de **tous** les exercices du programme sur la carte (elle montre les premiers blocs puis « + n de plus »), retrait d'une ligne du programme pour aujourd'hui.
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

@@ -170,6 +170,17 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App Extensions (Use Main Profile) »). En plus de la liste `build/seance` :
 - **Supersets (#149)** : un bloc superset d'un programme. Écran de départ « Superset A · Bloc 1 / n » : **bandeau FC** sous la carte du bracelet. Écran d'un tour : toucher une case poids ou répétitions → **roulette** (pas de clavier), − / + d'un palier, bouton **Palier**, OK ; un chiffre non touché reste gris (celui de la série d'avant) ; le poids donné au tour 1 se répète aux tours suivants. Carte de saisie rapide (exercice seul) : la roulette a aussi − / + et Palier.
 
+### Retour de Mohamed sur `build/seance-2` et suite (12 nov.)
+- `build/seance-2` : **« tout est bon »**.
+- Suite choisie (une PR chacun) : **liste de tous les exercices du programme** sur la carte du jour avec retrait d'une ligne pour aujourd'hui ; **« Superset… »** dans la feuille d'ajout ; **nouveaux facteurs** de « Ce qui influence » (protéines de la veille, VFC de la nuit suivante ; le café à part : stockage nouveau) ; **explication par le Coach** (bloc dans sa fiche). Refonte des fiches de séance : pas demandée.
+
+### Liste du programme et retrait pour aujourd'hui (12 nov.)
+- Carte du jour (aujourd'hui, pas la séance courte d'Élan) : sous les premiers blocs, **« + n autres ⌄ »** (ou **« Tous les exercices ⌄ »**), suivi de « · n retiré(s) aujourd'hui » s'il y en a. Ouverte : **toutes les lignes** du programme (étiquettes A1, A2… de la séance qui démarrerait), « − » pour **retirer une ligne pour aujourd'hui**, une ligne retirée barrée avec **« ↺ »** pour la remettre, et « Retiré pour aujourd'hui seulement : le programme ne change pas. » ; « Afficher moins ⌃ » referme. La dernière ligne gardée n'a pas de « − ».
+- **Même mécanisme que les ajouts** : `LiftDayAdditions` garde, pour un jour et un programme, les **ids des lignes retirées** (champ `removed` du même enregistrement, optionnel pour relire l'ancien format) ; `setLineLeftOut`, `removedLineIds`, `removedLinesByProgram`. `beginProgramSession` saute ces lignes (`keptProgramLines` : jamais une séance vide, tout est gardé si rien ne resterait) et les **oublie avec les ajouts** (`takeAdditions`). Le programme n'est pas touché ; la fin de séance ne propose rien pour une ligne absente (les fonctions de reprise sautent les lignes absentes du plan).
+- **Une seule lecture** du programme du jour : `TrainingDays.dayProgramSummary` (forme, séries, blocs, charges à monter sans les lignes retirées), lue par la carte du jour et « Prévu aujourd'hui » de la feuille Démarrer ; le widget Séance du jour filtre ses blocs par `keptProgramLines` (mis à jour à sa prochaine publication).
+- La séance courte d'Élan n'a pas de liste (ses lignes sont celles de la version courte).
+- Tests : `StrandTests/LiftDayAdditionsTests.swift`.
+
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**
 1. Chaque lot est fusionné dans `main` (une PR par préoccupation), CI à 0 non-succès sur la tête de chaque PR (macOS + iOS + StrandTests + Tools Python + i18n + parité).

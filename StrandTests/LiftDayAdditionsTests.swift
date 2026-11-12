@@ -165,6 +165,7 @@ final class LiftDayAdditionsTests: XCTestCase {
     }
 
     /// Kept at the finish, a superset added for today stays one in the program, after its own supersets.
+    @MainActor
     func testAKeptSupersetStaysLinkedInTheProgram() {
         let program = [line(0, "Squat", group: "A"), line(1, "Row", group: "A")]
         var curl = LiftPlanItem(exercise: "Curl", targetSets: 3, restSec: 90, programItemId: "c", addedInSession: true,

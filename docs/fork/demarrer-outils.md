@@ -78,6 +78,11 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
 - Écart avec la maquette : le chiffre central reste en secondes (« 30 », « Secondes »).
 
 ## Batterie sur Aujourd'hui (demande du 12 nov., soir)
+- **13 nov., retour sur l'IPA `build/demarrer`** : « tout est ok sauf la barre de la batterie, trop grosse,
+  je voulais un truc discret ». La carte devient **une ligne discrète** sous le titre : petite icône,
+  « 73 % » en petit gras puis « ~5 jours restants » en gris, sans fond ni chevron ; la couleur ne vient que
+  pour faible / critique / en charge. Toucher → Appareils (inchangé). Le reste de la fiche ci-dessous
+  (couleurs, résolveur) reste vrai.
 - Carte « Batterie du bracelet » **juste sous le titre d'Aujourd'hui** (`TodayBatteryCard`, épinglée, hors de
   l'ordre personnalisable) : icône de batterie au quart près, **pourcentage en grand**, autonomie restante
   (« ~5 jours restants », même règle que la ligne de Sources de données) ou « En charge » ; vert au-dessus de

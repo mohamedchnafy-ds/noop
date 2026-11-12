@@ -2,9 +2,9 @@ import SwiftUI
 import StrandDesign
 import StrandAnalytics
 
-// Personal fork (Démarrer tools, 12 Nov.): the strap's battery, readable at a glance on Today, right under
-// the title. The header's small ring only drew a level; this card states the percentage, the runtime left
-// and the charging state in words. Both resolve from ONE funnel, `LiquidTodayView.StrapBatteryDisplay`, so
+// Personal fork (Démarrer tools, 12 Nov.; made discreet 13 Nov.): the strap's battery on Today, one quiet line
+// right under the title. The header's small ring only drew a level; this line states the percentage, the
+// runtime left and the charging state in words. Both resolve from ONE funnel, `LiquidTodayView.StrapBatteryDisplay`, so
 // they can never disagree (two readouts of one fact, AGENTS.md): no stale percentage once the link is down,
 // and a ring's own charge under an active ring.
 
@@ -101,44 +101,36 @@ struct TodayBatteryCard: View {
         }
     }
 
+    /// One quiet line under the title (Mohamed, 13 Nov.: the first version, a card with a 30 pt figure, was
+    /// too big): a small glyph, the percentage, then the runtime or the state in grey. Colour only when it
+    /// matters (low, critical, charging). No surface, no chevron; the whole line still taps to Devices.
     private func content(_ line: TodayBatteryLine) -> some View {
         let tint = Self.tint(line.level)
-        return HStack(spacing: 14) {
+        return HStack(spacing: 6) {
             Image(systemName: Self.symbol(line))
-                .font(.system(size: 30, weight: .regular))
+                .font(.system(size: 14, weight: .regular))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(tint)
-                .frame(width: 44)
+                .foregroundStyle(line.level == .good ? StrandPalette.textSecondary : tint)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(line.title)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                if let detail = line.detail {
-                    Text(detail)
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(line.level == .critical ? tint : StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 8)
             if let value = line.value {
                 Text(value)
-                    .font(StrandFont.rounded(30, weight: .bold))
+                    .font(StrandFont.footnote.weight(.semibold))
                     .foregroundStyle(line.level == .good ? StrandPalette.textPrimary : tint)
                     .lineLimit(1)
                     .fixedSize()
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(StrandPalette.textTertiary)
-                .accessibilityHidden(true)
+            if let detail = line.detail {
+                Text(detail)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(line.level == .critical ? tint : StrandPalette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface())
         .contentShape(Rectangle())
+        .accessibilityLabel([line.title, line.value, line.detail].compactMap { $0 }.joined(separator: ", "))
     }
 
     static func tint(_ level: TodayBatteryLine.Level) -> Color {

@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B en cours (B1 #144 fusionnée, `main` 4b6ff77 ; PR B2 : « + Exercice ») ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B en cours (B1 #144, B2 #145 fusionnées, `main` b900d39 ; PR B3 : Régularité) ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -124,6 +124,15 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - **Au démarrage** : tout Démarrer d'un programme passe par `beginProgramSession` (et la séance courte d'Élan par `beginElanShortSession`) qui ajoute les lignes du jour à la fin, en **lignes ajoutées pendant la séance** (`addedInSession`, id propre) avec le **nombre de séries de travail de la dernière fois** (3 pour un exercice jamais fait) ; poids et répétitions = les gris de la dernière séance. Les ajouts sont alors **pris par la séance** (effacés). En fin de séance, la question existante « mettre à jour le programme ? » propose de les garder.
 - **Même feuille** que « Ajouter un exercice » de la séance en cours (`LiftSessionExerciseSheet`, `destination: .today`) : recherche, exercices déjà faits, **filtre par muscle** (pastilles des muscles principaux connus, aussi dans la séance), texte et bouton propres à « pour aujourd'hui ».
 - **Pas fait** (à ajouter si Mohamed le veut) : « Superset… » dans la feuille, liste dépliable de **tous** les exercices du programme sur la carte (elle montre les premiers blocs puis « + n de plus »), retrait d'une ligne du programme pour aujourd'hui.
+
+### Lot B, PR B2 fusionnée (12 nov.)
+- **#145** fusionnée (`main` b900d39), 6/6 sur sa tête.
+
+### Lot B, PR B3 : Régularité dans l'écran Progression (12 nov., sans maquette)
+- **4e onglet « Régularité »** (Exercices · Muscles · Régularité · Forme) : `LiftRegularity` (pur) compte les **séries de travail par semaine** (lundi–dimanche, échauffements et séries à 0 rép. exclus, `LiftMetrics.isPerformed`) sur **12 semaines** et les **jours entraînés**.
+- Trois chiffres : séances **cette semaine**, **semaines d'affilée** (la semaine en cours sans séance ne casse pas la série), **moyenne par semaine** (la semaine en cours exclue tant qu'elle n'est pas finie). Barres des séries (`LiftWeeklyBars`, trait = moyenne des semaines d'avant), puis le **calendrier** 12 × 7 (case bleue = séance ce jour-là).
+- Les **fiches de séance** n'ont pas été refaites au-delà de la section « Fréquence cardiaque » (A2) : à revoir sur captures.
+- Tests : `StrandTests/LiftRegularityTests.swift`.
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

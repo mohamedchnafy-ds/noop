@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A, PR A1 fusionnée (#142, `main` 040ab3f) ; PR A2 (fréquence cardiaque) ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B en cours (PR B1 : écran Entraînement épuré) ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -105,6 +105,15 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - **Fiche terminée** (`LiftSessionHeartRateSection`, section « Fréquence cardiaque » sous les chiffres) : courbe de toute la séance (≈ 120 points), comparaison, Moyenne · Max · Récup. moyenne (sans en-tête : la moyenne n'est dite qu'une fois), temps par zone (5 segments + minutes), FC moyenne par exercice.
 - **Cardio** : la courbe des 10 dernières minutes de la séance en direct dessine les **2 dernières séances du même sport** (même règle d'alignement), avec le même interrupteur.
 - Tests : `StrandTests/LiftHeartRateMathTests.swift`.
+
+### Lot A, PR A2 fusionnée (12 nov.)
+- **#143** fusionnée (`main` 42e56cc), 6/6 sur sa tête (macOS + StrandTests, iOS, Android, Tools, doc, linux-capture).
+
+### Lot B, PR B1 : écran Entraînement épuré (12 nov.)
+- **En-tête** (`TrainingCompactHeader`) : « Entraînement », « Aujourd'hui » quand la semaine (ou le mois) montrée n'est pas la courante, **« i »** qui montre / cache la légende (sous la bande ou la grille du mois), **bouton calendrier** Semaine ↔ Mois ; en mois, ‹ mois › dessous. Plus de Semaine | Mois ni de compteur « 1 / 1 ».
+- **Bande des 7 jours** sans flèches : un **balayage** horizontal change de semaine.
+- **Lignes** (`TrainingLineLabel`) dans l'ordre de « Personnaliser Entraînement » (gardé) : **Progression** (« n charges à monter » + ↑ ; sinon « Par exercice et par muscle »). **Écart à la maquette, assumé** : la ligne reste visible sans charge à monter, sinon l'écran Progression (Régularité, et le bloc du lot C) n'aurait plus d'entrée depuis Entraînement. **Programmes ›** (« n programmes · Planifier la semaine ») ouvre un écran Programmes avec la carte existante (liste, Nouveau, Importer, Planifier) et ses feuilles. **Autre séance (cardio, autre sport)** ouvre la feuille **Démarrer** ; la feuille Démarrer gagne **Intervalles** (à côté de FC en direct). **Historique** en une ligne avec la dernière séance. La séance Bêta reste une ligne quand elle est activée.
+- Retirés de l'écran : la carte Progression aux quatre zéros, la carte des programmes, la carte « Autres activités » (Démarrer une activité → feuille Démarrer, Intervalles et FC en direct → feuille Démarrer).
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

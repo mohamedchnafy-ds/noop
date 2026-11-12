@@ -77,14 +77,30 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   même partout) ; sous chaque réglage « De 5 s à 10 min, par pas de 5 s ».
 - Écart avec la maquette : le chiffre central reste en secondes (« 30 », « Secondes »).
 
+## Batterie sur Aujourd'hui (demande du 12 nov., soir)
+- Carte « Batterie du bracelet » **juste sous le titre d'Aujourd'hui** (`TodayBatteryCard`, épinglée, hors de
+  l'ordre personnalisable) : icône de batterie au quart près, **pourcentage en grand**, autonomie restante
+  (« ~5 jours restants », même règle que la ligne de Sources de données) ou « En charge » ; vert au-dessus de
+  30 %, orange de 15 à 30 %, rouge sous 15 % avec « À recharger bientôt ». Toucher → Appareils.
+- **Un seul résolveur** avec la petite bague de l'en-tête : `LiquidTodayView.StrapBatteryDisplay.resolve`.
+  Bracelet non connecté → « Bracelet non connecté », jamais un vieux pourcentage ; sous une bague Oura active,
+  la charge de la bague (« Batterie de la bague »), sans autonomie du bracelet.
+- Le pourcentage suit la langue (« 73 % ») ici, dans FC en direct et dans Sources de données.
+
 ## Journal
 - **12 nov. (soir)** : audit des 4 écrans, maquette en 5 planches, 4 questions, réponses = les choix
   recommandés. PR 1 (journal du bracelet) codée : 97 clés dans les 10 langues, `StrapLogReaderTests` ;
   PR #156. PR 2 (FC en direct) codée, empilée sur la PR 1 : 13 clés, `LiveHRVReadoutTests`. PR 3
   (Respirer, 5 clés + 17 textes français) et PR 4 (Intervalles, 4 clés, `IntervalTimerTextTests`) codées
   depuis `main`.
+- **12 nov. (soir, suite)** : choix de Mohamed, **tout dans la PR #156** (les 4 écrans) ; ajout demandé de la
+  batterie bien visible sur Aujourd'hui (3 clés, `TodayBatteryLineTests`).
 
 ## À tester (prochaine IPA)
+- **Batterie sur Aujourd'hui** : sous le titre, carte « Batterie du bracelet · 73 % · ~5 jours restants »
+  (vert), orange à 30 % ou moins, rouge à 15 % ou moins avec « À recharger bientôt », éclair « En charge » sur
+  le chargeur, « Bracelet non connecté » sans pourcentage quand il est loin ; même valeur que la bague en haut
+  à droite ; toucher → Appareils. **Capture à envoyer.**
 - **Journal du bracelet** : FC en direct → en bas, carte « Ce que fait le bracelet » (4 phrases, heure à
   droite) → « Tout voir » : ligne d'état (« Connecté au WHOOP 4.0 · la fréquence cardiaque arrive ·
   historique à jour il y a 2 min · batterie 73 % »), pastilles Tout · Connexion · Fréquence cardiaque ·

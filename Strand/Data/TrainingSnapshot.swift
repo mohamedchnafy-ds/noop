@@ -113,8 +113,13 @@ extension LiftSessionController {
             return
         }
         guard let store = await repo.storeHandle() else { return }
-        let items = (try? await store.liftProgramItems(programId: programId)) ?? []
-        guard !items.isEmpty else { return }
+        let programItems = (try? await store.liftProgramItems(programId: programId)) ?? []
+        guard !programItems.isEmpty else { return }
+        // Fork chantier 18: the lines left out for today from the Training day card are skipped (the program
+        // keeps them), and forgotten below with the day's additions.
+        let today = TrainingCalendar.trainingDayKey(Date(), calendar: .current)
+        let items = LiftDayAdditions.keptProgramLines(
+            programItems, removed: LiftDayAdditions.removedLineIds(day: today, programId: programId))
         let vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
 
         let plan = items.map { item -> LiftPlanItem in

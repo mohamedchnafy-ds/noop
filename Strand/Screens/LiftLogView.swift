@@ -60,6 +60,8 @@ struct LiftLogView: View {
     @State private var showStart = false
     /// Fork chantier 18 (« + Exercise »): today's additions by program, and the program being added to.
     @State private var dayAdditions: [String: [LiftDayAddition]] = [:]
+    /// The program lines left out for today, by program (the day card's list of every exercise).
+    @State private var dayLeftOut: [String: Set<String>] = [:]
     @State private var addingTo: ProgramAddTarget?
     @AppStorage(LiftDayAdditions.revisionKey) private var additionsRevision = 0
     /// The chosen day; the week and the month shown are the ones holding it.
@@ -132,6 +134,7 @@ struct LiftLogView: View {
 
     private func readDayAdditions() {
         dayAdditions = LiftDayAdditions.additionsByProgram(day: todayKey)
+        dayLeftOut = LiftDayAdditions.removedLinesByProgram(day: todayKey)
     }
 
     // MARK: - Sections
@@ -263,6 +266,12 @@ struct LiftLogView: View {
                                    onRemoveAddition: { programId, additionId in
                                        LiftDayAdditions.remove(id: additionId, day: todayKey, programId: programId)
                                        readDayAdditions()
+                                   },
+                                   leftOut: dayLeftOut,
+                                   onLeaveOut: { programId, lineId, left in
+                                       LiftDayAdditions.setLineLeftOut(lineId, left: left, day: todayKey,
+                                                                       programId: programId)
+                                       readDayAdditions()
                                    })
             }
         }
@@ -342,10 +351,16 @@ struct LiftLogView: View {
     }
 
     /// The programs as the day card shows them: today, Élan's accepted program as its short version
-    /// (`ElanShortSession.elanProgramSummary`), the others as they are.
+    /// (`ElanShortSession.elanProgramSummary`), the others without the lines left out for today
+    /// (`TrainingDays.dayProgramSummary`, the rule the start applies); another day, as they are.
     private func dayPrograms(_ day: TrainingDay) -> [TrainingProgramSummary] {
-        guard day.isToday, let short = elanShort else { return summaries }
-        return summaries.map { $0.id == short.programId ? ElanShortSession.elanProgramSummary(short) : $0 }
+        guard day.isToday else { return summaries }
+        return summaries.map { summary in
+            if let short = elanShort, summary.id == short.programId {
+                return ElanShortSession.elanProgramSummary(short)
+            }
+            return TrainingDays.dayProgramSummary(summary, leftOut: dayLeftOut[summary.id] ?? [])
+        }
     }
 
     // MARK: - Load

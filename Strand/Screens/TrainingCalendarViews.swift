@@ -34,6 +34,17 @@ enum TrainingText {
         return parts.joined(separator: " · ")
     }
 
+    /// The closed list's toggle (fork chantier 18): « + 2 more » or « All exercises », then « 1 left out today ».
+    static func allLinesToggle(more: Int, leftOut: Int) -> String {
+        var parts = [more > 0 ? String(localized: "+ \(more) more") : String(localized: "All exercises")]
+        if leftOut == 1 {
+            parts.append(String(localized: "1 left out today"))
+        } else if leftOut > 1 {
+            parts.append(String(localized: "\(leftOut) left out today"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
     /// A program row's line: shape · total working sets.
     static func programLine(_ program: TrainingProgramSummary) -> String {
         var parts = [shapeLine(supersets: program.supersets, singles: program.singles)].filter { !$0.isEmpty }
@@ -540,6 +551,12 @@ struct TrainingDaySection: View {
     var additions: [String: [LiftDayAddition]] = [:]
     var onAddExercise: (String) -> Void = { _ in }
     var onRemoveAddition: (_ programId: String, _ additionId: String) -> Void = { _, _ in }
+    /// Fork chantier 18 (the list of every exercise): the program lines left out for today, by program id
+    /// (`LiftDayAdditions`), and the « − » / « ↺ » that leaves one out or puts it back.
+    var leftOut: [String: Set<String>] = [:]
+    var onLeaveOut: (_ programId: String, _ lineId: String, _ left: Bool) -> Void = { _, _, _ in }
+    /// The programs whose list of every exercise is open (today's card only).
+    @State var expandedPrograms: Set<String> = []
 
     /// One row of the card, in the order drawn.
     private enum Row {
@@ -680,20 +697,29 @@ struct TrainingDaySection: View {
             }
             let raises = day.isPast ? [] : program.raises
             let added = day.isToday ? additions[program.id] ?? [] : []
+            // Fork chantier 18: today, the program's lines can be listed in full and one left out for today.
+            let listable = day.isToday && !program.elanShort && !program.items.isEmpty
+            let expanded = listable && expandedPrograms.contains(program.id)
             if !program.blocks.isEmpty || !raises.isEmpty || !added.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(program.blocks.enumerated()), id: \.offset) { _, block in
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(verbatim: block.text)
-                                .foregroundStyle(StrandPalette.textPrimary)
-                                .lineLimit(2)
-                            Spacer(minLength: 8)
-                            if let sets = block.sets, sets > 0 {
-                                Text("\(sets) ×").foregroundStyle(StrandPalette.textSecondary)
+                    if expanded {
+                        allLines(program)
+                    } else {
+                        ForEach(Array(program.blocks.enumerated()), id: \.offset) { _, block in
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(verbatim: block.text)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                                    .lineLimit(2)
+                                Spacer(minLength: 8)
+                                if let sets = block.sets, sets > 0 {
+                                    Text("\(sets) ×").foregroundStyle(StrandPalette.textSecondary)
+                                }
                             }
                         }
                     }
-                    if program.blockCount > program.blocks.count {
+                    if listable {
+                        listToggle(program, expanded: expanded)
+                    } else if program.blockCount > program.blocks.count {
                         Text("+ \(program.blockCount - program.blocks.count) more")
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
@@ -789,6 +815,87 @@ struct TrainingDaySection: View {
                 }
             }
         }
+    }
+
+    /// Every line of the program, in order (fork chantier 18): each kept one with its « − » (leave it out of
+    /// today's session; never the last one kept), each left out one struck through with its « ↺ » (put it
+    /// back), then the line saying the program itself does not change.
+    @ViewBuilder private func allLines(_ program: TrainingProgramSummary) -> some View {
+        let removed = leftOut[program.id] ?? []
+        let lines = TrainingDays.dayProgramLines(program.items, leftOut: removed)
+        let keptCount = lines.filter { !$0.leftOut }.count
+        ForEach(lines) { line in
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(verbatim: [line.tag, line.exercise].compactMap { $0 }.joined(separator: " "))
+                    .strikethrough(line.leftOut)
+                    .foregroundStyle(line.leftOut ? StrandPalette.textTertiary : StrandPalette.textPrimary)
+                    .lineLimit(2)
+                Spacer(minLength: 8)
+                if let sets = line.sets, sets > 0, !line.leftOut {
+                    Text("\(sets) ×").foregroundStyle(StrandPalette.textSecondary)
+                }
+                if line.leftOut {
+                    lineButton(symbol: "arrow.uturn.backward",
+                               label: String(localized: "Put \(line.exercise) back for today")) {
+                        onLeaveOut(program.id, line.id, false)
+                    }
+                } else if keptCount > 1 {
+                    lineButton(symbol: "minus.circle",
+                               label: String(localized: "Remove \(line.exercise) from today")) {
+                        onLeaveOut(program.id, line.id, true)
+                    }
+                }
+            }
+        }
+        if !removed.isEmpty {
+            Text("Left out for today only: the program does not change.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The small round button at the end of a line of the list.
+    private func lineButton(symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 32, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
+    }
+
+    /// Opens or closes the list of every exercise: « + n more » (or « All exercises ») and how many are left
+    /// out today, then « Show less ».
+    private func listToggle(_ program: TrainingProgramSummary, expanded: Bool) -> some View {
+        let more = program.blockCount - program.blocks.count
+        let removed = (leftOut[program.id] ?? []).count
+        return Button {
+            if expanded {
+                expandedPrograms.remove(program.id)
+            } else {
+                expandedPrograms.insert(program.id)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if expanded {
+                    Text("Show less")
+                } else {
+                    Text(verbatim: TrainingText.allLinesToggle(more: more, leftOut: removed))
+                }
+                Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(StrandPalette.textSecondary)
+            .frame(minHeight: 28)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// Planned cardio on one line: the sport in the app's language, its target length (a guide: an

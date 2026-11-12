@@ -41,7 +41,11 @@ struct StartSheet: View {
         let today = TrainingDays.buildTrainingDays([now], plan: snapshot.plan, lifts: snapshot.lifts,
                                                    activities: snapshot.activities, now: now,
                                                    calendar: calendar).first
-        let planned = StartSheetLogic.startPlannedRows(day: today, programs: snapshot.summaries)
+        // Fork chantier 18: a program planned today reads as its session will run, without the lines left out.
+        let leftOut = LiftDayAdditions.removedLinesByProgram(day: TrainingCalendar.trainingDayKey(now, calendar: calendar))
+        let planned = StartSheetLogic.startPlannedRows(
+            day: today,
+            programs: snapshot.summaries.map { TrainingDays.dayProgramSummary($0, leftOut: leftOut[$0.id] ?? []) })
         let week = TrainingDays.buildTrainingDays(
             TrainingCalendar.weekDates(from: TrainingCalendar.mondayOf(now, calendar: calendar), calendar: calendar),
             plan: snapshot.plan, lifts: snapshot.lifts, activities: snapshot.activities, now: now,

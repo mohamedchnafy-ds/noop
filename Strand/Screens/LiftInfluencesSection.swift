@@ -6,7 +6,8 @@ import WhoopStore
 // The « What shapes my sessions » block of the Progression screen (fork chantier 18, lot C, maquette 4):
 // EXPERIMENTAL and off until switched on here. Computed on the iPhone from what is already stored — the night's
 // sleep, the water log (each glass keeps its time, so the water of a session is the glasses logged from three
-// hours before it to its end), the strength sessions themselves, their workout rows and the strap's heart rate.
+// hours before it to its end), the strength sessions themselves, their workout rows and the strap's heart rate,
+// the meal journal of the day before against the current protein goal, and the HRV of the night after.
 // Nothing new is stored. The rules and thresholds are `LiftInfluences`; this file reads and lays out.
 
 struct LiftInfluencesSection: View {
@@ -14,6 +15,7 @@ struct LiftInfluencesSection: View {
     let unitSystem: UnitSystem
 
     @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var profile: ProfileStore
     @AppStorage(Self.enabledKey) private var enabled = false
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     @State private var measure: LiftInfluences.Measure = .volume
@@ -69,7 +71,9 @@ struct LiftInfluencesSection: View {
         }
         .task(id: "\(enabled)-\(data.sessions.count)") {
             guard enabled else { return }
-            facts = await LiftInfluencesReader.liftInfluenceFacts(data: data, repo: repo, limit: Self.maxSessions)
+            let goal = NutritionDayReader.currentPlan(profile: profile).proteinG
+            facts = await LiftInfluencesReader.liftInfluenceFacts(data: data, repo: repo, limit: Self.maxSessions,
+                                                                  proteinGoalG: goal > 0 ? goal : nil)
             loaded = true
         }
     }
@@ -101,6 +105,7 @@ struct LiftInfluencesSection: View {
         case .recovery: return Text("HR recovery")
         case .volume: return Text("Weight lifted")
         case .effort: return Text("Effort")
+        case .nextNightHrv: return Text("Next night's HRV")
         }
     }
 
@@ -109,6 +114,7 @@ struct LiftInfluencesSection: View {
         case .averageHr, .recovery: return String(localized: "\(Int(v.rounded())) bpm")
         case .volume: return LiftFormat.weight(v, system: unitSystem)
         case .effort: return UnitFormatter.effortDisplay(v, scale: UnitPrefs.resolveEffortScale(effortScaleRaw))
+        case .nextNightHrv: return String(localized: "\(Int(v.rounded())) ms")
         }
     }
 
@@ -123,6 +129,7 @@ struct LiftInfluencesSection: View {
         case .sleep: return Text("Sleep the night before")
         case .water: return Text("Water before and during")
         case .sessionDayBefore: return Text("Training the day before")
+        case .proteinDayBefore: return Text("Protein the day before")
         }
     }
 
@@ -133,6 +140,9 @@ struct LiftInfluencesSection: View {
         case .water: return (String(localized: "750 ml or more"), String(localized: "less than 750 ml"))
         case .sessionDayBefore: return (String(localized: "a session the day before"),
                                         String(localized: "no session the day before"))
+        case .proteinDayBefore:
+            let goal = NutritionDayReader.currentPlan(profile: profile).proteinG
+            return (String(localized: "\(goal) g or more"), String(localized: "less than \(goal) g"))
         }
     }
 
@@ -234,8 +244,8 @@ struct LiftInfluencesSection: View {
 /// Reads the facts of the latest sessions for `LiftInfluences`.
 @MainActor
 enum LiftInfluencesReader {
-    static func liftInfluenceFacts(data: LiftProgressData, repo: Repository,
-                                   limit: Int) async -> [LiftInfluences.SessionFacts] {
+    static func liftInfluenceFacts(data: LiftProgressData, repo: Repository, limit: Int,
+                                   proteinGoalG: Int? = nil) async -> [LiftInfluences.SessionFacts] {
         let sessions = data.sessions
             .filter { $0.row.endTs != nil }
             .sorted { $0.row.startTs > $1.row.startTs }
@@ -245,6 +255,22 @@ enum LiftInfluencesReader {
         let workouts = (try? await store.workouts(deviceId: repo.deviceId, from: oldest - 1,
                                                   to: newest + 1, limit: 2000)) ?? []
         let starts = data.sessions.map(\.row.startTs)
+        let calendar = Calendar.current
+        // The meals of the day before each session, in one read (`MealJournal`): their protein, a day with no
+        // meal written down being unknown rather than none.
+        var proteinByDay: [String: Double] = [:]
+        if let first = LiftInfluences.liftInfluenceDayKey(oldest, offset: -1, calendar: calendar),
+           let last = LiftInfluences.liftInfluenceDayKey(newest, offset: -1, calendar: calendar) {
+            let meals = (try? await MealJournal.mealJournalRange(store, fromDay: first, toDay: last)) ?? []
+            for (day, dayMeals) in Dictionary(grouping: meals, by: \.meal.day) where !dayMeals.isEmpty {
+                proteinByDay[day] = NutritionDaySummary(dayKey: day, meals: dayMeals, spent: nil).eaten.proteinG
+            }
+        }
+        // The HRV of each night, by the day it ends.
+        var hrvByDay: [String: Double] = [:]
+        for day in repo.days {
+            if let hrv = day.avgHrv, hrv > 0 { hrvByDay[day.day] = hrv }
+        }
         var out: [LiftInfluences.SessionFacts] = []
         for session in sessions {
             guard let end = session.row.endTs else { continue }
@@ -266,12 +292,19 @@ enum LiftInfluencesReader {
             if let recovery = LiftHeartRateMath.mean(LiftHeartRateMath.recoveries(spans, samples: samples, now: end)) {
                 measures[.recovery] = Double(recovery)
             }
+            if let next = LiftInfluences.liftInfluenceDayKey(start, offset: 1, calendar: calendar),
+               let hrv = hrvByDay[next] {
+                measures[.nextNightHrv] = hrv
+            }
+            let dayBefore = LiftInfluences.liftInfluenceDayKey(start, offset: -1, calendar: calendar)
             out.append(LiftInfluences.SessionFacts(
                 startTs: start,
                 sleepMin: data.sleep[day],
                 waterMl: LiftInfluences.liftSessionWater(repo.hydrationEntries(day: day), start: start, end: end),
-                sessionDayBefore: LiftInfluences.liftHadSessionDayBefore(start, among: starts, calendar: .current),
-                measures: measures))
+                sessionDayBefore: LiftInfluences.liftHadSessionDayBefore(start, among: starts, calendar: calendar),
+                measures: measures,
+                proteinDayBeforeG: dayBefore.flatMap { proteinByDay[$0] },
+                proteinGoalG: proteinGoalG))
         }
         return out
     }

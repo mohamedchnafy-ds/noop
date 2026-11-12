@@ -187,6 +187,11 @@ Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App 
 - **Au démarrage** : lignes liées avec **1:30 de repos après le tour** (`LiftProgramBlocks.supersetRestSec`, comme l'éditeur), et toute la séance **relettrée A, B, C…** (`LiftDayAdditions.joinedPlan`, aussi pour la séance courte d'Élan) : un superset ajouté ne fusionne jamais avec un du programme.
 - **En fin de séance**, s'il est gardé : il reste un superset dans le programme (étiquette mise à part puis relettrage, `programAfterSession`), avec son repos.
 - Tests : `StrandTests/LiftDayAdditionsTests.swift`.
+### « Ce qui influence » : protéines de la veille et VFC de la nuit suivante (12 nov.)
+- **Facteur « Protéines de la veille »** : les repas notés la veille de la séance (`MealJournal`, total par `NutritionDaySummary.eaten`, la règle de l'écran Nutrition) contre l'**objectif de protéines actuel** (`NutritionDayReader.currentPlan`, pas d'objectif daté) : « n g ou plus » / « moins de n g ». **Une veille sans repas noté = inconnue** (un trou, pas un jeûne) ; pas d'objectif = inconnu.
+- **Mesure « VFC de la nuit suivante »** (pastille) : la VFC moyenne (`DailyMetric.avgHrv`) de la nuit qui finit le lendemain matin de la séance ; plus = mieux ; absente tant que la nuit n'est pas passée.
+- Mêmes seuils (6 par groupe, 12 en tout), même phrase fixe, rien de stocké. Le **café** reste à part : son journal ne garde que 48 h (stockage nouveau, migration et jumeau Kotlin).
+- Tests : `StrandTests/LiftInfluencesTests.swift`.
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

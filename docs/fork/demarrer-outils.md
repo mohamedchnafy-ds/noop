@@ -38,6 +38,26 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   un problème »). Le Centre de tests garde son propre journal brut.
 - Android : inchangé (écrans iPhone, aucune donnée stockée nouvelle).
 
+## Respirer (PR 3)
+- Sous-titre : « Le bracelet vibre pour te guider : une vibration pour inspirer, deux pour expirer. Tu peux
+  fermer les yeux. » Onglets **Respirer · Mon rythme · Me calmer** (clé « My pace » ; « Calm me » en fr).
+- Le rond affiche le mot de la phase pendant la séance (« Inspire… ») et la FC en petit dessous ; avant le
+  départ, la pastille « Prêt » suffit (le rond ne le redit pas). Le grand « 96 BPM » part.
+- Pastilles et chrono ne partagent plus une ligne qui se coupe (`ViewThatFits`) ; « 0:00 sur 10:00 ».
+- Rythmes avec la virgule (« 5,5 resp/min ») ; « Sans fin » a sa clé (« No limit ») au lieu de « Open »
+  (« Ouvrir ») ; « Carré 4-4-4-4 » ; « Vibrations activées » ; textes français de l'écran au tutoiement.
+- Écart avec la maquette : les rythmes restent des pastilles (pas la liste expliquée), pas de compte à
+  rebours « 5 s » sous le mot de la phase.
+
+## Intervalles (PR 4)
+- Titre « Intervalles », sous-titre « Le bracelet vibre à chaque changement : pas besoin de regarder
+  l'écran. » Phases **Effort · Repos · Terminé** ; « Tour 1 sur 8 » (la clé « Round %lld of %lld » sert aussi
+  à la ligne de superset de la séance : « Cycle » y devient « Tour », le mot du fork).
+- « Prêt » tant que rien n'a commencé (au lieu de « En pause ») ; « Recommencer ».
+- Durées « 30 s », « 10 min », « 1 min 30 s » (`IntervalTimerView.secondsText`, sans clé : « s » est le
+  même partout) ; sous chaque réglage « De 5 s à 10 min, par pas de 5 s ».
+- Écart avec la maquette : le chiffre central reste en secondes (« 30 », « Secondes »).
+
 ## Journal
 - **12 nov. (soir)** : audit des 4 écrans, maquette en 5 planches, 4 questions, réponses = les choix
   recommandés. PR 1 (journal du bracelet) codée : 96 clés dans les 10 langues, `StrapLogReaderTests`.

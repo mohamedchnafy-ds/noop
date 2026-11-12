@@ -366,6 +366,8 @@ struct LiquidTodayView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     scene
+                    // Personal fork (Démarrer tools): the strap's battery in words, under the title.
+                    TodayBatteryCard()
                     // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
                     // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
                     // RootView.swift likewise), so while this was unmounted a RAISED health alert had no
@@ -2752,7 +2754,7 @@ private struct LiquidStrapBatteryRow: View {
     /// "87%" plus a trailing "· Charging" (#972) or "· ~9 days left" runtime (#992), matching the Settings /
     /// Mac / Android pill and the classic Today badge.
     private func batteryText(pct: Double) -> String {
-        let base = "\(Int(pct.rounded()))%"
+        let base = StrapLogReader.strapLogPercent(Int(pct.rounded()))
         if live.charging == true { return "\(base) · \(String(localized: "Charging"))" }
         if let est = estimateText { return "\(base) · \(est)" }
         return base
@@ -2762,16 +2764,8 @@ private struct LiquidStrapBatteryRow: View {
     /// Reproduced verbatim from `TodayView.estimateText`: under 48 h show hours, at two days or more round to
     /// days; nil (no banked discharge yet, or charging) hides it, so the row only ever shows an estimate we trust.
     private var estimateText: String? {
-        guard live.charging != true, let est = live.batteryEstimate else { return nil }
-        let hours = est.hoursRemaining
-        guard hours.isFinite, hours > 0 else { return nil }
-        if hours < 48 {
-            return String(localized: "~\(Int(hours.rounded()))h left")
-        }
-        let days = Int((hours / 24).rounded())
-        return days == 1
-            ? String(localized: "~1 day left")
-            : String(localized: "~\(days) days left")
+        // One rule for the runtime, shared with the battery card under the title (personal fork).
+        TodayBatteryLine.todayBatteryEstimate(charging: live.charging, estimate: live.batteryEstimate)
     }
 }
 

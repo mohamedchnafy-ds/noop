@@ -16,7 +16,7 @@ import OuraProtocol
 ///
 /// LiveState (which publishes at ~1 Hz while a strap streams) is observed ONLY in leaf views
 /// (`LiveHeartReadout`, `LivePhysiology`, `LiveHeaderStats`, `LiveSignalTrustRail`, `ActiveWorkoutLive`,
-/// `LiveLogCard`, …) — the Today pattern — so a fresh HR / R-R / frame notify re-renders just that leaf,
+/// `StrapLogRecentCard`, …) — the Today pattern — so a fresh HR / R-R / frame notify re-renders just that leaf,
 /// never the whole screen. The parent only observes the coarse connection transitions it needs to re-arm
 /// the stream and gate the layout.
 struct LiveView: View {
@@ -158,7 +158,8 @@ struct LiveView: View {
                 LiveHRBannerSideSetting()
                 #endif
                 manageDevicesRow
-                LiveLogCard()
+                // The strap log in plain words (personal fork): the last sentences, « See all » opens the screen.
+                StrapLogRecentCard()
             }
         }
         .onAppear { refreshLiveSession(); consumeActiveWorkoutRequest() }
@@ -1247,139 +1248,6 @@ private struct ActiveWorkoutLive: View {
                 .foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// The strap log + export controls + Test Centre link. Wrapped in the liquid frosted card style.
-///
-/// This observes `LiveState` rather than scoping anything: a published change there invalidates every
-/// observer, so what this card controls is the COST of its own re-evaluation, not whether it happens.
-private struct LiveLogCard: View {
-    /// How many trailing lines the card RENDERS. The buffer stays `LiveState.maxLogLines` (5,000) and Copy /
-    /// Save / the export still read all of it, so nothing is lost by drawing less.
-    ///
-    /// #2521: this card used to render the whole buffer in a non-lazy `VStack`, so every appended line built
-    /// and diffed up to 5,000 rows while the visible viewport is 200pt, about fifteen lines. A history drain
-    /// plus a re-score burst emits hundreds of lines a minute, and the 80%-of-a-core CPU limit is per
-    /// process, so that cost landed on the main thread and the app was killed with `cpu_resource_fatal`
-    /// while it was not even frontmost.
-    private static let renderedTailLines = 200
-
-    @EnvironmentObject private var live: LiveState
-    @EnvironmentObject private var model: AppModel
-    /// Backgrounded, nothing is on screen to keep current, and a `LiveState` publish still re-evaluates this
-    /// body because an `ObservableObject` invalidates every observer on ANY published change, not only the
-    /// property a view reads. So what is cut is the COST of that re-evaluation, which is what the CPU limit
-    /// measures: roughly fifteen built rows instead of five thousand, and none at all here.
-    ///
-    /// Not free, to be exact about what remains: the header, the `Divider` and the `NavigationLink` are still
-    /// built per line, and `NavigationLink(destination:)` constructs `TestCentreView()` eagerly, which
-    /// evaluates its `@State` defaults (three `UserDefaults` reads). Microseconds against the five thousand
-    /// `Text` views this removes, but the place to look first if a background cost survives this.
-    ///
-    /// Gated on `.background` rather than `!= .active` deliberately: `.inactive` is also when iOS takes the
-    /// app-switcher snapshot, and blanking the log there would be visible for no benefit. The kill needs
-    /// sustained non-frontmost CPU, which is `.background`.
-    @Environment(\.scenePhase) private var scenePhase
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Text("Strap log").font(StrandFont.overline).tracking(StrandFont.overlineTracking)
-                    .foregroundStyle(StrandPalette.textSecondary)
-                Spacer()
-                // Export the log so people can attach it to a bug report (issue #17 — macOS users
-                // had no way to share it). Copy → clipboard; Save… → a .txt file.
-                Button("Copy") { copyStrapLog() }
-                    .buttonStyle(.plain).font(StrandFont.mono).foregroundStyle(StrandPalette.accent)
-                Button("Save…") { saveStrapLog() }
-                    .buttonStyle(.plain).font(StrandFont.mono).foregroundStyle(StrandPalette.accent)
-            }
-            if scenePhase == .background {
-                // Same height so returning to the app does not shift the card's layout.
-                Color.clear.frame(height: 200)
-            } else {
-                logScroller
-            }
-
-            // Users look on Live first when something's wrong (#507/#509), so link straight into the
-            // Test Centre diagnostic home, one tap from the log.
-            Divider().overlay(StrandPalette.hairline)
-            NavigationLink(destination: TestCentreView()) {
-                HStack(spacing: 8) {
-                    Image(systemName: "testtube.2").foregroundStyle(StrandPalette.accent)
-                    Text("Open Test Centre to report a bug").font(StrandFont.mono)
-                        .foregroundStyle(StrandPalette.accent)
-                    Spacer()
-                    Image(systemName: "chevron.right").foregroundStyle(StrandPalette.textSecondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open Test Centre")
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface())
-    }
-
-    /// The tail of the log, lazily.
-    ///
-    /// The slice comes from `LiveState.renderedTail`, which snapshots the buffer so a lazily-realized row
-    /// cannot index a trimmed array. Its indices are ABSOLUTE positions in `live.log`, which is what makes
-    /// them usable as identity: BETWEEN trims, appending a line leaves every other row's id alone, so SwiftUI adds one row
-    /// and drops one instead of re-identifying the list. A trim still renumbers, because `Array.removeFirst`
-    /// shifts every element down, but that is once per `LiveState.trimSlack` lines and now touches 200 ids
-    /// rather than rebuilding 5,000 rows.
-    ///
-    /// The old `id: \.offset` over `Array(live.log.enumerated())` paid on every line instead: a fresh
-    /// 5,000-element array allocated per body evaluation, and a non-lazy `VStack` that built every row even
-    /// though the 200pt viewport shows about fifteen.
-    ///
-    /// `scrollTo` still addresses the true last index, which is always inside the tail.
-    private var logScroller: some View {
-        let tail = LiveState.renderedTail(live.log, tailLines: Self.renderedTailLines)
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(tail.indices, id: \.self) { idx in
-                        Text(tail[idx]).font(StrandFont.mono)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .id(idx)
-                    }
-                }
-            }
-            #if os(iOS)
-            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            #endif
-            .frame(height: 200)
-            // On `logRevision`, not `log.count` (#2547). The revision is monotonic and ticks exactly once per
-            // coalesced publish; the count plateaus while the ring trims, so it can stay equal across an
-            // append and skip a scroll.
-            .onChangeCompat(of: live.logRevision) { _ in
-                if let last = live.log.indices.last { proxy.scrollTo(last, anchor: .bottom) }
-            }
-        }
-    }
-
-    // MARK: - Strap-log export (issue #17 — let macOS users share the log for bug reports)
-
-    // The strap-log text builder lives on LiveState (`exportableLogText()`) so the macOS Settings
-    // shortcut shares the exact same output (#17 / #507). These stay as thin wrappers.
-    private func copyStrapLog() {
-        PlatformPasteboard.copy(live.exportableLogText())
-    }
-
-    private func saveStrapLog() {
-        Task {
-            // Settings (#507) and Test Centre fetch these extras before exporting; without them this
-            // site wrote a same-named file silently missing the "Strap & data" + funnel sections, so
-            // which button someone pressed changed what a triager received.
-            let extra = await DebugDataDiagnostics.dynamicLines(repo: model.repo)
-            FileExport.exportText(live.exportableLogText(extraHeaderLines: extra),
-                                  suggestedName: FileExport.timestampedName("noop-strap-log", ext: "txt"))
-        }
     }
 }
 

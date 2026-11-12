@@ -96,7 +96,13 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
 - **12 nov. (soir, suite)** : choix de Mohamed, **tout dans la PR #156** (les 4 écrans) ; ajout demandé de la
   batterie bien visible sur Aujourd'hui (3 clés, `TodayBatteryLineTests`).
 
-## À tester (prochaine IPA)
+- **12 nov. (nuit)** : jobs macOS / iOS de #156 annulés deux fois sans runner arm64 ; choix de Mohamed :
+  preuve Intel. Branche temporaire `ci/demarrer-intel` (tête de la PR + `tmp-demarrer-intel.yml`, jamais
+  fusionnée, à supprimer sur accord) : build macOS vert, **build NOOPiOS simulateur vert**, **2 986
+  StrandTests, 0 échec, 2 ignorés** (sans les 14 classes de rendu) sur `macos-15-intel`. Choix de Mohamed :
+  fusionner, puis IPA `build/demarrer` depuis `main` (elle contient aussi la suite du chantier 18).
+
+## À tester (IPA `build/demarrer`)
 - **Batterie sur Aujourd'hui** : sous le titre, carte « Batterie du bracelet · 73 % · ~5 jours restants »
   (vert), orange à 30 % ou moins, rouge à 15 % ou moins avec « À recharger bientôt », éclair « En charge » sur
   le chargeur, « Bracelet non connecté » sans pourcentage quand il est loin ; même valeur que la bague en haut

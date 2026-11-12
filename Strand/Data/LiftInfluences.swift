@@ -3,8 +3,8 @@ import Foundation
 // « Ce qui influence mes séances » (fork chantier 18, lot C, maquette 4). EXPERIMENTAL and off by default
 // (AGENTS.md: a signal that is not validated is never shown as a finding): each strength session is described
 // by a few facts — the night's sleep, the water drunk before and during it, whether there was a session the
-// day before — and by a few measures — its average heart rate, the recovery between sets, the weight lifted,
-// its Effort. For one fact and one measure, the sessions WITH it are compared with the sessions WITHOUT it.
+// day before, the protein eaten the day before — and by a few measures — its average heart rate, the recovery
+// between sets, the weight lifted, its Effort, the HRV of the night after it. For one fact and one measure, the sessions WITH it are compared with the sessions WITHOUT it.
 //
 // Each lifter is compared with themselves only. Nothing is shown before `minPerGroup` sessions in each group
 // and `minTotal` in all; the difference and both counts are always shown with it; and the words never say
@@ -26,12 +26,12 @@ enum LiftInfluences {
     static let clearShare = 0.03
 
     enum Factor: String, CaseIterable, Identifiable {
-        case sleep, water, sessionDayBefore
+        case sleep, water, sessionDayBefore, proteinDayBefore
         var id: String { rawValue }
     }
 
     enum Measure: String, CaseIterable, Identifiable {
-        case averageHr, recovery, volume, effort
+        case averageHr, recovery, volume, effort, nextNightHrv
         var id: String { rawValue }
         /// +1 when more is better, −1 when less is (an average heart rate lower at the same work).
         var direction: Double { self == .averageHr ? -1 : 1 }
@@ -45,6 +45,11 @@ enum LiftInfluences {
         var waterMl: Int?
         var sessionDayBefore: Bool
         var measures: [Measure: Double]
+        /// The protein of the meals written down the day before, nil when no meal was (a hole, not a fast).
+        var proteinDayBeforeG: Double? = nil
+        /// The protein goal it is judged against (the current goal, `NutritionDayReader.currentPlan`), nil
+        /// when there is none.
+        var proteinGoalG: Int? = nil
     }
 
     struct Comparison: Equatable {
@@ -80,6 +85,9 @@ enum LiftInfluences {
         case .sleep: return facts.sleepMin.map { $0 >= sleepThresholdMin }
         case .water: return facts.waterMl.map { $0 >= waterThresholdMl }
         case .sessionDayBefore: return facts.sessionDayBefore
+        case .proteinDayBefore:
+            guard let protein = facts.proteinDayBeforeG, let goal = facts.proteinGoalG, goal > 0 else { return nil }
+            return protein >= Double(goal)
         }
     }
 
@@ -101,6 +109,14 @@ enum LiftInfluences {
         let day = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(startTs)))
         guard let before = calendar.date(byAdding: .day, value: -1, to: day) else { return false }
         return starts.contains { calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval($0))) == before }
+    }
+
+    /// The local day key (« yyyy-MM-dd ») `offset` days from the day `ts` falls on: −1 the day before (its
+    /// meals), +1 the day after (the night that ends that morning, the next night's HRV).
+    static func liftInfluenceDayKey(_ ts: Int, offset: Int, calendar: Calendar) -> String? {
+        let day = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(ts)))
+        guard let shifted = calendar.date(byAdding: .day, value: offset, to: day) else { return nil }
+        return MealJournal.mealDayKey(shifted, calendar: calendar)
     }
 
     /// The water logged from `waterLeadSec` before `start` to `end`, nil when nothing was logged at all that

@@ -65,4 +65,41 @@ final class LiftInfluencesTests: XCTestCase {
         XCTAssertTrue(LiftInfluences.liftHadSessionDayBefore(monday, among: [sunday, monday], calendar: calendar))
         XCTAssertFalse(LiftInfluences.liftHadSessionDayBefore(monday, among: [monday, sunday - 86_400], calendar: calendar))
     }
+
+    // MARK: Protein the day before, the next night's HRV
+
+    private func proteinFacts(_ protein: Double?, goal: Int?, hrv: Double) -> LiftInfluences.SessionFacts {
+        LiftInfluences.SessionFacts(startTs: 0, sleepMin: nil, waterMl: nil, sessionDayBefore: false,
+                                    measures: [.nextNightHrv: hrv], proteinDayBeforeG: protein, proteinGoalG: goal)
+    }
+
+    func testProteinTheDayBeforeIsJudgedAgainstTheGoalAndUnknownWithoutAMeal() {
+        XCTAssertEqual(LiftInfluences.liftInfluenceHas(.proteinDayBefore, proteinFacts(150, goal: 150, hrv: 50)), true)
+        XCTAssertEqual(LiftInfluences.liftInfluenceHas(.proteinDayBefore, proteinFacts(149.9, goal: 150, hrv: 50)), false)
+        XCTAssertNil(LiftInfluences.liftInfluenceHas(.proteinDayBefore, proteinFacts(nil, goal: 150, hrv: 50)),
+                     "no meal written down: a hole, not a day without protein")
+        XCTAssertNil(LiftInfluences.liftInfluenceHas(.proteinDayBefore, proteinFacts(120, goal: nil, hrv: 50)))
+        XCTAssertNil(LiftInfluences.liftInfluenceHas(.proteinDayBefore, proteinFacts(120, goal: 0, hrv: 50)))
+    }
+
+    func testTheNextNightsHrvIsAMeasureWhereMoreReadsBetter() {
+        let sessions = (0..<6).map { _ in proteinFacts(170, goal: 150, hrv: 62) }
+            + (0..<6).map { _ in proteinFacts(90, goal: 150, hrv: 55) }
+            + (0..<3).map { _ in proteinFacts(nil, goal: 150, hrv: 40) }
+        let c = LiftInfluences.liftInfluenceComparison(sessions, factor: .proteinDayBefore, measure: .nextNightHrv)
+        XCTAssertEqual(c.withCount, 6)
+        XCTAssertEqual(c.withoutCount, 6, "the days with no meal are left out")
+        XCTAssertEqual(c.difference, 7)
+        XCTAssertTrue(c.isClearDifference)
+        XCTAssertTrue(c.isFavorable)
+    }
+
+    func testTheDayBeforeAndTheDayAfterKeys() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let noon = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1, hour: 12))!
+        let ts = Int(noon.timeIntervalSince1970)
+        XCTAssertEqual(LiftInfluences.liftInfluenceDayKey(ts, offset: -1, calendar: calendar), "2026-02-28")
+        XCTAssertEqual(LiftInfluences.liftInfluenceDayKey(ts, offset: 1, calendar: calendar), "2026-03-02")
+    }
 }

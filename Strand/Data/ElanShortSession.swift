@@ -227,7 +227,7 @@ extension LiftSessionController {
         }
         LiftDayAdditions.takeAdditions(day: TrainingCalendar.trainingDayKey(Date(), calendar: .current),
                                        programId: plan.programId)
-        start(plan: items + added, programId: plan.programId, programName: plan.title)
+        start(plan: LiftDayAdditions.joinedPlan(items, added), programId: plan.programId, programName: plan.title)
     }
 
     /// The one start every « Start » of a planned program shares (the Training day card, the « Start »

@@ -941,13 +941,22 @@ final class LiftSessionController: ObservableObject {
             lines = applying(setCountChanges(plan: plan, program: items), to: lines)
             lines = applyingRests(restChanges(plan: plan, program: items), to: lines)
             let next = (items.map(\.ord).max() ?? -1) + 1
+            var linked = false
             for (offset, line) in plan.filter(\.addedInSession).enumerated() {
                 guard let id = line.programItemId, !lines.contains(where: { $0.id == id }) else { continue }
+                // Fork chantier 18: a superset added for today stays one, with its rest after the round; its
+                // label is set apart (« ~ ») so it cannot merge with one of the program's, then relettered.
                 lines.append(LiftProgramItemRow(
                     id: id, deviceId: deviceId, programId: programId, ord: next + offset,
                     exercise: line.exercise, targetSets: line.targetSets,
                     targetRepsLow: 0, targetRepsHigh: nil, targetRpe: nil, targetWeightKg: 0,
-                    restSec: nil, note: nil))
+                    restSec: line.supersetGroup == nil ? nil : line.restSec, note: nil,
+                    supersetGroup: line.supersetGroup.map { "~" + $0 }))
+                if line.supersetGroup != nil { linked = true }
+            }
+            if linked {
+                let labels = LiftSuperset.relabeled(lines.map(\.supersetGroup))
+                for i in lines.indices { lines[i].supersetGroup = labels[i] }
             }
         }
         return applyingHeaviestSets(sets, plan: plan, to: lines)

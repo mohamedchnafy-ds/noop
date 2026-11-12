@@ -19,6 +19,9 @@ struct LiftDayAddition: Codable, Equatable, Identifiable {
     var exercise: String
     var primaryMuscle: LiftMuscle?
     var secondaryMuscles: [LiftMuscle]
+    /// The superset this addition was added in (« Superset » in the sheet, fork chantier 18), shared by its
+    /// 2 or 3 exercises; nil for one added alone. Optional, so a list written before it still reads.
+    var group: String? = nil
 }
 
 enum LiftDayAdditions {
@@ -98,6 +101,45 @@ enum LiftDayAdditions {
         return true
     }
 
+    /// Add 2 or 3 exercises to `programId` for `day` as ONE superset, in the order of the round. False when
+    /// fewer than two are given or the day's list has no room for them all.
+    @discardableResult
+    static func addSuperset(_ additions: [LiftDayAddition], day: String, programId: String,
+                            defaults: UserDefaults = .standard) -> Bool {
+        guard additions.count >= 2 else { return false }
+        var all = stored(defaults).filter { $0.day == day }
+        var entry = all.first { $0.programId == programId } ?? Stored(day: day, programId: programId, lines: [])
+        guard entry.lines.count + additions.count <= maxPerProgram else { return false }
+        // A label no program letter can be (« ~D1 »), distinct from the day's other supersets; the start
+        // relabels the whole session A, B, C… (`joinedPlan`).
+        let used = Set(entry.lines.compactMap(\.group))
+        var n = used.count + 1
+        while used.contains("~D\(n)") { n += 1 }
+        for addition in additions {
+            var linked = addition
+            linked.group = "~D\(n)"
+            entry.lines.append(linked)
+        }
+        all.removeAll { $0.programId == programId }
+        all.append(entry)
+        write(all, defaults)
+        return true
+    }
+
+    /// The additions as the day card shows them: each superset as one block, each other addition alone, in
+    /// the order added.
+    static func additionBlocks(_ lines: [LiftDayAddition]) -> [[LiftDayAddition]] {
+        var blocks: [[LiftDayAddition]] = []
+        for line in lines {
+            if let group = line.group, let last = blocks.last?.last, last.group == group {
+                blocks[blocks.count - 1].append(line)
+            } else {
+                blocks.append([line])
+            }
+        }
+        return blocks
+    }
+
     /// Take one addition back out.
     static func remove(id: String, day: String, programId: String, defaults: UserDefaults = .standard) {
         let all = stored(defaults).filter { $0.day == day }.map { entry -> Stored in
@@ -135,8 +177,20 @@ enum LiftDayAdditions {
                             primaryMuscle: addition.primaryMuscle,
                             secondaryMuscles: addition.secondaryMuscles.filter { $0 != addition.primaryMuscle },
                             targetSets: working.isEmpty ? defaultSets : min(working.count, LiftSessionEngine.maxSetsPerExercise),
+                            // A superset rests after its round, as one added in the program editor does (1:30).
+                            restSec: addition.group == nil ? nil : LiftProgramBlocks.supersetRestSec,
                             programItemId: addition.id,
-                            addedInSession: true)
+                            addedInSession: true,
+                            supersetGroup: addition.group)
+    }
+
+    /// The session's plan: the program's lines, then the day's additions, every superset relettered A, B, C…
+    /// in order, so an added superset never merges with one of the program's.
+    static func joinedPlan(_ plan: [LiftPlanItem], _ added: [LiftPlanItem]) -> [LiftPlanItem] {
+        var all = plan + added
+        let labels = LiftSuperset.relabeled(all.map(\.supersetGroup))
+        for i in all.indices { all[i].supersetGroup = labels[i] }
+        return all
     }
 
     private static func stored(_ defaults: UserDefaults) -> [Stored] {

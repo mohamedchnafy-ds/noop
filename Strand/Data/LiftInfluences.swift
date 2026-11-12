@@ -104,6 +104,13 @@ enum LiftInfluences {
                           withCount: with.count, withoutCount: without.count)
     }
 
+    /// Every factor against every measure, factor by factor: what the Coach is handed (fork chantier 18).
+    static func liftInfluenceComparisons(_ sessions: [SessionFacts]) -> [Comparison] {
+        Factor.allCases.flatMap { factor in
+            Measure.allCases.map { liftInfluenceComparison(sessions, factor: factor, measure: $0) }
+        }
+    }
+
     /// Whether another strength session started the calendar day before `startTs`.
     static func liftHadSessionDayBefore(_ startTs: Int, among starts: [Int], calendar: Calendar) -> Bool {
         let day = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(startTs)))

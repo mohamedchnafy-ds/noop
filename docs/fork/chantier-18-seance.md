@@ -193,6 +193,15 @@ Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App 
 - Mêmes seuils (6 par groupe, 12 en tout), même phrase fixe, rien de stocké. Le **café** reste à part : son journal ne garde que 48 h (stockage nouveau, migration et jumeau Kotlin).
 - Tests : `StrandTests/LiftInfluencesTests.swift`.
 
+### Fusions de la suite (12 nov.)
+- **#151** liste du programme (`main` 8eb7a24, 6/6) ; **#152** « Superset » à l'ajout (`main` 8712554, 6/6 après 3 relances de la jambe macOS) ; **#153** facteurs (`main` 62de34e) : iOS vert sur la PR, jambe macOS annulée 3 fois (macos-15 saturé dès 11:30 UTC) → **preuve Intel** choisie par Mohamed : branche `ci/c18-influences-intel` + `tmp-c18-influences-intel.yml`, build macOS + **2 968 StrandTests, 0 échec** (sans les classes de rendu PNG). Branche temporaire jamais fusionnée, à supprimer sur accord.
+
+### Le Coach explique « Ce qui influence » (12 nov.)
+- Bloc **WHAT SHAPES MY SESSIONS** dans la fiche du Coach (`CoachFiche.influencesBlock`, `Strand/AI/CoachInfluencesBlock.swift`), envoyé **seulement si l'analyse Expérimentale est allumée** dans Progression (`lift.influences.enabled`) et avec « Utiliser mes données ». Placé après LIFT PROGRESSION.
+- Mêmes chiffres que le bloc de Progression : `LiftInfluencesReader.liftInfluenceFacts` (60 dernières séances) puis **tous les facteurs × toutes les mesures** (`LiftInfluences.liftInfluenceComparisons`) ; objectif de protéines par `liftInfluenceProteinGoal` (un seul résolveur pour l'écran et le Coach). Par facteur : les mesures qui ont assez de séances (moyennes avec / sans, nombres, « clear difference, reads better / worse with » ou « no clear difference »), sinon une ligne « not enough data yet (n with, m without) ». L'en-tête rappelle les seuils et la règle : « in your sessions, we observe… », jamais une cause.
+- « Ce que lit le Coach » : ligne « Ce qui influence mes séances ».
+- Tests : `StrandTests/CoachFicheTests.swift`.
+
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**
 1. Chaque lot est fusionné dans `main` (une PR par préoccupation), CI à 0 non-succès sur la tête de chaque PR (macOS + iOS + StrandTests + Tools Python + i18n + parité).

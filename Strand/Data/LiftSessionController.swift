@@ -334,6 +334,31 @@ final class LiftSessionController: ObservableObject {
         persist()
     }
 
+    /// Less time on the running rest — the quick-entry card's "−15 s" (fork chantier 18).
+    func shortenRest(by seconds: Int = LiftSessionController.restStepSec) {
+        guard case .resting = engine?.stage else { return }
+        resumeIfPaused()
+        engine?.shortenRest(by: seconds, now: Self.unixNow)
+        persist()
+    }
+
+    /// « Done » on the quick-entry card (`LiftSessionEngine.completeQuickSet`, fork chantier 18): the set the
+    /// card stands on is recorded with what it shows, and its rest starts by itself.
+    func completeQuickSet() {
+        guard let current = engine, current.quickEntrySlot != nil else { return }
+        if case .warmup = current.stage {
+            advance()
+            return
+        }
+        resumeIfPaused()
+        guard let resumed = engine else { return }
+        let recordedBefore = resumed.sets.count
+        guard engine?.completeQuickSet(now: Self.unixNow) == true else { return }
+        applyPendingInput(from: recordedBefore)
+        warnedFor = nil
+        persist()
+    }
+
     /// The rest a block takes between its rounds, for this session (`LiftSessionEngine.setRest`).
     func setRest(_ seconds: Int, forBlockOf index: Int) {
         guard let current = engine, let owner = current.supersetMembers(of: index).last,
@@ -540,14 +565,22 @@ final class LiftSessionController: ObservableObject {
 
     /// The grey numbers a slot shows — the one chain every surface reads, so the sheet, the minimised
     /// bar and the Lock Screen cannot disagree about them.
+    ///
+    /// A weight typed in advance into an earlier set, and a warm-up marked in advance, take part in the
+    /// chain (fork chantier 18): the weight given to set 2 is the weight of sets 3 and 4 too.
     func carry(for slot: LiftSlot) -> LiftSetCarry {
-        engine?.carry(for: slot, lastSession: lastSessionSets(for: slot)) ?? .none
+        engine?.carry(for: slot, lastSession: lastSessionSets(for: slot),
+                      pendingWeights: pendingWeights, warmups: pendingWarmups) ?? .none
     }
 
     /// What a slot counts as: typed numbers, else its grey ones.
     func values(of slot: LiftSlot) -> LiftSetCarry {
-        engine?.values(of: slot, lastSession: lastSessionSets(for: slot)) ?? .none
+        engine?.values(of: slot, lastSession: lastSessionSets(for: slot),
+                       pendingWeights: pendingWeights, warmups: pendingWarmups) ?? .none
     }
+
+    /// The weights typed into sets not yet performed, for the weight chain.
+    private var pendingWeights: [LiftSlot: Double] { pendingValues.compactMapValues(\.weightKg) }
 
     private func lastSessionSets(for slot: LiftSlot) -> [Int: LiftSetCarry] {
         engine?.planItem(for: slot).flatMap { lastSession[$0.exercise] } ?? [:]

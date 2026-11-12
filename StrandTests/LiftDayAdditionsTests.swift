@@ -131,4 +131,56 @@ final class LiftDayAdditionsTests: XCTestCase {
         XCTAssertEqual(TrainingText.allLinesToggle(more: 2, leftOut: 1),
                        String(localized: "+ \(2) more") + " · " + String(localized: "1 left out today"))
     }
+
+    // MARK: A superset added for today (« Superset » in the sheet)
+
+    func testASupersetAddedForTodayIsOneLinkedBlock() {
+        XCTAssertFalse(LiftDayAdditions.addSuperset([addition("Curl")], day: "d", programId: "A", defaults: defaults),
+                       "a superset takes two exercises or more")
+        LiftDayAdditions.add(addition("Dips"), day: "d", programId: "A", defaults: defaults)
+        XCTAssertTrue(LiftDayAdditions.addSuperset([addition("Curl"), addition("Extension")], day: "d",
+                                                   programId: "A", defaults: defaults))
+        XCTAssertTrue(LiftDayAdditions.addSuperset([addition("Fly"), addition("Raise")], day: "d",
+                                                   programId: "A", defaults: defaults))
+        let lines = LiftDayAdditions.additions(day: "d", programId: "A", defaults: defaults)
+        XCTAssertNil(lines[0].group)
+        XCTAssertEqual(lines[1].group, lines[2].group)
+        XCTAssertNotNil(lines[1].group)
+        XCTAssertNotEqual(lines[3].group, lines[1].group, "two supersets never share a label")
+        XCTAssertEqual(LiftDayAdditions.additionBlocks(lines).map { $0.map(\.exercise) },
+                       [["Dips"], ["Curl", "Extension"], ["Fly", "Raise"]])
+    }
+
+    func testASupersetJoinsTheSessionLinkedAndRelettered() {
+        LiftDayAdditions.addSuperset([addition("Curl"), addition("Extension")], day: "d", programId: "A",
+                                     defaults: defaults)
+        let added = LiftDayAdditions.additions(day: "d", programId: "A", defaults: defaults)
+            .map { LiftDayAdditions.planItem($0, lastSets: []) }
+        XCTAssertEqual(added.map(\.restSec), [LiftProgramBlocks.supersetRestSec, LiftProgramBlocks.supersetRestSec])
+        let program = [LiftPlanItem(exercise: "Squat", supersetGroup: "A"), LiftPlanItem(exercise: "Row", supersetGroup: "A"),
+                       LiftPlanItem(exercise: "Plank")]
+        let plan = LiftDayAdditions.joinedPlan(program, added)
+        XCTAssertEqual(plan.map(\.supersetGroup), ["A", "A", nil, "B", "B"])
+        XCTAssertEqual(LiftSuperset.blocks(plan.map(\.supersetGroup)).count, 3)
+    }
+
+    /// Kept at the finish, a superset added for today stays one in the program, after its own supersets.
+    @MainActor
+    func testAKeptSupersetStaysLinkedInTheProgram() {
+        let program = [line(0, "Squat", group: "A"), line(1, "Row", group: "A")]
+        var curl = LiftPlanItem(exercise: "Curl", targetSets: 3, restSec: 90, programItemId: "c", addedInSession: true,
+                                supersetGroup: "A")
+        var dips = curl
+        dips.exercise = "Dips"
+        dips.programItemId = "x"
+        // Relettered at the start with the program's Row left out: the added superset reads « A » too.
+        curl.supersetGroup = "A"
+        dips.supersetGroup = "A"
+        let plan = [LiftPlanItem(exercise: "Squat", programItemId: "l0"), curl, dips]
+        let after = LiftSessionController.programAfterSession([], plan: plan, program: program, keepingChanges: true,
+                                                              programId: "A", deviceId: "d")
+        XCTAssertEqual(after.map(\.exercise), ["Squat", "Row", "Curl", "Dips"])
+        XCTAssertEqual(after.map(\.supersetGroup), ["A", "A", "B", "B"], "not merged with the program's A")
+        XCTAssertEqual(after[3].restSec, 90)
+    }
 }

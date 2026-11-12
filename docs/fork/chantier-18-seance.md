@@ -181,6 +181,13 @@ Mêmes rappels (`.noopbak` vers iCloud Drive, installer par-dessus, « Keep App 
 - La séance courte d'Élan n'a pas de liste (ses lignes sont celles de la version courte).
 - Tests : `StrandTests/LiftDayAdditionsTests.swift`.
 
+### « Superset » dans la feuille d'ajout (12 nov.)
+- Feuille « + Exercice » de la carte du jour : en tête **« Un exercice | Superset »** (comme l'éditeur de programme). En Superset : cocher **2 ou 3 exercices déjà faits** dans « Utilisés avant » (filtre par muscle et recherche gardés), A1, A2… dans l'ordre du tour, **« Ajouter le superset (n) »**. Un exercice nouveau s'ajoute d'abord seul. Pas dans la séance en cours (la feuille de la séance reste « un exercice »).
+- **Stockage** : `LiftDayAddition.group` (optionnel), une étiquette « ~D1 », « ~D2 »… qu'aucune lettre de programme ne peut être ; `LiftDayAdditions.addSuperset`. La carte montre le superset sur **une ligne** (« Curl · Dips », « Superset », « Aujourd'hui ») et son « − » le retire en entier (`additionBlocks`).
+- **Au démarrage** : lignes liées avec **1:30 de repos après le tour** (`LiftProgramBlocks.supersetRestSec`, comme l'éditeur), et toute la séance **relettrée A, B, C…** (`LiftDayAdditions.joinedPlan`, aussi pour la séance courte d'Élan) : un superset ajouté ne fusionne jamais avec un du programme.
+- **En fin de séance**, s'il est gardé : il reste un superset dans le programme (étiquette mise à part puis relettrage, `programAfterSession`), avec son repos.
+- Tests : `StrandTests/LiftDayAdditionsTests.swift`.
+
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**
 1. Chaque lot est fusionné dans `main` (une PR par préoccupation), CI à 0 non-succès sur la tête de chaque PR (macOS + iOS + StrandTests + Tools Python + i18n + parité).

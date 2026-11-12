@@ -16,6 +16,9 @@ struct LiftSessionExerciseSheet: View {
     var destination: Destination = .session
     /// Handed the exercise once it is remembered; the session (or today's list) adds it.
     let onAdd: (_ name: String, _ primary: LiftMuscle?, _ secondaries: [LiftMuscle]) -> Void
+    /// Fork chantier 18 (today only): « Superset » ticks 2 or 3 exercises done before, handed over at once
+    /// in the order of the round.
+    var onAddSuperset: (_ exercises: [LiftExerciseRow]) -> Void = { _ in }
 
     @EnvironmentObject var repo: Repository
     @Environment(\.dismiss) private var dismiss
@@ -30,6 +33,9 @@ struct LiftSessionExerciseSheet: View {
     @State private var adding = false
     /// Fork chantier 18: the exercises done before, narrowed to one primary muscle; nil shows them all.
     @State private var muscleFilter: LiftMuscle?
+    /// Fork chantier 18: « One exercise | Superset » (today only), and the exercises ticked for the superset.
+    @State private var supersetMode = false
+    @State private var picks: [LiftExerciseRow] = []
 
     @FocusState private var focused: Field?
     private enum Field: Hashable { case exercise }
@@ -43,20 +49,31 @@ struct LiftSessionExerciseSheet: View {
         ScreenScaffold(title: "Add exercise",
                        subtitle: "Pick one you have done before, or type a new name.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+                if destination == .today {
+                    SegmentedPillControl([false, true], selection: $supersetMode, fillsAvailableWidth: true) {
+                        $0 ? String(localized: "Superset") : String(localized: "One exercise")
+                    }
+                }
                 exerciseSection
-                LiftMusclePicker(primary: $primary, secondaries: $secondaries)
+                if !supersetMode {
+                    LiftMusclePicker(primary: $primary, secondaries: $secondaries)
+                }
                 Group {
-                    switch destination {
-                    case .session:
-                        Text("It joins this session with one set, its weight and reps at 0 until you type what you lift. Finishing asks whether the program keeps it.")
-                    case .today:
-                        Text("For today only: it joins today's session with as many sets as last time, at last time's numbers. The program does not change; finishing the session asks whether it keeps it.")
+                    if supersetMode {
+                        Text("For today only: tick 2 or 3 exercises in the order of the round. They join today's session linked, as one block, after the program, with 1:30 of rest after the round. The program does not change; finishing the session asks whether it keeps them.")
+                    } else {
+                        switch destination {
+                        case .session:
+                            Text("It joins this session with one set, its weight and reps at 0 until you type what you lift. Finishing asks whether the program keeps it.")
+                        case .today:
+                            Text("For today only: it joins today's session with as many sets as last time, at last time's numbers. The program does not change; finishing the session asks whether it keeps it.")
+                        }
                     }
                 }
                 .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
-                footer
+                if supersetMode { supersetFooter } else { footer }
             }
         }
         #if os(iOS)
@@ -103,10 +120,20 @@ struct LiftSessionExerciseSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Used before").strandOverline()
                             ForEach(suggestions, id: \.id) { row in
-                                Button { adopt(row) } label: { LiftExerciseSuggestionLabel(row: row) }
-                                    .buttonStyle(.plain)
+                                if supersetMode {
+                                    Button { togglePick(row) } label: { pickLabel(row) }
+                                        .buttonStyle(.plain)
+                                } else {
+                                    Button { adopt(row) } label: { LiftExerciseSuggestionLabel(row: row) }
+                                        .buttonStyle(.plain)
+                                }
                             }
                         }
+                    } else if supersetMode {
+                        Text("A superset takes exercises you have done before: add a new one on its own first.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -152,6 +179,73 @@ struct LiftSessionExerciseSheet: View {
                 .frame(maxWidth: 200)
                 .disabled(!canAdd)
                 .opacity(canAdd ? 1 : NoopButtonMetrics.disabledOpacity)
+        }
+    }
+
+    /// A suggestion in Superset mode: ticked with its place in the round (A1, A2…), or an empty circle.
+    private func pickLabel(_ row: LiftExerciseRow) -> some View {
+        let index = picks.firstIndex { $0.id == row.id }
+        return HStack(spacing: 10) {
+            Image(systemName: index == nil ? "circle" : "checkmark.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(index == nil ? StrandPalette.textTertiary : StrandPalette.accent)
+                .accessibilityHidden(true)
+            LiftExerciseSuggestionLabel(row: row)
+            if let index {
+                Text(verbatim: LiftSuperset.letter(0) + String(index + 1))
+                    .font(StrandFont.caption.weight(.bold))
+                    .foregroundStyle(StrandPalette.accent)
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityAddTraits(index == nil ? AccessibilityTraits() : .isSelected)
+    }
+
+    /// Tick or untick an exercise for the superset; past the cap (3), a tick is ignored.
+    private func togglePick(_ row: LiftExerciseRow) {
+        if let at = picks.firstIndex(where: { $0.id == row.id }) {
+            picks.remove(at: at)
+        } else if picks.count < LiftProgramBlocks.maxSupersetPicks {
+            picks.append(row)
+        }
+    }
+
+    /// What is ticked, A1 · A2 …, then Cancel and « Add the superset (n) ».
+    private var supersetFooter: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+            Group {
+                if picks.isEmpty {
+                    Text("No exercise ticked")
+                } else {
+                    Text(verbatim: picks.enumerated()
+                        .map { LiftSuperset.letter(0) + String($0.offset + 1) + " " + $0.element.name }
+                        .joined(separator: " · "))
+                }
+            }
+            .font(StrandFont.footnote)
+            .foregroundStyle(StrandPalette.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.plain)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                Spacer()
+                Button {
+                    onAddSuperset(picks)
+                    dismiss()
+                } label: {
+                    if picks.count >= 2 {
+                        Text(String(localized: "Add the superset (\(picks.count))"))
+                    } else {
+                        Text("Tick at least 2 exercises")
+                    }
+                }
+                .buttonStyle(.noopPrimary)
+                .frame(maxWidth: 240)
+                .disabled(picks.count < 2)
+                .opacity(picks.count >= 2 ? 1 : NoopButtonMetrics.disabledOpacity)
+            }
         }
     }
 

@@ -120,12 +120,19 @@ struct LiftLogView: View {
             LiftSessionDetailSheet(session: target.session) { await load() }
         }
         .sheet(item: $addingTo) { target in
-            LiftSessionExerciseSheet(destination: .today) { name, primary, secondaries in
+            LiftSessionExerciseSheet(destination: .today, onAdd: { name, primary, secondaries in
                 LiftDayAdditions.add(LiftDayAddition(id: UUID().uuidString, exercise: name,
                                                      primaryMuscle: primary, secondaryMuscles: secondaries),
                                      day: todayKey, programId: target.id)
                 readDayAdditions()
-            }
+            }, onAddSuperset: { rows in
+                // Fork chantier 18: 2 or 3 exercises done before, linked as one superset for today.
+                LiftDayAdditions.addSuperset(rows.map { row in
+                    LiftDayAddition(id: UUID().uuidString, exercise: row.name, primaryMuscle: row.primaryMuscle,
+                                    secondaryMuscles: row.secondaryMuscles)
+                }, day: todayKey, programId: target.id)
+                readDayAdditions()
+            })
         }
         .onChange(of: additionsRevision) { _ in readDayAdditions() }
     }

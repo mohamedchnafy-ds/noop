@@ -723,17 +723,26 @@ struct TrainingDaySection: View {
                         Text("+ \(program.blockCount - program.blocks.count) more")
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
-                    // Fork chantier 18: what was added for today, after the program's own lines.
-                    ForEach(added) { addition in
+                    // Fork chantier 18: what was added for today, after the program's own lines; a superset
+                    // added for today on one line (« Curl · Dips »), its « − » taking the whole of it out.
+                    ForEach(LiftDayAdditions.additionBlocks(added), id: \.first?.id) { block in
+                        let names = block.map(\.exercise).joined(separator: " · ")
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(verbatim: addition.exercise)
+                            Text(verbatim: names)
                                 .foregroundStyle(StrandPalette.textPrimary)
                                 .lineLimit(2)
+                            if block.count > 1 {
+                                Text("Superset")
+                                    .font(StrandFont.caption.weight(.semibold))
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                            }
                             Text("Today")
                                 .font(StrandFont.caption.weight(.semibold))
                                 .foregroundStyle(StrandPalette.accent)
                             Spacer(minLength: 8)
-                            Button { onRemoveAddition(program.id, addition.id) } label: {
+                            Button {
+                                for addition in block { onRemoveAddition(program.id, addition.id) }
+                            } label: {
                                 Image(systemName: "minus.circle")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(StrandPalette.textSecondary)
@@ -741,7 +750,7 @@ struct TrainingDaySection: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(Text(String(localized: "Remove \(addition.exercise) from today")))
+                            .accessibilityLabel(Text(String(localized: "Remove \(names) from today")))
                         }
                     }
                     ForEach(Array(raises.enumerated()), id: \.offset) { _, raise in

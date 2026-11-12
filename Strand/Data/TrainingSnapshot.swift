@@ -149,7 +149,7 @@ extension LiftSessionController {
         }
         LiftDayAdditions.takeAdditions(day: TrainingCalendar.trainingDayKey(Date(), calendar: .current),
                                        programId: programId)
-        start(plan: plan + added, programId: programId, programName: programName)
+        start(plan: LiftDayAdditions.joinedPlan(plan, added), programId: programId, programName: programName)
     }
 
     /// The exercises added to this program for today from the Training screen (fork chantier 18,

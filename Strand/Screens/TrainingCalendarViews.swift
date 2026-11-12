@@ -535,6 +535,11 @@ struct TrainingDaySection: View {
     /// Starts the live workout of planned cardio (its stored sport name).
     var onStartCardio: (String) -> Void = { _ in }
     var onOpenLift: (TrainingLiftDone) -> Void = { _ in }
+    /// Fork chantier 18 (« + Exercise »): the exercises added to each program for today, by program id
+    /// (`LiftDayAdditions`), the button that adds one, and the « − » that takes one back out.
+    var additions: [String: [LiftDayAddition]] = [:]
+    var onAddExercise: (String) -> Void = { _ in }
+    var onRemoveAddition: (_ programId: String, _ additionId: String) -> Void = { _, _ in }
 
     /// One row of the card, in the order drawn.
     private enum Row {
@@ -674,7 +679,8 @@ struct TrainingDaySection: View {
                 Spacer(minLength: 0)
             }
             let raises = day.isPast ? [] : program.raises
-            if !program.blocks.isEmpty || !raises.isEmpty {
+            let added = day.isToday ? additions[program.id] ?? [] : []
+            if !program.blocks.isEmpty || !raises.isEmpty || !added.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(program.blocks.enumerated()), id: \.offset) { _, block in
                         HStack(alignment: .firstTextBaseline) {
@@ -690,6 +696,27 @@ struct TrainingDaySection: View {
                     if program.blockCount > program.blocks.count {
                         Text("+ \(program.blockCount - program.blocks.count) more")
                             .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    // Fork chantier 18: what was added for today, after the program's own lines.
+                    ForEach(added) { addition in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(verbatim: addition.exercise)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .lineLimit(2)
+                            Text("Today")
+                                .font(StrandFont.caption.weight(.semibold))
+                                .foregroundStyle(StrandPalette.accent)
+                            Spacer(minLength: 8)
+                            Button { onRemoveAddition(program.id, addition.id) } label: {
+                                Image(systemName: "minus.circle")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                                    .frame(width: 32, height: 28)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text(String(localized: "Remove \(addition.exercise) from today")))
+                        }
                     }
                     ForEach(Array(raises.enumerated()), id: \.offset) { _, raise in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -722,6 +749,24 @@ struct TrainingDaySection: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(NoopButtonStyle(.primary, fullWidth: true))
+                    // Fork chantier 18: add any exercise to today's session, without leaving the screen.
+                    if !isRunning {
+                        Button { onAddExercise(program.id) } label: {
+                            Label("Exercise", systemImage: "plus")
+                                .font(StrandFont.headline)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                                .padding(.horizontal, 16)
+                                .frame(minHeight: NoopButtonMetrics.height)
+                                .background(StrandPalette.surfaceOverlay,
+                                            in: RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
+                                                                 style: .continuous))
+                                .contentShape(RoundedRectangle(cornerRadius: NoopButtonMetrics.cornerRadius,
+                                                               style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .fixedSize()
+                        .accessibilityLabel(Text("Add an exercise to today's session"))
+                    }
                     if !others.isEmpty && !isRunning {
                         TrainingMenu {
                             ForEach(others) { other in

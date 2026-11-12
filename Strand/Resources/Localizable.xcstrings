@@ -1,6 +1,11 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "My pace": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "My pace"}}, "de": {"stringUnit": {"state": "translated", "value": "Mein Rhythmus"}}, "es": {"stringUnit": {"state": "translated", "value": "Mi ritmo"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mon rythme"}}, "it": {"stringUnit": {"state": "translated", "value": "Il mio ritmo"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "O meu ritmo"}}, "pl": {"stringUnit": {"state": "translated", "value": "Mój rytm"}}, "ru": {"stringUnit": {"state": "translated", "value": "Мой ритм"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "我的节奏"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "我的節奏"}}}},
+    "No limit": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "No limit"}}, "de": {"stringUnit": {"state": "translated", "value": "Ohne Ende"}}, "es": {"stringUnit": {"state": "translated", "value": "Sin límite"}}, "fr": {"stringUnit": {"state": "translated", "value": "Sans fin"}}, "it": {"stringUnit": {"state": "translated", "value": "Senza limite"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Sem limite"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bez limitu"}}, "ru": {"stringUnit": {"state": "translated", "value": "Без ограничения"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "不限时"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "不限時"}}}},
+    "Your locked pace · %@": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Your locked pace · %@"}}, "de": {"stringUnit": {"state": "translated", "value": "Dein festgelegter Rhythmus · %@"}}, "es": {"stringUnit": {"state": "translated", "value": "Tu ritmo fijado · %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "Ton rythme · %@"}}, "it": {"stringUnit": {"state": "translated", "value": "Il tuo ritmo fissato · %@"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "O teu ritmo fixado · %@"}}, "pl": {"stringUnit": {"state": "translated", "value": "Twój ustalony rytm · %@"}}, "ru": {"stringUnit": {"state": "translated", "value": "Твой ритм · %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的固定节奏 · %@"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你的固定節奏 · %@"}}}},
+    "%@ of %@": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ of %@"}}, "de": {"stringUnit": {"state": "translated", "value": "%1$@ von %2$@"}}, "es": {"stringUnit": {"state": "translated", "value": "%1$@ de %2$@"}}, "fr": {"stringUnit": {"state": "translated", "value": "%1$@ sur %2$@"}}, "it": {"stringUnit": {"state": "translated", "value": "%1$@ di %2$@"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%1$@ de %2$@"}}, "pl": {"stringUnit": {"state": "translated", "value": "%1$@ z %2$@"}}, "ru": {"stringUnit": {"state": "translated", "value": "%1$@ из %2$@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%1$@ / %2$@"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%1$@ / %2$@"}}}},
+    "The strap buzzes to guide you: one buzz to breathe in, two to breathe out. You can close your eyes.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "The strap buzzes to guide you: one buzz to breathe in, two to breathe out. You can close your eyes."}}, "de": {"stringUnit": {"state": "translated", "value": "Das Band vibriert, um dich zu führen: einmal zum Einatmen, zweimal zum Ausatmen. Du kannst die Augen schließen."}}, "es": {"stringUnit": {"state": "translated", "value": "La pulsera vibra para guiarte: una vibración para inspirar, dos para espirar. Puedes cerrar los ojos."}}, "fr": {"stringUnit": {"state": "translated", "value": "Le bracelet vibre pour te guider : une vibration pour inspirer, deux pour expirer. Tu peux fermer les yeux."}}, "it": {"stringUnit": {"state": "translated", "value": "Il bracciale vibra per guidarti: una vibrazione per inspirare, due per espirare. Puoi chiudere gli occhi."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A pulseira vibra para te guiar: uma vibração para inspirar, duas para expirar. Podes fechar os olhos."}}, "pl": {"stringUnit": {"state": "translated", "value": "Opaska wibruje, by Cię prowadzić: raz na wdech, dwa razy na wydech. Możesz zamknąć oczy."}}, "ru": {"stringUnit": {"state": "translated", "value": "Браслет вибрирует, чтобы вести тебя: одна вибрация — вдох, две — выдох. Можно закрыть глаза."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环振动来引导你：振动一次吸气，两次呼气。你可以闭上眼睛。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環震動來引導你：震動一次吸氣，兩次吐氣。你可以閉上眼睛。"}}}},
     "Your heart right now, beat by beat.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Your heart right now, beat by beat."}}, "de": {"stringUnit": {"state": "translated", "value": "Dein Herz gerade jetzt, Schlag für Schlag."}}, "es": {"stringUnit": {"state": "translated", "value": "Tu corazón ahora mismo, latido a latido."}}, "fr": {"stringUnit": {"state": "translated", "value": "Ton cœur en ce moment, battement par battement."}}, "it": {"stringUnit": {"state": "translated", "value": "Il tuo cuore in questo momento, battito per battito."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "O teu coração agora, batimento a batimento."}}, "pl": {"stringUnit": {"state": "translated", "value": "Twoje serce teraz, uderzenie po uderzeniu."}}, "ru": {"stringUnit": {"state": "translated", "value": "Твоё сердце прямо сейчас, удар за ударом."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "此刻的心跳，一拍一拍。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "此刻的心跳，一拍一拍。"}}}},
     "Pair or switch straps": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Pair or switch straps"}}, "de": {"stringUnit": {"state": "translated", "value": "Bänder koppeln oder wechseln"}}, "es": {"stringUnit": {"state": "translated", "value": "Emparejar o cambiar de pulsera"}}, "fr": {"stringUnit": {"state": "translated", "value": "Associer ou changer de bracelet"}}, "it": {"stringUnit": {"state": "translated", "value": "Associa o cambia bracciale"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Emparelhar ou trocar de pulseira"}}, "pl": {"stringUnit": {"state": "translated", "value": "Paruj lub zmień opaskę"}}, "ru": {"stringUnit": {"state": "translated", "value": "Подключить или сменить браслет"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "配对或更换手环"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "配對或更換手環"}}}},
     "Live heart rate works. Buzz, alarm and history sync need a full pairing.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Live heart rate works. Buzz, alarm and history sync need a full pairing."}}, "de": {"stringUnit": {"state": "translated", "value": "Die Live-Herzfrequenz funktioniert. Vibration, Wecker und Verlaufs-Sync brauchen eine vollständige Kopplung."}}, "es": {"stringUnit": {"state": "translated", "value": "La frecuencia cardiaca en directo funciona. Vibración, alarma y sincronización del historial necesitan un emparejamiento completo."}}, "fr": {"stringUnit": {"state": "translated", "value": "La FC en direct fonctionne. Vibreur, alarme et synchronisation de l'historique demandent une association complète."}}, "it": {"stringUnit": {"state": "translated", "value": "La FC in tempo reale funziona. Vibrazione, sveglia e sincronizzazione dello storico richiedono un'associazione completa."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A FC em direto funciona. Vibração, alarme e sincronização do histórico precisam de um emparelhamento completo."}}, "pl": {"stringUnit": {"state": "translated", "value": "Tętno na żywo działa. Wibracje, alarm i synchronizacja historii wymagają pełnego parowania."}}, "ru": {"stringUnit": {"state": "translated", "value": "Пульс в реальном времени работает. Для вибрации, будильника и синхронизации истории нужна полная привязка."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "实时心率正常。振动、闹钟和历史同步需要完整配对。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "即時心率正常。震動、鬧鐘和歷史同步需要完整配對。"}}}},
@@ -28143,7 +28148,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un rythme de relaxation, pas un contrôle cardiaque. Il ne cadence jamais en dessous d'un rythme sûr et vous pouvez arrêter à tout moment. Si votre fréquence cardiaque ne se stabilise pas, nous vous le dirons clairement."
+            "value": "Un rythme pour te détendre, pas un contrôle du cœur. Il ne descend jamais sous un rythme sûr et tu peux arrêter quand tu veux. Si ta fréquence cardiaque ne se pose pas, l'app te le dit."
           }
         },
         "it": {
@@ -48613,7 +48618,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apaisez-moi"
+            "value": "Me calmer"
           }
         },
         "it": {
@@ -48671,7 +48676,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apaisez-moi · 3 min"
+            "value": "Me calmer · 3 min"
           }
         },
         "it": {
@@ -56686,7 +56691,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connectez votre bracelet pour un guidage haptique. Vous sentirez une impulsion à l'inspiration, deux à l'expiration, pour pouvoir respirer les yeux fermés."
+            "value": "Connecte ton bracelet pour être guidé par les vibrations : une à l'inspiration, deux à l'expiration, pour respirer les yeux fermés."
           }
         },
         "it": {
@@ -56744,7 +56749,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connectez votre bracelet pour le signal ressenti. Le balayage vous rythme avec une vibration à l'inspiration, deux à l'expiration."
+            "value": "Connecte ton bracelet pour sentir le rythme : une vibration à l'inspiration, deux à l'expiration."
           }
         },
         "it": {
@@ -57104,7 +57109,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connectez votre bracelet. Apaisez-moi est un rythme ressenti au poignet, cela nécessite donc une connexion associée."
+            "value": "Connecte ton bracelet. « Me calmer » est un rythme que tu sens au poignet : il faut le bracelet associé."
           }
         },
         "it": {
@@ -71619,7 +71624,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estimation à partir des intervalles R-R dérivés du PPG : un guide de relaxation, pas une mesure clinique. Votre rythme dérive, donc nous la datons et vous pouvez la remesurer à tout moment."
+            "value": "Estimation à partir du pouls optique : un repère pour te détendre, pas une mesure médicale. Ton rythme change avec le temps : il est daté et tu peux le remesurer quand tu veux."
           }
         },
         "it": {
@@ -72979,7 +72984,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout le monde a un rythme respiratoire (généralement entre 4,5 et 7 respirations par minute) où le rythme cardiaque oscille le plus à chaque respiration. Nous vous guidons à travers quelques rythmes candidats, mesurons comment votre VFC réagit, et fixons celui qui résonne le mieux pour vous."
+            "value": "Chacun a un rythme de respiration (souvent entre 4,5 et 7 respirations par minute) où le cœur varie le plus à chaque souffle. Le bracelet te fait essayer quelques rythmes, mesure la réponse de ta VFC et garde celui qui te convient le mieux."
           }
         },
         "it": {
@@ -76394,7 +76399,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trouvez votre rythme de résonance"
+            "value": "Trouve ton rythme"
           }
         },
         "it": {
@@ -82666,7 +82671,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Haptiques activés"
+            "value": "Vibrations activées"
           }
         },
         "it": {
@@ -100176,7 +100181,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verrouillé %@ · les allures dérivent, remesurez à tout moment."
+            "value": "Gardé le %@ · ton rythme change, remesure-le quand tu veux."
           }
         },
         "it": {
@@ -100234,7 +100239,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verrouillé %@. Passez à Respirer pour l'utiliser, ou remesurez ci-dessus."
+            "value": "Gardé le %@. Va dans Respirer pour l'utiliser, ou remesure-le au-dessus."
           }
         },
         "it": {
@@ -117692,7 +117697,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pas assez de battements propres pour fixer un rythme aujourd'hui. Réessayez reposé, assis immobile avec le bracelet bien ajusté. Pour l'instant, nous vous cadencerons à 5,5 resp/min (cohérence)."
+            "value": "Pas assez de battements nets pour trouver ton rythme aujourd'hui. Réessaie reposé, assis sans bouger, le bracelet bien serré. En attendant, le rythme est de 5,5 respirations par minute (cohérence)."
           }
         },
         "it": {
@@ -152064,7 +152069,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restez immobile et respirez au rythme des vibrations. Vous pouvez arrêter à tout moment ; un balayage arrêté ne fixera pas de rythme."
+            "value": "Reste immobile et respire au rythme des vibrations. Tu peux arrêter quand tu veux ; un essai arrêté ne garde aucun rythme."
           }
         },
         "it": {
@@ -167924,7 +167929,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le bracelet fait vibrer un rythme doux juste en dessous de votre fréquence cardiaque actuelle, un métronome ressenti vers lequel vous détendre. Il accompagne votre cœur vers le bas plutôt que de le tirer brusquement, et s'arrête de lui-même."
+            "value": "Le bracelet vibre à un rythme doux, juste sous ta fréquence cardiaque du moment : un métronome à suivre pour te détendre. Il fait descendre ton cœur en douceur et s'arrête tout seul."
           }
         },
         "it": {
@@ -180182,7 +180187,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "En attente d'une fréquence cardiaque au repos. Démarrez d'abord une lecture en direct, ou revenez lorsque vous êtes immobile."
+            "value": "En attente d'une fréquence cardiaque au repos. Lance d'abord la FC en direct, ou reviens quand tu es au calme."
           }
         },
         "it": {
@@ -213487,7 +213492,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Box 4-4-4-4"
+            "value": "Carré 4-4-4-4"
           }
         },
         "pt-PT": {

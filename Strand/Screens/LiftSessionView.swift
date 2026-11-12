@@ -173,7 +173,14 @@ struct LiftSessionView: View {
             unitSystem: unitSystem,
             canUndo: engine.canUndo,
             field: { slot, kind in AnyView(guideField(slot, kind)) },
-            vitals: { vitals in AnyView(LiftLiveVitalsRow(vitals: vitals, sessionStart: engine.startTs)) },
+            vitals: { vitals in
+                AnyView(VStack(spacing: NoopMetrics.space3) {
+                    LiftLiveVitalsRow(vitals: vitals, sessionStart: engine.startTs)
+                    // Fork chantier 18 (maquette 3): the curve and the recovery between rounds. The tiles above
+                    // already state the session's average heart rate.
+                    LiftLiveHeartRateBand(session: heartRateSession(engine), showsAverage: false)
+                })
+            },
             strapCard: { AnyView(LiftStrapCard()) },
             preview: { previewNumbers($0) },
             suggestion: { suggestionText(for: $0) },
@@ -466,6 +473,8 @@ struct LiftSessionView: View {
 
                 // Fork chantier 18: the set coming up, in big, ready for one tap.
                 if let quick = quickCardSlot(engine), quick.exerciseIndex == index {
+                    // Fork chantier 18 (maquette 3): the heart rate under the exercise's name.
+                    LiftLiveHeartRateBand(session: heartRateSession(engine))
                     quickCard(engine, slot: quick, item: item)
                 }
 
@@ -872,6 +881,22 @@ struct LiftSessionView: View {
             skipRest: { session.skipRest() })
         return LiftQuickEntryCard(content: content, actions: actions,
                                   restRemaining: { engine.restRemaining(now: $0) ?? 0 })
+    }
+
+    /// What the heart-rate band reads from the session: its start, its program (for the comparison), whether
+    /// a rest runs, and each done set's timing — once per round, since a superset's members share it.
+    private func heartRateSession(_ engine: LiftSessionEngine) -> LiftLiveHeartRateBand.Session {
+        var seen = Set<Int>()
+        let spans = engine.sets.compactMap { set -> LiftHeartRateMath.SetSpan? in
+            guard seen.insert(set.endTs).inserted else { return nil }
+            return LiftHeartRateMath.SetSpan(start: set.startTs, end: set.endTs, restSec: set.restSec)
+        }
+        let resting: Bool = {
+            if case .resting = engine.stage { return true }
+            return false
+        }()
+        return LiftLiveHeartRateBand.Session(startTs: engine.startTs, programId: session.programId,
+                                             isResting: resting, sets: spans)
     }
 
     /// The most reps the card's wheel and + offer for one set.

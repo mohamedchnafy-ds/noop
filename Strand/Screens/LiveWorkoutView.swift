@@ -2,6 +2,7 @@ import SwiftUI
 import StrandDesign
 import StrandAnalytics
 import WhoopStore
+import WhoopProtocol
 
 /// Live workout mode (#238) — the in-exercise screen, all from the SAME live feed and scorers the rest
 /// of the app uses (no invented numbers). Presented while a manual workout is active, entered from the
@@ -290,6 +291,8 @@ private struct LiveWorkoutLiveContent: View {
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    /// Fork chantier 18: the last workouts of the same sport, with their heart rate, read once.
+    @State private var previous: [(start: Int, samples: [HRSample])] = []
 
     private var distanceSystem: UnitSystem {
         UnitPrefs.resolveDistance(system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
@@ -302,6 +305,11 @@ private struct LiveWorkoutLiveContent: View {
                 LiveWorkoutDashboard(figures: liveFigures(workout, now: context.date),
                                      distanceSystem: distanceSystem, animated: true)
             }
+        }
+        .task(id: model.activeWorkout?.start) {
+            guard let workout = model.activeWorkout else { return }
+            previous = await LiveWorkoutHistory.previousWorkouts(
+                repo: model.repo, sport: workout.sport, before: Int(workout.start.timeIntervalSince1970))
         }
     }
 
@@ -340,6 +348,37 @@ private struct LiveWorkoutLiveContent: View {
             zoneSeconds: LiveWorkoutMath.zoneSeconds(samples, zoneSet: zoneSet),
             curve: LiveWorkoutMath.recentCurve(samples, now: Int(now.timeIntervalSince1970)),
             steps: stepRecorder.isRecording ? stepRecorder.steps : nil,
-            cadence: stepRecorder.isRecording ? WorkoutStepMath.stepCadenceNow(stepRecorder.samples) : nil)
+            cadence: stepRecorder.isRecording ? WorkoutStepMath.stepCadenceNow(stepRecorder.samples) : nil,
+            comparisonCurves: comparisonCurves(elapsed: Int(workout.elapsed(at: now))))
+    }
+
+    /// The earlier workouts over the same ten minutes of their own elapsed time.
+    private func comparisonCurves(elapsed: Int) -> [[Double?]] {
+        previous.map {
+            LiftHeartRateMath.alignedCurve($0.samples, sessionStart: $0.start,
+                                           fromElapsed: elapsed - LiveWorkoutMath.curveWindow, toElapsed: elapsed,
+                                           bucket: LiveWorkoutMath.curveBucket)
+        }.filter { $0.contains { $0 != nil } }
+    }
+}
+
+/// The workouts a live workout compares with (fork chantier 18): the last two of the same sport before it,
+/// each with its heart rate.
+enum LiveWorkoutHistory {
+    static func previousWorkouts(repo: Repository, sport: String,
+                                 before start: Int) async -> [(start: Int, samples: [HRSample])] {
+        guard let store = await repo.storeHandle() else { return [] }
+        let rows = (try? await store.workouts(deviceId: repo.deviceId,
+                                              from: start - LiftHeartRateHistory.lookbackDays * 86_400,
+                                              to: start - 1, limit: 400)) ?? []
+        let picked = rows
+            .filter { $0.sport == sport && $0.startTs < start && $0.endTs > $0.startTs }
+            .sorted { $0.startTs > $1.startTs }
+            .prefix(LiftHeartRateMath.comparedSessions)
+        var out: [(start: Int, samples: [HRSample])] = []
+        for row in picked {
+            out.append((row.startTs, await repo.hrSamples(from: row.startTs, to: row.endTs)))
+        }
+        return out
     }
 }

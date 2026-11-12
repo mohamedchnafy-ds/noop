@@ -159,6 +159,10 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - **Régularité (B3)** : Progression → onglet Régularité : cette semaine, semaines d'affilée, moyenne / semaine ; barres des séries sur 12 semaines ; calendrier des jours entraînés.
 - **Ce qui influence (C)** : sous Régularité, bloc **Expérimental** éteint ; l'allumer → pastilles des mesures, 3 cartes (sommeil, eau, séance la veille), « Pas encore assez de données » + barre tant qu'il manque des séances (6 / groupe, 12 en tout). **« + verre »** sous la bande de repos (« 25 cl cette séance »), compté dans l'eau du jour et sur la fiche terminée (« Eau pendant la séance »).
 
+### Retour de Mohamed sur l'IPA `build/seance` (12 nov., matin)
+- Capture de l'écran « Superset A · Bloc 1 / 4 » : **ni roulette ni FC**. Cause : A1 réservait la carte de saisie rapide aux exercices seuls, et le bandeau FC (A2) n'était que sur les écrans de tour et de repos d'un superset, pas sur son écran de départ ; or les programmes de Mohamed sont surtout en supersets.
+- **Correctif** : sur les écrans de superset, les cases poids / répétitions ne sont plus des champs à clavier ; un tap ouvre la **roulette** (même feuille que la carte : − / + d'un palier, bouton **Palier**, OK), qui écrit les mêmes chiffres tenus d'avance, donc le poids se répète sur les tours suivants. Un chiffre non donné reste gris (celui de la série d'avant). Le **bandeau FC** est aussi sur l'**écran de départ** du bloc, sous la carte du bracelet. La roulette de la carte de saisie rapide gagne les mêmes − / + et Palier.
+
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**
 1. Chaque lot est fusionné dans `main` (une PR par préoccupation), CI à 0 non-succès sur la tête de chaque PR (macOS + iOS + StrandTests + Tools Python + i18n + parité).

@@ -184,7 +184,13 @@ struct LiftSessionView: View {
                     LiftLiveHeartRateBand(session: heartRateSession(engine), showsAverage: false)
                 })
             },
-            strapCard: { AnyView(LiftStrapCard()) },
+            strapCard: {
+                // Fork chantier 18 (maquette 3): the heart-rate band on the block's ready screen too.
+                AnyView(VStack(spacing: NoopMetrics.space3) {
+                    LiftStrapCard()
+                    LiftLiveHeartRateBand(session: heartRateSession(engine))
+                })
+            },
             preview: { previewNumbers($0) },
             suggestion: { suggestionText(for: $0) },
             actions: LiftSupersetScreen.Actions(
@@ -208,18 +214,28 @@ struct LiftSessionView: View {
                 resume: { session.resumeFromPause() }))
     }
 
-    /// A weight or rep count of a superset member, as a bare field: the guided screen puts it in its chip.
-    /// Same bindings, drafts and focus as the sheet's rows, so a number typed here is the number there.
+    /// A weight or rep count of a superset member, in its chip on the guided screen. Fork chantier 18: a tap
+    /// opens the wheel (no keyboard), with − / + and, for a weight, the exercise's step — the same wheel as the
+    /// quick-entry card, writing the same held numbers, so the sets after it follow its weight. A number not
+    /// given for this set shows in grey: it is the one carried from the set before (`carry`).
     private func guideField(_ slot: LiftSlot, _ kind: LiftGuideField) -> some View {
         let isWeight = kind == .weight
-        return TextField(isWeight ? ghostWeight(slot) : ghostReps(slot),
-                         text: isWeight ? weightBinding(slot) : repsBinding(slot))
-            .textFieldStyle(.plain)
-            .multilineTextAlignment(.trailing)
-            .numericKeyboard()
-            .focused($focused, equals: isWeight ? .weight(slot) : .reps(slot))
-            .fixedSize()
-            .frame(minWidth: 20, alignment: .trailing)
+        let typed = session.enteredValues(for: slot)
+        let grey = session.carry(for: slot)
+        let own = isWeight ? typed.weightKg != nil : typed.reps != nil
+        let text: String = isWeight
+            ? ((typed.weightKg ?? grey.weightKg).map { display($0) } ?? "—")
+            : ((typed.reps ?? grey.reps).map(String.init) ?? "—")
+        return Button {
+            wheel = WheelTarget(kind: isWeight ? .weight : .reps, slot: slot)
+        } label: {
+            Text(verbatim: text)
+                .foregroundStyle(own ? StrandPalette.textPrimary : StrandPalette.textSecondary)
+                .fixedSize()
+                .frame(minWidth: 20, alignment: .trailing)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// "40 kg × 10": what a set of the next round will be — typed, else grey.
@@ -858,7 +874,7 @@ struct LiftSessionView: View {
             lastTime: lastTimeText(exercise: item.exercise, setIndex: slot.setIndex),
             weight: shown.weightKg.map { display($0) } ?? "—", weightUnit: unit,
             reps: shown.reps,
-            step: "\(display(step)) \(unit)",
+            step: stepText(step),
             isWarmup: engine.stage == .warmup,
             restEndsAt: restEndsAt,
             waterMl: sessionWaterMl)
@@ -909,6 +925,11 @@ struct LiftSessionView: View {
                                              isResting: resting, sets: spans)
     }
 
+    /// "2.5 kg": a weight step as the card and the wheel name it.
+    private func stepText(_ kg: Double) -> String {
+        "\(display(kg)) \(LiftFormat.weightUnit(unitSystem))"
+    }
+
     /// « + glass »: 25 cl (maquette 4).
     private static let glassMl = 250
 
@@ -947,7 +968,14 @@ struct LiftSessionView: View {
                 values: LiftWeightStep.wheelValues(step: weightStep(for: exercise), current: current),
                 format: { display($0) },
                 initial: current,
-                onPick: { kg in write(target.slot) { $0.weightKg = kg } })
+                onPick: { kg in write(target.slot) { $0.weightKg = kg } },
+                stepLabel: stepText(weightStep(for: exercise)),
+                onCycleStep: {
+                    let next = LiftWeightStep.nextStep(after: weightStep(for: exercise))
+                    LiftWeightStep.setStep(next, for: exercise)
+                    weightSteps[exercise] = next
+                    return (LiftWeightStep.wheelValues(step: next, current: current), stepText(next))
+                })
         case .reps:
             LiftNumberWheelSheet(
                 title: String(localized: "Reps"),

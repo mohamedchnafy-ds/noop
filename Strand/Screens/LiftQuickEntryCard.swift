@@ -246,8 +246,14 @@ struct LiftNumberWheelSheet: View {
     let format: (Double) -> String
     let initial: Double
     let onPick: (Double) -> Void
+    /// For a weight: the exercise's step ("2.5 kg"), and what one tap on « Step » does — it keeps the next
+    /// step and hands back the wheel's values and the new label. Nil for reps.
+    var stepLabel: String? = nil
+    var onCycleStep: (() -> (values: [Double], label: String))? = nil
 
     @State private var selection: Double = 0
+    @State private var shown: [Double] = []
+    @State private var shownStep: String?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -256,20 +262,41 @@ struct LiftNumberWheelSheet: View {
                 .font(StrandFont.headline)
                 .foregroundStyle(StrandPalette.textPrimary)
                 .padding(.top, NoopMetrics.space4)
-            Picker(selection: $selection) {
-                ForEach(values, id: \.self) { value in
-                    Text(verbatim: format(value))
-                        .font(StrandFont.number(24, weight: .semibold))
-                        .tag(value)
+            HStack(spacing: NoopMetrics.space3) {
+                stepButton("minus", label: Text("Less")) { move(-1) }
+                Picker(selection: $selection) {
+                    ForEach(shown, id: \.self) { value in
+                        Text(verbatim: format(value))
+                            .font(StrandFont.number(24, weight: .semibold))
+                            .tag(value)
+                    }
+                } label: {
+                    Text(verbatim: title)
                 }
-            } label: {
-                Text(verbatim: title)
+                .labelsHidden()
+                #if os(iOS)
+                .pickerStyle(.wheel)
+                #endif
+                .frame(maxHeight: 180)
+                stepButton("plus", label: Text("More")) { move(1) }
             }
-            .labelsHidden()
-            #if os(iOS)
-            .pickerStyle(.wheel)
-            #endif
-            .frame(maxHeight: 200)
+            .padding(.horizontal, NoopMetrics.screenPadding)
+            if let step = shownStep, let onCycleStep {
+                Button {
+                    let next = onCycleStep()
+                    shown = next.values
+                    shownStep = next.label
+                    selection = Self.nearest(selection, in: next.values)
+                } label: {
+                    Text(String(localized: "Step \(step)"))
+                        .font(StrandFont.caption.weight(.semibold))
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .padding(.horizontal, NoopMetrics.space3)
+                        .frame(minHeight: 32)
+                        .background(StrandPalette.surfaceRaised, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
             Button {
                 onPick(selection)
                 dismiss()
@@ -282,13 +309,38 @@ struct LiftNumberWheelSheet: View {
         }
         .background(StrandPalette.surfaceBase)
         #if os(iOS)
-        .presentationDetents([.height(340)])
+        .presentationDetents([.height(stepLabel == nil ? 340 : 390)])
         .presentationDragIndicator(.visible)
         #else
-        .frame(width: 320, height: 340)
+        .frame(width: 360, height: 390)
         #endif
         .onAppear {
-            selection = values.min(by: { abs($0 - initial) < abs($1 - initial) }) ?? initial
+            shown = values
+            shownStep = stepLabel
+            selection = Self.nearest(initial, in: values)
         }
+    }
+
+    /// One value up or down the wheel: one step of the exercise for a weight, one rep for reps.
+    private func move(_ offset: Int) {
+        guard let index = shown.firstIndex(of: selection) else { return }
+        let next = min(max(0, index + offset), shown.count - 1)
+        selection = shown[next]
+    }
+
+    private static func nearest(_ value: Double, in values: [Double]) -> Double {
+        values.min(by: { abs($0 - value) < abs($1 - value) }) ?? value
+    }
+
+    private func stepButton(_ symbol: String, label: Text, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(StrandPalette.textPrimary)
+                .frame(width: 52, height: 52)
+                .background(StrandPalette.surfaceRaised, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }

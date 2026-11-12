@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B fusionné (B1 #144, B2 #145, B3 #146, `main` 2c754f1) ; PR C (ce qui influence mes séances, « + verre ») ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; **lots A, B, C fusionnés** (#142 à #147, `main` deb5971) ; **IPA `build/seance`** = `main` deb5971, à installer et valider (liste « À tester (IPA `build/seance`) ») ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -145,6 +145,19 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - **Règles** : **6 séances par groupe et 12 en tout**, sinon « Pas encore assez de données » + barre vers le seuil ; écart **net** si > 3 % de la valeur « sans » (ou 0,1) ; pastille verte (plus favorable), ambre (moins favorable) ou grise (« Pas de différence nette ») ; phrase fixe « Chez toi, on observe en moyenne … avec …, contre … avec … », nombres de séances affichés, et en bas « Un écart n'est pas une cause ».
 - **Pas fait** (à décider) : café (le journal ne garde que 48 h), protéines de la veille, VFC de la nuit suivante, explication par le Coach.
 - Tests : `StrandTests/LiftInfluencesTests.swift`.
+
+### Lot C fusionné, IPA (12 nov.)
+- **#147** fusionnée (`main` deb5971), 6/6 sur sa tête. **IPA `build/seance`** = `main` deb5971 (release `ipa-build-seance`).
+- Fusions faites dès la CI verte (macOS + StrandTests, iOS, Android, Tools, doc, linux-capture), comme demandé par le prompt du chantier.
+
+### À tester (IPA `build/seance`)
+**Rappels** : exporter un `.noopbak` vers iCloud Drive avant ; installer **par-dessus** l'app (ne jamais la supprimer) ; « Keep App Extensions (Use Main Profile) ». **Captures à envoyer** pour chaque écran.
+- **Saisie rapide (A1)** : une séance réelle d'un programme. Carte « Série n sur N » au-dessus des séries ; poids de la série 1 = première série de la dernière fois, **répété** sur les séries suivantes ; changer le poids en série 2 → séries 3, 4 suivent, la série 1 ne bouge pas ; nouvel exercice = son propre poids ; − / + d'un palier ; toucher le chiffre → **roulette** (OK garde, glisser vers le bas annule) ; bouton **Palier** (1, 2, 2,5, 5 kg en boucle, gardé par exercice ; deviné : barre 2,5, haltère 1, machine / poulie / tirage 5) ; **« Série terminée »** lance le repos seul ; pendant le repos, la carte montre la série suivante avec −15 s / +15 s / Passer, et « Série terminée » enregistre directement la suivante ; Annuler (flèche) défait le tap entier ; la barre du bas n'a plus son gros bouton (Reprendre en pause, Terminer restent) ; écran verrouillé et barre réduite = mêmes chiffres. Supersets : écrans guidés inchangés.
+- **FC (A2)** : bandeau au-dessus de la carte (et sous les tuiles d'un superset) : ♥ bpm, zone, « en série » / « récup. », courbe 10 min avec repos ambre et traits de fin de série, Moyenne · Max · Récup. (en cours / dernière) ; **Comparer aux 2 dernières séances** (même programme) en pointillés, interrupteur mémorisé ; sans bracelet : « En attente de la fréquence cardiaque du bracelet ». Fiche d'une séance terminée : section « Fréquence cardiaque » (courbe complète, temps par zone, FC moyenne par exercice). Séance cardio en direct : 2 dernières séances du même sport en pointillés.
+- **Entraînement (B1)** : en-tête « Entraînement » + « Aujourd'hui » (si autre semaine) + « i » (légende) + calendrier (Mois ↔ Semaine) ; balayer la bande change de semaine ; lignes Progression (« n charges à monter »), Programmes › (liste, Nouveau, Importer, Planifier), « Autre séance (cardio, autre sport) » → feuille Démarrer (avec **Intervalles**), Historique ; Personnaliser Entraînement marche encore.
+- **+ Exercice (B2)** : carte du jour → « + Exercice » → feuille (recherche, déjà faits, **filtre par muscle**) → l'exercice apparaît « Aujourd'hui » sous les blocs, « − » le retire ; Démarrer → il est à la fin de la séance avec autant de séries que la dernière fois ; en fin de séance, « mettre à jour le programme ? » propose de le garder ; le lendemain, rien ne reste.
+- **Régularité (B3)** : Progression → onglet Régularité : cette semaine, semaines d'affilée, moyenne / semaine ; barres des séries sur 12 semaines ; calendrier des jours entraînés.
+- **Ce qui influence (C)** : sous Régularité, bloc **Expérimental** éteint ; l'allumer → pastilles des mesures, 3 cartes (sommeil, eau, séance la veille), « Pas encore assez de données » + barre tant qu'il manque des séances (6 / groupe, 12 en tout). **« + verre »** sous la bande de repos (« 25 cl cette séance »), compté dans l'eau du jour et sur la fiche terminée (« Eau pendant la séance »).
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

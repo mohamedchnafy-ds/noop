@@ -1,6 +1,6 @@
 # Chantier 18 — La séance de musculation et l'écran Entraînement
 
-Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B en cours (B1 #144, B2 #145 fusionnées, `main` b900d39 ; PR B3 : Régularité) ; voir « Chantier 18 — le code ».
+Fiche ouverte le 11 nov. 2026. État : **maquettes validées, code en cours** : lot A fusionné (A1 #142, A2 #143, `main` 42e56cc) ; lot B fusionné (B1 #144, B2 #145, B3 #146, `main` 2c754f1) ; PR C (ce qui influence mes séances, « + verre ») ; voir « Chantier 18 — le code ».
 
 ## Méthode (choix de Mohamed, 11 nov.)
 - Une maquette par sujet, puis **une maquette globale** ; validation, puis fin de chantier définie.
@@ -133,6 +133,18 @@ Branche `claude/magical-franklin-hhb7rv`, partie de `main` e8ab909 (choix de Moh
 - Trois chiffres : séances **cette semaine**, **semaines d'affilée** (la semaine en cours sans séance ne casse pas la série), **moyenne par semaine** (la semaine en cours exclue tant qu'elle n'est pas finie). Barres des séries (`LiftWeeklyBars`, trait = moyenne des semaines d'avant), puis le **calendrier** 12 × 7 (case bleue = séance ce jour-là).
 - Les **fiches de séance** n'ont pas été refaites au-delà de la section « Fréquence cardiaque » (A2) : à revoir sur captures.
 - Tests : `StrandTests/LiftRegularityTests.swift`.
+
+### Lot B, PR B3 fusionnée (12 nov.)
+- **#146** fusionnée (`main` 2c754f1), 6/6 sur sa tête.
+
+### Lot C : ce qui influence mes séances, « + verre » (12 nov.)
+- **Pas de migration** (écart au prompt, assumé) : le **journal d'hydratation** existant garde déjà chaque verre avec son heure (`HydrationEntry.loggedAt`, UserDefaults par jour, jumeau Android pour le total du jour) ; l'eau d'une séance = les verres notés **de 3 h avant le début à la fin**. « + verre » écrit dans ce journal (`Repository.logHydration`, 250 ml) : une seule source pour l'eau, pas de donnée nouvelle, donc ni migration, ni jumeau Kotlin, ni changement des `schema_oracle.json` ou du `.noopbak`.
+- **« + verre »** : ligne sous la bande de repos de la carte de saisie rapide (« 50 cl cette séance ») ; la fiche terminée dit « Eau pendant la séance » quand il y en a.
+- **Bloc « Ce qui influence mes séances »** en bas de l'onglet **Régularité** de Progression, badge **Expérimental**, interrupteur « Activer cette analyse » **éteint par défaut** (`lift.influences.enabled`). Calcul pur `LiftInfluences` ; lecture `LiftInfluencesReader` (60 dernières séances : sommeil de `LiftProgressData.sleep`, eau du journal, lignes `workout`, FC du bracelet).
+- **Facteurs** : sommeil de la nuit (≥ 7 h 30), eau avant et pendant (≥ 750 ml ; un jour sans aucun verre noté = inconnu, pas « zéro »), séance la veille. **Mesures** (pastilles) : FC moyenne (moins = mieux), récupération de FC entre séries, charge soulevée (volume), Effort.
+- **Règles** : **6 séances par groupe et 12 en tout**, sinon « Pas encore assez de données » + barre vers le seuil ; écart **net** si > 3 % de la valeur « sans » (ou 0,1) ; pastille verte (plus favorable), ambre (moins favorable) ou grise (« Pas de différence nette ») ; phrase fixe « Chez toi, on observe en moyenne … avec …, contre … avec … », nombres de séances affichés, et en bas « Un écart n'est pas une cause ».
+- **Pas fait** (à décider) : café (le journal ne garde que 48 h), protéines de la veille, VFC de la nuit suivante, explication par le Coach.
+- Tests : `StrandTests/LiftInfluencesTests.swift`.
 
 ## Définition de fin de chantier (proposée)
 **Lots A, B, C (IPA 1) — le chantier est fini quand :**

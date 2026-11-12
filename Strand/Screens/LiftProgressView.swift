@@ -241,8 +241,10 @@ struct LiftProgressView: View {
                 case .muscles:
                     LiftProgressMusclesTab(data: data, period: $musclePeriod) { openMuscle = LiftMuscleTarget(muscle: $0) }
                 case .regularity:
-                    // Fork chantier 18: sets per week over 12 weeks and the days trained.
+                    // Fork chantier 18: sets per week over 12 weeks and the days trained, then the
+                    // Experimental « What shapes my sessions » (lot C).
                     LiftProgressRegularityTab(data: data)
+                    LiftInfluencesSection(data: data, unitSystem: unitSystem)
                 case .form:
                     LiftProgressFormTab(data: data)
                 }

@@ -309,6 +309,7 @@ struct LiftSessionHeartRateSection: View {
     @State private var samples: [HRSample] = []
     @State private var previous: [(start: Int, samples: [HRSample])] = []
     @State private var loaded = false
+    @State private var waterMl = 0
 
     /// About this many points across the whole session, never finer than the live curve's bucket.
     static let targetPoints = 120
@@ -325,6 +326,20 @@ struct LiftSessionHeartRateSection: View {
                         if !samples.isEmpty {
                             zonesRow
                             byExercise
+                        }
+                        // Fork chantier 18, lot C: the water logged during the session (« + glass »).
+                        if waterMl > 0 {
+                            HStack(spacing: NoopMetrics.space2) {
+                                Image(systemName: "drop.fill")
+                                    .foregroundStyle(StrandPalette.accent)
+                                Text("Water during the session")
+                                    .font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                                Spacer(minLength: NoopMetrics.space2)
+                                Text(String(localized: "\(waterMl / 10) cl"))
+                                    .font(StrandFont.captionNumber)
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                            }
                         }
                     }
                 }
@@ -445,6 +460,11 @@ struct LiftSessionHeartRateSection: View {
     private func load() async {
         guard session.endTs != nil else { loaded = true; return }
         samples = await repo.hrSamples(from: session.startTs, to: end)
+        let day = Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(session.startTs)))
+        let from = Date(timeIntervalSince1970: TimeInterval(session.startTs))
+        let to = Date(timeIntervalSince1970: TimeInterval(end))
+        waterMl = repo.hydrationEntries(day: day).filter { $0.loggedAt >= from && $0.loggedAt <= to }
+            .reduce(0) { $0 + $1.amountMl }
         previous = await LiftHeartRateHistory.previousSessions(
             repo: repo, programId: session.programId, before: session.startTs)
         loaded = true

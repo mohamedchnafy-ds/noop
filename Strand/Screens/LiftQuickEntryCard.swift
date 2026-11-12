@@ -32,6 +32,8 @@ struct LiftQuickEntryCard: View {
         var isWarmup: Bool
         /// A rest is running before this set (absolute end, unix seconds), nil otherwise.
         var restEndsAt: Int?
+        /// Water logged since the session began (fork chantier 18, lot C), in ml; nil before the first glass.
+        var waterMl: Int? = nil
     }
 
     struct Actions {
@@ -44,6 +46,8 @@ struct LiftQuickEntryCard: View {
         var shortenRest: () -> Void
         var extendRest: () -> Void
         var skipRest: () -> Void
+        /// « + glass » in the rest band: 25 cl into the water log.
+        var addWater: () -> Void = {}
     }
 
     let content: Content
@@ -166,6 +170,7 @@ struct LiftQuickEntryCard: View {
 
     /// The rest before this set, in amber, with what one tap does to it.
     private func restBand(endsAt: Int) -> some View {
+        VStack(spacing: NoopMetrics.space2) {
         HStack(spacing: NoopMetrics.space2) {
             LiftRunningClock(seconds: restRemaining)
                 .font(StrandFont.number(26, weight: .bold))
@@ -184,6 +189,37 @@ struct LiftQuickEntryCard: View {
         .padding(.vertical, NoopMetrics.space2)
         .background(StrandPalette.metricAmber.opacity(0.14),
                     in: RoundedRectangle(cornerRadius: NoopMetrics.cardRadius - 4, style: .continuous))
+        waterRow
+        }
+    }
+
+    /// « + glass » (fork chantier 18, lot C, maquette 4): one tap logs 25 cl, with the session's total so far.
+    private var waterRow: some View {
+        HStack(spacing: NoopMetrics.space2) {
+            Image(systemName: "drop.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(StrandPalette.accent)
+            if let ml = content.waterMl, ml > 0 {
+                Text(String(localized: "\(ml / 10) cl this session"))
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            } else {
+                Text("Water")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            Spacer(minLength: NoopMetrics.space2)
+            Button(action: actions.addWater) {
+                Text("+ glass")
+                    .font(StrandFont.caption.weight(.semibold))
+                    .foregroundStyle(StrandPalette.accent)
+                    .padding(.horizontal, NoopMetrics.space3)
+                    .frame(minHeight: 36)
+                    .background(StrandPalette.accent.opacity(0.16), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Log a 25 cl glass of water"))
+        }
     }
 
     private func restButton(_ label: Text, action: @escaping () -> Void) -> some View {

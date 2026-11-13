@@ -106,6 +106,42 @@ enum FastingLog {
         return fastingState(of: fast, now: now)
     }
 
+    // MARK: A fast over, on the card and the page (13 Nov 2026)
+
+    /// The instant a fast over stops being shown on the Nutrition card and at the top of the Jeûne page:
+    /// the end of the logical day AFTER the one it ended in (`Repository.logicalDayRolloverHour` decides
+    /// where a logical day ends). A fast over on 10 Nov at 17:32 stays shown through 11 Nov and is gone
+    /// on 12 Nov; the page's history (« Vos jeûnes ») keeps it. PURE: tested on its own (`FastingLogTests`).
+    static func finishedFastShownUntil(endedAt: Date, calendar: Calendar = .current,
+                                       rolloverHour: Int = Repository.logicalDayRolloverHour) -> Date {
+        let endDay = calendar.startOfDay(for: Repository.logicalDay(endedAt, rolloverHour: rolloverHour))
+        let twoDaysOn = calendar.date(byAdding: .day, value: 2, to: endDay)
+            ?? endDay.addingTimeInterval(2 * 86_400)
+        return twoDaysOn.addingTimeInterval(TimeInterval(rolloverHour * 3_600))
+    }
+
+    /// The fast the Nutrition card and the Jeûne page show at `now`: the running one; else the newest
+    /// one over, until « New fast » dismisses it (`dismissedId`) or `finishedFastShownUntil` passes;
+    /// else nil, the idle state (« Ready for 16 h »). PURE: tested on its own (`FastingLogTests`).
+    static func shownFastingState(running: FastRow?, newest: FastRow?, dismissedId: String, now: Date,
+                                  calendar: Calendar = .current,
+                                  rolloverHour: Int = Repository.logicalDayRolloverHour) -> FastingState? {
+        if let running { return fastingState(of: running, now: now) }
+        guard let newest, let endSec = newest.endedAt, newest.id != dismissedId else { return nil }
+        let end = Date(timeIntervalSince1970: TimeInterval(endSec))
+        let until = finishedFastShownUntil(endedAt: end, calendar: calendar, rolloverHour: rolloverHour)
+        guard now < until else { return nil }
+        return fastingState(of: newest, now: now)
+    }
+
+    /// `shownFastingState` read against the store: what the Nutrition card shows.
+    static func resolveShownFastingState(_ store: WhoopStore, dismissedId: String,
+                                         now: Date = Date()) async -> FastingState? {
+        let running = try? await store.runningFast()
+        let newest = await recentFastRows(store, limit: 1).first
+        return shownFastingState(running: running, newest: newest, dismissedId: dismissedId, now: now)
+    }
+
     // MARK: Writes
 
     /// Start a fast at `startedAt` (now, or earlier when the wearer forgot to press Start) aiming at

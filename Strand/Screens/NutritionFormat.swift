@@ -15,6 +15,12 @@ enum NutritionFormat {
         value.formatted(.number.locale(locale))
     }
 
+    /// Energy to the whole kcal, rounded half away from zero, with the language's grouping: "1 767". The
+    /// one formatter of « Spent » on Today and in Nutrition, so the two read alike (13 Nov.).
+    static func wholeKcal(_ value: Double) -> String {
+        whole(Int(value.rounded()))
+    }
+
     /// A gram amount to the whole gram: "22".
     static func grams(_ value: Double) -> String {
         whole(Int(value.rounded()))

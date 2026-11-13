@@ -92,5 +92,17 @@ enum FastingPhaseText {
         String(localized: "Indicative landmarks: they shift with the last meal, sleep and activity. Not medical advice.")
     }
 
+    /// The words at the end of a row of the phases list for `standing` (`FastingState.phaseStanding`):
+    /// « done », « current », « reached at the end », « in 18 min », « not reached ».
+    static func standingText(_ standing: FastingPhaseStanding) -> String {
+        switch standing {
+        case .passed: return String(localized: "done")
+        case .current: return String(localized: "current")
+        case .reachedAtEnd: return String(localized: "reached at the end")
+        case .upcoming(let inMinutes): return String(localized: "in \(FastingFormat.duration(minutes: inMinutes))")
+        case .notReached: return String(localized: "not reached")
+        }
+    }
+
     private static func clamp(_ index: Int) -> Int { min(max(index, 0), count - 1) }
 }

@@ -1861,17 +1861,14 @@ struct LiquidTodayView: View {
             throughDay: dayKey, normal: TodayVitalRange.normalBand(repo.chargeBaselines?.hrv))
 
         // Calories: the stored total's own estimator, split into resting and activity, with the day's
-        // recorded sessions counted at their own estimate (the same funnel Nutrition and the Coach read).
+        // recorded sessions counted at their own estimate, through THE resolver Nutrition, its history, the
+        // widgets and the Coach read (`NutritionDayReader.spentOnDay`, one figure per data refresh), so
+        // Today's « Spent » and Nutrition's cannot differ by the minute between two loads (13 Nov.).
         let body = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
                                age: Double(profile.age), sex: profile.sex)
         let hrmax = profile.effortHRmax
-        let dayRest = day?.restingHr.map(Double.init)
-        let daySessions = await NutritionDayReader.recordedSessions(repo, hr: dayHr)
-        let split = await Task.detached(priority: .utility) {
-            TodayEnergy.dayEnergySplit(hr: dayHr, sessions: daySessions, profile: body, hrmax: hrmax,
-                                       restingHR: dayRest)
-        }.value
-        energySplit = TodayEnergy.resolvedSplit(split, importedActiveKcal: importedActiveKcalDay)
+        energySplit = await NutritionDayReader.spentOnDay(repo, profile: profile, day: selectedLogicalDay,
+                                                          samples: dayHr)
         if activityGoalDefaultDay != dayKey {
             activityGoalDefault = await defaultActivityGoal(before: calendarFrom, cycleMarkers: cycleMarkers,
                                                             body: body, hrmax: hrmax)

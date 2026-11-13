@@ -51,6 +51,29 @@ final class FastingLogTests: XCTestCase {
         XCTAssertEqual(state.phaseIndex, 4)
     }
 
+    /// 13 Nov. recording: « Fast over · 17 h 10 min » above « Ketosis · current » and « Autophagy · to come ».
+    /// A fast that is over is judged at its end: nothing is current, nothing is still to come.
+    func testThePhasesOfAFastThatIsOverAreJudgedAtItsEnd() {
+        let end = t0.addingTimeInterval(17 * 3600 + 10 * 60)
+        let state = FastingLog.fastingState(of: row(start: t0, end: end), now: end.addingTimeInterval(3 * 86_400))
+        let standings = (0..<FastingTimeline.phaseIds.count).map { state.phaseStanding($0) }
+        XCTAssertEqual(standings, [.passed, .passed, .passed, .passed, .reachedAtEnd, .notReached])
+        XCTAssertFalse(standings.contains(.current))
+        let texts = standings.map { FastingPhaseText.standingText($0) }
+        XCTAssertEqual(texts[4], String(localized: "reached at the end"))
+        XCTAssertEqual(texts[5], String(localized: "not reached"))
+        XCTAssertFalse(texts.contains(String(localized: "current")))
+        XCTAssertFalse(texts.contains(String(localized: "to come")))
+    }
+
+    func testThePhasesOfARunningFastAreJudgedAgainstNow() {
+        let now = t0.addingTimeInterval(11 * 3600 + 42 * 60 + 30)
+        let state = FastingLog.fastingState(of: row(start: t0, end: nil), now: now)
+        let standings = (0..<FastingTimeline.phaseIds.count).map { state.phaseStanding($0) }
+        XCTAssertEqual(standings, [.passed, .passed, .current, .upcoming(inMinutes: 18),
+                                   .upcoming(inMinutes: 258), .upcoming(inMinutes: 738)])
+    }
+
     func testAStartInTheFutureCountsAsZero() {
         let state = FastingLog.fastingState(of: row(start: t0.addingTimeInterval(600), end: nil), now: t0)
         XCTAssertEqual(state.elapsedMinutes, 0)

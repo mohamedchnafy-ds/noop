@@ -139,4 +139,20 @@ final class LiquidBatteryDisplayTests: XCTestCase {
                                        ringPct: 93, ringCharging: true),
                        .charge(pct: 61, charging: false, isRing: false))
     }
+    /// Personal fork (13 Nov.): until this link reports a charge, the header ring shows the strap's last
+    /// banked reading when it is at most 3 h old. Never while charging, never a stale one.
+    func testHeaderFallsBackToARecentBankedReading() {
+        let now = 1_800_000_000
+        let samples: [(ts: Int, soc: Double)] = [(ts: now - 7_200, soc: 60), (ts: now - 1_800, soc: 53)]
+        XCTAssertEqual(Display.headerBatteryPct(fresh: 71, samples: samples, charging: false, now: now), 71,
+                       "a fresh reading always wins")
+        XCTAssertEqual(Display.headerBatteryPct(fresh: nil, samples: samples, charging: false, now: now), 53,
+                       "the newest banked reading, not the first")
+        XCTAssertEqual(Display.headerBatteryPct(fresh: nil, samples: samples, charging: nil, now: now), 53)
+        XCTAssertNil(Display.headerBatteryPct(fresh: nil, samples: samples, charging: true, now: now),
+                     "a charging strap climbs too fast for an old reading")
+        XCTAssertNil(Display.headerBatteryPct(fresh: nil, samples: [(ts: now - 4 * 3_600, soc: 53)],
+                                              charging: false, now: now), "older than 3 h")
+        XCTAssertNil(Display.headerBatteryPct(fresh: nil, samples: [], charging: false, now: now))
+    }
 }

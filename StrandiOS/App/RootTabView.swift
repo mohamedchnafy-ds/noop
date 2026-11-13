@@ -128,29 +128,6 @@ struct RootTabView: View {
         }
     }
 
-    /// The anywhere-swipe tab-switch drag (2026-07-02). Held as a property so the attachment site can
-    /// enable or disable it through a `GestureMask` instead of attaching it conditionally: a conditional
-    /// attachment changes view identity, and this condition toggles on every push and pop, which would
-    /// rebuild the tab roots underneath it. The same class of rebuild is what #197 caused with an
-    /// `.id()` reset and #198 had to undo — it lost scroll position and re-ran `.task`.
-    ///
-    /// Only a decisive horizontal flick switches tabs, and Today is carved out because it uses
-    /// horizontal swipe to change DAYS. Both thresholds are unchanged from the original gesture.
-    private var tabSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { v in
-                // Today uses horizontal swipe to change DAYS, so tab-swipe is off there.
-                guard selectedTab != TabTag.today else { return }
-                let dx = v.translation.width, dy = v.translation.height
-                guard abs(dx) > 60, abs(dx) > abs(dy) * 1.6 else { return }
-                let last = coachEnabled ? TabTag.coach : TabTag.training
-                let next = min(last, max(0, selectedTab + (dx < 0 ? 1 : -1)))
-                if next != selectedTab {
-                    withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = next }
-                }
-            }
-    }
-
     var body: some View {
         // The platform tab bar is intentionally left fully native. iOS 26 supplies Liquid Glass and
         // its dynamic interaction with scrolling content automatically; older supported releases use
@@ -159,7 +136,7 @@ struct RootTabView: View {
             tab(todayTabRoot, "Today", "square.grid.2x2", tag: TabTag.today)
             // Fork chantier 9: Training and Nutrition left the More list for tabs of their own; Trends
             // moved the other way, to the head of More → Analysis. Order chosen on 5 Nov.: Today, Sleep,
-            // Nutrition, Training, then Coach. The tags follow the same order, so the tab swipe does too.
+            // Nutrition, Training, then Coach. The tags follow the same order.
             tab(SleepView(), "Sleep", "bed.double", tag: TabTag.sleep)
             tab(NutritionView(), "Nutrition", "fork.knife", tag: TabTag.nutrition)
             tab(LiftLogView(), "Training", "dumbbell", tag: TabTag.training)
@@ -181,30 +158,12 @@ struct RootTabView: View {
         // system owns the behaviour — iOS 26's tab bar MINIMISES to a pill on scroll down rather than
         // sliding away entirely, so this is the platform's read of the same intent, not a copy of ours.
         .noopTabBarAutoHide(bottomBarAutoHide)
-            // Tab crossfade — README §Motion: ~240ms opacity swap between tab roots, global calm
-            // easing cubic-bezier(0.22,1,0.36,1).
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24), value: selectedTab)
-            // Swipe left/right anywhere to move between tabs (2026-07-02), but ONLY while the current
-            // tab is at its root. Attaching this ancestor drag gesture unconditionally defeated the
-            // edge-restriction of a pushed NavigationStack screen's native interactive-pop gesture —
-            // any More-tab subscreen (Settings, Devices, …) became draggable/rubber-banding from
-            // anywhere, not just the left edge (#519). Disabling the recognizer once a push is active,
-            // rather than just gating the onEnded action, is what stops the interference: the action
-            // never runs early enough, because the recognizer competes during recognition.
-            //
-            // The mask does that WITHOUT changing view identity. #519 attached the gesture through a
-            // conditional ViewModifier, which put the two states in separate _ConditionalContent
-            // branches — and since this condition toggles on every push and pop, each navigation
-            // rebuilt the whole TabView subtree and could reset @State inside the tab roots (scroll
-            // offsets, chart ranges, expanded sections). `including:` keeps one view type in both
-            // states, so nothing is torn down.
-            //
-            // The mask MUST be `.subviews`, not `.none`. `.subviews` means "enable the subview
-            // hierarchy's gestures, disable the added one" — exactly this requirement. `.none` disables
-            // the subview hierarchy TOO, which on a pushed screen would take out scrolling, taps and the
-            // interactive-pop itself: far worse than the bug being fixed.
-            .simultaneousGesture(tabSwipeGesture,
-                                 including: tabPaths[selectedTab].isEmpty ? .all : .subviews)
+        // Personal fork (8 Nov.): the anywhere-swipe between tabs (2026-07-02) and the tab cross-fade are
+        // gone. The swipe was a DragGesture attached simultaneously over the whole TabView, so it ran
+        // beside every page's scroll: the start of a scroll hitched (Sleep, Training) and a scroll was
+        // sometimes read as a tap. The cross-fade was an implicit animation on `selectedTab` over every tab
+        // root, while the native TabView does not fade at all: it only animated whatever else changed in
+        // the same update. Tabs change through the tab bar; Today keeps its own swipe between days.
         .task {
             await repo.refresh()
             // Backup & Sync: on-launch catch-up (see RootView). Detached + utility priority so a

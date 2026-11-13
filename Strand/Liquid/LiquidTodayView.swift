@@ -304,19 +304,35 @@ struct LiquidTodayView: View {
     }
     /// Horizontal swipe between days (right = older, left = newer — `TodayView.daySwipeDelta`, #2378),
     /// clamped to [today, earliest].
+    #if os(iOS)
+    /// On iPhone the swipe is a UIKit pan that only BEGINS on a horizontal flick (personal fork, 8 Nov.): a
+    /// SwiftUI DragGesture attached simultaneously ran beside every vertical scroll of the page, which made
+    /// the start of a scroll hitch. A vertical drag now fails the pan at once and the scroll has it alone.
+    private var daySwipeGesture: TodayDaySwipeRecognizer {
+        TodayDaySwipeRecognizer(space: Self.daySwipeSpace) { start, dx, dy in
+            applyDaySwipe(start: start, dx: dx, dy: dy)
+        }
+    }
+    #else
     private var daySwipeGesture: some Gesture {
         DragGesture(minimumDistance: 24, coordinateSpace: .named(Self.daySwipeSpace))
             .onEnded { value in
-                guard !heartRateCardFrame.contains(value.startLocation),
-                      !stressCardFrame.contains(value.startLocation) else { return }
-                let dx = value.translation.width, dy = value.translation.height
-                guard abs(dx) > abs(dy) * 1.5, abs(dx) > 50 else { return }
-                let delta = TodayView.daySwipeDelta(dx: dx)
-                let next = Self.clampedDayOffset(current: selectedDayOffset, delta: delta,
-                                                 maxOffset: earliestDayOffset)
-                guard next != selectedDayOffset else { return }
-                withAnimation(StrandMotion.interactive) { selectedDayOffset = next }
+                applyDaySwipe(start: value.startLocation, dx: value.translation.width,
+                              dy: value.translation.height)
             }
+    }
+    #endif
+
+    /// A finished swipe that started at `start` (in `daySwipeSpace`) and travelled `dx` × `dy`: one day older
+    /// or newer, clamped, unless it started on a chart that reads its own drags.
+    private func applyDaySwipe(start: CGPoint, dx: CGFloat, dy: CGFloat) {
+        guard !heartRateCardFrame.contains(start), !stressCardFrame.contains(start) else { return }
+        guard abs(dx) > abs(dy) * 1.5, abs(dx) > 50 else { return }
+        let delta = TodayView.daySwipeDelta(dx: dx)
+        let next = Self.clampedDayOffset(current: selectedDayOffset, delta: delta,
+                                         maxOffset: earliestDayOffset)
+        guard next != selectedDayOffset else { return }
+        withAnimation(StrandMotion.interactive) { selectedDayOffset = next }
     }
 
     static func clampedDayOffset(current: Int, delta: Int, maxOffset: Int) -> Int {
@@ -468,9 +484,13 @@ struct LiquidTodayView: View {
         .coordinateSpace(name: Self.daySwipeSpace)
         .onPreferenceChange(LiquidHeartRateCardFrameKey.self) { heartRateCardFrame = $0 }
         .onPreferenceChange(LiquidStressCardFrameKey.self) { stressCardFrame = $0 }
-        // Swipe left/right to change DAYS (WHOOP-style). Tab-swipe is disabled on Today in RootTabView so
-        // this owns the horizontal gesture here.
+        // Swipe left/right to change DAYS (WHOOP-style); the only horizontal swipe on Today (the swipe
+        // between tabs is gone, 8 Nov.).
+        #if os(iOS)
+        .gesture(daySwipeGesture)
+        #else
         .simultaneousGesture(daySwipeGesture)
+        #endif
         // A light tick when the day changes (swipe or calendar pick) — the WHOOP-style day nav should
         // feel physical ("every tiny little thing").
         .liquidSelectionHaptic(trigger: selectedDayOffset)
@@ -1810,8 +1830,12 @@ struct LiquidTodayView: View {
             hostedStressActivityMaskedHours = 0
         }
 
-        // First load done — bring the hero gauges + sky to life now the launch churn has settled.
-        if !dataLoaded { withAnimation(.easeIn(duration: 0.4)) { dataLoaded = true } }
+        // First load done — bring the hero gauges to life now the launch churn has settled. Only once the
+        // repository has published its first refresh: before it, this load reads empty caches and the rings
+        // played their entrance over « no data », then the values arrived in jumps (13 Nov.). And without an
+        // animation: armed inside one, the entrance's drop to 0 was animated too and the numbers ran down
+        // from about twice their value.
+        if !dataLoaded, repo.loaded { dataLoaded = true }
     }
 
     /// Today v2 (personal fork): everything the new hero, heart-rate card and synthesis read, resolved

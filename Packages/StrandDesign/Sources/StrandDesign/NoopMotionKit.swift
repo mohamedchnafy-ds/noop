@@ -10,7 +10,7 @@ import SwiftUI
 //     or once per showing of their screen (`noopEntranceRoot()` counts the showings, 6 Nov.)
 //   • `NoopFirstDraw` — the one-shot "draw" flag a ring or a curve traces itself in with
 //   • `NoopGradientArc` — a flat ring stroked from its deep tone to its vivid one, with a lit tip (effect A)
-//   • `NoopRollingNumber` — a number that counts to its value, or rises blurred and lands (effect B)
+//   • `NoopRollingNumber` — a number that counts to its value, or counts and settles in with a glow (effect B)
 //   • `.noopNumericTransition(_:)`, `.noopSymbolBounce(_:)` — iOS 17 / macOS 14 effects behind one check
 //   • `.noopDaySlide(_:)` — a day change nudges the card in from the side it came from
 //   • `.noopShimmer(_:)` — a loading skeleton's sweep, only while it loads
@@ -30,16 +30,23 @@ public extension NoopMotion {
     static let ringStagger: Double = 0.09
     /// A ring or a figure moving to a new value (another day, a meal added, a set ticked).
     static let valueChangeDuration: Double = 0.65
-    /// A headline number rising to its value before it lands (effect B).
+    /// A headline number counting to its value before it lands (effect B).
     static let slamRiseDuration: Double = 0.85
-    /// The landing of that number: from `slamLandScale` back to 1.
+    /// How long the glow of a landing number takes to fade.
     static let slamLandDuration: Double = 0.42
-    /// The motion blur of a rising number at its fastest.
-    static let slamBlurMax: CGFloat = 8
-    /// The scale a rising number lands from.
-    static let slamLandScale: CGFloat = 1.22
+    /// The scale a headline number grows in from, settling to 1 on a soft spring as it counts (8 Nov.: the
+    /// jump to 1.22 in 0.06 s and the motion blur read as a stutter, not as a landing).
+    static let slamSettleFrom: CGFloat = 0.86
     /// The radius of the glow a landing number flashes.
     static let slamGlowRadius: CGFloat = 14
+    /// How much faster an entrance plays when its screen is shown again (a tab selected again, a pushed
+    /// screen popped back): the first showing of a launch takes the full tempo, the next ones about half
+    /// (8 Nov.: 0.9 s of rings and 1.3 s of numbers on every tab switch read as latency).
+    static let replaySpeed: Double = 1.8
+    /// How long a screen must stay hidden before its leaving counts as a showing (13 Nov.): a tab root
+    /// that the system makes disappear and appear again within a few frames, with nothing selected, replayed
+    /// the whole entrance of Today under the wearer's eyes.
+    static let leaveSettle: Double = 0.25
     /// How far the glow of a ring's lit tip reaches past the tip.
     static let tipGlowRadius: CGFloat = 8
     /// How far a card slides in when the day changes.
@@ -62,6 +69,9 @@ public extension NoopMotion {
 
     /// A curve's first trace.
     static var curveDraw: Animation { strongEaseOut(curveDrawDuration) }
+
+    /// The soft spring a headline number settles to its size with: a hint of overshoot, no bounce back.
+    static var slamSettle: Animation { .spring(response: 0.55, dampingFraction: 0.62) }
 }
 
 // MARK: - Once per launch, once per showing
@@ -103,6 +113,10 @@ private struct NoopEntranceGenerationKey: EnvironmentKey {
     static let defaultValue = 0
 }
 
+private struct NoopEntranceVisibleKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 public extension EnvironmentValues {
     /// How many times the screen holding the view was shown, counted by `noopEntranceRoot()`: the
     /// entrances keyed for `NoopLaunchOnce` play once per count. 0 outside such a root (macOS, sheets,
@@ -111,23 +125,52 @@ public extension EnvironmentValues {
         get { self[NoopEntranceGenerationKey.self] }
         set { self[NoopEntranceGenerationKey.self] = newValue }
     }
+
+    /// Whether the screen holding the view is on screen, set by `noopEntranceRoot()`: an entrance waits for
+    /// it, so a screen emptied while hidden draws itself in when it comes back rather than while it is away.
+    /// True outside such a root.
+    var noopEntranceVisible: Bool {
+        get { self[NoopEntranceVisibleKey.self] }
+        set { self[NoopEntranceVisibleKey.self] = newValue }
+    }
 }
 
 /// Counts the showings of a screen for `noopEntranceGeneration`: 1 from the start, so the first showing
-/// plays once, then one more each time the root appears again (its tab selected again, a pushed screen
-/// popped back to it). The views below replay their entrance on the change.
+/// plays once, then one more each time the root LEAVES the screen (another tab selected, a screen pushed
+/// over it). The views below empty themselves on the change while they are hidden, and draw themselves in
+/// when the root is back (`noopEntranceVisible`).
+///
+/// Counting on the way out, not on the way back (8 Nov.): counted in `onAppear`, the screen came back
+/// drawn whole for a frame, emptied, then drew itself in again, a flash that read as a glitch.
+///
+/// A leaving counts once the root stayed hidden `NoopMotion.leaveSettle` (13 Nov.): a disappear followed
+/// by an appear within a few frames, which the system can send a tab root that never left the screen, is
+/// not a showing, and replaying the entrance there emptied and refilled Today with nothing touched.
 private struct NoopEntranceRoot: ViewModifier {
     @State private var generation = 1
-    @State private var shown = false
+    @State private var visible = true
+    /// Bumped by every appear and disappear: a pending leave counts only if nothing came after it.
+    @State private var leaveToken = 0
 
     func body(content: Content) -> some View {
         content
             .environment(\.noopEntranceGeneration, generation)
+            .environment(\.noopEntranceVisible, visible)
             .onAppear {
-                if shown {
-                    generation += 1
-                } else {
-                    shown = true
+                leaveToken += 1
+                visible = true
+            }
+            .onDisappear {
+                leaveToken += 1
+                let token = leaveToken
+                DispatchQueue.main.asyncAfter(deadline: .now() + NoopMotion.leaveSettle) {
+                    guard token == leaveToken else { return }
+                    var instant = Transaction()
+                    instant.disablesAnimations = true
+                    withTransaction(instant) {
+                        generation += 1
+                        visible = false
+                    }
                 }
             }
     }
@@ -149,19 +192,29 @@ public struct NoopDrawPhase: Equatable {
     public let drawn: Bool
     /// True when the quiet-motion gate is closed: draw every change at once.
     public let still: Bool
+    /// True when the screen is shown again in this launch: the entrance plays at `NoopMotion.replaySpeed`.
+    public let quick: Bool
 
-    public init(drawn: Bool, still: Bool) {
+    public init(drawn: Bool, still: Bool, quick: Bool = false) {
         self.drawn = drawn
         self.still = still
+        self.quick = quick
     }
 
-    /// `animation`, or nil when the surface must not move.
-    public func motion(_ animation: Animation) -> Animation? { still ? nil : animation }
+    /// `animation`, or nil when the surface must not move; sped up (its delay too) on a showing again.
+    /// Never for the emptying (`drawn` false): a surface waits empty at once, whatever transaction emptied
+    /// it (13 Nov.: an entrance armed inside an animation emptied the rings with it, and the draw-in that
+    /// followed added to that fall).
+    public func motion(_ animation: Animation) -> Animation? {
+        guard !still, drawn else { return nil }
+        return quick ? animation.speed(NoopMotion.replaySpeed) : animation
+    }
 }
 
 /// Hands its content a `drawn` flag that turns true once, the first time the surface is armed in this showing
-/// of its screen, under `NoopMotion.ringDraw`; the screen shown again (`noopEntranceGeneration`) empties the
-/// surface at once and draws it in anew. Pieces of the content can pick their own curve or delay with
+/// of its screen, under `NoopMotion.ringDraw`; the screen leaving (`noopEntranceGeneration`) empties the
+/// surface without moving, and it draws itself in anew, faster, when the screen is back
+/// (`noopEntranceVisible`). Pieces of the content can pick their own curve or delay with
 /// `.animation(phase.motion(…), value: phase.drawn)`.
 ///
 /// Unarmed (data not loaded yet, or a PNG render) the content is drawn whole. Armed but already played in this
@@ -174,6 +227,7 @@ public struct NoopFirstDraw<Content: View>: View {
     @State private var started = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.noopEntranceGeneration) private var generation
+    @Environment(\.noopEntranceVisible) private var visible
     @ObservedObject private var motion = NoopMotionState.shared
 
     /// - Parameters:
@@ -191,29 +245,38 @@ public struct NoopFirstDraw<Content: View>: View {
         armed && !started && !still && !NoopLaunchOnce.hasPlayed(key, generation: generation)
     }
 
+    /// Waiting, the content takes no animation, like `NoopDrawPhase.motion(_:)`: emptied inside an animated
+    /// transaction (an entrance armed by a `withAnimation`), it waits empty at once (13 Nov.).
     public var body: some View {
-        content(NoopDrawPhase(drawn: !waiting, still: still))
+        let empty = waiting
+        content(NoopDrawPhase(drawn: !empty, still: still, quick: generation > 1))
+            .transaction { transaction in
+                if empty { transaction.animation = nil }
+            }
             .onAppear { begin() }
             .onChangeCompat(of: armed) { _ in begin() }
             .onChangeCompat(of: generation) { _ in replay() }
+            .onChangeCompat(of: visible) { shown in if shown { begin() } }
     }
 
     private func begin() {
-        guard armed, !started else { return }
+        guard armed, !started, visible else { return }
         guard !still, NoopLaunchOnce.markPlayed(key, generation: generation) else {
             started = true
             return
         }
-        withAnimation(NoopMotion.ringDraw) { started = true }
+        let draw = NoopMotion.ringDraw
+        withAnimation(generation > 1 ? draw.speed(NoopMotion.replaySpeed) : draw) { started = true }
     }
 
-    /// The screen is shown again: the surface empties without moving, then draws itself in.
+    /// The screen left: the surface empties without moving, and draws itself in once the screen is back. On
+    /// screen already (the change reached it late), it draws itself in at once.
     private func replay() {
         guard armed, started, !still else { return }
         var instant = Transaction()
         instant.disablesAnimations = true
         withTransaction(instant) { started = false }
-        DispatchQueue.main.async { begin() }
+        if visible { DispatchQueue.main.async { begin() } }
     }
 }
 
@@ -308,14 +371,15 @@ public struct NoopGradientArc: View {
 public enum NoopNumberEntrance: Equatable {
     /// Counts to its value in step with the rings (0.9 s on entrance, 0.65 s on a change).
     case count
-    /// Rises blurred in 0.85 s, then lands: a scale from 1.14 to 1, a brief glow of its colour, and a light
-    /// haptic (effect B). For the headline number of a card.
+    /// Counts to its value in 0.85 s while it grows in from 0.86 on a soft spring, then lands with a brief
+    /// glow of its colour and a light haptic (effect B). For the headline number of a card. A later change
+    /// only counts, silently: a sync moving the number must not make it jump or buzz (8 Nov.).
     case slam
 }
 
 /// A number that moves to its value: on its first appearance in each showing of its screen (from 0, when
 /// armed and given a `launchKey`; see `noopEntranceGeneration`), and on every change. Unarmed, or with the
-/// quiet-motion gate closed, it shows its value at once; a slam still gives its haptic on a change.
+/// quiet-motion gate closed, it shows its value at once.
 ///
 /// The caller's `lineLimit` / `minimumScaleFactor` apply to the number as to any `Text`.
 public struct NoopRollingNumber: View {
@@ -331,17 +395,15 @@ public struct NoopRollingNumber: View {
     private let haptic: Bool
 
     @State private var shown: Double
-    @State private var origin: Double = 0
     @State private var started = false
     @State private var landScale: CGFloat = 1
     @State private var flash: Double = 0
     @State private var landing = 0
-    /// True from the start of a slam's rise to its landing: the only time the text carries its blur.
-    @State private var rising = false
-    /// True from a landing to the end of its settle: the only time the text carries its glow.
+    /// True from a landing to the end of its glow: the only time the text carries its shadow.
     @State private var glowing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.noopEntranceGeneration) private var generation
+    @Environment(\.noopEntranceVisible) private var visible
     @ObservedObject private var motion = NoopMotionState.shared
 
     /// - Parameters:
@@ -380,12 +442,11 @@ public struct NoopRollingNumber: View {
         return !NoopLaunchOnce.hasPlayed(launchKey, generation: generation)
     }
 
+    /// The tempo of the entrance: full on the first showing of a launch, `replaySpeed` times faster after.
+    private var tempo: Double { generation > 1 ? NoopMotion.replaySpeed : 1 }
+
     private var entranceDuration: Double {
         entrance == .slam ? NoopMotion.slamRiseDuration : NoopMotion.ringDrawDuration
-    }
-
-    private var changeDuration: Double {
-        entrance == .slam ? NoopMotion.slamRiseDuration : NoopMotion.valueChangeDuration
     }
 
     public var body: some View {
@@ -394,20 +455,26 @@ public struct NoopRollingNumber: View {
             .onAppear { begin() }
             .onChangeCompat(of: armed) { _ in begin() }
             .onChangeCompat(of: generation) { _ in replay() }
+            .onChangeCompat(of: visible) { onScreen in if onScreen { begin() } }
             .onChangeCompat(of: value) { newValue in change(to: newValue) }
             .accessibilityElement()
             .accessibilityLabel(Text(verbatim: format(value)))
     }
 
-    /// The text, blurred only while a slam rises and glowing only while it lands. A blur of 0 or a glow of
-    /// no colour left on the number at rest is still a filter the compositor runs on every frame of a
-    /// scroll, for nothing to show (6 Nov. evening); `rising` and `glowing` are set outside any animation,
-    /// so the text swaps its filters without a fade.
+    /// The text, glowing only while it lands. A glow of no colour left on the number at rest is still a
+    /// filter the compositor runs on every frame of a scroll, for nothing to show (6 Nov. evening);
+    /// `glowing` is set outside any animation, so the text swaps its filter without a fade.
+    ///
+    /// Waiting, the face takes no animation (13 Nov.): an entrance armed inside an animated transaction
+    /// otherwise animated the drop to 0, the count that followed added to that fall, and the numbers of
+    /// Today ran down from about twice their value instead of up from 0.
     @ViewBuilder
     private var face: some View {
-        let text = NoopRollingNumberFace(number: waiting ? 0 : shown, origin: origin, target: shown,
-                                         blurs: entrance == .slam && rising, format: format, font: font,
-                                         color: color)
+        let zeroed = waiting
+        let text = NoopRollingNumberFace(number: zeroed ? 0 : shown, format: format, font: font, color: color)
+            .transaction { transaction in
+                if zeroed { transaction.animation = nil }
+            }
         if glowing {
             text.shadow(color: glow.opacity(0.8 * flash), radius: NoopMotion.slamGlowRadius)
         } else {
@@ -416,63 +483,77 @@ public struct NoopRollingNumber: View {
     }
 
     private func begin() {
-        guard let launchKey, armed, !started else { return }
+        guard let launchKey, armed, !started, visible else { return }
         guard !still, NoopLaunchOnce.markPlayed(launchKey, generation: generation) else {
-            started = true
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) {
+                started = true
+                landScale = 1
+            }
             return
         }
-        origin = 0
+        let wait = delay / tempo
+        let run = entranceDuration / tempo
         shown = value
-        if entrance == .slam { rising = true }
-        withAnimation(NoopMotion.strongEaseOut(entranceDuration).delay(delay)) { started = true }
-        if entrance == .slam { land(after: delay + entranceDuration) }
+        if entrance == .slam {
+            // The haptic marks the first entrance of a launch, not every return to the tab.
+            settleIn(after: wait, run: run, buzz: haptic && generation <= 1)
+        }
+        withAnimation(NoopMotion.strongEaseOut(run).delay(wait)) { started = true }
     }
 
-    /// The screen is shown again: back to 0 without moving, then the entrance anew.
+    /// The screen left: back to 0 without moving, and the entrance anew once the screen is back. On screen
+    /// already (the change reached it late), the entrance plays at once.
     private func replay() {
         guard launchKey != nil, armed, started, !still else { return }
+        landing += 1
         var instant = Transaction()
         instant.disablesAnimations = true
-        withTransaction(instant) { started = false }
-        DispatchQueue.main.async { begin() }
+        withTransaction(instant) {
+            started = false
+            // A slam waits at the size it grows in from, so its entrance does not start with a shrink.
+            landScale = entrance == .slam ? NoopMotion.slamSettleFrom : 1
+            flash = 0
+        }
+        glowing = false
+        if visible { DispatchQueue.main.async { begin() } }
     }
 
+    /// A new value: the number counts to it. No settle, glow or haptic: those belong to the entrance.
     private func change(to newValue: Double) {
         if still || waiting {
             var instant = Transaction()
             instant.disablesAnimations = true
             withTransaction(instant) { shown = newValue }
-            if still, entrance == .slam, haptic, armed { NoopSlamHaptic.fire() }
             return
         }
-        origin = shown
-        if entrance == .slam { rising = true }
-        withAnimation(NoopMotion.strongEaseOut(changeDuration)) { shown = newValue }
-        if entrance == .slam { land(after: changeDuration) }
+        withAnimation(NoopMotion.valueChange) { shown = newValue }
     }
 
-    /// The landing: a brief rise to `slamLandScale` with the glow lit, then the settle back to 1.
-    private func land(after seconds: Double) {
+    /// The slam's settle: the number grows in from `slamSettleFrom` on a soft spring while it counts, and
+    /// once it arrives its glow flashes and fades (with the haptic when `buzz`).
+    private func settleIn(after wait: Double, run: Double, buzz: Bool) {
         landing += 1
         let token = landing
-        let pop = 0.06
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            landScale = NoopMotion.slamSettleFrom
+            flash = 0
+        }
+        withAnimation(NoopMotion.slamSettle.delay(wait + run * 0.3)) { landScale = 1 }
+        let flashIn = 0.08
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait + run) {
             guard token == landing else { return }
-            rising = false
             glowing = true
-            if haptic { NoopSlamHaptic.fire() }
-            withAnimation(.easeOut(duration: pop)) {
-                landScale = NoopMotion.slamLandScale
-                flash = 1
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + pop) {
+            if buzz { NoopSlamHaptic.fire() }
+            withAnimation(.easeOut(duration: flashIn)) { flash = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + flashIn) {
                 guard token == landing else { return }
-                withAnimation(.easeOut(duration: NoopMotion.slamLandDuration - pop)) {
-                    landScale = 1
-                    flash = 0
-                }
+                withAnimation(.easeOut(duration: NoopMotion.slamLandDuration)) { flash = 0 }
                 // The glow has faded: the shadow leaves the text (no animation, so no fade of the text).
-                DispatchQueue.main.asyncAfter(deadline: .now() + NoopMotion.slamLandDuration - pop) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + NoopMotion.slamLandDuration) {
                     guard token == landing else { return }
                     glowing = false
                 }
@@ -481,14 +562,11 @@ public struct NoopRollingNumber: View {
     }
 }
 
-/// The animatable face of `NoopRollingNumber`: SwiftUI interpolates `number` frame by frame, and the blur of
-/// a slam follows the share of the run still to go (largest at the start, where an ease-out moves fastest).
+/// The animatable face of `NoopRollingNumber`: SwiftUI interpolates `number` frame by frame. No filter: the
+/// motion blur it carried while a slam rose was dropped on 8 Nov. (a blur pass on every frame of the count,
+/// and it read as a stutter rather than as speed).
 private struct NoopRollingNumberFace: View, Animatable {
     var number: Double
-    let origin: Double
-    let target: Double
-    /// True only while a slam rises: the text then carries its blur. False attaches no filter at all.
-    let blurs: Bool
     let format: (Double) -> String
     let font: Font
     let color: Color
@@ -498,23 +576,12 @@ private struct NoopRollingNumberFace: View, Animatable {
         set { number = newValue }
     }
 
-    private var remaining: CGFloat {
-        let span = abs(target - origin)
-        guard span > 0.0001 else { return 0 }
-        return CGFloat(min(1, abs(target - number) / span))
-    }
-
     var body: some View {
-        let text = Text(verbatim: format(number))
+        Text(verbatim: format(number))
             .font(font)
             .foregroundStyle(color)
             .monospacedDigit()
             .accessibilityHidden(true)
-        if blurs {
-            text.blur(radius: NoopMotion.slamBlurMax * remaining)
-        } else {
-            text
-        }
     }
 }
 

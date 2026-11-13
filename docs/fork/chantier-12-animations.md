@@ -119,6 +119,19 @@ Remarques de Mohamed : **défilement qui accroche**, **retour sur un onglet lent
 - Les 4 chiffres d'Aujourd'hui, Endormi, Mangé : ils comptent en grandissant un peu, sans flou ni saut, puis un bref éclat. Après une synchro : ils comptent jusqu'à la nouvelle valeur, **sans vibration**.
 - Réduire les animations : rien ne bouge, valeurs justes.
 
+## Retours du 13 nov. (vidéo de `build/demarrer-2`), ajoutés à #134
+Vidéo d'écran de Mohamed (Aujourd'hui → Sommeil → Nutrition → Jeûne). Choix : partir de #134 (mise à jour avec `main`), une IPA pour les deux.
+- **Chiffres qui redescendent depuis ~2×** (Aujourd'hui, vers 7 s, rien touché : 3 391 → 1 766, 119 → 62, anneaux vidés puis remplis). Cause : `LiquidTodayView` armait l'entrée dans `withAnimation(.easeIn(0.4)) { dataLoaded = true }` ; la mise à 0 « en attente » était donc **animée**, et le compte 0 → valeur s'y **ajoutait** (animations additives de SwiftUI). Corrigé à la source : en attente, un chiffre (`NoopRollingNumber`) et une surface (`NoopFirstDraw`, `NoopDrawPhase.motion` → nil quand `drawn` est faux) ne prennent **aucune** animation ; `dataLoaded` passe sans animation.
+- **Rejeu sans changer d'onglet** : un départ de l'écran ne compte qu'après **0,25 s caché** (`NoopMotion.leaveSettle`) ; un disparaître / réapparaître de quelques images envoyé par le système n'est plus une « nouvelle présentation ».
+- **Entrée d'Aujourd'hui sur « pas de donnée »** puis valeurs par sauts : `dataLoaded` attend le premier rafraîchissement publié (`repo.loaded`).
+- **Jeûne** : à l'ouverture, « Pas de jeûne en cours » s'affichait quelques images puis fondait en « Jeûne terminé » (textes superposés). La carte et les phases restent vides jusqu'à la 1re lecture, qui arrive sans fondu.
+- Fondu entre onglets (pages superposées) : déjà retiré par #134. Dans des PR à part depuis `main` : textes coupés (#158), chiffres contradictoires et « Dépensé — » de Nutrition, carte de jeûne d'il y a 3 jours et « Régularité 0 % ».
+
+## À tester (13 nov., IPA avec #134)
+- Lancer l'app sur Aujourd'hui sans rien toucher pendant 15 s : une seule entrée, après l'arrivée des données ; les chiffres **montent** depuis 0, jamais ne redescendent ; aucun rejeu ensuite.
+- Changer d'onglet et revenir : entrée rejouée, courte, depuis 0. Revenir très vite (moins d'un quart de seconde) : pas de rejeu (normal).
+- Nutrition → carte Jeûne : la page s'ouvre directement sur le bon état (terminé / en cours / aucun), sans « Pas de jeûne en cours » ni textes superposés.
+
 ## À tester sur le téléphone (vidéo d'écran)
 - **6 nov. (soir)** : Aujourd'hui → carte FC En direct : le cœur avant « 89 bpm » bat au rythme (plus vite à l'effort), l'onde part du point au bout de la courbe **sur le même battement** ; Journée : cœur seul ; bracelet déconnecté : pas de cœur ; Réduire les animations : cœur immobile, pas d'onde. Sommeil → Courbes : la nuit s'écrit de gauche à droite (trait blanc au front, courbes FC / VFC coupées au front) à l'arrivée sur l'onglet, au retour d'un écran poussé, à ‹ › et à « Voir cette nuit » ; plein écran : idem à l'ouverture ; une durée touchée en haut fond les autres phases sans retracer. Défilement : Sommeil, Entraînement, Aujourd'hui depuis le haut, lentement puis d'un coup, avec et sans Réduire les animations : plus d'à-coup au départ ? (sinon, suspects ci-dessus).
 - Le Coach, la feuille Plus et les widgets : vérifier aussi qu'un écran déjà vu ne rejoue pas son entrée (une fois par lancement).

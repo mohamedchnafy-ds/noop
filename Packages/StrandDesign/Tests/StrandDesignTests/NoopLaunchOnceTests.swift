@@ -45,4 +45,14 @@ final class NoopLaunchOnceTests: XCTestCase {
         XCTAssertNil(NoopDrawPhase(drawn: true, still: true, quick: true).motion(draw))
         XCTAssertGreaterThan(NoopMotion.replaySpeed, 1)
     }
+
+    /// 13 Nov.: a surface waiting for its entrance empties at once, never through an animation, so the
+    /// draw-in that follows starts from empty instead of adding to a fall.
+    func testAWaitingDrawPhaseNeverAnimatesItsEmptying() {
+        let draw = NoopMotion.ringDraw
+        XCTAssertNil(NoopDrawPhase(drawn: false, still: false).motion(draw))
+        XCTAssertNil(NoopDrawPhase(drawn: false, still: false, quick: true).motion(draw))
+        XCTAssertEqual(NoopDrawPhase(drawn: true, still: false).motion(draw), draw)
+        XCTAssertGreaterThan(NoopMotion.leaveSettle, 0, "a leave of a few frames is not a showing")
+    }
 }

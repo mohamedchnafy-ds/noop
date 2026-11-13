@@ -95,6 +95,7 @@ struct FastingView: View {
                     phaseIndex = index
                     sheet = .phase
                 }
+                .opacity(loaded ? 1 : 0)
                 FastingWaterCard(totalML: waterML, goalML: goalML, customML: customSizeML, canUndo: canUndoWater,
                                  animated: loaded,
                                  onAdd: { ml in Task { await addWater(ml) } },
@@ -157,6 +158,9 @@ struct FastingView: View {
                 }
             }
             .frame(maxWidth: .infinity)
+            // Before the first read the card is not « No fast running »: it waits blank (13 Nov.: the idle
+            // state showed for a few frames on opening, then crossfaded into « Fast over »).
+            .opacity(loaded ? 1 : 0)
         }
         .animation(NoopMotion.gated(NoopMotion.card, reduced: still), value: state?.isRunning)
     }
@@ -519,11 +523,16 @@ struct FastingView: View {
         guard let store = await repo.storeHandle() else { return }
         let open = try? await store.runningFast()
         let newest = (try? await store.recentFasts(limit: 1))?.first
-        running = open
-        latest = newest
-        if lastGoalMinutes > 0 { pickedGoalMinutes = FastingTimeline.clampGoalMinutes(lastGoalMinutes) }
-        now = Date()
-        loaded = true
+        // The first read lands without a crossfade: there is no earlier state on screen to fade from.
+        var transaction = Transaction()
+        transaction.disablesAnimations = !loaded
+        withTransaction(transaction) {
+            running = open
+            latest = newest
+            if lastGoalMinutes > 0 { pickedGoalMinutes = FastingTimeline.clampGoalMinutes(lastGoalMinutes) }
+            now = Date()
+            loaded = true
+        }
     }
 
     private func reloadHistory() async {

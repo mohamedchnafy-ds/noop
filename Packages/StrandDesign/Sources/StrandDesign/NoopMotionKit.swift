@@ -43,6 +43,10 @@ public extension NoopMotion {
     /// screen popped back): the first showing of a launch takes the full tempo, the next ones about half
     /// (8 Nov.: 0.9 s of rings and 1.3 s of numbers on every tab switch read as latency).
     static let replaySpeed: Double = 1.8
+    /// How long a screen must stay hidden before its leaving counts as a showing (13 Nov.): a tab root
+    /// that the system makes disappear and appear again within a few frames, with nothing selected, replayed
+    /// the whole entrance of Today under the wearer's eyes.
+    static let leaveSettle: Double = 0.25
     /// How far the glow of a ring's lit tip reaches past the tip.
     static let tipGlowRadius: CGFloat = 8
     /// How far a card slides in when the day changes.
@@ -138,18 +142,36 @@ public extension EnvironmentValues {
 ///
 /// Counting on the way out, not on the way back (8 Nov.): counted in `onAppear`, the screen came back
 /// drawn whole for a frame, emptied, then drew itself in again, a flash that read as a glitch.
+///
+/// A leaving counts once the root stayed hidden `NoopMotion.leaveSettle` (13 Nov.): a disappear followed
+/// by an appear within a few frames, which the system can send a tab root that never left the screen, is
+/// not a showing, and replaying the entrance there emptied and refilled Today with nothing touched.
 private struct NoopEntranceRoot: ViewModifier {
     @State private var generation = 1
     @State private var visible = true
+    /// Bumped by every appear and disappear: a pending leave counts only if nothing came after it.
+    @State private var leaveToken = 0
 
     func body(content: Content) -> some View {
         content
             .environment(\.noopEntranceGeneration, generation)
             .environment(\.noopEntranceVisible, visible)
-            .onAppear { visible = true }
+            .onAppear {
+                leaveToken += 1
+                visible = true
+            }
             .onDisappear {
-                generation += 1
-                visible = false
+                leaveToken += 1
+                let token = leaveToken
+                DispatchQueue.main.asyncAfter(deadline: .now() + NoopMotion.leaveSettle) {
+                    guard token == leaveToken else { return }
+                    var instant = Transaction()
+                    instant.disablesAnimations = true
+                    withTransaction(instant) {
+                        generation += 1
+                        visible = false
+                    }
+                }
             }
     }
 }
@@ -180,8 +202,11 @@ public struct NoopDrawPhase: Equatable {
     }
 
     /// `animation`, or nil when the surface must not move; sped up (its delay too) on a showing again.
+    /// Never for the emptying (`drawn` false): a surface waits empty at once, whatever transaction emptied
+    /// it (13 Nov.: an entrance armed inside an animation emptied the rings with it, and the draw-in that
+    /// followed added to that fall).
     public func motion(_ animation: Animation) -> Animation? {
-        guard !still else { return nil }
+        guard !still, drawn else { return nil }
         return quick ? animation.speed(NoopMotion.replaySpeed) : animation
     }
 }
@@ -220,8 +245,14 @@ public struct NoopFirstDraw<Content: View>: View {
         armed && !started && !still && !NoopLaunchOnce.hasPlayed(key, generation: generation)
     }
 
+    /// Waiting, the content takes no animation, like `NoopDrawPhase.motion(_:)`: emptied inside an animated
+    /// transaction (an entrance armed by a `withAnimation`), it waits empty at once (13 Nov.).
     public var body: some View {
-        content(NoopDrawPhase(drawn: !waiting, still: still, quick: generation > 1))
+        let empty = waiting
+        content(NoopDrawPhase(drawn: !empty, still: still, quick: generation > 1))
+            .transaction { transaction in
+                if empty { transaction.animation = nil }
+            }
             .onAppear { begin() }
             .onChangeCompat(of: armed) { _ in begin() }
             .onChangeCompat(of: generation) { _ in replay() }
@@ -433,9 +464,17 @@ public struct NoopRollingNumber: View {
     /// The text, glowing only while it lands. A glow of no colour left on the number at rest is still a
     /// filter the compositor runs on every frame of a scroll, for nothing to show (6 Nov. evening);
     /// `glowing` is set outside any animation, so the text swaps its filter without a fade.
+    ///
+    /// Waiting, the face takes no animation (13 Nov.): an entrance armed inside an animated transaction
+    /// otherwise animated the drop to 0, the count that followed added to that fall, and the numbers of
+    /// Today ran down from about twice their value instead of up from 0.
     @ViewBuilder
     private var face: some View {
-        let text = NoopRollingNumberFace(number: waiting ? 0 : shown, format: format, font: font, color: color)
+        let zeroed = waiting
+        let text = NoopRollingNumberFace(number: zeroed ? 0 : shown, format: format, font: font, color: color)
+            .transaction { transaction in
+                if zeroed { transaction.animation = nil }
+            }
         if glowing {
             text.shadow(color: glow.opacity(0.8 * flash), radius: NoopMotion.slamGlowRadius)
         } else {

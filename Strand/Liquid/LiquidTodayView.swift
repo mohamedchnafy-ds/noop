@@ -1830,8 +1830,12 @@ struct LiquidTodayView: View {
             hostedStressActivityMaskedHours = 0
         }
 
-        // First load done — bring the hero gauges + sky to life now the launch churn has settled.
-        if !dataLoaded { withAnimation(.easeIn(duration: 0.4)) { dataLoaded = true } }
+        // First load done — bring the hero gauges to life now the launch churn has settled. Only once the
+        // repository has published its first refresh: before it, this load reads empty caches and the rings
+        // played their entrance over « no data », then the values arrived in jumps (13 Nov.). And without an
+        // animation: armed inside one, the entrance's drop to 0 was animated too and the numbers ran down
+        // from about twice their value.
+        if !dataLoaded, repo.loaded { dataLoaded = true }
     }
 
     /// Today v2 (personal fork): everything the new hero, heart-rate card and synthesis read, resolved

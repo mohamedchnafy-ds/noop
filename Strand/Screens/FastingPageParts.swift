@@ -445,7 +445,9 @@ struct FastingWaterCard: View {
             waterButton(Text("\(250) ml"), filled: true, plus: true) { onAdd(250) }
             waterButton(Text("\(500) ml"), filled: true, plus: true) { onAdd(500) }
             waterButton(Text("Custom · \(customML) ml"), filled: false) { onAdd(customML) }
-            waterButton(Text("Undo the last"), filled: false, enabled: canUndo) { onUndo() }
+            // « Undo » alone: « Undo the last » was cut in half a grid cell (« Annuler la d… »).
+            waterButton(Text("Undo"), filled: false, enabled: canUndo) { onUndo() }
+                .accessibilityLabel(Text("Undo the last"))
         }
     }
 
@@ -629,9 +631,16 @@ struct FastingHistoryCard: View {
                 Spacer()
                 Text("today")
             } else {
+                // Today keeps its initial, like the other bars, and stands out in bold white: the
+                // word « today » under one bar slot broke over three lines in French.
                 ForEach(Array(weekdayLetters().enumerated()), id: \.offset) { index, letter in
+                    let isToday = index == 6
                     Text(verbatim: letter)
+                        .fontWeight(isToday ? Font.Weight.bold : Font.Weight.regular)
+                        .foregroundStyle(isToday ? StrandPalette.textPrimary : StrandPalette.textSecondary)
+                        .lineLimit(1)
                         .frame(maxWidth: .infinity)
+                        .accessibilityLabel(isToday ? Text("today") : Text(verbatim: letter))
                 }
             }
         }
@@ -639,11 +648,10 @@ struct FastingHistoryCard: View {
         .foregroundStyle(StrandPalette.textSecondary)
     }
 
-    /// The initial of each of the last 7 days, today last, « today » for the last one.
+    /// The initial of each of the last 7 days, today last.
     private func weekdayLetters(now: Date = Date(), calendar: Calendar = .current) -> [String] {
         let symbols = calendar.veryShortWeekdaySymbols
         return (0..<7).map { back in
-            if back == 6 { return String(localized: "today") }
             let day = calendar.date(byAdding: .day, value: back - 6, to: now) ?? now
             let weekday = calendar.component(.weekday, from: day) - 1
             return symbols[(weekday + symbols.count) % symbols.count]

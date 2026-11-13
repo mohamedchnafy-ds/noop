@@ -535,10 +535,11 @@ fun SleepScreen(
     // at-a-glance TILES, the debt ledger, the personal need and the trend stay full-history /
     // latest-anchored, matching iOS SleepView. `selectedDay` re-points only the hero. Model is null
     // when the selected day has no stage minutes. (#5)
-    val model = remember(days, night, imported, napSleepMinByDay, sleeps, is24h) {
+    val model = remember(days, night, imported, napSleepMinByDay, sleeps, habitualMidsleep, is24h) {
         buildSleepModel(days, night?.session, imported, selectedDay = night?.dayKey,
             heroStages = night?.groupStages, heroSegments = night?.groupSegments,
-            napSleepMinByDay = napSleepMinByDay, sessions = sleeps, is24h = is24h)
+            napSleepMinByDay = napSleepMinByDay, sessions = sleeps, habitualMidsleepSec = habitualMidsleep,
+            is24h = is24h)
     }
     val display = remember(model, night) { heroDisplay(model, night) }
 
@@ -590,8 +591,9 @@ fun SleepScreen(
     // newest stage-bearing day instead of vanishing. The HERO stays on `model`/`display` (an
     // honest no-stage-data fallback for the bad day, edit pencil reachable). Null only when NO day
     // has stage data: the true first-run empty state.
-    val tilesModel = remember(model, days, imported, napSleepMinByDay, sleeps) {
-        model ?: fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
+    val tilesModel = remember(model, days, imported, napSleepMinByDay, sleeps, habitualMidsleep) {
+        model ?: fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps,
+            habitualMidsleepSec = habitualMidsleep)
     }
 
     // Jump straight to a night by its (local) wake-day — the center date block opens a picker.

@@ -42,6 +42,9 @@ struct LiquidTodayView: View {
     /// The Coach master switch (`noop.coachEnabled`, shared by name with Android). Default ON. Gates the
     /// Today launcher card here; the tab and the daily brief read the same key.
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
+    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell.
+    @AppStorage(EssentialMode.storageKey) private var essentialMode = false
+    private var essentialShown: Bool { essentialMode && showsMoreAvatar }
     @AppStorage(HydrationStore.enabledKey) private var hydrationEnabled = false
     /// Today's hydration total + goal (ml), resolved in `load()`. nil → the card shows "—".
     @State private var hydrationTotalML: Double?
@@ -381,6 +384,13 @@ struct LiquidTodayView: View {
                 liquidRefreshIndicator   // grows in the revealed space; a vessel filling with the pull
 
                 VStack(alignment: .leading, spacing: 12) {
+                    // Personal fork (chantier 20): the ◎ button of the header keeps the rings alone, with
+                    // the live heart rate around them; everything else comes back when it is turned off.
+                    if essentialShown {
+                        TodayEssentialView(model: heroModel, animated: dataLoaded, dateLine: dateLine,
+                                           isToday: selectedDayOffset == 0)
+                            .transition(.opacity)
+                    } else {
                     scene
                     // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
                     // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
@@ -451,6 +461,7 @@ struct LiquidTodayView: View {
                             LiquidFullWidthNavigationAction("Customize Today")
                         }
                         .buttonStyle(LiquidPressStyle())
+                    }
                     }
                     Color.clear.frame(height: 90) // floating tab-bar clearance
                 }
@@ -617,6 +628,7 @@ struct LiquidTodayView: View {
                     // picture that opens More. « Customize Today » moved to the foot of the screen.
                     LiquidBatteryButton()
                     LiquidAddButton()
+                    EssentialModeButton()
                     MoreAvatarButton()
                 } else {
                     // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.

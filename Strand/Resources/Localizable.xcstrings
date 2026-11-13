@@ -1,6 +1,7 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Over · %@": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Over · %@"}}, "de": {"stringUnit": {"state": "translated", "value": "Beendet · %@"}}, "es": {"stringUnit": {"state": "translated", "value": "Terminado · %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "Terminé · %@"}}, "it": {"stringUnit": {"state": "translated", "value": "Terminato · %@"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Terminado · %@"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zakończony · %@"}}, "ru": {"stringUnit": {"state": "translated", "value": "Завершено · %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已结束 · %@"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已結束 · %@"}}}},
     "Waiting for the strap's reading": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Waiting for the strap's reading"}}, "de": {"stringUnit": {"state": "translated", "value": "Warte auf den Wert des Bands"}}, "es": {"stringUnit": {"state": "translated", "value": "Esperando la lectura de la pulsera"}}, "fr": {"stringUnit": {"state": "translated", "value": "En attente de la valeur du bracelet"}}, "it": {"stringUnit": {"state": "translated", "value": "In attesa del valore del bracciale"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "À espera do valor da pulseira"}}, "pl": {"stringUnit": {"state": "translated", "value": "Czekam na odczyt z opaski"}}, "ru": {"stringUnit": {"state": "translated", "value": "Ждём показание браслета"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在等待手环读数"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在等待手環讀數"}}}},
     "Charge it soon": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Charge it soon"}}, "de": {"stringUnit": {"state": "translated", "value": "Bald aufladen"}}, "es": {"stringUnit": {"state": "translated", "value": "Cárgala pronto"}}, "fr": {"stringUnit": {"state": "translated", "value": "À recharger bientôt"}}, "it": {"stringUnit": {"state": "translated", "value": "Da ricaricare presto"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Carrega-a em breve"}}, "pl": {"stringUnit": {"state": "translated", "value": "Naładuj wkrótce"}}, "ru": {"stringUnit": {"state": "translated", "value": "Скоро нужно зарядить"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "请尽快充电"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "請盡快充電"}}}},
     "Ring battery": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Ring battery"}}, "de": {"stringUnit": {"state": "translated", "value": "Akku des Rings"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería del anillo"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie de la bague"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria dell'anello"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria do anel"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria pierścienia"}}, "ru": {"stringUnit": {"state": "translated", "value": "Заряд кольца"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "戒指电量"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "戒指電量"}}}},
@@ -175613,13 +175614,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Undo"
+            "value": "Rückgängig"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Undo"
+            "value": "Deshacer"
           }
         },
         "fr": {
@@ -175655,7 +175656,13 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anulować"
+            "value": "Cofnij"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "復原"
           }
         }
       }

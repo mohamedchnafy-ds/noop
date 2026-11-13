@@ -218,7 +218,7 @@ struct NutritionGoalsContent: View {
 
     private func profileRow(_ plan: NutritionGoals.Plan) -> some View {
         NavigationLink {
-            SettingsView()
+            SettingsView(opening: .profile)
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {

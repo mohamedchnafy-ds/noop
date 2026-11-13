@@ -66,6 +66,22 @@ struct LiftSessionView: View {
     /// Supersets et blocs: the blocks were run in another order than the program's, read with the set counts.
     @State private var orderChanged = false
 
+    /// Fork chantier 18: the wheel the quick-entry card opened, nil when none is open.
+    @State private var wheel: WheelTarget?
+    /// Fork chantier 18: each exercise's weight step, read once and changed from the card
+    /// (`LiftWeightStep`, kept on the device).
+    @State private var weightSteps: [String: Double] = [:]
+    /// Fork chantier 18, lot C: the water logged since the session began (the water log's own entries).
+    @State private var sessionWaterMl = 0
+
+    /// What the quick-entry card's wheel is turning: the weight or the reps of one set.
+    private struct WheelTarget: Identifiable {
+        enum Kind { case weight, reps }
+        var kind: Kind
+        var slot: LiftSlot
+        var id: String { "\(kind)-\(slot.exerciseIndex)-\(slot.setIndex)" }
+    }
+
     private enum UnfinishedChoice: Hashable { case complete, discard }
     private enum ProgramChoice: Hashable { case update, keep }
 
@@ -131,6 +147,7 @@ struct LiftSessionView: View {
         .task(id: engine?.plan.map(\.exercise)) { await loadLastTime() }
         .task(id: engine?.startTs) {
             guard let start = engine?.startTs else { return }
+            readSessionWater(since: start)
             recordBook = await LiftRecordBook.loadLiftRecordBook(repo: repo, before: start)
         }
         // Release a field's draft once the user leaves it, so the row returns to the canonical
@@ -140,6 +157,7 @@ struct LiftSessionView: View {
             draft = draft.filter { $0.key == now }
         }
         .sheet(isPresented: $showingFinish) { finishSheet }
+        .sheet(item: $wheel) { target in wheelSheet(target) }
     }
 
     // MARK: - The guided superset screens (personal fork)
@@ -158,8 +176,21 @@ struct LiftSessionView: View {
             unitSystem: unitSystem,
             canUndo: engine.canUndo,
             field: { slot, kind in AnyView(guideField(slot, kind)) },
-            vitals: { vitals in AnyView(LiftLiveVitalsRow(vitals: vitals, sessionStart: engine.startTs)) },
-            strapCard: { AnyView(LiftStrapCard()) },
+            vitals: { vitals in
+                AnyView(VStack(spacing: NoopMetrics.space3) {
+                    LiftLiveVitalsRow(vitals: vitals, sessionStart: engine.startTs)
+                    // Fork chantier 18 (maquette 3): the curve and the recovery between rounds. The tiles above
+                    // already state the session's average heart rate.
+                    LiftLiveHeartRateBand(session: heartRateSession(engine), showsAverage: false)
+                })
+            },
+            strapCard: {
+                // Fork chantier 18 (maquette 3): the heart-rate band on the block's ready screen too.
+                AnyView(VStack(spacing: NoopMetrics.space3) {
+                    LiftStrapCard()
+                    LiftLiveHeartRateBand(session: heartRateSession(engine))
+                })
+            },
             preview: { previewNumbers($0) },
             suggestion: { suggestionText(for: $0) },
             actions: LiftSupersetScreen.Actions(
@@ -183,18 +214,28 @@ struct LiftSessionView: View {
                 resume: { session.resumeFromPause() }))
     }
 
-    /// A weight or rep count of a superset member, as a bare field: the guided screen puts it in its chip.
-    /// Same bindings, drafts and focus as the sheet's rows, so a number typed here is the number there.
+    /// A weight or rep count of a superset member, in its chip on the guided screen. Fork chantier 18: a tap
+    /// opens the wheel (no keyboard), with − / + and, for a weight, the exercise's step — the same wheel as the
+    /// quick-entry card, writing the same held numbers, so the sets after it follow its weight. A number not
+    /// given for this set shows in grey: it is the one carried from the set before (`carry`).
     private func guideField(_ slot: LiftSlot, _ kind: LiftGuideField) -> some View {
         let isWeight = kind == .weight
-        return TextField(isWeight ? ghostWeight(slot) : ghostReps(slot),
-                         text: isWeight ? weightBinding(slot) : repsBinding(slot))
-            .textFieldStyle(.plain)
-            .multilineTextAlignment(.trailing)
-            .numericKeyboard()
-            .focused($focused, equals: isWeight ? .weight(slot) : .reps(slot))
-            .fixedSize()
-            .frame(minWidth: 20, alignment: .trailing)
+        let typed = session.enteredValues(for: slot)
+        let grey = session.carry(for: slot)
+        let own = isWeight ? typed.weightKg != nil : typed.reps != nil
+        let text: String = isWeight
+            ? ((typed.weightKg ?? grey.weightKg).map { display($0) } ?? "—")
+            : ((typed.reps ?? grey.reps).map(String.init) ?? "—")
+        return Button {
+            wheel = WheelTarget(kind: isWeight ? .weight : .reps, slot: slot)
+        } label: {
+            Text(verbatim: text)
+                .foregroundStyle(own ? StrandPalette.textPrimary : StrandPalette.textSecondary)
+                .fixedSize()
+                .frame(minWidth: 20, alignment: .trailing)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// "40 kg × 10": what a set of the next round will be — typed, else grey.
@@ -266,9 +307,10 @@ struct LiftSessionView: View {
                 .padding(.horizontal, NoopMetrics.screenPadding)
                 .padding(.top, 18)
             }
-            .onChange(of: engine.currentSlot) { slot in
+            .onChange(of: engine.quickEntrySlot ?? engine.currentSlot) { slot in
                 // Follow the session down the sheet, but only when it moves on its own — scrolling
-                // back to read an earlier exercise must not be yanked away from.
+                // back to read an earlier exercise must not be yanked away from. Fork chantier 18: to the
+                // set the quick-entry card stands on, so the card is on screen during the rest before it.
                 guard let slot else { return }
                 // A superset member has no card of its own: scroll to the card it is drawn in.
                 withAnimation { proxy.scrollTo(engine.blockStart(of: slot.exerciseIndex), anchor: .top) }
@@ -448,12 +490,20 @@ struct LiftSessionView: View {
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
+                // Fork chantier 18: the set coming up, in big, ready for one tap.
+                if let quick = quickCardSlot(engine), quick.exerciseIndex == index {
+                    // Fork chantier 18 (maquette 3): the heart rate under the exercise's name.
+                    LiftLiveHeartRateBand(session: heartRateSession(engine))
+                    quickCard(engine, slot: quick, item: item)
+                }
+
                 columnHeadings
 
                 ForEach(engine.slots(forExercise: index), id: \.self) { slot in
                     setRow(engine, slot: slot)
-                    // The rest belongs BETWEEN two sets, because that is where it happens.
-                    if isRestingAfter(engine, slot: slot) { restBand(engine) }
+                    // The rest belongs BETWEEN two sets, because that is where it happens — unless the
+                    // quick-entry card already shows it, with its buttons: one rest, one place.
+                    if isRestingAfter(engine, slot: slot), quickCardSlot(engine) == nil { restBand(engine) }
                 }
 
                 setCountRow(engine, index: index, item: item)
@@ -784,6 +834,158 @@ struct LiftSessionView: View {
         unitSystem == .imperial ? "Lb" : "Kg"
     }
 
+    // MARK: - The quick-entry card (fork chantier 18)
+    //
+    // `LiftQuickEntryCard` draws; this view hands it the set the session stands on, with the numbers every
+    // other surface shows for it (typed, else grey: `enteredValues` over `carry`), and turns its taps into the
+    // same calls the rows make. Written into the set as it is held: a number given here before the set is
+    // done waits in `pendingValues`, and the sets after it follow its weight.
+
+    /// The set the card stands on, nil when no card is shown: none once the session is finished or when
+    /// nothing is left to do, and none for a superset, run on its own guided screens.
+    private func quickCardSlot(_ engine: LiftSessionEngine) -> LiftSlot? {
+        guard !reordering, let slot = engine.quickEntrySlot, !engine.isInSuperset(slot.exerciseIndex) else {
+            return nil
+        }
+        return slot
+    }
+
+    private func weightStep(for exercise: String) -> Double {
+        weightSteps[exercise] ?? LiftWeightStep.step(for: exercise)
+    }
+
+    /// The weight and reps the set shows: what was typed for it, else its grey numbers.
+    private func shownNumbers(_ slot: LiftSlot) -> LiftSetCarry {
+        let typed = session.enteredValues(for: slot)
+        let grey = session.carry(for: slot)
+        return LiftSetCarry(weightKg: typed.weightKg ?? grey.weightKg, reps: typed.reps ?? grey.reps)
+    }
+
+    private func quickCard(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> some View {
+        let shown = shownNumbers(slot)
+        let step = weightStep(for: item.exercise)
+        let unit = LiftFormat.weightUnit(unitSystem)
+        let restEndsAt: Int? = {
+            if case .resting(_, let endsAt) = engine.stage { return endsAt }
+            return nil
+        }()
+        let content = LiftQuickEntryCard.Content(
+            setNumber: slot.setIndex, setCount: item.targetSets,
+            lastTime: lastTimeText(exercise: item.exercise, setIndex: slot.setIndex),
+            weight: shown.weightKg.map { display($0) } ?? "—", weightUnit: unit,
+            reps: shown.reps,
+            step: stepText(step),
+            isWarmup: engine.stage == .warmup,
+            restEndsAt: restEndsAt,
+            waterMl: sessionWaterMl)
+        let actions = LiftQuickEntryCard.Actions(
+            weight: { steps in
+                let now = shownNumbers(slot).weightKg ?? 0
+                let moved = LiftWeightStep.moved(now, by: steps, step: step)
+                write(slot) { $0.weightKg = moved }
+            },
+            reps: { delta in
+                let now = shownNumbers(slot).reps ?? 0
+                write(slot) { $0.reps = min(Self.maxReps, max(0, now + delta)) }
+            },
+            openWeightWheel: { wheel = WheelTarget(kind: .weight, slot: slot) },
+            openRepsWheel: { wheel = WheelTarget(kind: .reps, slot: slot) },
+            cycleStep: {
+                let next = LiftWeightStep.nextStep(after: step)
+                LiftWeightStep.setStep(next, for: item.exercise)
+                weightSteps[item.exercise] = next
+            },
+            done: { session.completeQuickSet() },
+            shortenRest: { session.shortenRest() },
+            extendRest: { session.extendRest(by: LiftSessionController.restStepSec) },
+            skipRest: { session.skipRest() },
+            addWater: {
+                Task { @MainActor in
+                    await repo.logHydration(amountMl: Self.glassMl)
+                    readSessionWater(since: engine.startTs)
+                }
+            })
+        return LiftQuickEntryCard(content: content, actions: actions,
+                                  restRemaining: { engine.restRemaining(now: $0) ?? 0 })
+    }
+
+    /// What the heart-rate band reads from the session: its start, its program (for the comparison), whether
+    /// a rest runs, and each done set's timing — once per round, since a superset's members share it.
+    private func heartRateSession(_ engine: LiftSessionEngine) -> LiftLiveHeartRateBand.Session {
+        var seen = Set<Int>()
+        let spans = engine.sets.compactMap { set -> LiftHeartRateMath.SetSpan? in
+            guard seen.insert(set.endTs).inserted else { return nil }
+            return LiftHeartRateMath.SetSpan(start: set.startTs, end: set.endTs, restSec: set.restSec)
+        }
+        let resting: Bool = {
+            if case .resting = engine.stage { return true }
+            return false
+        }()
+        return LiftLiveHeartRateBand.Session(startTs: engine.startTs, programId: session.programId,
+                                             isResting: resting, sets: spans)
+    }
+
+    /// "2.5 kg": a weight step as the card and the wheel name it.
+    private func stepText(_ kg: Double) -> String {
+        "\(display(kg)) \(LiftFormat.weightUnit(unitSystem))"
+    }
+
+    /// « + glass »: 25 cl (maquette 4).
+    private static let glassMl = 250
+
+    /// The water logged today since the session began, from the water log, where each glass keeps its time.
+    private func readSessionWater(since start: Int) {
+        let from = Date(timeIntervalSince1970: TimeInterval(start))
+        sessionWaterMl = repo.hydrationEntries().filter { $0.loggedAt >= from }.reduce(0) { $0 + $1.amountMl }
+    }
+
+    /// The most reps the card's wheel and + offer for one set.
+    private static let maxReps = 100
+
+    /// "60 × 8": the same set number last session, or nothing when the exercise has no such set.
+    private func lastTimeText(exercise: String, setIndex: Int) -> String? {
+        guard let row = lastRows[exercise]?.first(where: { !$0.isWarmup && $0.setIndex == setIndex }) else {
+            return nil
+        }
+        switch (row.weightKg, row.reps) {
+        case (let w?, let r?): return "\(display(w)) × \(r)"
+        case (let w?, nil):    return "\(display(w)) \(LiftFormat.weightUnit(unitSystem))"
+        case (nil, let r?):    return String(localized: "\(r) reps")
+        case (nil, nil):       return nil
+        }
+    }
+
+    /// The wheel for one number of one set: the weight on the exercise's step, or the reps one by one.
+    @ViewBuilder
+    private func wheelSheet(_ target: WheelTarget) -> some View {
+        let shown = shownNumbers(target.slot)
+        switch target.kind {
+        case .weight:
+            let exercise = engine?.planItem(for: target.slot)?.exercise ?? ""
+            let current = shown.weightKg ?? 0
+            LiftNumberWheelSheet(
+                title: String(localized: "Weight (\(LiftFormat.weightUnit(unitSystem)))"),
+                values: LiftWeightStep.wheelValues(step: weightStep(for: exercise), current: current),
+                format: { display($0) },
+                initial: current,
+                onPick: { kg in write(target.slot) { $0.weightKg = kg } },
+                stepLabel: stepText(weightStep(for: exercise)),
+                onCycleStep: {
+                    let next = LiftWeightStep.nextStep(after: weightStep(for: exercise))
+                    LiftWeightStep.setStep(next, for: exercise)
+                    weightSteps[exercise] = next
+                    return (LiftWeightStep.wheelValues(step: next, current: current), stepText(next))
+                })
+        case .reps:
+            LiftNumberWheelSheet(
+                title: String(localized: "Reps"),
+                values: (0...Self.maxReps).map(Double.init),
+                format: { String(Int($0)) },
+                initial: Double(shown.reps ?? 0),
+                onPick: { reps in write(target.slot) { $0.reps = Int(reps) } })
+        }
+    }
+
     // MARK: - One set row
 
     /// `tag` ("A1") marks a row in a superset card, where rows of different exercises alternate: it is
@@ -1069,11 +1271,15 @@ struct LiftSessionView: View {
                         Text("Resume").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.noopPrimary)
-                } else {
+                } else if quickCardSlot(engine) == nil {
                     Button { session.advance() } label: {
                         Text(actionLabel(engine)).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.noopPrimary)
+                } else {
+                    // Fork chantier 18: the quick-entry card holds the one action; a second button here
+                    // would offer another step for the same moment.
+                    Spacer(minLength: 0)
                 }
 
                 Button {

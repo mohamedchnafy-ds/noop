@@ -55,7 +55,8 @@ private struct BreathingContent: View {
         var label: String {
             switch self {
             case .breathe:   return String(localized: "Breathe")
-            case .resonance: return String(localized: "Resonance")
+            // Personal fork (Démarrer tools, board 3): « My pace » says what the tab finds, « Resonance » did not.
+            case .resonance: return String(localized: "My pace")
             case .calm:      return String(localized: "Calm me")
             }
         }
@@ -74,7 +75,7 @@ private struct BreathingContent: View {
                 return String(localized: String.LocalizationValue(
                     BreathProtocolCatalog.protocolById(id)?.title ?? id))
             case .resonance:
-                return String(localized: "Resonance")
+                return String(localized: "My pace")
             }
         }
     }
@@ -84,7 +85,8 @@ private struct BreathingContent: View {
 
         var label: String {
             switch self {
-            case .open: return String(localized: "Open")
+            // Its own key: « Open » is shared with the Open buttons, and read « Ouvrir » here.
+            case .open: return String(localized: "No limit")
             case .five: return String(localized: "5 min")
             case .ten: return String(localized: "10 min")
             case .fifteen: return String(localized: "15 min")
@@ -173,14 +175,14 @@ private struct BreathingContent: View {
 
     private var selectedTagline: String {
         if case .resonance = pace {
-            return String(localized: "Your locked pace · \(String(format: "%.1f", lockedBpm ?? ResonanceEngine.fallbackBpm)) br/min")
+            return String(localized: "Your locked pace · \(Self.paceText(lockedBpm ?? ResonanceEngine.fallbackBpm))")
         }
         return String(localized: String.LocalizationValue(selectedProtocol?.subtitle ?? ""))
     }
 
     var body: some View {
         ScreenScaffold(title: "Breathe",
-                       subtitle: "Haptic-paced breathing · find your pace · calm down") {
+                       subtitle: "The strap buzzes to guide you: one buzz to breathe in, two to breathe out. You can close your eyes.") {
 
             modeSwitch
             StressCheckInCard(center: nudgeCenter) { startOneMinuteCue() }
@@ -267,7 +269,23 @@ private struct BreathingContent: View {
 
     // MARK: - Status row
 
+    /// The state and the clock. On a phone they no longer share one line (the pills wrapped and the clock
+    /// broke over two lines): the clock goes under the pills when the row does not fit.
     private var statusRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                statusPills
+                Spacer()
+                sessionClock
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                statusPills
+                sessionClock
+            }
+        }
+    }
+
+    private var statusPills: some View {
         HStack(spacing: 10) {
             StatePill(running ? "Session live" : "Ready",
                       tone: running ? .accent : .neutral,
@@ -278,25 +296,27 @@ private struct BreathingContent: View {
             } else {
                 StatePill("Visual only", tone: .warning, showsDot: true)
             }
-
-            Spacer()
-
-            HStack(spacing: 6) {
-                if let target = sessionLength.targetSeconds {
-                    Text("\(timeString(sessionSeconds)) / \(timeString(target))")
-                        .font(StrandFont.number(15))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                } else {
-                    Text(timeString(sessionSeconds))
-                        .font(StrandFont.number(15))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                Text("·").foregroundStyle(StrandPalette.textTertiary)
-                Text("\(breathCount) breaths")
-                    .font(StrandFont.captionNumber)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
         }
+        .fixedSize()
+    }
+
+    private var sessionClock: some View {
+        HStack(spacing: 6) {
+            if let target = sessionLength.targetSeconds {
+                Text("\(timeString(sessionSeconds)) of \(timeString(target))")
+                    .font(StrandFont.number(15))
+                    .foregroundStyle(StrandPalette.textPrimary)
+            } else {
+                Text(timeString(sessionSeconds))
+                    .font(StrandFont.number(15))
+                    .foregroundStyle(StrandPalette.textPrimary)
+            }
+            Text("·").foregroundStyle(StrandPalette.textTertiary)
+            Text("\(breathCount) breaths")
+                .font(StrandFont.captionNumber)
+                .foregroundStyle(StrandPalette.textSecondary)
+        }
+        .fixedSize()
     }
 
     // MARK: - The orb
@@ -316,7 +336,7 @@ private struct BreathingContent: View {
                     }
                     .accessibilityLabel(String(localized: "Protocol info"))
                     if selectedBpm > 0 {
-                        Text(String(format: "%.1f br/min", selectedBpm))
+                        Text(Self.paceText(selectedBpm))
                             .font(StrandFont.captionNumber)
                             .foregroundStyle(StrandPalette.textSecondary)
                     } else if isGuided {
@@ -335,12 +355,11 @@ private struct BreathingContent: View {
                 .frame(height: 320)
                 .frame(maxWidth: .infinity)
 
-                Text(running ? phaseWord : selectedTagline)
+                // The phase word is in the orb now; under it, what the pattern is.
+                Text(selectedTagline)
                     .font(StrandFont.subhead)
-                    .foregroundStyle(running ? StrandPalette.restBright : StrandPalette.textSecondary)
+                    .foregroundStyle(StrandPalette.textSecondary)
                     .multilineTextAlignment(.center)
-                    .animation(.easeInOut(duration: 0.2), value: phaseWord)
-                    .animation(.easeInOut(duration: 0.2), value: running)
 
                 pacePills
                 durationPills
@@ -486,20 +505,27 @@ private struct BreathingContent: View {
                 LiquidVessel(value: orbProgress, tint: StrandPalette.restColor, animated: running)
                     .frame(width: maxDiameter, height: maxDiameter)
 
-                VStack(spacing: 2) {
-                    if let bpm = model.bpm {
-                        CountUpText(value: Double(bpm),
-                                    format: { "\(Int($0.rounded()))" },
-                                    font: StrandFont.number(40),
-                                    color: StrandPalette.textPrimary)
-                    } else {
-                        Text("—")
-                            .font(StrandFont.number(40))
+                // Personal fork (Démarrer tools): the orb says what to do (« Breathe in… »), the heart rate
+                // sits small under it. A giant bpm in the middle read as the thing to watch.
+                // Before the start the pill above already says « Ready », so the orb shows the heart rate only.
+                VStack(spacing: 6) {
+                    if running {
+                        Text(phaseWord)
+                            .font(StrandFont.title2)
                             .foregroundStyle(StrandPalette.textPrimary)
+                            .multilineTextAlignment(.center)
+                            .animation(.easeInOut(duration: 0.2), value: phaseWord)
                     }
-                    Text(String(localized: "BPM"))
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textTertiary)
+                    if let bpm = model.bpm {
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart.fill")
+                                .foregroundStyle(StrandPalette.liquidHeart)
+                                .accessibilityHidden(true)
+                            Text("\(bpm) bpm")
+                        }
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    }
                 }
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                 .allowsHitTesting(false)   // taps fall through to the vessel → splash
@@ -592,7 +618,7 @@ private struct BreathingContent: View {
                         caption: rrBuffer.isEmpty ? String(localized: "Waiting for R-R") : String(localized: "Last \(rrBuffer.count) beats"))
 
             readoutTile(label: String(localized: "Pace"),
-                        value: selectedBpm > 0 ? String(format: "%.1f", selectedBpm) : (isGuided ? "—" : "—"),
+                        value: selectedBpm > 0 ? selectedBpm.formatted(.number.precision(.fractionLength(1))) : (isGuided ? "—" : "—"),
                         unit: "br/min",
                         accent: StrandPalette.restBright,
                         caption: paceCaption)
@@ -609,7 +635,7 @@ private struct BreathingContent: View {
         guard let proto = selectedProtocol, !proto.stages.isEmpty else {
             return isGuided ? String(localized: "Guided timer") : "—"
         }
-        let parts = proto.stages.map { String(format: "%.1f", Double($0.durationMs) / 1000.0) }
+        let parts = proto.stages.map { (Double($0.durationMs) / 1000.0).formatted(.number.precision(.fractionLength(1))) }
         return parts.joined(separator: " · ") + "s"
     }
 
@@ -878,7 +904,12 @@ private struct BreathingContent: View {
     private func timeString(_ total: Int) -> String {
         let m = total / 60
         let s = total % 60
-        return String(format: "%02d:%02d", m, s)
+        return String(format: "%d:%02d", m, s)
+    }
+
+    /// « 5,5 br/min » with the locale's decimal separator (it was always a point).
+    static func paceText(_ bpm: Double) -> String {
+        String(localized: "\(bpm.formatted(.number.precision(.fractionLength(1)))) br/min")
     }
 }
 
@@ -1123,7 +1154,7 @@ private struct ResonanceModeView: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     CountUpText(value: result.lockedBpm,
-                                format: { String(format: "%.1f", $0) },
+                                format: { $0.formatted(.number.precision(.fractionLength(1))) },
                                 font: StrandFont.number(40),
                                 color: StrandPalette.restBright)
                     Text("br/min")
@@ -1159,7 +1190,7 @@ private struct ResonanceModeView: View {
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     CountUpText(value: bpm,
-                                format: { String(format: "%.1f", $0) },
+                                format: { $0.formatted(.number.precision(.fractionLength(1))) },
                                 font: StrandFont.number(34),
                                 color: StrandPalette.restBright)
                     Text("br/min")
@@ -1184,7 +1215,7 @@ private struct ResonanceModeView: View {
             Text("RSA RESPONSE BY PACE").strandOverline()
             ForEach(scores, id: \.bpm) { s in
                 HStack(spacing: 8) {
-                    Text(String(format: "%.1f", s.bpm))
+                    Text(s.bpm.formatted(.number.precision(.fractionLength(1))))
                         .font(StrandFont.captionNumber)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .frame(width: 34, alignment: .leading)
@@ -1193,7 +1224,7 @@ private struct ResonanceModeView: View {
                     LiquidTube(frac: (s.rsaAmplitude ?? 0) / max(maxRsa, 0.0001),
                                tint: StrandPalette.restBright.opacity(s.scored ? 1 : 0.35),
                                height: 8, animated: false)
-                    Text(s.rsaAmplitude.map { String(format: "%.1f", $0) } ?? "—")
+                    Text(s.rsaAmplitude.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "—")
                         .font(StrandFont.captionNumber)
                         .foregroundStyle(s.scored ? StrandPalette.textSecondary : StrandPalette.textTertiary)
                         .frame(width: 34, alignment: .trailing)
@@ -1207,8 +1238,8 @@ private struct ResonanceModeView: View {
 
     private func rsaTextSummary(_ scores: [ResonanceEngine.PaceScore]) -> String {
         scores.map { s in
-            let v = s.rsaAmplitude.map { String(format: "%.1f", $0) } ?? String(localized: "unscored")
-            return String(localized: "\(String(format: "%.1f", s.bpm)) breaths per minute: \(v)")
+            let v = s.rsaAmplitude.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? String(localized: "unscored")
+            return String(localized: "\(s.bpm.formatted(.number.precision(.fractionLength(1)))) breaths per minute: \(v)")
         }.joined(separator: ", ")
     }
 

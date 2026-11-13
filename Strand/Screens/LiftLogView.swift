@@ -36,10 +36,6 @@ struct LiftLogView: View {
     @State private var summaries: [TrainingProgramSummary] = []
     @State private var loaded = false
 
-    /// The program being created or edited (nil = the editor is closed).
-    @State private var editing: ProgramEditTarget?
-    @State private var importing = false
-    @State private var planning = false
     /// The live session, owned at the app root so it survives this screen going away.
     @EnvironmentObject private var session: LiftSessionController
     /// Lift Log sessions done (finished, with a working set) and every other workout, over the history.
@@ -58,6 +54,16 @@ struct LiftLogView: View {
     @State private var elanShort: ElanShortSessionPlan?
     @AppStorage(ElanShortSessionChoice.revisionKey) private var elanRevision = 0
     @State private var mode: TrainingViewMode = .week
+    /// Fork chantier 18: the legend, shown by the header's « i ».
+    @State private var showsLegend = false
+    /// Fork chantier 18: « Other session » opens the « Start » sheet.
+    @State private var showStart = false
+    /// Fork chantier 18 (« + Exercise »): today's additions by program, and the program being added to.
+    @State private var dayAdditions: [String: [LiftDayAddition]] = [:]
+    /// The program lines left out for today, by program (the day card's list of every exercise).
+    @State private var dayLeftOut: [String: Set<String>] = [:]
+    @State private var addingTo: ProgramAddTarget?
+    @AppStorage(LiftDayAdditions.revisionKey) private var additionsRevision = 0
     /// The chosen day; the week and the month shown are the ones holding it.
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
 
@@ -96,6 +102,13 @@ struct LiftLogView: View {
             }
         }
         .background(TrainingCardioLauncher(request: $cardioToStart))
+        .sheet(isPresented: $showStart) {
+            StartSheet()
+                #if os(iOS)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
+        }
         .liveSessionCover(isPresented: $showLiveSession)
         .sheet(isPresented: $showCustomize) {
             TrainingCustomizeSheet(sectionOrderRaw: $sectionOrderRaw, hiddenSectionsRaw: $hiddenSectionsRaw)
@@ -103,46 +116,65 @@ struct LiftLogView: View {
         // Also on a saved session: the session sheet lives above this screen and cannot tell it
         // directly, and a save does not always bump `refreshSeq`.
         .task(id: "\(repo.refreshSeq)-\(session.savedSessions)-\(elanRevision)") { await load() }
-        .sheet(item: $editing) { target in
-            LiftProgramEditorSheet(program: target.program) {
-                await load()
-            }
-        }
-        .sheet(isPresented: $importing) {
-            LiftProgramImportSheet { await load() }
-        }
         .sheet(item: $viewing) { target in
             LiftSessionDetailSheet(session: target.session) { await load() }
         }
-        .sheet(isPresented: $planning) {
-            TrainingPlanSheet(programs: summaries, plan: plan) { saved in
-                var next = saved
-                if next.since == nil {
-                    next.since = TrainingCalendar.trainingDayKey(Date(), calendar: calendar)
-                }
-                next.storeWeekPlan()
-                plan = next
-            }
+        .sheet(item: $addingTo) { target in
+            LiftSessionExerciseSheet(destination: .today, onAdd: { name, primary, secondaries in
+                LiftDayAdditions.add(LiftDayAddition(id: UUID().uuidString, exercise: name,
+                                                     primaryMuscle: primary, secondaryMuscles: secondaries),
+                                     day: todayKey, programId: target.id)
+                readDayAdditions()
+            }, onAddSuperset: { rows in
+                // Fork chantier 18: 2 or 3 exercises done before, linked as one superset for today.
+                LiftDayAdditions.addSuperset(rows.map { row in
+                    LiftDayAddition(id: UUID().uuidString, exercise: row.name, primaryMuscle: row.primaryMuscle,
+                                    secondaryMuscles: row.secondaryMuscles)
+                }, day: todayKey, programId: target.id)
+                readDayAdditions()
+            })
         }
+        .onChange(of: additionsRevision) { _ in readDayAdditions() }
+    }
+
+    private var todayKey: String { TrainingCalendar.trainingDayKey(Date(), calendar: calendar) }
+
+    private func readDayAdditions() {
+        dayAdditions = LiftDayAdditions.additionsByProgram(day: todayKey)
+        dayLeftOut = LiftDayAdditions.removedLinesByProgram(day: todayKey)
     }
 
     // MARK: - Sections
 
+    /// Fork chantier 18 (maquette 2): each block is one line. Progression says how many loads are ready to
+    /// raise; Programs opens the list with New, Import and Plan the week; Other activities is « Other session »
+    /// (the « Start » sheet) and the history, with the Beta session when Live Sessions are on.
     @ViewBuilder private func pageSection(_ section: TrainingSection) -> some View {
         switch section {
         case .progression:
-            TrainingProgressSummaryCard(data: progress) {
+            NavigationLink {
                 LiftProgressView(data: progress, unitSystem: unitSystem)
+            } label: {
+                let raises = progress.readyExercises.count
+                TrainingLineLabel(
+                    title: Text("Progression"),
+                    detail: raises == 1 ? Text("1 load to raise")
+                        : raises > 1 ? Text(String(localized: "\(raises) loads to raise"))
+                        : Text("Per exercise and per muscle"),
+                    mark: raises > 0 ? Image(systemName: "arrow.up") : nil)
             }
+            .buttonStyle(.plain)
         case .programs:
-            TrainingProgramsCard(programs: summaries, plan: plan, weekdays: TrainingText.shortWeekdays(calendar),
-                                 loaded: loaded,
-                                 onEdit: { id in
-                                     editing = ProgramEditTarget(id: id, program: programs.first { $0.id == id })
-                                 },
-                                 onNew: { editing = ProgramEditTarget(id: "new", program: nil) },
-                                 onImport: { importing = true },
-                                 onPlan: { planning = true })
+            NavigationLink {
+                TrainingProgramsScreen(programs: programs, summaries: summaries, plan: plan, loaded: loaded,
+                                       reload: { await load() },
+                                       savePlan: { saved in savePlan(saved) })
+            } label: {
+                TrainingLineLabel(title: Text("Programs"),
+                                  detail: summaries.count == 1 ? Text("1 program · Plan the week")
+                                      : Text(String(localized: "\(summaries.count) programs · Plan the week")))
+            }
+            .buttonStyle(.plain)
         case .otherActivities:
             otherActivities
         }
@@ -153,19 +185,23 @@ struct LiftLogView: View {
     /// The title and the Week | Month switch, then the week or month shown with its count and ‹ ›
     /// (fork chantier 7: the count moved up from the bar above the week strip).
     private var header: some View {
-        TrainingHeader(mode: $mode, subtitle: headerSubtitle,
-                       onPrevious: { if mode == .week { shift(days: -7) } else { shift(months: -1) } },
-                       onNext: { if mode == .week { shift(days: 7) } else { shift(months: 1) } })
+        TrainingCompactHeader(mode: $mode, showsLegend: $showsLegend,
+                              isAwayFromToday: isAwayFromToday,
+                              monthTitle: TrainingText.monthTitle(selectedDate),
+                              onToday: { selectedDate = calendar.startOfDay(for: Date()) },
+                              onPrevious: { shift(months: -1) },
+                              onNext: { shift(months: 1) })
     }
 
-    /// "2–8 Nov · 0 / 3" (fork chantier 9); the month alone ("November 2026"), since the month's count is
-    /// already in its totals under the grid.
-    private var headerSubtitle: String {
-        guard mode == .week else { return TrainingText.monthTitle(selectedDate) }
-        let monday = TrainingCalendar.mondayOf(selectedDate, calendar: calendar)
-        let tally = TrainingDays.sessionTally(days(TrainingCalendar.weekDates(from: monday, calendar: calendar)))
-        return TrainingText.compactWeekTitle(monday: monday, calendar: calendar) + " · "
-            + TrainingText.compactTally(done: tally.done, planned: tally.planned)
+    /// Whether the week (or month) shown is not the one holding today.
+    private var isAwayFromToday: Bool {
+        let now = Date()
+        if mode == .month {
+            return TrainingCalendar.monthStart(selectedDate, calendar: calendar)
+                != TrainingCalendar.monthStart(now, calendar: calendar)
+        }
+        return TrainingCalendar.mondayOf(selectedDate, calendar: calendar)
+            != TrainingCalendar.mondayOf(now, calendar: calendar)
     }
 
     // MARK: - Week and month
@@ -181,7 +217,13 @@ struct LiftLogView: View {
         return VStack(alignment: .leading, spacing: 10) {
             TrainingWeekStrip(days: week, selectedKey: key(selectedDate),
                               weekdays: TrainingText.shortWeekdays(calendar)) { selectedDate = $0.date }
-            TrainingLegend()
+                // Fork chantier 18: no arrows any more; a swipe moves to the next or previous week.
+                .gesture(DragGesture(minimumDistance: 30).onEnded { drag in
+                    guard abs(drag.translation.width) > abs(drag.translation.height),
+                          abs(drag.translation.width) > 50 else { return }
+                    shift(days: drag.translation.width < 0 ? 7 : -7)
+                })
+            if showsLegend { TrainingLegend() }
         }
     }
 
@@ -197,7 +239,7 @@ struct LiftLogView: View {
                     TrainingMonthGrid(cells: cells.map { $0.flatMap { byKey[key($0)] } },
                                       selectedKey: key(selectedDate),
                                       weekdays: TrainingText.narrowWeekdays(calendar)) { selectedDate = $0.date }
-                    TrainingLegend().padding(.horizontal, 6)
+                    if showsLegend { TrainingLegend().padding(.horizontal, 6) }
                 }
             }
             TrainingMonthTotals(done: tally.done, planned: tally.planned,
@@ -225,6 +267,18 @@ struct LiftLogView: View {
                                        if let row = sessionsById[lift.sessionId] {
                                            viewing = SessionDetailTarget(id: row.id, session: row)
                                        }
+                                   },
+                                   additions: dayAdditions,
+                                   onAddExercise: { id in addingTo = ProgramAddTarget(id: id) },
+                                   onRemoveAddition: { programId, additionId in
+                                       LiftDayAdditions.remove(id: additionId, day: todayKey, programId: programId)
+                                       readDayAdditions()
+                                   },
+                                   leftOut: dayLeftOut,
+                                   onLeaveOut: { programId, lineId, left in
+                                       LiftDayAdditions.setLineLeftOut(lineId, left: left, day: todayKey,
+                                                                       programId: programId)
+                                       readDayAdditions()
                                    })
             }
         }
@@ -232,48 +286,48 @@ struct LiftLogView: View {
 
     // MARK: - Other activities
 
-    /// Fork chantier 9: one card with no title, a dot per row in the mockup's order — start an activity
-    /// (green), intervals (orange), live heart rate (pink), the Beta session (cyan, when Live Sessions are on),
-    /// all history (grey, with the last day something was done).
+    /// Fork chantier 18 (maquette 2): « Other session » opens the « Start » sheet (programs, the sports done
+    /// most, any other sport, live heart rate, intervals), then the history in one line with the last day
+    /// something was done; the Beta session stays when Live Sessions are on.
     private var otherActivities: some View {
-        VStack(spacing: 0) {
-            TrainingStartActivityRow()
-            NavigationLink {
-                IntervalTimerView()
-            } label: {
-                TrainingActivityRowLabel(title: "Intervals", detail: "Work / recovery timer",
-                                         tint: StrandPalette.caloriesActivity)
-            }
-            .buttonStyle(.plain)
-            NavigationLink {
-                LiveView()
-            } label: {
-                TrainingActivityRowLabel(title: "Live HR", detail: "Zones, curve and banner",
-                                         tint: StrandPalette.liquidHeart)
+        VStack(spacing: NoopMetrics.space3) {
+            Button { showStart = true } label: {
+                Text("Other session (cardio, another sport)")
+                    .font(StrandFont.subhead.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: NoopMetrics.controlHeight)
+                    .background(StrandPalette.surfaceRaised,
+                                in: RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             if liveSessionsBeta {
                 Button { showLiveSession = true } label: {
-                    TrainingActivityRowLabel(title: "Start session (Beta)",
-                                             detail: "Silent strap coaching against today's Charge.",
-                                             tint: StrandPalette.metricCyan)
+                    TrainingLineLabel(title: Text("Start session (Beta)"),
+                                      detail: Text("Silent strap coaching against today's Charge."))
                 }
                 .buttonStyle(.plain)
             }
             NavigationLink {
                 WorkoutsView()
             } label: {
-                TrainingActivityRowLabel(title: "All history",
-                                         line: TrainingText.latestDoneLine(
-                                             TrainingDays.latestDone(lifts: lifts, activities: activities,
-                                                                     calendar: calendar)),
-                                         tint: StrandPalette.textSecondary, showsDivider: false)
+                TrainingLineLabel(title: Text("History"),
+                                  detail: Text(verbatim: TrainingText.latestDoneLine(
+                                      TrainingDays.latestDone(lifts: lifts, activities: activities,
+                                                              calendar: calendar))))
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface())
+    }
+
+    /// Keep the week plan as the planning sheet saved it, dated from today the first time.
+    private func savePlan(_ saved: TrainingWeekPlan) {
+        var next = saved
+        if next.since == nil {
+            next.since = TrainingCalendar.trainingDayKey(Date(), calendar: calendar)
+        }
+        next.storeWeekPlan()
+        plan = next
     }
 
     // MARK: - Navigation in time
@@ -304,10 +358,16 @@ struct LiftLogView: View {
     }
 
     /// The programs as the day card shows them: today, Élan's accepted program as its short version
-    /// (`ElanShortSession.elanProgramSummary`), the others as they are.
+    /// (`ElanShortSession.elanProgramSummary`), the others without the lines left out for today
+    /// (`TrainingDays.dayProgramSummary`, the rule the start applies); another day, as they are.
     private func dayPrograms(_ day: TrainingDay) -> [TrainingProgramSummary] {
-        guard day.isToday, let short = elanShort else { return summaries }
-        return summaries.map { $0.id == short.programId ? ElanShortSession.elanProgramSummary(short) : $0 }
+        guard day.isToday else { return summaries }
+        return summaries.map { summary -> TrainingProgramSummary in
+            if let short = elanShort, summary.id == short.programId {
+                return ElanShortSession.elanProgramSummary(short)
+            }
+            return TrainingDays.dayProgramSummary(summary, leftOut: dayLeftOut[summary.id] ?? [])
+        }
     }
 
     // MARK: - Load
@@ -341,44 +401,14 @@ struct LiftLogView: View {
         } else {
             elanShort = nil
         }
+        readDayAdditions()
         loaded = true
-    }
-}
-
-/// « Start an activity »: names a sport, then opens the live workout — the same flow as Workouts' Start
-/// workout (`WorkoutStartControl`). Its own view so only this row observes `AppModel`.
-private struct TrainingStartActivityRow: View {
-    @EnvironmentObject var model: AppModel
-    @State private var showLiveWorkout = false
-    @State private var showStartSport = false
-    /// The sport picked, started by the live workout at the « Go » of its countdown (fork chantier 12).
-    @State private var pendingSport: String?
-
-    var body: some View {
-        Button {
-            if model.activeWorkout == nil { showStartSport = true } else { showLiveWorkout = true }
-        } label: {
-            TrainingActivityRowLabel(title: "Start an activity",
-                                     detail: "Run, ride, walk… with the strap's heart rate",
-                                     tint: StrandPalette.chargeColor)
-        }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $showLiveWorkout) {
-            LiveWorkoutView(onClose: { showLiveWorkout = false }, startingSport: pendingSport)
-                .environmentObject(model.live)
-        }
-        .workoutSelectionCover(isPresented: $showStartSport) {
-            StartWorkoutSheet { name in
-                pendingSport = name
-                showLiveWorkout = true
-            }
-        }
     }
 }
 
 /// Starts the live workout of planned cardio from the day card (fork chantier 9): the sport is already
 /// chosen, so the sport picker is skipped. A workout already running is opened instead. Its own view so only
-/// it observes `AppModel`, like `TrainingStartActivityRow`. The « Start » sheet uses it too, and closes
+/// it observes `AppModel`. The « Start » sheet uses it too, and closes
 /// itself once the live workout is closed (`onClosed`).
 struct TrainingCardioLauncher: View {
     @EnvironmentObject var model: AppModel
@@ -413,6 +443,48 @@ struct TrainingCardioLauncher: View {
 
 /// The session whose detail is being read back. A wrapper rather than a retroactive `Identifiable`
 /// on `LiftSessionRow`, keeping the store's row types free of app-layer conformances.
+/// Programs (fork chantier 18): the list with New, Import and Plan the week, behind the Training screen's
+/// « Programs » line. Its sheets are its own; saving reloads the Training screen.
+private struct TrainingProgramsScreen: View {
+    let programs: [LiftProgramRow]
+    let summaries: [TrainingProgramSummary]
+    let plan: TrainingWeekPlan
+    let loaded: Bool
+    let reload: () async -> Void
+    let savePlan: (TrainingWeekPlan) -> Void
+
+    @State private var editing: ProgramEditTarget?
+    @State private var importing = false
+    @State private var planning = false
+
+    var body: some View {
+        ScreenScaffold(title: "Programs") {
+            TrainingProgramsCard(programs: summaries, plan: plan,
+                                 weekdays: TrainingText.shortWeekdays(.current), loaded: loaded,
+                                 onEdit: { id in
+                                     editing = ProgramEditTarget(id: id, program: programs.first { $0.id == id })
+                                 },
+                                 onNew: { editing = ProgramEditTarget(id: "new", program: nil) },
+                                 onImport: { importing = true },
+                                 onPlan: { planning = true })
+        }
+        .sheet(item: $editing) { target in
+            LiftProgramEditorSheet(program: target.program) { await reload() }
+        }
+        .sheet(isPresented: $importing) {
+            LiftProgramImportSheet { await reload() }
+        }
+        .sheet(isPresented: $planning) {
+            TrainingPlanSheet(programs: summaries, plan: plan) { saved in savePlan(saved) }
+        }
+    }
+}
+
+/// The program « + Exercise » adds to, for today (fork chantier 18).
+private struct ProgramAddTarget: Identifiable {
+    let id: String
+}
+
 private struct SessionDetailTarget: Identifiable {
     let id: String
     let session: LiftSessionRow

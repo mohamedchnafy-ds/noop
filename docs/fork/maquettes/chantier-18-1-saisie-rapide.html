@@ -1,0 +1,186 @@
+<title>Saisie rapide en séance</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: phone-sized working mock (iOS 26 dark, NOOP tokens) beside a short rules column. */
+:root{--bg:#f2f2f7;--panel:#fff;--fg:#1c1c1e;--mut:#6c6c70;--line:#d8d8de;
+--ph:#000;--card:#1c1c1e;--card2:#2c2c2e;--pfg:#fff;--pmut:#8e8e93;--amber:#ffb020;--blue:#0a84ff;--green:#30d158;--pink:#ff375f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;
+padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+h1{font-size:20px;margin:0 0 4px}
+.rules{flex:1 1 280px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.rules p,.rules li{font-size:14px;line-height:1.5;color:var(--mut);margin:0}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.box h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--mut)}
+/* phone */
+.phone{width:100%;max-width:390px;background:var(--ph);color:var(--pfg);border-radius:38px;padding:18px 14px 20px;position:relative;overflow:hidden;min-height:760px;box-sizing:border-box;border:1px solid #333}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--pmut);padding:2px 6px 10px}
+.top b{color:#fff;font-size:15px}
+.ex{display:flex;justify-content:space-between;align-items:flex-end;padding:4px 6px 12px}
+.ex h2{font-size:26px;margin:0;font-weight:700;letter-spacing:-.01em}
+.ex small{color:var(--pmut);font-size:13px;display:block;margin-top:2px}
+.pal{border:0;background:var(--card);color:#fff;border-radius:999px;padding:8px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.big{background:var(--card);border-radius:26px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.big .lbl{display:flex;justify-content:space-between;font-size:13px;color:var(--pmut)}
+.big .lbl b{color:#fff}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fld{background:var(--card2);border-radius:20px;padding:10px 8px 8px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.fld .cap{font-size:12px;color:var(--pmut)}
+.val{border:0;background:none;color:#fff;font:700 44px/1 ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;padding:4px 8px;border-radius:12px}
+.val small{font-size:16px;color:var(--pmut);font-weight:600;margin-left:3px}
+.pm{display:flex;gap:8px;width:100%}
+.pm button{flex:1;height:46px;border:0;border-radius:14px;background:#3a3a3c;color:#fff;font-size:24px;cursor:pointer;font-family:inherit}
+.pm button:active{background:#505054}
+.hint{font-size:12px;color:var(--pmut);text-align:center}
+.done{height:64px;border:0;border-radius:22px;background:#fff;color:#000;font-size:19px;font-weight:700;cursor:pointer;font-family:inherit}
+.done:active{transform:scale(.98)}
+.rest{background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.45);border-radius:22px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.rest .t{font:700 30px ui-rounded,system-ui,sans-serif;color:var(--amber);font-variant-numeric:tabular-nums;min-width:74px}
+.rest .l{font-size:12px;color:var(--amber);flex:1;line-height:1.3}
+.rest button{border:0;background:rgba(255,176,32,.2);color:var(--amber);border-radius:12px;height:38px;padding:0 11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.list{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:var(--card);font-size:16px;font-variant-numeric:tabular-nums}
+.row .n{width:22px;color:var(--pmut);font-size:14px}
+.row .v{flex:1}
+.row .c{width:22px;height:22px;border-radius:50%;border:2px solid #48484a}
+.row.ok .c{background:var(--green);border-color:var(--green)}
+.row.ok{color:#fff}
+.row.cur{outline:1.5px solid #fff}
+.row.todo{color:var(--pmut)}
+.row .carry{font-size:11px;color:var(--blue)}
+.next{margin-top:12px;width:100%;border:0;background:var(--card);color:#fff;border-radius:16px;height:46px;font-size:15px;cursor:pointer;font-family:inherit}
+/* wheel sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#242426;border-radius:28px 28px 0 0;padding:14px 16px 22px;transform:translateY(105%);transition:transform .25s;z-index:5}
+.sheet.on{transform:none}
+@media (prefers-reduced-motion:reduce){.sheet{transition:none}}
+.sheet h3{margin:0 0 8px;font-size:15px;text-align:center;font-weight:600}
+.wheel{position:relative;height:150px;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;mask-image:linear-gradient(transparent,#000 30%,#000 70%,transparent)}
+.wheel::-webkit-scrollbar{display:none}
+.wheel div{height:50px;line-height:50px;text-align:center;scroll-snap-align:center;font:600 26px ui-rounded,system-ui,sans-serif;color:#fff;font-variant-numeric:tabular-nums}
+.wheel .pad{height:50px}
+.band{position:absolute;left:16px;right:16px;top:calc(14px + 22px + 8px + 50px);height:50px;border-radius:12px;background:rgba(255,255,255,.1);pointer-events:none}
+.sheetbox{position:relative}
+.sheet .ok{margin-top:10px;width:100%;height:48px;border:0;border-radius:16px;background:#fff;color:#000;font-weight:700;font-size:16px;cursor:pointer;font-family:inherit}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s;z-index:4}
+.scrim.on{opacity:1;pointer-events:auto}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+<div class="wrap">
+<div class="rules">
+  <h1>Saisie rapide en séance</h1>
+  <p>Maquette 1 du chantier 18 : poids répété d'une série à l'autre, saisie en un tap. Les valeurs sont des exemples.</p>
+  <div class="box"><h2>À essayer</h2><ul>
+    <li><b>Fait</b> : la série se valide, le repos démarre seul, la suivante est déjà préremplie.</li>
+    <li><b>− / +</b> change d'un cran (palier de l'exercice). Toucher le chiffre ouvre la <b>roulette</b>.</li>
+    <li>Changer le poids de la série 2 : les séries 3 et 4 suivent, la série 1 (faite) ne bouge pas.</li>
+    <li><b>Exercice suivant</b> : il repart de son propre poids, rien n'est repris du précédent.</li>
+    <li>Le bouton « Palier » change le cran de cet exercice (2,5 kg barre · 1 kg haltère · 5 kg machine).</li>
+  </ul></div>
+  <div class="box"><h2>Règles</h2><ul>
+    <li>Poids de la série 1 = dernière séance de l'exercice ; répétitions = dernière séance ou objectif du programme.</li>
+    <li>Un poids changé à la série n devient celui des séries suivantes non faites.</li>
+    <li>Repos = durée habituelle de l'exercice, lancé à « Fait » ; −15 s, +15 s, Passer.</li>
+    <li>Le palier se règle une fois par exercice et reste enregistré.</li>
+  </ul></div>
+</div>
+
+<div class="phone" id="ph">
+  <div class="top"><span>Séance · Full body A</span><b id="clock">12:41</b><span>♥ 128</span></div>
+  <div class="ex"><div><h2 id="exn">Développé couché</h2><small id="exs">Exercice 1 sur 2 · repos 2:00</small></div>
+    <button class="pal" id="palbtn" aria-label="Changer le palier">Palier 2,5 kg</button></div>
+  <div class="big" id="big"></div>
+  <div class="list" id="list"></div>
+  <button class="next" id="nextex">Exercice suivant ›</button>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-label="Roulette">
+    <h3 id="sh">Poids</h3>
+    <div class="sheetbox"><div class="band"></div><div class="wheel" id="wheel"></div></div>
+    <button class="ok" id="shok">OK</button>
+  </div>
+</div>
+</div>
+
+<script>
+var EX=[
+ {name:'Développé couché',step:2.5,rest:120,sets:[60,60,60,60].map(function(w){return{w:w,r:8,done:false}})},
+ {name:'Tirage poitrine',step:5,rest:90,sets:[45,45,45].map(function(w){return{w:w,r:10,done:false}})}
+];
+var ei=0,restLeft=0,timer=null,wheelMode=null;
+var $=function(i){return document.getElementById(i)};
+function fmt(n){return String(n).replace('.',',')}
+function ex(){return EX[ei]}
+function cur(){var s=ex().sets;for(var i=0;i<s.length;i++)if(!s[i].done)return i;return -1}
+function mmss(s){return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
+function render(){
+  var e=ex(),c=cur();
+  $('exn').textContent=e.name;
+  $('exs').textContent='Exercice '+(ei+1)+' sur '+EX.length+' · repos '+mmss(e.rest);
+  $('palbtn').textContent='Palier '+fmt(e.step)+' kg';
+  var b=$('big');
+  if(c<0){b.innerHTML='<div class="lbl"><b>Exercice terminé</b><span>'+e.sets.length+' séries</span></div><div class="hint">'+(ei<EX.length-1?'Passe à l’exercice suivant.':'Séance terminée.')+'</div>';}
+  else{
+    var s=e.sets[c];
+    b.innerHTML='<div class="lbl"><b>Série '+(c+1)+' sur '+e.sets.length+'</b><span>Dernière fois : '+fmt(e.sets[0].w)+' × '+s.r+'</span></div>'
+    +'<div class="fields">'
+    +'<div class="fld"><span class="cap">Poids</span><button class="val" data-w="open">'+fmt(s.w)+'<small>kg</small></button><div class="pm"><button data-w="-" aria-label="Moins">−</button><button data-w="+" aria-label="Plus">+</button></div></div>'
+    +'<div class="fld"><span class="cap">Répétitions</span><button class="val" data-r="open">'+s.r+'</button><div class="pm"><button data-r="-" aria-label="Moins">−</button><button data-r="+" aria-label="Plus">+</button></div></div></div>'
+    +(restLeft>0?'<div class="rest"><span class="t" id="rt">'+mmss(restLeft)+'</span><span class="l">Repos avant la série '+(c+1)+'</span><button data-rs="-">−15</button><button data-rs="+">+15</button><button data-rs="x">Passer</button></div>':'')
+    +'<button class="done" data-done="1">Fait</button>';
+  }
+  var h='';
+  e.sets.forEach(function(s,i){
+    var cls=s.done?'ok':(i===c?'cur':'todo');
+    var carry=(!s.done&&i>0&&s.w===e.sets[i-1].w&&i!==c)?'<span class="carry">= série '+i+'</span>':'';
+    h+='<div class="row '+cls+'"><span class="n">'+(i+1)+'</span><span class="v">'+fmt(s.w)+' kg × '+s.r+'</span>'+carry+'<span class="c"></span></div>';
+  });
+  $('list').innerHTML=h;
+  $('nextex').hidden=ei>=EX.length-1;
+  $('nextex').textContent=ei<EX.length-1?'Exercice suivant : '+EX[ei+1].name+' ›':'';
+}
+function setW(v){var c=cur();if(c<0)return;v=Math.max(0,Math.round(v*2)/2);var s=ex().sets;for(var i=c;i<s.length;i++)s[i].w=v}
+function setR(v){var c=cur();if(c<0)return;ex().sets[c].r=Math.max(1,Math.min(50,v))}
+function tick(){
+  if(timer)clearInterval(timer);
+  timer=setInterval(function(){restLeft--;if(restLeft<=0){restLeft=0;clearInterval(timer);render()}else{var t=$('rt');if(t)t.textContent=mmss(restLeft)}},1000);
+}
+document.addEventListener('click',function(ev){
+  var t=ev.target.closest('button');if(!t)return;var c=cur();
+  if(t.dataset.w==='-'){setW(ex().sets[c].w-ex().step);render()}
+  else if(t.dataset.w==='+'){setW(ex().sets[c].w+ex().step);render()}
+  else if(t.dataset.r==='-'){setR(ex().sets[c].r-1);render()}
+  else if(t.dataset.r==='+'){setR(ex().sets[c].r+1);render()}
+  else if(t.dataset.w==='open'){openWheel('w')}
+  else if(t.dataset.r==='open'){openWheel('r')}
+  else if(t.dataset.done){ex().sets[c].done=true;restLeft=cur()<0?0:ex().rest;if(restLeft)tick();else if(timer)clearInterval(timer);render()}
+  else if(t.dataset.rs==='-'){restLeft=Math.max(5,restLeft-15);render()}
+  else if(t.dataset.rs==='+'){restLeft+=15;render()}
+  else if(t.dataset.rs==='x'){restLeft=0;if(timer)clearInterval(timer);render()}
+  else if(t.id==='palbtn'){var o=[1,2,2.5,5];var k=o.indexOf(ex().step);ex().step=o[(k+1)%o.length];render()}
+  else if(t.id==='nextex'){ei++;restLeft=0;if(timer)clearInterval(timer);render()}
+});
+var vals=[];
+function openWheel(m){
+  wheelMode=m;var c=cur(),s=ex().sets[c];vals=[];
+  if(m==='w'){var st=ex().step;for(var v=0;v<=200;v+=st)vals.push(Math.round(v*2)/2);var cv=s.w;if(vals.indexOf(cv)<0){vals.push(cv);vals.sort(function(a,b){return a-b})}}
+  else{for(var r=1;r<=50;r++)vals.push(r)}
+  $('sh').textContent=m==='w'?'Poids (kg) · palier '+fmt(ex().step):'Répétitions';
+  var h='<div class="pad"></div>';vals.forEach(function(v){h+='<div>'+fmt(v)+'</div>'});h+='<div class="pad"></div>';
+  $('wheel').innerHTML=h;
+  $('sheet').classList.add('on');$('scrim').classList.add('on');
+  var idx=vals.indexOf(m==='w'?s.w:s.r);
+  $('wheel').scrollTop=idx*50;
+}
+function closeWheel(apply){
+  if(apply){var idx=Math.round($('wheel').scrollTop/50);idx=Math.max(0,Math.min(vals.length-1,idx));
+    if(wheelMode==='w')setW(vals[idx]);else setR(vals[idx]);}
+  $('sheet').classList.remove('on');$('scrim').classList.remove('on');render();
+}
+$('shok').onclick=function(){closeWheel(true)};
+$('scrim').onclick=function(){closeWheel(false)};
+render();
+</script>

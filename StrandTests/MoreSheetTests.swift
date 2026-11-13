@@ -7,10 +7,11 @@ import XCTest
 final class MoreSheetTests: XCTestCase {
 
     func testEveryScreenIsListedOnce() {
-        let listed = MoreSheetSection.allCases.flatMap(\.entries) + MoreSheetEntry.advanced
+        let listed = MoreSheetSection.allCases.flatMap(\.entries) + MoreSheetEntry.advanced + MoreSheetEntry.leftTheSheet
         XCTAssertEqual(listed.count, MoreSheetEntry.allCases.count)
         XCTAssertEqual(Set(listed), Set(MoreSheetEntry.allCases))
-        XCTAssertEqual(MoreSheetEntry.advanced.count, 15)
+        XCTAssertEqual(MoreSheetEntry.advanced.count, 6)
+        XCTAssertEqual(MoreSheetEntry.leftTheSheet.count, 9)
         XCTAssertEqual(MoreSheetSection.analysis.entries, [.trends, .routeMap])
         XCTAssertTrue(MoreSheetEntry.advanced.allSatisfy { $0.isAdvanced && $0.formerGroup != nil })
         XCTAssertTrue(MoreSheetSection.allCases.flatMap(\.entries).allSatisfy { !$0.isAdvanced && $0.formerGroup == nil })

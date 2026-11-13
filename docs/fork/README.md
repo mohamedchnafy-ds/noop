@@ -11,6 +11,7 @@ Mémoire du fork personnel `mohamedchnafy-ds/noop`, en français. Les règles de
 | `refonte-design.md` | Chantier 7 — refonte visuelle (style F, iOS 26), PR #34 à #41. |
 | `widgets-v2-design.md` | Widgets v2 — maquette validée le 5 nov. (anneaux, FC, Stress, Sommeil, Séance du jour, Nutrition ; Brief du Coach retiré), code. |
 | `chantier-14-carte.md` | Chantier 14 — Carte : pas de l'iPhone et séances colorées par zone FC ou cadence (étape 1, en code le 7 nov., PR #102), Lieux et suivi continu (étape 2). Prompt de démarrage dans la fiche. |
+| `chantier-17-coherence.md` | Chantier 17 — Réglages, « Avancé » et les écrans oubliés : demande du 10 nov., audit du code (Réglages à 55–69 lignes, les 15 écrans « Avancé », 25 écrans restés à l'ancienne mise en page, incohérences), 4 choix de Mohamed, règles communes, plan en 8 étapes, **un prompt de démarrage par étape**. |
 | `chantier-16-tendances.md` | Chantier 16 — Tendances : diagnostic (6 graphiques, semaine résumée deux fois, deux horloges), maquette validée le 8 nov., les cinq cartes (Bilan, Équilibre Charge / Effort, Forme, Signaux vs ta normale, Jour par jour), liste « À tester » de l'IPA `build/tendances`. |
 | `chantier-15-jeune.md` | Chantier 15 — jeûne intermittent et eau, nouvelle section de Nutrition : demande du 7 nov., existant (`HydrationStore`), propositions, choix par défaut, prompt de démarrage (questions puis maquette). |
 | `elan-design.md` | Élan (motivation) — maquette v2.1 validée le 5 nov., choix, poids, lectures. Après le chantier 9. |
@@ -22,6 +23,7 @@ Mémoire du fork personnel `mohamedchnafy-ds/noop`, en français. Les règles de
 | `progression-design.md` | Chantier 2 — Progression du Carnet de force (règles des statuts, muscles, forme). |
 | `ecran-aujourdhui-design.md` | Chantier 1 — écran Aujourd'hui (anneaux, demi-anneaux, FC, Synthèse) et corrections du 2 nov. |
 | `dossier-claude-code.md` | Audit du code (v4.1, `main` 55a249b1) et pistes d'évolution : Coach, FC, planning, nutrition, notifications, laboratoire de santé ; choix du §5.2 tranchés dans `chantier-8-design.md`. |
+| `demarrer-outils.md` | Outils de Démarrer (12 nov.) : journal du bracelet en clair, FC en direct, Respirer, Intervalles. |
 | `audit-delais-builds.md` | Audit des délais modification → IPA (v2, journaux CI du 31 oct. au 2 nov.) et pistes d'accélération. |
 
 Les maquettes sont des artefacts claude.ai (liens dans chaque fiche).

@@ -213,7 +213,7 @@ extension LiftProgressText {
 // MARK: - The Progression screen
 
 struct LiftProgressView: View {
-    enum Tab: Hashable { case exercises, muscles, form }
+    enum Tab: Hashable { case exercises, muscles, regularity, form }
 
     let data: LiftProgressData
     let unitSystem: UnitSystem
@@ -226,11 +226,12 @@ struct LiftProgressView: View {
     var body: some View {
         ScreenScaffold(title: "Progression") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
-                SegmentedPillControl([Tab.exercises, Tab.muscles, Tab.form], selection: $tab,
+                SegmentedPillControl([Tab.exercises, Tab.muscles, Tab.regularity, Tab.form], selection: $tab,
                                      fillsAvailableWidth: true) { tab in
                     switch tab {
                     case .exercises: return String(localized: "Exercises")
                     case .muscles: return String(localized: "Muscles")
+                    case .regularity: return String(localized: "Regularity")
                     case .form: return String(localized: "Form")
                     }
                 }
@@ -239,6 +240,11 @@ struct LiftProgressView: View {
                     LiftProgressExercisesTab(data: data, unitSystem: unitSystem, period: $period)
                 case .muscles:
                     LiftProgressMusclesTab(data: data, period: $musclePeriod) { openMuscle = LiftMuscleTarget(muscle: $0) }
+                case .regularity:
+                    // Fork chantier 18: sets per week over 12 weeks and the days trained, then the
+                    // Experimental « What shapes my sessions » (lot C).
+                    LiftProgressRegularityTab(data: data)
+                    LiftInfluencesSection(data: data, unitSystem: unitSystem)
                 case .form:
                     LiftProgressFormTab(data: data)
                 }

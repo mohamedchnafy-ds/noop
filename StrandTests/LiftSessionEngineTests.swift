@@ -188,8 +188,9 @@ final class LiftSessionEngineTests: XCTestCase {
         let last = [1: LiftSetCarry(weightKg: 52.5, reps: 9)]
         XCTAssertEqual(e.carry(for: slot(0, 1), lastSession: last), LiftSetCarry(weightKg: 52.5, reps: 9),
                        "last session beats the program's target")
-        XCTAssertEqual(e.carry(for: slot(0, 3), lastSession: last), LiftSetCarry(weightKg: 50, reps: 10),
-                       "a set number last session did not have falls through to the target")
+        XCTAssertEqual(e.carry(for: slot(0, 3), lastSession: last), LiftSetCarry(weightKg: 52.5, reps: 10),
+                       "the weight of set 1 repeats (fork chantier 18); reps last session did not have fall "
+                       + "through to the target")
     }
 
     /// RPE is never carried: it is how hard a set FELT, which nothing can know in advance, and

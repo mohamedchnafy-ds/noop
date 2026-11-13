@@ -41,7 +41,11 @@ struct StartSheet: View {
         let today = TrainingDays.buildTrainingDays([now], plan: snapshot.plan, lifts: snapshot.lifts,
                                                    activities: snapshot.activities, now: now,
                                                    calendar: calendar).first
-        let planned = StartSheetLogic.startPlannedRows(day: today, programs: snapshot.summaries)
+        // Fork chantier 18: a program planned today reads as its session will run, without the lines left out.
+        let leftOut = LiftDayAdditions.removedLinesByProgram(day: TrainingCalendar.trainingDayKey(now, calendar: calendar))
+        let planned = StartSheetLogic.startPlannedRows(
+            day: today,
+            programs: snapshot.summaries.map { TrainingDays.dayProgramSummary($0, leftOut: leftOut[$0.id] ?? []) })
         let week = TrainingDays.buildTrainingDays(
             TrainingCalendar.weekDates(from: TrainingCalendar.mondayOf(now, calendar: calendar), calendar: calendar),
             plan: snapshot.plan, lifts: snapshot.lifts, activities: snapshot.activities, now: now,
@@ -386,12 +390,18 @@ struct StartSheet: View {
         .contentShape(Rectangle())
     }
 
-    /// The former quick actions, each opening its screen in this sheet.
+    /// The former quick actions, each opening its screen in this sheet. Fork chantier 18: Intervals too, since
+    /// the Training screen's « Other session » opens this sheet in place of its list of activities.
     private var smallButtons: some View {
-        HStack(spacing: 8) {
-            smallButton { LiveView() } label: { Text("Live HR") }
-            smallButton { BreathingView() } label: { Text("Breathe") }
-            smallButton { InsightsView() } label: { Text("Journal") }
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                smallButton { LiveView() } label: { Text("Live HR") }
+                smallButton { IntervalTimerView() } label: { Text("Intervals") }
+            }
+            HStack(spacing: 8) {
+                smallButton { BreathingView() } label: { Text("Breathe") }
+                smallButton { InsightsView() } label: { Text("Journal") }
+            }
         }
     }
 

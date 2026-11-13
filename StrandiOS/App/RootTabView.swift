@@ -97,13 +97,10 @@ struct RootTabView: View {
     /// scroll to their top anchor when their tab's token changes.
     @State private var scrollTop: [Int] = Array(repeating: 0, count: 5)
 
-    /// V8 liquid redesign is the default Today; the Settings toggle lets a user fall back to the classic
-    /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
-    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
-
-    /// The Today tab root, honouring the liquid/classic preference.
+    /// The Today tab root. Fork chantier 17: the « Liquid Today » switch is gone from Settings, the app
+    /// always reads « on » (the stored `noop.liquidTodayEnabled` key is left untouched).
     @ViewBuilder private var todayTabRoot: some View {
-        if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
+        LiquidTodayView()
     }
 
     /// Native tab selection binding. SwiftUI sends taps on the already-selected item through the

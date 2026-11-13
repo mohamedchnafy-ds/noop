@@ -66,11 +66,9 @@ struct LiftLogView: View {
     @AppStorage(LiftDayAdditions.revisionKey) private var additionsRevision = 0
     /// The chosen day; the week and the month shown are the ones holding it.
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
-    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell,
-    /// and this week's stored Effort by day (0–100) for the curve around its ring.
+    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell.
     @AppStorage(EssentialMode.storageKey) private var essentialMode = false
     @Environment(\.showsMoreAvatar) private var showsMoreAvatar
-    @State private var weekEffort: [String: Double] = [:]
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     /// Live Sessions (silent guardian, beta): the Settings switch, and the session screen (fork chantier 9:
@@ -260,7 +258,8 @@ struct LiftLogView: View {
 
     // MARK: - Essential mode (chantier 20)
 
-    /// This week's ring, its Effort and today's session, from the calendar's own days.
+    /// This week's ring, its Effort and today's session, from the calendar's own days. The Effort is each
+    /// day's stored row in `repo.days`, the rows Today's Effort tiles read.
     private var essentialWeek: some View {
         let monday = TrainingCalendar.mondayOf(Date(), calendar: calendar)
         let dates = TrainingCalendar.weekDates(from: monday, calendar: calendar)
@@ -269,21 +268,12 @@ struct LiftLogView: View {
         let next = today?.openItems.first
         return TrainingEssentialSection(
             week: week,
-            effort: week.map { weekEffort[$0.key] },
+            effort: week.map { day in repo.days.first(where: { $0.day == day.key })?.strain },
             weekdays: TrainingText.narrowWeekdays(calendar),
             caption: TrainingText.compactWeekTitle(monday: monday, calendar: calendar),
             todayTitle: next.map(essentialTitle),
             todayIsCardio: next?.isCardio ?? false,
             onStart: next.map { item in { startEssential(item) } })
-            .task(id: "\(key(monday))-\(repo.refreshSeq)") {
-                let metrics = await repo.dailyMetrics(fromDay: key(monday),
-                                                      toDay: key(dates.last ?? monday))
-                var byDay: [String: Double] = [:]
-                for metric in metrics {
-                    if let strain = metric.strain { byDay[metric.day] = strain }
-                }
-                weekEffort = byDay
-            }
     }
 
     /// A planned item as the essential Training names it: the program's name, or the sport's shown name.

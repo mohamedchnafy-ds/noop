@@ -294,6 +294,8 @@ struct EssentialEffortTrace: View {
                                                   width: base * 2, height: base * 2)),
                            with: .color(StrandPalette.textPrimary.opacity(0.12)),
                            style: StrokeStyle(lineWidth: 1, dash: [2, 4]))
+            // No Effort stored for the week: the dotted baseline alone, no line that would look like data.
+            guard values.contains(where: { $0 != nil }) else { return }
             let through = todayIndex ?? (values.count - 1)
             let path = EssentialTraceMath.effortPath(center: center, base: base, height: height, values: values,
                                                      fullScale: fullScale, throughDay: through)

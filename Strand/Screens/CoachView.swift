@@ -43,6 +43,10 @@ struct CoachView: View {
     @FocusState private var composerFocused: Bool
     /// The first name the empty screen greets (fork chantier 9, « What the coach should know about you »).
     @AppStorage(CoachGreeting.firstNameKey) private var firstName = ""
+    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell.
+    @AppStorage(EssentialMode.storageKey) private var essentialMode = false
+    @Environment(\.showsMoreAvatar) private var showsMoreAvatar
+    private var essentialShown: Bool { essentialMode && showsMoreAvatar }
 
     /// K2: confirmation gate for the destructive "Delete conversation" menu action.
     @State private var showClearConfirm = false
@@ -93,7 +97,7 @@ struct CoachView: View {
                 // Personal fork: once connected, the conversation IS the screen — the transcript fills
                 // every point between a slim header and the docked composer, and everything else (the
                 // provider, the settings, the key, clearing) sits behind the header's one gear button.
-                chatScreen
+                if essentialShown { essentialChat } else { chatScreen }
             } else {
                 ScreenScaffold(title: "Coach",
                                subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.") {
@@ -396,6 +400,65 @@ struct CoachView: View {
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
     }
 
+    // MARK: - Essential mode (chantier 20)
+
+    /// The star with the day's measures in orbit, then the latest answer (or Today's brief), then the
+    /// composer alone: the history, the ⋯ menu and the chips come back when the mode is turned off.
+    private var essentialChat: some View {
+        VStack(spacing: 0) {
+            EssentialHeader(caption: String(localized: "Coach"))
+                .padding(.horizontal, chatHPadding)
+                .padding(.top, 8)
+            Spacer(minLength: NoopMetrics.space3)
+            CoachOrbitView(thinking: coach.sending)
+            essentialReply
+                .padding(.horizontal, chatHPadding)
+                .padding(.top, NoopMetrics.space3)
+            Spacer(minLength: NoopMetrics.space3)
+            bottomPanel
+                .padding(.horizontal, chatHPadding)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+        }
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(StrandPalette.surfaceBase.ignoresSafeArea())
+    }
+
+    /// The words of the latest answer, without its stored extras; empty when there is none yet.
+    private var latestReply: String {
+        guard let last = coach.messages.last(where: { $0.role == .assistant }) else { return "" }
+        return CoachReplyMeta.split(last.text).body
+    }
+
+    @ViewBuilder private var essentialReply: some View {
+        let reply = latestReply
+        if !reply.isEmpty {
+            ScrollView {
+                Markdown(reply)
+                    .markdownTheme(.strand)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 680, alignment: .leading)
+                    .accessibilityLabel("Coach said: \(reply)")
+            }
+            .frame(maxHeight: 260)
+        } else if coach.sending {
+            typingIndicator
+        } else {
+            EssentialActionButton(title: "Today's brief", symbol: "sun.max.fill",
+                                  symbolTint: StrandPalette.metricAmber) {
+                if coach.dataConsent { coach.beginBriefIfNeeded() } else { showCoachData = true }
+            }
+            if !coach.dataConsent {
+                Text("Turn on “Use my data” first")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .padding(.top, NoopMetrics.space2)
+            }
+        }
+    }
+
     private var chatHPadding: CGFloat {
         #if os(iOS)
         NoopMetrics.screenHPadding
@@ -423,7 +486,9 @@ struct CoachView: View {
                 headerButton("square.and.pencil", label: "New conversation") { coach.startNewConversation() }
                     .disabled(coach.sending || coach.messages.isEmpty)
                 optionsMenu
-                // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere.
+                // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere. Before it, the ◎
+                // button of the essential mode (chantier 20).
+                EssentialModeButton()
                 MoreAvatarButton()
             }
             // Once the conversation has a name, the grey line shows it (Mohamed, 3 Nov.).
@@ -571,7 +636,7 @@ struct CoachView: View {
                 errorBanner(error)
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
-            if isEmptyConversation {
+            if isEmptyConversation && !essentialShown {
                 CoachQuickPrompts(photosAvailable: photosAvailable) { ask($0) }
                     .padding(.bottom, 4)
             }

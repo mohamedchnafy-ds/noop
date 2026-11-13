@@ -531,6 +531,69 @@ struct TodayHeroModel {
     var goalDayKey: String? = nil
 }
 
+extension TodayHeroModel {
+    /// The share of the activity goal burnt, or of the day's energy without a goal.
+    var caloriesFraction: Double {
+        guard let split = calories.split else { return 0 }
+        if let goal = calories.goal, goal > 0 { return split.activityKcal / goal }
+        return TodayEnergy.arc(split, goal: nil).activity
+    }
+
+    /// How much of its ring a score fills: the calibration's progress, else the score on its scale.
+    static func fraction(_ ring: Ring) -> Double {
+        if let c = ring.calibration { return c.of > 0 ? Double(c.done) / Double(c.of) : 0 }
+        guard let score = ring.score, ring.maxValue > 0 else { return 0 }
+        return score / ring.maxValue
+    }
+
+    var effortBand: ClosedRange<Double>? {
+        guard let band = effort.targetRange, effort.maxValue > 0 else { return nil }
+        return (band.lowerBound / effort.maxValue)...(band.upperBound / effort.maxValue)
+    }
+
+    /// The Charge ring and its line share one tint: the score's band (red / yellow / green), or the plain
+    /// Charge green while there is no score yet (calibration, no data).
+    var chargeTint: Color {
+        guard charge.calibration == nil, let score = charge.score else {
+            return StrandPalette.chargeColor
+        }
+        return StrandPalette.chargeTint(score)
+    }
+
+    /// The deep tone the Charge ring starts from, in the same bands as its tint.
+    var chargeDeep: Color {
+        guard charge.calibration == nil, let score = charge.score else {
+            return StrandPalette.chargeDeep
+        }
+        return StrandPalette.chargeTintDeep(score)
+    }
+
+    /// The four rings, outside to inside: activity calories, Charge, Effort with its target band, Rest. The
+    /// hero card and the essential Today both draw these.
+    var heroRings: [TodayRing] {
+        [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity,
+                   deep: StrandPalette.caloriesActivityDeep),
+         TodayRing(fraction: Self.fraction(charge), tint: chargeTint, deep: chargeDeep),
+         TodayRing(fraction: Self.fraction(effort), tint: StrandPalette.effortColor, band: effortBand,
+                   deep: StrandPalette.effortDeep),
+         TodayRing(fraction: Self.fraction(rest), tint: StrandPalette.restRing, deep: StrandPalette.restRingDeep)]
+    }
+
+    /// A score as its line shows it: « 1/4 » while calibrating, else the number with the ring's decimals.
+    static func ringText(_ ring: Ring) -> String? {
+        if let c = ring.calibration { return "\(c.done)/\(c.of)" }
+        guard let score = ring.score else { return nil }
+        return ring.decimals > 0
+            ? String(format: "%.\(ring.decimals)f", locale: AppLanguage.activeLocale, score)
+            : String(Int(score.rounded()))
+    }
+
+    /// The activity calories burnt, as a whole number.
+    var activityText: String? {
+        calories.split.map { Int($0.activityKcal.rounded()).formatted(.number.locale(AppLanguage.activeLocale)) }
+    }
+}
+
 /// The hero card: the four rings beside their four lines, a hairline, then the three cells.
 struct TodayHeroCard: View {
     var model: TodayHeroModel
@@ -551,48 +614,10 @@ struct TodayHeroCard: View {
 
     // MARK: Rings
 
-    private var caloriesFraction: Double {
-        guard let split = model.calories.split else { return 0 }
-        if let goal = model.calories.goal, goal > 0 { return split.activityKcal / goal }
-        return TodayEnergy.arc(split, goal: nil).activity
-    }
-
-    private func fraction(_ ring: TodayHeroModel.Ring) -> Double {
-        if let c = ring.calibration { return c.of > 0 ? Double(c.done) / Double(c.of) : 0 }
-        guard let score = ring.score, ring.maxValue > 0 else { return 0 }
-        return score / ring.maxValue
-    }
-
-    private var effortBand: ClosedRange<Double>? {
-        guard let band = model.effort.targetRange, model.effort.maxValue > 0 else { return nil }
-        return (band.lowerBound / model.effort.maxValue)...(band.upperBound / model.effort.maxValue)
-    }
-
-    /// The Charge ring and its line share one tint: the score's band (red / yellow / green), or the plain
-    /// Charge green while there is no score yet (calibration, no data).
-    private var chargeTint: Color {
-        guard model.charge.calibration == nil, let score = model.charge.score else {
-            return StrandPalette.chargeColor
-        }
-        return StrandPalette.chargeTint(score)
-    }
-
-    /// The deep tone the Charge ring starts from, in the same bands as its tint.
-    private var chargeDeep: Color {
-        guard model.charge.calibration == nil, let score = model.charge.score else {
-            return StrandPalette.chargeDeep
-        }
-        return StrandPalette.chargeTintDeep(score)
-    }
-
-    private var rings: [TodayRing] {
-        [TodayRing(fraction: caloriesFraction, tint: StrandPalette.caloriesActivity,
-                   deep: StrandPalette.caloriesActivityDeep),
-         TodayRing(fraction: fraction(model.charge), tint: chargeTint, deep: chargeDeep),
-         TodayRing(fraction: fraction(model.effort), tint: StrandPalette.effortColor, band: effortBand,
-                   deep: StrandPalette.effortDeep),
-         TodayRing(fraction: fraction(model.rest), tint: StrandPalette.restRing, deep: StrandPalette.restRingDeep)]
-    }
+    /// The rings and the Charge tint come from the model (`TodayHeroModel.heroRings`), the one resolver the
+    /// essential Today reads too (personal fork, chantier 20).
+    private var chargeTint: Color { model.chargeTint }
+    private var rings: [TodayRing] { model.heroRings }
 
     // MARK: Goals (fork chantier 12)
 
@@ -636,17 +661,9 @@ struct TodayHeroCard: View {
 
     // MARK: Lines
 
-    private func ringValue(_ ring: TodayHeroModel.Ring) -> String? {
-        if let c = ring.calibration { return "\(c.done)/\(c.of)" }
-        guard let score = ring.score else { return nil }
-        return ring.decimals > 0
-            ? String(format: "%.\(ring.decimals)f", locale: AppLanguage.activeLocale, score)
-            : String(Int(score.rounded()))
-    }
+    private func ringValue(_ ring: TodayHeroModel.Ring) -> String? { TodayHeroModel.ringText(ring) }
 
-    private var caloriesValue: String? {
-        model.calories.split.map { number($0.activityKcal) }
-    }
+    private var caloriesValue: String? { model.activityText }
 
     /// "/480 kcal" against the activity goal, or the unit alone without one.
     private var caloriesCaption: String {

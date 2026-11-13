@@ -66,6 +66,9 @@ struct LiftLogView: View {
     @AppStorage(LiftDayAdditions.revisionKey) private var additionsRevision = 0
     /// The chosen day; the week and the month shown are the ones holding it.
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
+    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell.
+    @AppStorage(EssentialMode.storageKey) private var essentialMode = false
+    @Environment(\.showsMoreAvatar) private var showsMoreAvatar
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     /// Live Sessions (silent guardian, beta): the Settings switch, and the session screen (fork chantier 9:
@@ -87,6 +90,11 @@ struct LiftLogView: View {
 
     var body: some View {
         ScreenScaffold(title: nil, onRefresh: { await load() }) {
+            if essentialMode && showsMoreAvatar {
+                // Personal fork (chantier 20): the ◎ button keeps this week's ring and today's Start.
+                essentialWeek
+                    .transition(.opacity)
+            } else {
             // Fork chantier 7: 16 between the blocks; each section title adds its own 6 above it.
             VStack(alignment: .leading, spacing: NoopMetrics.space4) {
                 header
@@ -99,6 +107,7 @@ struct LiftLogView: View {
                     LiquidFullWidthNavigationAction("Customize Training")
                 }
                 .buttonStyle(.plain)
+            }
             }
         }
         .background(TrainingCardioLauncher(request: $cardioToStart))
@@ -244,6 +253,47 @@ struct LiftLogView: View {
             }
             TrainingMonthTotals(done: tally.done, planned: tally.planned,
                                 activities: totals.activities, minutes: totals.minutes)
+        }
+    }
+
+    // MARK: - Essential mode (chantier 20)
+
+    /// This week's ring, its Effort and today's session, from the calendar's own days. The Effort is each
+    /// day's stored row in `repo.days`, the rows Today's Effort tiles read.
+    private var essentialWeek: some View {
+        let monday = TrainingCalendar.mondayOf(Date(), calendar: calendar)
+        let dates = TrainingCalendar.weekDates(from: monday, calendar: calendar)
+        let week = days(dates)
+        let today = week.first(where: \.isToday)
+        let next = today?.openItems.first
+        return TrainingEssentialSection(
+            week: week,
+            effort: week.map { day in repo.days.first(where: { $0.day == day.key })?.strain },
+            weekdays: TrainingText.narrowWeekdays(calendar),
+            caption: TrainingText.compactWeekTitle(monday: monday, calendar: calendar),
+            todayTitle: next.map(essentialTitle),
+            todayIsCardio: next?.isCardio ?? false,
+            onStart: next.map { item in { startEssential(item) } })
+    }
+
+    /// A planned item as the essential Training names it: the program's name, or the sport's shown name.
+    private func essentialTitle(_ item: TrainingPlanItem) -> String {
+        switch item {
+        case .program(let id):
+            return summaries.first(where: { $0.id == id })?.name ?? String(localized: "Nothing planned")
+        case .cardio(let sport, _):
+            return WorkoutCatalog.shownSportName(sport)
+        }
+    }
+
+    /// Starts a planned item the way the day card does: a program through `start`, cardio as a live workout.
+    private func startEssential(_ item: TrainingPlanItem) {
+        switch item {
+        case .program(let id):
+            guard let program = programs.first(where: { $0.id == id }) else { return }
+            Task { await start(program) }
+        case .cardio(let sport, _):
+            cardioToStart = sport
         }
     }
 

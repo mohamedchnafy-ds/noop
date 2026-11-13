@@ -78,6 +78,12 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
 - Écart avec la maquette : le chiffre central reste en secondes (« 30 », « Secondes »).
 
 ## Batterie sur Aujourd'hui (demande du 12 nov., soir)
+- **13 nov. (après-midi), décision finale de Mohamed** (capture de l'IPA `build/demarrer`) : **pas de carte ni de
+  ligne sous le titre**. La batterie va dans le **petit rond de l'en-tête** (celui qui affiche « 53 »), et elle y
+  reste **en permanence** : pendant une synchro, le rond ne se transforme plus en « Synchronisation »
+  (`LiquidBatteryButton` passe `syncing: false` à `ChargeSyncIndicator`). La synchro reste visible dans la carte
+  Sources de données (`LiquidSyncStatusRow`) et dans le tirer-pour-rafraîchir. `TodayBatteryCard` et ses
+  3 clés sont retirés. Les paragraphes ci-dessous sur la carte et la ligne sont l'historique.
 - **13 nov., retour sur l'IPA `build/demarrer`** : « tout est ok sauf la barre de la batterie, trop grosse,
   je voulais un truc discret ». La carte devient **une ligne discrète** sous le titre : petite icône,
   « 73 % » en petit gras puis « ~5 jours restants » en gris, sans fond ni chevron ; la couleur ne vient que
@@ -108,7 +114,9 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   fusionner, puis IPA `build/demarrer` depuis `main` (elle contient aussi la suite du chantier 18).
 
 ## À tester (IPA `build/demarrer`)
-- **Batterie sur Aujourd'hui** : sous le titre, carte « Batterie du bracelet · 73 % · ~5 jours restants »
+- **Batterie sur Aujourd'hui** (version du 13 nov.) : plus rien sous le titre ; le petit rond en haut à
+  droite montre toujours la batterie (« 53 », éclair en charge), **même pendant une synchro** ; la synchro se
+  voit dans Sources de données en bas d'Aujourd'hui. Ancienne version : sous le titre, carte « Batterie du bracelet · 73 % · ~5 jours restants »
   (vert), orange à 30 % ou moins, rouge à 15 % ou moins avec « À recharger bientôt », éclair « En charge » sur
   le chargeur, « Bracelet non connecté » sans pourcentage quand il est loin ; même valeur que la bague en haut
   à droite ; toucher → Appareils. **Capture à envoyer.**

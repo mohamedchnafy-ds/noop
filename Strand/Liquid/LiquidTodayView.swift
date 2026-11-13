@@ -2356,6 +2356,25 @@ extension LiquidTodayView {
         ///
         /// No default values on purpose. A defaulted flag is one a future call site can forget, and
         /// forgetting it reinstates exactly this bug in a form that still compiles.
+        /// The strap's charge for the header ring (personal fork, 13 Nov.): the fresh reading of this link, or,
+        /// until one lands, the strap's LAST BANKED reading (`LiveState.batterySamples`: the persisted battery
+        /// series seeded on connect, plus the live events since) when it is at most `maxAgeSeconds` old.
+        ///
+        /// Why: the keep-alive never polls the strap mid-offload, and a relaunch starts with no reading, so
+        /// during the first long sync the ring read « ··· » for the whole sync, which the sync spinner used to
+        /// hide. A charge moves about 1 % an hour on the wrist, so a reading under 3 h old is still the charge.
+        /// Not while charging (it climbs about 1 % a minute), and never without a link: `batterySamples` is
+        /// cleared on disconnect, and `resolve` gates on `connected` anyway.
+        static let lastKnownMaxAgeSeconds = 3 * 3600
+
+        static func headerBatteryPct(fresh: Double?, samples: [(ts: Int, soc: Double)], charging: Bool?,
+                                     now: Int, maxAgeSeconds: Int = lastKnownMaxAgeSeconds) -> Double? {
+            if let fresh { return fresh }
+            guard charging != true, let last = samples.max(by: { $0.ts < $1.ts }),
+                  now - last.ts <= maxAgeSeconds, now >= last.ts - 300 else { return nil }
+            return last.soc
+        }
+
         static func resolve(activeIsWhoop: Bool, connected: Bool,
                             batteryPct: Double?, charging: Bool?,
                             ringPct: Int?, ringCharging: Bool) -> StrapBatteryDisplay {
@@ -2473,7 +2492,9 @@ private struct LiquidBatteryButton: View {
         return .resolve(
             activeIsWhoop: live.activeIsWhoop,
             connected: live.connected,
-            batteryPct: live.batteryPct,
+            batteryPct: LiquidTodayView.StrapBatteryDisplay.headerBatteryPct(
+                fresh: live.batteryPct, samples: live.batterySamples, charging: live.charging,
+                now: Int(Date().timeIntervalSince1970)),
             charging: live.charging,
             ringPct: live.ouraBatteryPct,
             ringCharging: live.ouraWearState == .charging

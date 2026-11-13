@@ -84,6 +84,13 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   (`LiquidBatteryButton` passe `syncing: false` à `ChargeSyncIndicator`). La synchro reste visible dans la carte
   Sources de données (`LiquidSyncStatusRow`) et dans le tirer-pour-rafraîchir. `TodayBatteryCard` et ses
   3 clés sont retirés. Les paragraphes ci-dessous sur la carte et la ligne sont l'historique.
+- **13 nov. (soir), IPA `build/demarrer-2`** : le rond montrait « ··· » (aucun pourcentage). Cause : après
+  une réinstallation l'app n'a pas encore de lecture, et le keep-alive ne demande jamais la batterie pendant
+  une synchro (`guard !backfilling` dans `BLEManager.keepAliveFire`, on ne dérange pas le bracelet) ; le rond
+  de synchro cachait ce vide. Correctif sans toucher au BLE : tant que ce lien n'a pas de lecture, le rond
+  prend la **dernière lecture enregistrée** du bracelet (`LiveState.batterySamples`, série gardée en base,
+  rechargée à la connexion) si elle a **3 h au plus**, bracelet connecté, et jamais pendant une charge
+  (`StrapBatteryDisplay.headerBatteryPct`, test dans `LiquidBatteryDisplayTests`).
 - **13 nov., retour sur l'IPA `build/demarrer`** : « tout est ok sauf la barre de la batterie, trop grosse,
   je voulais un truc discret ». La carte devient **une ligne discrète** sous le titre : petite icône,
   « 73 % » en petit gras puis « ~5 jours restants » en gris, sans fond ni chevron ; la couleur ne vient que

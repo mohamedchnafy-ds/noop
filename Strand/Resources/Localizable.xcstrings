@@ -1,6 +1,7 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Over · %@": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Over · %@"}}, "de": {"stringUnit": {"state": "translated", "value": "Beendet · %@"}}, "es": {"stringUnit": {"state": "translated", "value": "Terminado · %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "Terminé · %@"}}, "it": {"stringUnit": {"state": "translated", "value": "Terminato · %@"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Terminado · %@"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zakończony · %@"}}, "ru": {"stringUnit": {"state": "translated", "value": "Завершено · %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已结束 · %@"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已結束 · %@"}}}},
     "The strap buzzes at every change: no need to look at the screen.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "The strap buzzes at every change: no need to look at the screen."}}, "de": {"stringUnit": {"state": "translated", "value": "Das Band vibriert bei jedem Wechsel: Du musst nicht auf den Bildschirm schauen."}}, "es": {"stringUnit": {"state": "translated", "value": "La pulsera vibra en cada cambio: no hace falta mirar la pantalla."}}, "fr": {"stringUnit": {"state": "translated", "value": "Le bracelet vibre à chaque changement : pas besoin de regarder l'écran."}}, "it": {"stringUnit": {"state": "translated", "value": "Il bracciale vibra a ogni cambio: non serve guardare lo schermo."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A pulseira vibra a cada mudança: não precisas de olhar para o ecrã."}}, "pl": {"stringUnit": {"state": "translated", "value": "Opaska wibruje przy każdej zmianie: nie musisz patrzeć na ekran."}}, "ru": {"stringUnit": {"state": "translated", "value": "Браслет вибрирует при каждой смене: на экран смотреть не нужно."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "每次切换时手环都会振动：无需看屏幕。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "每次切換時手環都會震動：無需看螢幕。"}}}},
     "Start over": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Start over"}}, "de": {"stringUnit": {"state": "translated", "value": "Von vorn"}}, "es": {"stringUnit": {"state": "translated", "value": "Empezar de nuevo"}}, "fr": {"stringUnit": {"state": "translated", "value": "Recommencer"}}, "it": {"stringUnit": {"state": "translated", "value": "Ricomincia"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Recomeçar"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zacznij od nowa"}}, "ru": {"stringUnit": {"state": "translated", "value": "Начать заново"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "重新开始"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "重新開始"}}}},
     "From %lld to %lld": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "From %lld to %lld"}}, "de": {"stringUnit": {"state": "translated", "value": "Von %1$lld bis %2$lld"}}, "es": {"stringUnit": {"state": "translated", "value": "De %1$lld a %2$lld"}}, "fr": {"stringUnit": {"state": "translated", "value": "De %1$lld à %2$lld"}}, "it": {"stringUnit": {"state": "translated", "value": "Da %1$lld a %2$lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "De %1$lld a %2$lld"}}, "pl": {"stringUnit": {"state": "translated", "value": "Od %1$lld do %2$lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "От %1$lld до %2$lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%1$lld 到 %2$lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%1$lld 到 %2$lld"}}}},
@@ -175610,13 +175611,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Undo"
+            "value": "Rückgängig"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Undo"
+            "value": "Deshacer"
           }
         },
         "fr": {
@@ -175652,7 +175653,13 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anulować"
+            "value": "Cofnij"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "復原"
           }
         }
       }

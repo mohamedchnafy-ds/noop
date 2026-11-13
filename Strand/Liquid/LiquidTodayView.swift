@@ -366,8 +366,6 @@ struct LiquidTodayView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     scene
-                    // Personal fork (Démarrer tools): the strap's battery in words, under the title.
-                    TodayBatteryCard()
                     // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
                     // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
                     // RootView.swift likewise), so while this was unmounted a RAISED health alert had no
@@ -2358,6 +2356,25 @@ extension LiquidTodayView {
         ///
         /// No default values on purpose. A defaulted flag is one a future call site can forget, and
         /// forgetting it reinstates exactly this bug in a form that still compiles.
+        /// The strap's charge for the header ring (personal fork, 13 Nov.): the fresh reading of this link, or,
+        /// until one lands, the strap's LAST BANKED reading (`LiveState.batterySamples`: the persisted battery
+        /// series seeded on connect, plus the live events since) when it is at most `maxAgeSeconds` old.
+        ///
+        /// Why: the keep-alive never polls the strap mid-offload, and a relaunch starts with no reading, so
+        /// during the first long sync the ring read « ··· » for the whole sync, which the sync spinner used to
+        /// hide. A charge moves about 1 % an hour on the wrist, so a reading under 3 h old is still the charge.
+        /// Not while charging (it climbs about 1 % a minute), and never without a link: `batterySamples` is
+        /// cleared on disconnect, and `resolve` gates on `connected` anyway.
+        static let lastKnownMaxAgeSeconds = 3 * 3600
+
+        static func headerBatteryPct(fresh: Double?, samples: [(ts: Int, soc: Double)], charging: Bool?,
+                                     now: Int, maxAgeSeconds: Int = lastKnownMaxAgeSeconds) -> Double? {
+            if let fresh { return fresh }
+            guard charging != true, let last = samples.max(by: { $0.ts < $1.ts }),
+                  now - last.ts <= maxAgeSeconds, now >= last.ts - 300 else { return nil }
+            return last.soc
+        }
+
         static func resolve(activeIsWhoop: Bool, connected: Bool,
                             batteryPct: Double?, charging: Bool?,
                             ringPct: Int?, ringCharging: Bool) -> StrapBatteryDisplay {
@@ -2453,35 +2470,10 @@ extension LiquidTodayView {
 }
 
 /// Active-device battery ring: the strap's charge under an active strap, the ring's own under an active
-/// ring. At sync start it briefly expands within the trailing control row, then settles into an in-place
-/// spinner; the layered header keeps either state from moving the Today content. Tap → Devices.
+/// ring, always (personal fork, 13 Nov.: the sync no longer takes the ring over). Tap → Devices.
 private struct LiquidBatteryButton: View {
     @EnvironmentObject var live: LiveState
     @EnvironmentObject var router: NavRouter
-
-    /// Debounced by `debouncedSyncSignal` below, so a per-chunk `backfilling` gap cannot flash the
-    /// indicator back to the battery reading in the middle of one logical sync.
-    @State private var syncing = false
-    #if DEBUG
-    /// Driven only by the `--demo-sync` harness; ignored entirely when that flag is absent.
-    @State private var demoSyncing = false
-    /// Synthetic chunk tally for the harness, so the expanded read-out is exercised without a strap.
-    /// Kept local rather than written into LiveState — a demo aid must not touch real collector state.
-    @State private var demoChunks = 0
-    #endif
-
-    /// The raw, confirmed "strap history is syncing" signal.
-    ///
-    /// Pull-to-refresh is not evidence of an offload: `syncNow()` can still decline after its
-    /// connected/bonded gate when the connection handshake or backing store is not ready. A successful
-    /// `beginBackfill()` publishes `live.backfilling` synchronously, so that state is both prompt and the
-    /// only honest source for the header and its VoiceOver label.
-    private var syncingRaw: Bool {
-        #if DEBUG
-        if DemoSyncHarness.active { return demoSyncing }
-        #endif
-        return live.backfilling
-    }
 
     private var batteryDisplay: LiquidTodayView.StrapBatteryDisplay {
         #if DEBUG
@@ -2500,7 +2492,9 @@ private struct LiquidBatteryButton: View {
         return .resolve(
             activeIsWhoop: live.activeIsWhoop,
             connected: live.connected,
-            batteryPct: live.batteryPct,
+            batteryPct: LiquidTodayView.StrapBatteryDisplay.headerBatteryPct(
+                fresh: live.batteryPct, samples: live.batterySamples, charging: live.charging,
+                now: Int(Date().timeIntervalSince1970)),
             charging: live.charging,
             ringPct: live.ouraBatteryPct,
             ringCharging: live.ouraWearState == .charging
@@ -2529,86 +2523,23 @@ private struct LiquidBatteryButton: View {
             EmptyView()
         } else {
             Button { router.openDevices() } label: {
+                // Personal fork (13 Nov., Mohamed): the battery stays in this ring PERMANENTLY. The sync
+                // morph used to take the ring over for the whole offload, hiding the charge; the sync stays
+                // visible in the Data Sources card (`LiquidSyncStatusRow`) and the pull-to-refresh vessel.
                 ChargeSyncIndicator(
                     batteryState: indicatorState,
-                    syncing: syncing,
-                    chunks: syncChunks
+                    syncing: false,
+                    chunks: 0
                 )
             }
             .nativeLiquidGlassSyncButton()
             .accessibilityLabel(batteryAccessibility)
-            .debouncedSyncSignal(syncingRaw, into: $syncing)
-            // DEBUG-gated at the CALL SITE too, not just in the body: in Release the harness must cost
-            // literally nothing, rather than an async task created and immediately returned per appearance.
-            #if DEBUG
-            .task { await runDemoSyncCycleIfNeeded() }
-            #endif
         }
-    }
-
-    /// DEBUG `--demo-sync` only: loop the syncing signal so the charge→sync morph plays in both
-    /// directions without a strap. Returns immediately in Release and whenever the flag is absent, and
-    /// `.task` cancels it on disappear.
-    private func runDemoSyncCycleIfNeeded() async {
-        #if DEBUG
-        guard DemoSyncHarness.active else { return }
-        while !Task.isCancelled {
-            try? await Task.sleep(
-                nanoseconds: UInt64(DemoSyncHarness.idleSeconds * 1_000_000_000)
-            )
-            guard !Task.isCancelled else { return }
-            demoChunks = 0
-            demoSyncing = true
-            // Tick the tally the way an offload does, so the expanded label is watched changing rather
-            // than appearing once and holding.
-            for tick in 1...DemoSyncHarness.chunkTicks {
-                try? await Task.sleep(
-                    nanoseconds: UInt64(DemoSyncHarness.chunkIntervalSeconds * 1_000_000_000)
-                )
-                guard !Task.isCancelled else { return }
-                demoChunks = tick
-            }
-            demoSyncing = false
-        }
-        #endif
-    }
-
-    /// Chunks acked this session, shown inside the spinner where the battery percentage sits. The
-    /// expanded label stays "Syncing" — this is the numeric read-out, not the caption.
-    private var syncChunks: Int {
-        #if DEBUG
-        if DemoSyncHarness.active { return demoChunks }
-        #endif
-        return live.syncChunksThisSession
     }
 
     /// Never "Strap battery" alone for a no-reading state — that was indistinguishable from a real one.
     private var batteryAccessibility: String {
-        if syncing {
-            // `syncChunks` is a COUNT, not an index, so it reads "3 chunks" — the phrasing the Android
-            // twin and `SyncStatusChip` already use. Reusing that exact key also means this read-out
-            // inherits its existing translations rather than adding an untranslated variant.
-            //
-            // The SAME accessor the ring draws from, not `live.syncChunksThisSession` directly: in
-            // Release the two are identical, but under `--demo-sync` reading LiveState here would have
-            // VoiceOver announcing a real count while the ring showed the synthetic one — i.e. the
-            // harness could not be used to check the read-out it exists to exercise.
-            let n = syncChunks
-            guard n > 0 else { return String(localized: "Syncing strap history") }
-            // #689/#815: the connect-time ring backlog, when the strap reported one. Zero is dropped by
-            // `SyncChipState.resolve`, and dropped here for the same reason: "0 pages behind" beside a
-            // running sync contradicts itself. Both counts inflect — the phrase is built from its own
-            // entry and joined through a template, so "1 chunk" and "1 page" read correctly and the
-            // joining punctuation stays inside the translated template rather than being concatenated.
-            let behind = live.pagesBehindAtConnect
-                .flatMap { $0 > 0 ? $0 : nil }
-                .map { String(localized: "\($0) pages behind at connect") }
-            if let behind {
-                return String(localized: "Syncing strap history, \(n) chunks, \(behind)")
-            }
-            return String(localized: "Syncing strap history, \(n) chunks")
-        }
-
+        // The ring never shows the sync any more (personal fork), so neither does its label.
         switch batteryDisplay {
         case .notActiveDevice:
             return ""          // not drawn; the label is unreachable and must not claim anything
@@ -2764,8 +2695,16 @@ private struct LiquidStrapBatteryRow: View {
     /// Reproduced verbatim from `TodayView.estimateText`: under 48 h show hours, at two days or more round to
     /// days; nil (no banked discharge yet, or charging) hides it, so the row only ever shows an estimate we trust.
     private var estimateText: String? {
-        // One rule for the runtime, shared with the battery card under the title (personal fork).
-        TodayBatteryLine.todayBatteryEstimate(charging: live.charging, estimate: live.batteryEstimate)
+        guard live.charging != true, let est = live.batteryEstimate else { return nil }
+        let hours = est.hoursRemaining
+        guard hours.isFinite, hours > 0 else { return nil }
+        if hours < 48 {
+            return String(localized: "~\(Int(hours.rounded()))h left")
+        }
+        let days = Int((hours / 24).rounded())
+        return days == 1
+            ? String(localized: "~1 day left")
+            : String(localized: "~\(days) days left")
     }
 }
 

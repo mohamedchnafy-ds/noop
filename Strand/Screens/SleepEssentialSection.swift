@@ -16,9 +16,11 @@ struct SleepEssentialSection: View {
     /// The night's breaths per minute, nil when none was measured.
     var breathsPerMinute: Double?
 
-    private static let dialDiameter: CGFloat = 220
-    private static let traceDiameter: CGFloat = 322
-    private static let traceRadius: CGFloat = 150
+    /// The night card's own ring size: its centre (score, word, « 8 h 38 min sur 8 h ») is laid out for it,
+    /// and a smaller ring ran that text into the inner tracks (phone, 14 Nov.).
+    private static let dialDiameter: CGFloat = 250
+    private static let traceDiameter: CGFloat = 340
+    private static let traceRadius: CGFloat = 159
 
     private var awakeMinutes: Double {
         data.awakeMinutes
@@ -33,9 +35,6 @@ struct SleepEssentialSection: View {
         case .deep: return data.deepMinutes
         }
     }
-
-    /// The stages as the night card lists them: deepest first.
-    let stages: [SleepStage] = [.deep, .rem, .light, .awake]
 
     private var caption: String {
         [data.nightLabel, data.dateLabel].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -64,11 +63,16 @@ struct SleepEssentialSection: View {
                 }
             }
             .frame(width: Self.traceDiameter, height: Self.traceDiameter)
-            HStack(spacing: 4) {
-                ForEach(stages, id: \.self) { stage in
-                    EssentialFigure(label: stage.label,
-                                    tint: StrandPalette.sleepStageColor(stage, palette: data.palette),
-                                    value: SleepDurationText.format(minutes(stage)))
+            // Two rows of two: four « 3 h 15 min » side by side ran into each other (phone, 14 Nov.).
+            VStack(spacing: NoopMetrics.space1) {
+                ForEach([[SleepStage.deep, .rem], [.light, .awake]], id: \.self) { row in
+                    HStack(spacing: NoopMetrics.space2) {
+                        ForEach(row, id: \.self) { stage in
+                            EssentialFigure(label: stage.label,
+                                            tint: StrandPalette.sleepStageColor(stage, palette: data.palette),
+                                            value: SleepDurationText.format(minutes(stage)))
+                        }
+                    }
                 }
             }
             .padding(.top, NoopMetrics.space2)

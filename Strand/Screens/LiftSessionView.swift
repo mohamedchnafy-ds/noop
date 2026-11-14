@@ -476,6 +476,10 @@ struct LiftSessionView: View {
                         .foregroundStyle(StrandPalette.textTertiary)
                     loadSuggestionLine(for: item)
                 }
+                // Fork chantier 21: the figure doing the movement, right under the name. Only the exercise
+                // in hand moves; the others hold a still pose.
+                LiftExecutionTile(exercise: item.exercise,
+                                  animated: (engine.quickEntrySlot ?? engine.currentSlot)?.exerciseIndex == index)
                 if let note = item.note, !note.isEmpty {
                     Text(note)
                         .font(StrandFont.footnote)

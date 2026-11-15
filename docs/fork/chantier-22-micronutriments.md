@@ -1,4 +1,4 @@
-# Chantier 20 — Micronutriments dans Nutrition (préparé le 15 nov. 2026)
+# Chantier 22 — Micronutriments dans Nutrition (préparé le 15 nov. 2026)
 
 Demande de Mohamed (15 nov.) : « Dans Nutrition, est-ce possible d'avoir les micronutriments ? »
 Réponse : oui. Chaque ligne de repas prise dans Ciqual garde son code (`mealItem.foodRef = "ciqual:<code>"`),

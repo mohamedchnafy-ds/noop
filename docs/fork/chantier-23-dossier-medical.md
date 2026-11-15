@@ -1,4 +1,4 @@
-# Chantier 21 — Dossier médical : PDF dans le Coach (préparé le 15 nov. 2026)
+# Chantier 23 — Dossier médical : PDF dans le Coach (préparé le 15 nov. 2026)
 
 Demande de Mohamed (15 nov.) : « Je veux pouvoir ajouter des PDF sur le Coach, des informations médicales,
 et pouvoir les extraire et les ajouter. »

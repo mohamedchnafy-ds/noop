@@ -26,6 +26,7 @@ Mémoire du fork personnel `mohamedchnafy-ds/noop`, en français. Les règles de
 | `chantier-20-essentiel.md` | Chantier 20 — mode Essentiel (13 nov.) : bouton ◎, les anneaux seuls avec l'ECG autour (Aujourd'hui), la respiration (Sommeil), le verre (Nutrition), l'Effort de la semaine (Entraînement), l'orbite du Coach ; choix, fichiers, liste « À tester ». |
 | `demarrer-outils.md` | Outils de Démarrer (12 nov.) : journal du bracelet en clair, FC en direct, Respirer, Intervalles. |
 | `chantier-21-bonhomme.md` | Chantier 21 (14 nov.) : le bonhomme d'exécution sous l'exercice en séance (21 mouvements, reconnus d'après le nom). |
+| `chantier-24-habitudes.md` | Chantier 24 (15 nov.) : Habitudes — habitudes créées par l'utilisateur, chrono (une session ouverte = l'heure de début), sessions à la main avec note, totaux et graphiques, bannière en direct, action de l'icône, outil du Coach lu seulement quand on le demande. Maquette : `maquettes/chantier-24-habitudes.html`. |
 | `audit-delais-builds.md` | Audit des délais modification → IPA (v2, journaux CI du 31 oct. au 2 nov.) et pistes d'accélération. |
 
 Les maquettes sont des artefacts claude.ai (liens dans chaque fiche).

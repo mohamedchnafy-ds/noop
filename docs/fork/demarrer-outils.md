@@ -120,6 +120,9 @@ Intervalles). Le bouton « Journal » de Démarrer (écran Perspectives) reste p
   StrandTests, 0 échec, 2 ignorés** (sans les 14 classes de rendu) sur `macos-15-intel`. Choix de Mohamed :
   fusionner, puis IPA `build/demarrer` depuis `main` (elle contient aussi la suite du chantier 18).
 
+- **15 nov.** : PR #157 fusionnée par Mohamed (`main` ba8fb6a), après l'IPA Intel `d2e71d1` (batterie
+  permanente dans le rond + repli sur la dernière lecture enregistrée).
+
 ## À tester (IPA `build/demarrer`)
 - **Batterie sur Aujourd'hui** (version du 13 nov.) : plus rien sous le titre ; le petit rond en haut à
   droite montre toujours la batterie (« 53 », éclair en charge), **même pendant une synchro** ; la synchro se

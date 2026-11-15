@@ -1644,7 +1644,7 @@ final class AICoachEngine: ObservableObject {
                 StrainScorer.strain(hr, maxHR: maxHR, restingHR: restHR, method: method, sex: sex)
             }.value
             effort = StrainScorer.effectiveEffort(live: live, stored: todayRow?.strain)
-            split = await NutritionDayReader.spentFromSamples(repo, profile: profile, day: now, hr: hr, now: now)
+            split = await NutritionDayReader.spentOnDay(repo, profile: profile, day: now, now: now, samples: hr)
         }
 
         inputs.today = CoachFiche.Today(

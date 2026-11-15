@@ -342,27 +342,73 @@ struct NutritionAddSheet: View {
 }
 
 /// The four moments as chips, the chosen one white (the sheet's moment). A pure view.
+///
+/// One row of equal chips when the longest title fits a quarter of the width; otherwise the chips
+/// take their own width and wrap onto a second line. A plain row of four equal chips overflowed both
+/// edges of the sheet in French (« Petit-déjeuner » against the left edge).
 struct NutritionSlotChips: View {
     @Binding var selection: MealSlot
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(MealSlot.allCases, id: \.self) { item in
-                Button {
-                    selection = item
-                } label: {
-                    Text(verbatim: NutritionSlot.slotTitle(item))
-                        .font(StrandFont.footnote.weight(.semibold))
-                        .foregroundStyle(item == selection ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .frame(maxWidth: .infinity, minHeight: 34)
-                        .background(Capsule().fill(item == selection ? StrandPalette.textPrimary : StrandPalette.surfaceBase))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(item == selection ? .isSelected : [])
+        ViewThatFits(in: .horizontal) {
+            NutritionEqualChipRow(spacing: 6) { chips }
+            CoachChipFlow(spacing: 6) { chips }
+        }
+    }
+
+    private var chips: some View {
+        ForEach(MealSlot.allCases, id: \.self) { item in
+            Button {
+                selection = item
+            } label: {
+                Text(verbatim: NutritionSlot.slotTitle(item))
+                    .font(StrandFont.footnote.weight(.semibold))
+                    .foregroundStyle(item == selection ? StrandPalette.surfaceBase : StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .background(Capsule().fill(item == selection ? StrandPalette.textPrimary : StrandPalette.surfaceBase))
+                    .contentShape(Capsule())
             }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(item == selection ? .isSelected : [])
+        }
+    }
+}
+
+/// A row whose subviews all get the same width, a share of the row. Its ideal width is the widest
+/// subview's times their count, so a `ViewThatFits` drops it once the longest one would be cut.
+struct NutritionEqualChipRow: Layout {
+    var spacing: CGFloat
+
+    init(spacing: CGFloat = 6) {
+        self.spacing = spacing
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let widest = sizes.map(\.width).max() ?? 0
+        let tallest = sizes.map(\.height).max() ?? 0
+        let gaps = spacing * CGFloat(max(subviews.count - 1, 0))
+        let ideal = widest * CGFloat(subviews.count) + gaps
+        let width: CGFloat
+        if let proposed = proposal.width, proposed.isFinite {
+            width = proposed
+        } else {
+            width = ideal
+        }
+        return CGSize(width: width, height: tallest)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard !subviews.isEmpty else { return }
+        let gaps = spacing * CGFloat(subviews.count - 1)
+        let share = max(0, (bounds.width - gaps) / CGFloat(subviews.count))
+        for index in subviews.indices {
+            let x = bounds.minX + CGFloat(index) * (share + spacing)
+            subviews[index].place(at: CGPoint(x: x, y: bounds.minY), anchor: .topLeading,
+                                  proposal: ProposedViewSize(width: share, height: bounds.height))
         }
     }
 }

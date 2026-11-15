@@ -49,7 +49,11 @@ struct TrainingCompactHeader: View {
                              label: mode == .month ? Text("Week") : Text("Month")) {
                     mode = mode == .month ? .week : .month
                 }
-                if showsMoreAvatar { MoreAvatarButton() }
+                if showsMoreAvatar {
+                    // The ◎ button keeps this week's ring and today's Start (personal fork, chantier 20).
+                    EssentialModeButton()
+                    MoreAvatarButton()
+                }
             }
             if mode == .month {
                 HStack(spacing: 0) {

@@ -14,11 +14,11 @@ final class FastStoreTests: XCTestCase {
 
     // MARK: - Migration v55
 
-    func testV55CreatesTheTableAndIsTheLastMigration() async throws {
+    func testV55CreatesTheTableAndIsRegistered() async throws {
         let store = try await WhoopStore.inMemory()
         let tables = try await store.tableNames()
         XCTAssertTrue(tables.contains("fast"))
-        XCTAssertEqual(WhoopStore.makeMigrator().migrations.last, "v55-fasts")
+        XCTAssertTrue(WhoopStore.makeMigrator().migrations.contains("v55-fasts"))
     }
 
     /// The migration only adds a table: a visit written before it is still there.

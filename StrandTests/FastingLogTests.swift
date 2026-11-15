@@ -188,4 +188,59 @@ final class FastingLogTests: XCTestCase {
         XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: end, kcal: 450, now: now), "at the end: nothing to move")
         XCTAssertNil(FastingLog.mealEndQuestion(newest: fast, eatenAt: end.addingTimeInterval(600), kcal: 450, now: now))
     }
+
+    // MARK: - A fast over, on the card and the page (13 Nov 2026)
+
+    private static let utc: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC") ?? .current
+        return cal
+    }()
+
+    private func utcDate(_ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        Self.utc.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute)) ?? t0
+    }
+
+    private func shown(_ fast: FastRow?, running: FastRow? = nil, dismissed: String = "", at now: Date,
+                       rollover: Int) -> FastingState? {
+        FastingLog.shownFastingState(running: running, newest: fast, dismissedId: dismissed, now: now,
+                                     calendar: Self.utc, rolloverHour: rollover)
+    }
+
+    func testAFastOverStaysShownUntilTheEndOfTheLogicalDayAfterItsEnd() {
+        // The screen recording of 13 Nov: a fast over on 10 Nov at 17:32 (17 h 10 min out of 18 h).
+        let end = utcDate(10, 17, 32)
+        let fast = row(start: end.addingTimeInterval(-(17 * 3600 + 10 * 60)), end: end, goal: 18 * 60)
+        XCTAssertEqual(FastingLog.finishedFastShownUntil(endedAt: end, calendar: Self.utc, rolloverHour: 0),
+                       utcDate(12, 0, 0))
+        XCTAssertEqual(shown(fast, at: end.addingTimeInterval(60), rollover: 0)?.elapsedMinutes, 17 * 60 + 10)
+        XCTAssertNotNil(shown(fast, at: utcDate(11, 23, 59), rollover: 0), "the next day still shows it")
+        XCTAssertNil(shown(fast, at: utcDate(12, 0, 0), rollover: 0), "two days on: back to idle")
+        XCTAssertNil(shown(fast, at: utcDate(13, 9, 0), rollover: 0), "the case seen on 13 Nov")
+    }
+
+    func testTheWindowFollowsTheLogicalDayRollover() {
+        // Rolling at 04:00, a fast over at 01:00 on 11 Nov belongs to the logical day of 10 Nov.
+        let end = utcDate(11, 1, 0)
+        let fast = row(start: end.addingTimeInterval(-16 * 3600), end: end)
+        XCTAssertEqual(FastingLog.finishedFastShownUntil(endedAt: end, calendar: Self.utc, rolloverHour: 4),
+                       utcDate(12, 4, 0))
+        XCTAssertNotNil(shown(fast, at: utcDate(12, 3, 59), rollover: 4))
+        XCTAssertNil(shown(fast, at: utcDate(12, 4, 0), rollover: 4))
+        // Rolling at midnight, the same end belongs to 11 Nov and is shown through 12 Nov.
+        XCTAssertNotNil(shown(fast, at: utcDate(12, 23, 59), rollover: 0))
+        XCTAssertNil(shown(fast, at: utcDate(13, 0, 0), rollover: 0))
+    }
+
+    func testARunningFastIsAlwaysShownAndADismissedOneNever() {
+        let start = utcDate(1, 20, 0)
+        let open = row(start: start, end: nil)
+        let longAfter = utcDate(13, 9, 0)
+        let state = shown(nil, running: open, at: longAfter, rollover: 0)
+        XCTAssertEqual(state?.isRunning, true, "a running fast is never hidden, however long it runs")
+        let over = row(start: utcDate(12, 20, 0), end: utcDate(13, 12, 0))
+        XCTAssertNotNil(shown(over, at: utcDate(13, 13, 0), rollover: 0))
+        XCTAssertNil(shown(over, dismissed: "f", at: utcDate(13, 13, 0), rollover: 0), "« New fast » hides it")
+        XCTAssertNil(shown(nil, at: longAfter, rollover: 0), "no fast at all: idle")
+    }
 }

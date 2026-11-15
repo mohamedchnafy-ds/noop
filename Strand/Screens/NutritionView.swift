@@ -184,7 +184,7 @@ struct NutritionView: View {
         // Chantier 15 PR C: the fasting notification or banner asked for the Jeûne page.
         .onAppear { openFastingIfRequested() }
         .onChange(of: router.fastingRequested) { _ in openFastingIfRequested() }
-        .task(id: "\(fastingRevision)-\(dismissedDoneId)-\(Repository.localDayKey(Date()))") { await reloadFastingCard() }
+        .task(id: "\(fastingRevision)-\(dismissedDoneId)-\(Repository.logicalDayKey(Date()))") { await reloadFastingCard() }
         .task(id: "\(waterTick)-\(repo.refreshSeq)-\(Repository.localDayKey(Date()))") {
             waterML = await repo.hydrationTotal(day: Repository.logicalDayKey(Date()))
         }
@@ -257,20 +257,11 @@ struct NutritionView: View {
         showFasting = true
     }
 
-    /// The fast shown on the card: the running one, else the one just over until « New fast ».
+    /// The fast shown on the card: the running one, else the one just over until « New fast » or the end
+    /// of the logical day after its end (`FastingLog.shownFastingState`, the same rule as the Jeûne page).
     private func reloadFastingCard() async {
         guard let store = await repo.storeHandle() else { return }
-        let now = Date()
-        if let state = await FastingLog.resolveFastingState(store, now: now) {
-            fastingState = state
-            return
-        }
-        if let latest = await FastingLog.recentFastRows(store, limit: 1).first, latest.endedAt != nil,
-           latest.id != dismissedDoneId {
-            fastingState = FastingLog.fastingState(of: latest, now: now)
-        } else {
-            fastingState = nil
-        }
+        fastingState = await FastingLog.resolveShownFastingState(store, dismissedId: dismissedDoneId, now: Date())
     }
 
     private func addWaterFromCard() async {

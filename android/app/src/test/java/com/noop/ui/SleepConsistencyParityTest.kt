@@ -76,4 +76,36 @@ class SleepConsistencyParityTest {
         val m = consistencySeries(sessions)
         assertEquals(100.0, m.latest!!, 1e-9)
     }
+
+    // Personal fork (13 Nov 2026): ONE bedtime per night. The same three cases and expected values as iOS
+    // SleepConsistencyNightsTests: a nap used to count as a bedtime and pushed the tile to a fake 0 %.
+
+    private fun block(startTs: Long, minutes: Int) =
+        SleepSession(deviceId = "my-whoop", startTs = startTs, endTs = startTs + minutes * 60L)
+
+    @Test fun aNapAmongRegularNights_noLongerReadsZero() {
+        val nights = (1..4).map { block(ts(2026, 10, it, 23, 30), 450) }
+        val nap = block(ts(2026, 10, 3, 14, 0), 40)
+        val m = consistencySeries((nights + nap).sortedBy { it.startTs })
+        assertEquals(100.0, m.latest!!, 1e-9)
+    }
+
+    @Test fun twoNightsAndANap_areNotEnough() {
+        val m = consistencySeries(listOf(
+            block(ts(2026, 10, 1, 23, 30), 450),
+            block(ts(2026, 10, 2, 23, 30), 450),
+            block(ts(2026, 10, 3, 14, 0), 40),
+        ))
+        assertNull(m.latest)
+    }
+
+    @Test fun aRealSpread_isStillScored() {
+        // Bedtimes 22:00, 23:00, 00:00 → 1320 / 1380 / 1440, variance 2400 → 100·(1 − √2400/120).
+        val m = consistencySeries(listOf(
+            block(ts(2026, 10, 1, 22, 0), 420),
+            block(ts(2026, 10, 2, 23, 0), 420),
+            block(ts(2026, 10, 4, 0, 0), 420),
+        ))
+        assertEquals(59.1751709536137, m.latest!!, 1e-9)
+    }
 }

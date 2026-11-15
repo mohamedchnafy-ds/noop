@@ -9,7 +9,7 @@ import StrandAnalytics
 // page. Every figure arrives resolved (`FastingState`, the hydration store): nothing is computed here.
 
 struct NutritionFastingCard: View {
-    /// The running fast, or the one just over (until « New fast »); nil when nothing.
+    /// The running fast, or the one just over (`FastingLog.shownFastingState`); nil when nothing.
     let state: FastingState?
     let waterML: Double
     let goalML: Int

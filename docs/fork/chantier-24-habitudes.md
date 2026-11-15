@@ -1,6 +1,6 @@
 # Chantier 24 — Habitudes
 
-**État** (15 nov. 2026) : demande reçue, 4 choix faits, **maquette à valider** : https://claude.ai/artifact/1xoQf4BcjsQ8xHjeYUe3x1 (source : `docs/fork/maquettes/chantier-24-habitudes.html`). Pas de code avant la validation. (Les n° 22 et 23 sont les micronutriments et le dossier médical, PR #164.)
+**État** (15 nov. 2026) : 4 choix faits, **maquette validée** par Mohamed : https://claude.ai/artifact/1xoQf4BcjsQ8xHjeYUe3x1 (source : `docs/fork/maquettes/chantier-24-habitudes.html`). **PR A (données) ouverte.** (Les n° 22 et 23 sont les micronutriments et le dossier médical, PR #164.)
 
 ## La demande (15 nov., mots de Mohamed résumés)
 - Une section « Habitudes », ouverte depuis la photo de profil (feuille Plus).
@@ -39,6 +39,15 @@
 - **Coach** : **un outil** `get_habits` (habitudes, sessions avec notes, sur une période), **rien dans la fiche ni dans le brief** : c'est ce qui garantit qu'il n'en parle pas de lui-même. Une ligne dans le rôle des outils : l'appeler seulement quand la question porte sur une habitude, ne jamais en parler sinon ; croiser avec les autres outils (`get_series`, `get_night`, `get_day_heart_rate`, `get_meals`, `get_workouts`…). Une ligne « Habitudes et notes · seulement quand tu le demandes » dans Ce que lit le Coach. Derrière « Utiliser mes données », comme les autres outils de lecture.
 - **Parité Android** : schéma seulement (pas d'écran Android).
 - **Animations** : style sobre du chantier 12 (`NoopRollingNumber` pour le chrono, barres qui montent, pas de filtre au repos, Réduire les animations respecté).
+
+## Code — PR A (données), 15 nov.
+- **Migration iOS `v56-habits` / Android `MIGRATION_47_48`** (Room 48) : tables `habit` (id, name, colorKey, symbol, createdAt, updatedAt) et `habitSession` (id, habitId, startedAt, endedAt, note, manual, createdAt, updatedAt) ; index `idx_habitSession_habitId_startedAt` et `idx_habitSession_startedAt` ; pas de clé étrangère (supprimer une habitude supprime ses sessions dans la même transaction). Les deux `schema_oracle.json`, l'export Room `48.json` (branche temporaire `ci/room-schema-habits`, jamais fusionnée, à supprimer sur accord).
+- `Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift` : `upsertHabit`, `allHabits`, `deleteHabitAndSessions`, `upsertHabitSession`, `runningHabitSession`, `habitSessionsStarted` (par **début**, d'une habitude ou de toutes), `recentHabitSessions`, `habitSessionSummary` (nombre, total, première date, sessions terminées), `deleteHabitSession`. Android : `HabitEntities.kt` (schéma seulement, pas de DAO).
+- `Strand/Data/HabitLog.swift` : **le seul résolveur** des chiffres d'une habitude (`resolveHabitFigures` → `HabitFigures` : semaine, mois, tout, barres S · M · 3M, plages « Quand » sur 30 jours) et toutes les écritures (`createHabit`, `editHabit`, `removeHabit`, `startHabitStopwatch`, `stopHabitStopwatch`, `addHabitSessionByHand`, `amendHabitSession`, `removeHabitSession`). Tout écran, la bannière, l'action de l'icône et l'outil du Coach passent par lui.
+- **Règles écrites dans le code** : un chrono à la fois (démarrer ferme celui en cours à cet instant ; la question de confirmation est dans l'écran) ; jour d'une session = jour **logique** de son début (`Repository.logicalDayRolloverHour`) ; totaux et barres = sessions **terminées** seulement (le chrono en cours a son propre affichage) ; semaine = lundi → dimanche (`TrainingCalendar.mondayOf`) ; S = 7 jours de la semaine, M = 30 derniers jours, 3M = 12 dernières semaines ; une session passée qui passe minuit donne deux plages dans « Quand ».
+- **Refus d'une session à la main ou modifiée** (`HabitSessionProblem`) : fin pas après le début, fin dans le futur, plus de 12 h, chevauchement d'une autre session de la **même** habitude (le chrono en cours compte jusqu'à maintenant). Une session en cours modifiée garde son chrono : seuls son début (dans le passé, sans chevauchement) et sa note changent.
+- Note : espaces retirés, vide = pas de note. Nom vide refusé. `habits.revision` (UserDefaults) monte à chaque écriture ; `habits.lastStartedId` = la dernière habitude démarrée (pour l'action de l'icône) ; `HabitLog.onHabitChange` = crochet pour la bannière et l'icône (PR C).
+- Tests : `HabitStoreTests` (paquet), `HabitsMigrationTest` (Kotlin), `HabitLogTests` (StrandTests : règles, barres, totaux, plages, écritures).
 
 ## Découpage proposé
 1. **PR A — données** : migration, store, résolveur, tests.

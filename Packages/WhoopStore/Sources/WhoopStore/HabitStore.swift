@@ -155,7 +155,7 @@ extension WhoopStore {
     /// The sessions that STARTED in `[fromSec, toSec)`, of one habit or (nil) of every habit, oldest
     /// first. By start, because a session counts for the day it started on (the owner's choice).
     public func habitSessionsStarted(fromSec: Int, toSec: Int, habitId: String?) async throws -> [HabitSessionRow] {
-        try syncRead { db in
+        try syncRead { db -> [HabitSessionRow] in
             if let habitId {
                 return try Row.fetchAll(db, sql: """
                     SELECT * FROM habitSession
@@ -181,7 +181,7 @@ extension WhoopStore {
 
     /// Count, summed duration and first start of the ENDED sessions of one habit.
     public func habitSessionSummary(habitId: String) async throws -> HabitSessionSummary {
-        try syncRead { db in
+        try syncRead { db -> HabitSessionSummary in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT COUNT(*) AS n, COALESCE(SUM(endedAt - startedAt), 0) AS total, MIN(startedAt) AS first
                 FROM habitSession WHERE habitId = ? AND endedAt IS NOT NULL

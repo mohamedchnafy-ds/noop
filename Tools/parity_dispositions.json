@@ -972,6 +972,118 @@
       "identity_sha256": "cee28fcb6e8acdcb4e0d66198623dfec8cdff48b6e44895d4f77b175bee9069e",
       "platform": "swift",
       "rationale": "Personal fork (chantier 15): the pure arithmetic of a fast (phase, progress, remaining, ring markers, history summary). Its Kotlin twin, com.noop.nutrition.FastingTimeline, keeps the same thresholds and integer rules and is checked against the same shared expected block (FastingTimelineTests / FastingTimelineTest), but lives outside the ledger's governed Kotlin roots because nothing on Android calls it yet: the fasting section is iPhone only in this fork (the MealMath precedent)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift",
+      "identity_sha256": "215a60773bc949fce4ea4b2b19bd0cd0e61404c2480ebc69161aa5f788c26a00",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): the iOS store of the habits (GRDB migration v56-habits: the `habit` and `habitSession` tables). Its Room twin is the schema only (android/app/src/main/java/com/noop/data/HabitEntities.kt, MIGRATION_47_48), pinned column by column in schema_oracle.json; the habits section and its screens are iPhone only, so there is no Kotlin file to pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::allHabits/0#1",
+      "identity_sha256": "95e62438c022d1d0efe41addd61acbd7b0c4fed90918b62495cd6f23db6a9fa1",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::decode/1#1",
+      "identity_sha256": "045a2a80c703f9210349a17baea663b73e0f70664c401f926d2848c1d65dddfb",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::decode/1#2",
+      "identity_sha256": "86842f95d0d8a09760aa910cedf7cad31cbe3e709c3a64521271cd42e60d6592",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::deleteHabitAndSessions/1#1",
+      "identity_sha256": "f4956068a555aeb67fe3c2dd0a02c40b8c667cbe1ef982cf5e97339f94e5370a",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::deleteHabitSession/1#1",
+      "identity_sha256": "7e979c781b11bc9893192a62372bafbf0ca1c16117aab39b77ca747e91c1d427",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::habitSessionSummary/1#1",
+      "identity_sha256": "be58f3b567454a6e0d1cf43a628c718fa8a00c6c017bb0a3b7e276f78f1a3816",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::habitSessionsStarted/3#1",
+      "identity_sha256": "2c72460e15e29e617fdfc643241cf6873e324a3b0110124f684044346d6009fd",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::recentHabitSessions/2#1",
+      "identity_sha256": "f43c48fb58a2dc5adeade13280721ded23751215f3edd260ab2a4617a12672a0",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::runningHabitSession/0#1",
+      "identity_sha256": "5a85036abbd22a4578440284621ada40cbcf7b66bed6de29dceb178ec8c748ce",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::upsertHabit/1#1",
+      "identity_sha256": "635b5f3132b9a5cf4e97e7a601505bd68e4e5724b70d476e58e7820e17b4d4bc",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift::upsertHabitSession/1#1",
+      "identity_sha256": "4ed1cda3fc38c8d9d048d5451cc1607fed5445e460987a8aef267e307935eee7",
+      "platform": "swift",
+      "rationale": "Personal fork (chantier 24): iOS store of the habits and their timed sessions (GRDB migration v56-habits; the `habit` and `habitSession` tables are declared `both` in schema_oracle.json and twinned by Room MIGRATION_47_48). The habits section and its screens are iPhone only in this fork, so Android carries the schema but no DAO; these GRDB read/write helpers have no Kotlin twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/HabitEntities.kt",
+      "identity_sha256": "f57d440d034dca7d4a386fc656ee6cf880662208b359935349367395b86fac56",
+      "platform": "kotlin",
+      "rationale": "Personal fork (chantier 24): the Room entities of the habits (`habit`, `habitSession`), the schema twins of the GRDB tables written by Packages/WhoopStore/Sources/WhoopStore/HabitStore.swift (migration v56-habits). Schema only, pinned by schema_oracle.json; no DAO and no Swift file to pair because the habits screens are iPhone only in this fork."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#46",
+      "identity_sha256": "217c1232fd27a68de9cfc9bb19463a7999a9bdb2c8a7bb6dfe7fa927005d2664",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_47_48, the personal-fork habits tables (habit, habitSession). GRDB registers each migration as a closure (`v56-habits`), so there is no Swift function to pair; the resulting schemas are pinned on both platforms by schema_oracle.json."
     }
   ]
 }

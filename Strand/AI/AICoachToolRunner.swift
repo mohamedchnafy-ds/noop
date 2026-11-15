@@ -135,6 +135,33 @@ extension AICoachEngine {
             }
             return CoachTools.meals(mealDays, from: from, to: to)
 
+        case .medicalDocuments:
+            guard includeOnDeviceSignals else {
+                return "The medical file is not shared: “Trends and Lab Book” is off."
+            }
+            return MedicalFileStore.documentsToolText(MedicalFileStore.loadMedicalFile())
+
+        case .micros:
+            let days = CoachTools.integer(input, "days", fallback: 7, in: CoachTools.microDayRange)
+            guard let store = await repo.storeHandle() else { return "The meal journal cannot be read right now." }
+            let keys = CoachTools.dayKeys(days: days, endingAt: now)
+            guard let from = keys.first, let to = keys.last else { return "No days asked for." }
+            let entries = (try? await MealJournal.mealJournalRange(store, fromDay: from, toDay: to)) ?? []
+            let byDay = Dictionary(grouping: entries, by: { $0.meal.day })
+            let dayItems = keys.map { key in (byDay[key] ?? []).flatMap(\.items) }
+            let average = MealMicros.dailyAverage(dayItems)
+            let allItems = dayItems.flatMap { $0 }
+            var sources: [MicroNutrient: [MicroSource]] = [:]
+            for nutrient in MicroNutrient.allCases {
+                sources[nutrient] = MealMicros.topSources(nutrient, in: allItems).map {
+                    MicroSource(name: $0.name, amount: $0.amount / Double(max(1, average.days)))
+                }
+            }
+            let profile = self.profile ?? ProfileStore()
+            let plan = NutritionDayReader.currentPlan(profile: profile)
+            return CoachTools.micronutrients(average.totals, loggedDays: average.days, from: from, to: to,
+                                             sex: profile.sex, intakeKcal: plan.intakeKcal, sources: sources)
+
         case .dayHeartRate:
             let calendar = Calendar.current
             var date = now

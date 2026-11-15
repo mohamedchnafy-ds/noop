@@ -28,6 +28,10 @@ enum CoachTools {
         case caffeine = "get_caffeine"
         /// Any series of Analyses, the sleep stages or the macros, by the ids `show_chart` takes (chantier 9).
         case series = "get_series"
+        /// The micronutrients of the meal journal, from the Ciqual table and Open Food Facts (chantier 22).
+        case micros = "get_micronutrients"
+        /// The medical file's documents with their summaries (chantier 23), with the Lab Book's switch.
+        case medicalDocuments = "get_medical_documents"
     }
 
     /// The metrics `get_metric_history` can return, by the names the fiche uses.
@@ -128,6 +132,8 @@ enum CoachTools {
     /// How far back `get_exercise_history` looks for sessions.
     static let exerciseLookbackDays = 365
     static let mealDayRange = 1...30
+    /// `get_micronutrients`: the days averaged (chantier 22).
+    static let microDayRange = 1...30
     /// How far back `get_day_heart_rate` reads, in days before today.
     static let dayHeartRateLookbackDays = 60
     /// The slots `get_day_heart_rate` groups the 5-minute buckets into, so a whole day stays short.
@@ -196,6 +202,16 @@ enum CoachTools {
                  properties: ["days": ["type": "integer", "minimum": mealDayRange.lowerBound,
                                        "maximum": mealDayRange.upperBound]],
                  required: ["days"]),
+            tool(.micros,
+                 "The micronutrients of the meal journal over the last N days, as a daily average over the days "
+                 + "with a meal logged: fiber, sugars, fats, omega-3 and 6, salt, minerals and vitamins, each with "
+                 + "its adult ANSES reference (a ceiling for sugars, saturated fat and salt), the share reached, "
+                 + "how many foods lacked the value (typed by hand, or unknown in the table: never counted as "
+                 + "zero) and the foods that brought the most. Computed by the app from the Ciqual table and "
+                 + "Open Food Facts. Context only: no diagnosis, and a Lab Book value is the user's own record.",
+                 properties: ["days": ["type": "integer", "minimum": microDayRange.lowerBound,
+                                       "maximum": microDayRange.upperBound]],
+                 required: ["days"]),
             tool(.dayHeartRate,
                  "One day's heart rate as the Today card draws it (5-minute averages from the strap), grouped "
                  + "every 30 minutes with the lowest and highest beat, the day's sleep, and the time spent in "
@@ -213,6 +229,12 @@ enum CoachTools {
             tools.append(tool(.labBook,
                               "The user's own Lab Book markers (blood tests and the like): the latest values of "
                               + "each, with their dates. Logged by the user, not medical findings.",
+                              properties: [:], required: []))
+            tools.append(tool(.medicalDocuments,
+                              "The user's medical file: every document they added (lab reports, prescriptions, "
+                              + "consultation and imaging reports, measurements), newest first, with the factual "
+                              + "summary written when it was added. Their treatments and allergies are in the "
+                              + "fiche. The user's own records, not a diagnosis.",
                               properties: [:], required: []))
         }
         // The charts (chantier 9) draw the user's data, so they come with "Use my data" only, like the
@@ -638,6 +660,48 @@ enum CoachTools {
         return lines.joined(separator: "\n")
     }
 
+    /// `get_micronutrients`: one line per nutrient, in the groups' order. `totals` is the daily average
+    /// over `loggedDays`; `sources` the foods that brought the most, already per day.
+    static func micronutrients(_ totals: MicroTotals, loggedDays: Int, from: String, to: String, sex: String,
+                               intakeKcal: Int, sources: [MicroNutrient: [MicroSource]]) -> String {
+        guard loggedDays > 0, totals.lineCount > 0 else {
+            return "No meal logged from \(from) to \(to). That says nothing about what was eaten."
+        }
+        func number(_ value: Double) -> String {
+            let v = max(0, value)
+            let digits = v < 0.1 ? 3 : (v < 10 ? 1 : 0)
+            return String(format: "%.\(digits)f", v)
+        }
+        func amount(_ nutrient: MicroNutrient, _ value: Double) -> String {
+            number(nutrient.shownAmount(value)) + " " + nutrient.shownUnit.symbol
+        }
+        var lines = ["Micronutrients, \(from) to \(to): daily average over the \(loggedDays) day(s) with a meal "
+                     + "logged (\(totals.lineCount) foods, \(totals.linesWithMicros) with values). Computed by the "
+                     + "app (Anses Ciqual 2025, Open Food Facts); a food without the value is counted as missing, "
+                     + "not as zero. References: ANSES, adult, \(sex == "female" ? "woman" : "man")."]
+        for nutrient in MicroNutrient.allCases {
+            let missing = totals.missingLines(nutrient)
+            var line = "\(nutrient.rawValue): "
+            if let value = totals.amount(nutrient) {
+                line += amount(nutrient, value) + "/day"
+            } else {
+                line += "unknown (no food with a value)"
+            }
+            if let reference = MicroReference.reference(for: nutrient, sex: sex, intakeKcal: intakeKcal) {
+                line += " · " + (nutrient.isCeiling ? "ceiling " : "reference ") + amount(nutrient, reference)
+                if let value = totals.amount(nutrient), let pct = MicroReference.percent(value, of: reference) {
+                    line += " (\(pct) %)"
+                }
+            }
+            if missing > 0 { line += " · missing in \(missing) of \(totals.lineCount) foods" }
+            if let top = sources[nutrient], !top.isEmpty {
+                line += " · most from " + top.map { "\($0.name) \(amount(nutrient, $0.amount))" }.joined(separator: ", ")
+            }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: Labels (on screen)
 
     /// What the screen says the coach looked at for one call, in the app's language.
@@ -679,6 +743,11 @@ enum CoachTools {
             return String(localized: "Today's heart rate")
         case .caffeine:
             return String(localized: "Caffeine")
+        case .micros:
+            let days = integer(input, "days", fallback: 7, in: microDayRange)
+            return String(localized: "Micronutrients since \(since(days: days))")
+        case .medicalDocuments:
+            return String(localized: "Medical documents")
         case .series:
             let title = CoachChartText.seriesName(text(input, "metric"))
             let days = integer(input, "days", fallback: 30, in: seriesDayRange)

@@ -163,6 +163,26 @@ final class HabitLogTests: XCTestCase {
         XCTAssertNil(none)
     }
 
+    func testResumeRunsTheStoppedSessionAgainUnlessAnotherStarted() async throws {
+        let store = try await WhoopStore.inMemory()
+        let t0 = at(11, 15, 21)
+        let started = await HabitLog.startHabitStopwatch(store, habitId: "read", startedAt: t0, now: t0)
+        let stopped = await HabitLog.stopHabitStopwatch(store, started, endedAt: t0.addingTimeInterval(600),
+                                                        now: t0.addingTimeInterval(600))
+        await HabitLog.resumeHabitStopwatch(store, stopped, now: t0.addingTimeInterval(620))
+        let resumed = await HabitLog.resolveRunningHabit(store)
+        XCTAssertEqual(resumed?.id, started.id)
+        XCTAssertEqual(resumed?.startedAt, sec(t0), "it runs from its own start")
+
+        let again = await HabitLog.stopHabitStopwatch(store, started, endedAt: t0.addingTimeInterval(700),
+                                                      now: t0.addingTimeInterval(700))
+        let other = await HabitLog.startHabitStopwatch(store, habitId: "meditate", startedAt: t0.addingTimeInterval(800),
+                                                       now: t0.addingTimeInterval(800))
+        await HabitLog.resumeHabitStopwatch(store, again, now: t0.addingTimeInterval(900))
+        let running = await HabitLog.resolveRunningHabit(store)
+        XCTAssertEqual(running?.id, other.id, "another stopwatch started meanwhile: nothing resumes")
+    }
+
     func testASessionByHandIsRefusedOnOverlapAndSavedOtherwise() async throws {
         let store = try await WhoopStore.inMemory()
         let now = at(11, 15, 20)
@@ -204,6 +224,11 @@ final class HabitLogTests: XCTestCase {
         XCTAssertEqual(after.last?.endedAt, sec(at(11, 15, 10, 15)))
         XCTAssertNil(after.last?.note)
 
+        let long = await HabitLog.startHabitStopwatch(store, habitId: "long", startedAt: at(11, 14, 6), now: at(11, 14, 6))
+        let longStopped = await HabitLog.stopHabitStopwatch(store, long, endedAt: at(11, 14, 20), now: at(11, 14, 20))
+        let noteOnly = await HabitLog.amendHabitSession(store, longStopped, startedAt: at(11, 14, 6),
+                                                        endedAt: at(11, 14, 20), note: "Oublié de l'arrêter", now: now)
+        XCTAssertNil(noteOnly, "a note alone is saved even on a stopwatch session past 12 h")
         let running = await HabitLog.startHabitStopwatch(store, habitId: "h", startedAt: at(11, 15, 19), now: now)
         let future = await HabitLog.amendHabitSession(store, running, startedAt: at(11, 15, 21), endedAt: nil,
                                                       note: nil, now: now)

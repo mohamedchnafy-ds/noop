@@ -21,6 +21,8 @@ struct NutritionView: View {
     @Environment(\.showsMoreAvatar) var showsMoreAvatar
 
     @AppStorage(MealJournal.revisionKey) private var mealRevision = 0
+    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell.
+    @AppStorage(EssentialMode.storageKey) private var essentialMode = false
     // The goal settings, read through `currentPlan`: declared so a change on the Goals screen redraws the rings.
     @AppStorage(NutritionGoals.proteinTenthsKey) private var proteinTenths = NutritionGoals.defaultProteinTenths
     @AppStorage(NutritionGoals.fatTenthsKey) private var fatTenths = NutritionGoals.defaultFatTenths
@@ -122,6 +124,19 @@ struct NutritionView: View {
         let current = shown
         let plan = plan
         let groups = NutritionSlots.groupMealsBySlot(current.meals)
+        Group {
+        if essentialMode && showsMoreAvatar {
+            // Personal fork (chantier 20): the ◎ button keeps the day's rings and one action.
+            ScrollView {
+                NutritionEssentialSection(model: NutritionBalanceModel(summary: current, plan: plan),
+                                          dayLine: NutritionFormat.longDay(day),
+                                          animated: summary?.dayKey == dayKey,
+                                          onAdd: { openAddSheet(slot: nil, focusSearch: false) })
+                    .padding(.horizontal, NoopMetrics.screenHPadding)
+                    .padding(.bottom, 90)
+            }
+            .transition(.opacity)
+        } else {
         List {
             Group {
                 header
@@ -177,6 +192,8 @@ struct NutritionView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)
+        }
+        }
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .navigationDestination(isPresented: $showHistory) { NutritionHistoryScreen() }
@@ -292,6 +309,7 @@ struct NutritionView: View {
                 journalHeaderButton(symbol: "target", label: "Nutrition goals", enabled: true) {
                     showGoals = true
                 }
+                EssentialModeButton()
                 MoreAvatarButton()
             }
             // The same day picker as Sleep's night picker (5 Nov.).
@@ -541,6 +559,37 @@ struct NutritionBalanceModel: Equatable {
         case .fat: return fatGoalG
         }
     }
+
+    /// The share of the goal eaten, full at the goal (`NutritionIntakeGauge.intakeArc`).
+    var intakeFill: Double {
+        NutritionIntakeGauge.intakeArc(eaten: eaten.kcal, goal: goalKcal).fill
+    }
+
+    /// A macro's share of its goal, full at the goal; no goal, no fill.
+    func macroFill(_ macro: NutritionMacro) -> Double {
+        let grams = macro.grams(eaten)
+        let target = goal(macro)
+        let scale = max(Double(target ?? 0), grams)
+        return scale > 0 && target != nil ? grams / scale : 0
+    }
+
+    /// Fork chantier 12: past its goal, a ring goes on into a second, darker lap (the share eaten, uncapped).
+    static func overflowFill(eaten: Double, goal: Int?, capped: Double) -> Double {
+        guard let goal, goal > 0 else { return capped }
+        return min(2, eaten / Double(goal))
+    }
+
+    /// The four rings, outside to inside: eaten against the intake goal, then protein, carbs and fat. The
+    /// day's card and the essential Nutrition both draw these.
+    var intakeRings: [TodayRing] {
+        [TodayRing(fraction: Self.overflowFill(eaten: Double(eaten.kcal), goal: goalKcal, capped: intakeFill),
+                   tint: StrandPalette.intakeColor, deep: StrandPalette.intakeDeep)]
+            + NutritionMacro.allCases.map {
+                TodayRing(fraction: Self.overflowFill(eaten: $0.grams(eaten), goal: goal($0),
+                                                      capped: macroFill($0)),
+                          tint: $0.tint, deep: $0.deepTint)
+            }
+    }
 }
 
 /// The day's intake card, compact (fork chantier 9, mockup 4): four flat concentric rings (eaten against the
@@ -567,34 +616,9 @@ struct NutritionBalanceCard: View {
 
     private var still: Bool { motion.poseStill(reduceMotion) }
 
-    /// The share of the goal eaten, full at the goal (`NutritionIntakeGauge.intakeArc`).
-    private var intakeFill: Double {
-        NutritionIntakeGauge.intakeArc(eaten: model.eaten.kcal, goal: model.goalKcal).fill
-    }
-
-    /// A macro's share of its goal, full at the goal; no goal, no fill.
-    private func macroFill(_ macro: NutritionMacro) -> Double {
-        let eaten = macro.grams(model.eaten)
-        let goal = model.goal(macro)
-        let scale = max(Double(goal ?? 0), eaten)
-        return scale > 0 && goal != nil ? eaten / scale : 0
-    }
-
-    /// Fork chantier 12: past its goal, a ring goes on into a second, darker lap (the share eaten, uncapped).
-    private func overflowFill(eaten: Double, goal: Int?, capped: Double) -> Double {
-        guard let goal, goal > 0 else { return capped }
-        return min(2, eaten / Double(goal))
-    }
-
-    private var rings: [TodayRing] {
-        [TodayRing(fraction: overflowFill(eaten: Double(model.eaten.kcal), goal: model.goalKcal, capped: intakeFill),
-                   tint: StrandPalette.intakeColor, deep: StrandPalette.intakeDeep)]
-            + NutritionMacro.allCases.map {
-                TodayRing(fraction: overflowFill(eaten: $0.grams(model.eaten), goal: model.goal($0),
-                                                 capped: macroFill($0)),
-                          tint: $0.tint, deep: $0.deepTint)
-            }
-    }
+    /// The rings come from the model (`NutritionBalanceModel.intakeRings`), which the essential Nutrition
+    /// draws too (personal fork, chantier 20).
+    private var rings: [TodayRing] { model.intakeRings }
 
     /// The calories of a meal just added rise from « eaten » (22 pt in 1.2 s) and fade; the slam of the
     /// number gives the haptic.

@@ -138,6 +138,9 @@ struct SleepView: View {
     // #sleep-layout: the arrangeable analytical-card order + explicit hidden set, byte-identical to the
     // Android SleepLayoutPrefs keys. Reordered via the Arrange sheet; display-only, no metric changes.
     @AppStorage(SleepLayoutPrefs.orderKey) private var sleepSectionOrderRaw = ""
+    /// Personal fork (chantier 20): the essential layout, switched by the ◎ button of the iOS tab shell.
+    @AppStorage(EssentialMode.storageKey) private var essentialMode = false
+    @Environment(\.showsMoreAvatar) private var showsMoreAvatar
     @AppStorage(SleepLayoutPrefs.hiddenKey) private var sleepHiddenSectionsRaw = ""
     @State private var showSleepCustomize = false
     /// Fork chantier 9: the blocks switched back on in « Customize Sleep », drawn under Your nights.
@@ -183,7 +186,11 @@ struct SleepView: View {
                        lazy: true,
                        topBackground: nil) {
             Group {
-                if let resolved {
+                if let resolved, essentialMode && showsMoreAvatar {
+                    // Personal fork (chantier 20): the ◎ button keeps the night's ring alone.
+                    essentialSleep(resolved)
+                        .transition(.opacity)
+                } else if let resolved {
                     // Each top-level section fades + rises in sequence on first appear (Reduce-Motion safe).
                     VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                         if let sleepUndo { sleepUndoBanner(sleepUndo) }
@@ -375,11 +382,19 @@ struct SleepView: View {
 
     // MARK: - 0. Top section — the night card (ring | curves), picker, times
 
-    /// The top of the tab for the displayed night: one card with the stage totals, the ring (score,
-    /// asleep, bed → wake, stages, the need) or the curves, and the bed/wake row that opens the editor
-    /// (fork chantier 9). Every number comes from the same model the cards below read.
-    @ViewBuilder
-    private func sleepTop(_ model: SleepModel) -> some View {
+    /// The essential Sleep (chantier 20): the night card's figures, tonight's aim from the same ledger as
+    /// « Tonight, aim for », the night's breathing from the Indicators' series. Last night only for the two.
+    private func essentialSleep(_ model: SleepModel) -> some View {
+        let ledger = model.sleepDebtLedger
+        return SleepEssentialSection(
+            data: topSectionModel(model),
+            needMinutes: nightOffset == 0 && ledger.needMin > 0 ? ledger.needMin : nil,
+            debtMinutes: ledger.isDebt ? ledger.magnitudeMin : 0,
+            breathsPerMinute: nightOffset == 0 ? model.respiratory.latest : nil)
+    }
+
+    /// What the night card shows of the displayed night; the essential Sleep reads the same (chantier 20).
+    private func topSectionModel(_ model: SleepModel) -> SleepTopSection.Model {
         let night = heroNight(model)
         let hasStages = night.stages.total > 0
         let raw = hasStages ? (nightOffset == 0 ? model.intervals : night.intervals) : []
@@ -388,8 +403,7 @@ struct SleepView: View {
         let need: Double? = ledger.needMin > 0 ? ledger.needMin : nil
         let lastIndex = max(navDays.count - 1, 0)
         let target = night.editTarget
-        SleepTopSection(
-            data: SleepTopSection.Model(
+        return SleepTopSection.Model(
                 nightLabel: nightRelativeLabel,
                 dateLabel: night.spanLabel,
                 canGoBack: nightOffset < lastIndex,
@@ -411,7 +425,18 @@ struct SleepView: View {
                 stagePercent: Dictionary(uniqueKeysWithValues: SleepStage.allCases.map {
                     ($0, stageSharePercent($0, night.stages))
                 }),
-                about: nightAbout(night)),
+                about: nightAbout(night))
+    }
+
+    /// The top of the tab for the displayed night: one card with the stage totals, the ring (score,
+    /// asleep, bed → wake, stages, the need) or the curves, and the bed/wake row that opens the editor
+    /// (fork chantier 9). Every number comes from the same model the cards below read.
+    @ViewBuilder
+    private func sleepTop(_ model: SleepModel) -> some View {
+        let night = heroNight(model)
+        let lastIndex = max(navDays.count - 1, 0)
+        SleepTopSection(
+            data: topSectionModel(model),
             actions: SleepTopSection.Actions(
                 alarms: { router.openAlarms() },
                 previous: { if nightOffset < lastIndex { nightOffset += 1 } },

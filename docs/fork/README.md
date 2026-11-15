@@ -23,6 +23,7 @@ Mémoire du fork personnel `mohamedchnafy-ds/noop`, en français. Les règles de
 | `progression-design.md` | Chantier 2 — Progression du Carnet de force (règles des statuts, muscles, forme). |
 | `ecran-aujourdhui-design.md` | Chantier 1 — écran Aujourd'hui (anneaux, demi-anneaux, FC, Synthèse) et corrections du 2 nov. |
 | `dossier-claude-code.md` | Audit du code (v4.1, `main` 55a249b1) et pistes d'évolution : Coach, FC, planning, nutrition, notifications, laboratoire de santé ; choix du §5.2 tranchés dans `chantier-8-design.md`. |
+| `chantier-20-essentiel.md` | Chantier 20 — mode Essentiel (13 nov.) : bouton ◎, les anneaux seuls avec l'ECG autour (Aujourd'hui), la respiration (Sommeil), le verre (Nutrition), l'Effort de la semaine (Entraînement), l'orbite du Coach ; choix, fichiers, liste « À tester ». |
 | `demarrer-outils.md` | Outils de Démarrer (12 nov.) : journal du bracelet en clair, FC en direct, Respirer, Intervalles. |
 | `audit-delais-builds.md` | Audit des délais modification → IPA (v2, journaux CI du 31 oct. au 2 nov.) et pistes d'accélération. |
 

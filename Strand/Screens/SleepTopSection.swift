@@ -249,7 +249,8 @@ struct SleepTopSection: View {
             Spacer(minLength: NoopMetrics.space2)
             roundButton("alarm.fill", label: "Alarms", action: actions.alarms)
             // The iOS tab shell's More avatar (fork chantier 9); nothing elsewhere. « Customize Sleep »
-            // sits at the foot of the tab.
+            // sits at the foot of the tab. The ◎ button keeps the night's ring alone (chantier 20).
+            EssentialModeButton()
             MoreAvatarButton()
         }
     }

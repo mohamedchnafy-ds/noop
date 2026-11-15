@@ -119,29 +119,28 @@ struct FastingGoalPicker: View {
 
 // MARK: Phases card
 
-/// « The phases of the fast »: the six, with done · current · « in 18 min » against the running fast.
+/// « The phases of the fast »: the six, with done · current · « in 18 min » against the running fast, and
+/// done · « reached at the end » · « not reached » for a fast that is over (judged at its end, from the
+/// same `FastingState` the ring draws: `FastingState.phaseStanding`).
 struct FastingPhasesCard: View {
     let state: FastingState?
     let onPick: (Int) -> Void
 
     private enum Standing { case passed, current, future }
 
+    /// The row's look: a phase a finished fast stopped in reads as reached, never as the current one.
     private func standing(_ index: Int) -> Standing {
         guard let state else { return .future }
-        if index < state.phaseIndex { return .passed }
-        if index == state.phaseIndex { return .current }
-        return .future
+        switch state.phaseStanding(index) {
+        case .passed, .reachedAtEnd: return .passed
+        case .current: return .current
+        case .upcoming, .notReached: return .future
+        }
     }
 
     private func stateText(_ index: Int) -> String {
-        switch standing(index) {
-        case .passed: return String(localized: "done")
-        case .current: return String(localized: "current")
-        case .future:
-            guard let state, state.isRunning else { return String(localized: "to come") }
-            let inMinutes = FastingTimeline.phaseStartHours[index] * 60 - state.elapsedMinutes
-            return String(localized: "in \(FastingFormat.duration(minutes: inMinutes))")
-        }
+        guard let state else { return String(localized: "to come") }
+        return FastingPhaseText.standingText(state.phaseStanding(index))
     }
 
     private func stateColor(_ index: Int) -> Color {
@@ -445,7 +444,9 @@ struct FastingWaterCard: View {
             waterButton(Text("\(250) ml"), filled: true, plus: true) { onAdd(250) }
             waterButton(Text("\(500) ml"), filled: true, plus: true) { onAdd(500) }
             waterButton(Text("Custom · \(customML) ml"), filled: false) { onAdd(customML) }
-            waterButton(Text("Undo the last"), filled: false, enabled: canUndo) { onUndo() }
+            // « Undo » alone: « Undo the last » was cut in half a grid cell (« Annuler la d… »).
+            waterButton(Text("Undo"), filled: false, enabled: canUndo) { onUndo() }
+                .accessibilityLabel(Text("Undo the last"))
         }
     }
 
@@ -629,9 +630,16 @@ struct FastingHistoryCard: View {
                 Spacer()
                 Text("today")
             } else {
+                // Today keeps its initial, like the other bars, and stands out in bold white: the
+                // word « today » under one bar slot broke over three lines in French.
                 ForEach(Array(weekdayLetters().enumerated()), id: \.offset) { index, letter in
+                    let isToday = index == 6
                     Text(verbatim: letter)
+                        .fontWeight(isToday ? Font.Weight.bold : Font.Weight.regular)
+                        .foregroundStyle(isToday ? StrandPalette.textPrimary : StrandPalette.textSecondary)
+                        .lineLimit(1)
                         .frame(maxWidth: .infinity)
+                        .accessibilityLabel(isToday ? Text("today") : Text(verbatim: letter))
                 }
             }
         }
@@ -639,11 +647,10 @@ struct FastingHistoryCard: View {
         .foregroundStyle(StrandPalette.textSecondary)
     }
 
-    /// The initial of each of the last 7 days, today last, « today » for the last one.
+    /// The initial of each of the last 7 days, today last.
     private func weekdayLetters(now: Date = Date(), calendar: Calendar = .current) -> [String] {
         let symbols = calendar.veryShortWeekdaySymbols
         return (0..<7).map { back in
-            if back == 6 { return String(localized: "today") }
             let day = calendar.date(byAdding: .day, value: back - 6, to: now) ?? now
             let weekday = calendar.component(.weekday, from: day) - 1
             return symbols[(weekday + symbols.count) % symbols.count]
@@ -783,14 +790,13 @@ struct FastingPhaseSheet: View {
 
     private var status: String {
         guard let state else { return String(localized: "to come") }
-        if index == state.phaseIndex {
-            return state.isRunning
-                ? String(localized: "you have been here for \(FastingFormat.duration(minutes: state.elapsedMinutes - FastingTimeline.phaseStartHours[index] * 60))")
-                : String(localized: "reached at the end")
+        switch state.phaseStanding(index) {
+        case .passed: return String(localized: "passed")
+        case .current:
+            return String(localized: "you have been here for \(FastingFormat.duration(minutes: state.elapsedMinutes - FastingTimeline.phaseStartHours[index] * 60))")
+        case .reachedAtEnd, .upcoming, .notReached:
+            return FastingPhaseText.standingText(state.phaseStanding(index))
         }
-        if index < state.phaseIndex { return String(localized: "passed") }
-        guard state.isRunning else { return String(localized: "not reached") }
-        return String(localized: "in \(FastingFormat.duration(minutes: FastingTimeline.phaseStartHours[index] * 60 - state.elapsedMinutes))")
     }
 
     var body: some View {

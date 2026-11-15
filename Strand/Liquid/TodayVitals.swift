@@ -89,6 +89,8 @@ enum TodayEnergy {
         let restingKcal: Double
         let activityKcal: Double
         var totalKcal: Double { restingKcal + activityKcal }
+        /// The total in whole kcal, the one rounding every « Spent » and « Net » shows (Today, Nutrition).
+        var totalWholeKcal: Int { Int(totalKcal.rounded()) }
     }
 
     /// A session needs this many heart-rate samples inside it to replace the whole-day estimate there.

@@ -229,8 +229,7 @@ struct SleepModel {
 struct SleepModelInputs {
     /// The cached per-day metric rows (`Repository.days`).
     let days: [DailyMetric]
-    /// One-per-night sessions (`Repository.sleeps`) — the `navSessions` fallback and the
-    /// consistency bedtime-spread series read this directly.
+    /// The merged sessions (`Repository.sleeps`, naps included since #715) — the `navSessions` fallback.
     let sleeps: [CachedSleepSession]
     /// Every un-deduplicated sleep block (`SleepView.allSessions`); empty until the fuller list loads,
     /// in which case the builder falls back to `sleeps` exactly as `navSessions` did.
@@ -433,8 +432,12 @@ extension SleepModel {
     }
 
     /// Consistency: prefer the imported sleep_consistency series when it covers the latest night;
-    /// else the APPROXIMATE rolling bedtime-spread score.
-    static func consistencySeries(days: [DailyMetric], sleeps: [CachedSleepSession],
+    /// else the APPROXIMATE rolling bedtime-spread score, over ONE bedtime per night
+    /// (`bedtimeOnsetsByNight`). Personal fork (13 Nov 2026): it read every stored session, and since
+    /// #715 those include naps and split fragments, so one afternoon nap among the nights pushed the
+    /// spread past 2 h and the tile read a fake « 0 % » (and three sessions passed for three nights).
+    static func consistencySeries(days: [DailyMetric], navDays: [[CachedSleepSession]],
+                                  habitualMidsleepSec: Int?,
                                   importedSleep: [String: ImportedSleepFigures]) -> Metric {
         let imported = importedSleep
         if let lastDay = days.last?.day, imported[lastDay]?.consistencyPct != nil {
@@ -442,14 +445,14 @@ extension SleepModel {
             return (series.last, nil, mean(series), series)
         }
         let cal = Calendar.current
-        func bedMinutes(_ s: CachedSleepSession) -> Double {
-            let d = Date(timeIntervalSince1970: TimeInterval(s.effectiveStartTs))
+        func bedMinutes(_ onsetTs: Int) -> Double {
+            let d = Date(timeIntervalSince1970: TimeInterval(onsetTs))
             let comps = cal.dateComponents([.hour, .minute], from: d)
             var m = Double((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
             if m < 12 * 60 { m += 24 * 60 }   // wrap evening onsets into one continuous scale
             return m
         }
-        let mins = sleeps.map(bedMinutes)
+        let mins = bedtimeOnsetsByNight(navDays: navDays, habitualMidsleepSec: habitualMidsleepSec).map(bedMinutes)
         guard mins.count >= 3 else { return (nil, nil, nil, []) }
         var scores: [Double] = []
         for i in mins.indices {
@@ -462,6 +465,16 @@ extension SleepModel {
             scores.append(Swift.max(0, Swift.min(100, 100 * (1 - sd / 120))))
         }
         return (scores.last, nil, mean(scores), scores)
+    }
+
+    /// One bedtime per night, oldest first: for each day of `navDays` (newest first, as `navDays` builds
+    /// them), the onset of its bridged main night (`SleepView.mainNightSpan`, the canonical bed read).
+    /// Naps and the fragments bridged into a night give no bedtime of their own. Kotlin twin: the onsets
+    /// of `consistencyNightSpans` (SleepNightSelection.kt), read by `consistencySeries` there.
+    static func bedtimeOnsetsByNight(navDays: [[CachedSleepSession]], habitualMidsleepSec: Int?) -> [Int] {
+        navDays.reversed().compactMap { (blocks: [CachedSleepSession]) -> Int? in
+            SleepView.mainNightSpan(blocks, habitualMidsleepSec: habitualMidsleepSec)?.start
+        }
     }
 
     /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the normative
@@ -572,7 +585,8 @@ extension SleepModel {
             isStubNight: isStub,
             performance: performanceSeries(days: inputs.days, importedSleep: inputs.importedSleep),
             efficiency: efficiencySeries(days: inputs.days),
-            consistency: consistencySeries(days: inputs.days, sleeps: inputs.sleeps, importedSleep: inputs.importedSleep),
+            consistency: consistencySeries(days: inputs.days, navDays: dayGroups, habitualMidsleepSec: habitual,
+                                          importedSleep: inputs.importedSleep),
             hoursVsNeeded: hoursVsNeededSeries(days: inputs.days, importedSleep: inputs.importedSleep),
             restorative: restorativeSeries(days: inputs.days),
             respiratory: respiratorySeries(days: inputs.days),

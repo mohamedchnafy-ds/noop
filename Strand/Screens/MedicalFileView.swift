@@ -497,8 +497,9 @@ struct MedicalDocumentReviewSheet: View {
                 saving = true
                 var reviewed = document
                 reviewed.lab = lab
+                let toSave = reviewed
                 Task {
-                    await onSave(reviewed, keepPDF)
+                    await onSave(toSave, keepPDF)
                     if !nutrition.isEmpty { NutritionLabMarkers.addKeys(Array(nutrition)) }
                     saving = false
                     dismiss()

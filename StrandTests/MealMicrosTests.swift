@@ -132,12 +132,12 @@ final class MealMicrosTests: XCTestCase {
         var totals = MicroTotals()
         totals.lineCount = 4
         totals.linesWithMicros = 3
-        totals.amounts = [.iron: 10.8, .salt: 6.3]
+        totals.amounts = [.iron: 9.8, .salt: 6.3]
         totals.missing = [.iron: 1]
         let text = CoachTools.micronutrients(totals, loggedDays: 5, from: "2026-11-01", to: "2026-11-07",
                                              sex: "male", intakeKcal: 2_000,
                                              sources: [.iron: [MicroSource(name: "Lentilles", amount: 4.4)]])
-        XCTAssertTrue(text.contains("iron_mg: 10.8 mg/day · reference 11 mg (98 %) · missing in 1 of 4 foods · most from Lentilles 4.4 mg"), text)
+        XCTAssertTrue(text.contains("iron_mg: 9.8 mg/day · reference 11 mg (89 %) · missing in 1 of 4 foods · most from Lentilles 4.4 mg"), text)
         XCTAssertTrue(text.contains("salt_g: 6.3 g/day · ceiling 5.0 g (126 %)"), text)
         XCTAssertTrue(text.contains("vitD_ug: unknown (no food with a value) · reference 15 µg"), text)
         XCTAssertTrue(CoachTools.micronutrients(MicroTotals(), loggedDays: 0, from: "a", to: "b", sex: "male",

@@ -128,6 +128,9 @@ internal fun buildSleepModel(
     // #sleep-consistency-parity: the full session list (onset times), used by the consistency FALLBACK
     // (bedtime-onset spread). Defaults empty for callers/tests that only exercise the imported path.
     sessions: List<SleepSession> = emptyList(),
+    // The learned habitual midsleep, so the consistency fallback picks each day's main night the way the
+    // hero does (null = cold-start band). Twin of iOS SleepModelInputs.habitualMidsleepSec.
+    habitualMidsleepSec: Long? = null,
     // Today's logical-day key, the anchor for each tile's staleness bound (see [metric]). Injectable so
     // tests can pin the clock instead of depending on the day they happen to run.
     todayKey: String = logicalDayKeyNow(),
@@ -217,7 +220,7 @@ internal fun buildSleepModel(
             val series = days.mapNotNull { imported.consistency[it.day] }
             Metric(series.lastOrNull(), null, mean(series), series)
         } else {
-            consistencySeries(sessions)
+            consistencySeries(sessions, habitualMidsleepSec)
         }
     }
     val hoursVsNeeded = metric(days, todayKey) { d ->
@@ -319,12 +322,14 @@ internal fun fallbackSleepModel(
     sessions: List<SleepSession> = emptyList(),
     todayKey: String = logicalDayKeyNow(),
     is24h: Boolean = true,   // #1821, threaded to the hero's clock label
+    habitualMidsleepSec: Long? = null,
 ): SleepModel? {
     val anchorDay = days.lastOrNull {
         (it.deepMin ?: 0.0) + (it.remMin ?: 0.0) + (it.lightMin ?: 0.0) > 0.0
     }?.day ?: return null
     return buildSleepModel(days, null, imported, selectedDay = anchorDay,
-        napSleepMinByDay = napSleepMinByDay, sessions = sessions, todayKey = todayKey, is24h = is24h)
+        napSleepMinByDay = napSleepMinByDay, sessions = sessions, habitualMidsleepSec = habitualMidsleepSec,
+        todayKey = todayKey, is24h = is24h)
 }
 
 /**
@@ -373,7 +378,8 @@ internal suspend fun buildHostedSleepModel(
     )
 
     val napSleepMinByDay = napSleepMinutesByDay(sleeps, habitualMidsleep)
-    return fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
+    return fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps,
+        habitualMidsleepSec = habitualMidsleep)
 }
 
 /**
@@ -410,7 +416,7 @@ private fun metric(
  * tile shows the SAME number on both platforms (#sleep-consistency-parity). The imported `sleep_consistency`
  * series still wins when present; this is the strap-only fallback.
  */
-internal fun consistencySeries(sessions: List<SleepSession>): Metric {
+internal fun consistencySeries(sessions: List<SleepSession>, habitualMidsleepSec: Long? = null): Metric {
     // Byte-identical to iOS SleepView.consistencySeries (#sleep-consistency-parity): BEDTIME-ONSET
     // regularity, not the old duration proxy. Each session's local bed-minute (hour*60+min, evening
     // onsets wrapped +24h) over a trailing-14 SD → 100*(1 - sd/120). Sessions are ordered by startTs to
@@ -422,7 +428,12 @@ internal fun consistencySeries(sessions: List<SleepSession>): Metric {
         if (m < 12 * 60) m += 24 * 60   // wrap evening onsets into one continuous scale
         return m
     }
-    val mins = sessions.sortedBy { it.startTs }.map { bedMinutes(it.effectiveStartTs) }
+    // Personal fork (13 Nov 2026): ONE bedtime per night, the onset of each wake-day's bridged main night
+    // ([consistencyNightSpans], the same nights the consistency card draws), oldest first. Every session
+    // used to count, naps and split fragments included, so one afternoon nap among the nights pushed the
+    // spread past 2 h and the tile read a fake 0 %. Twin of iOS SleepModel.bedtimeOnsetsByNight.
+    val mins = consistencyNightSpans(sessions, habitualMidsleepSec, limit = Int.MAX_VALUE)
+        .map { bedMinutes(it.first) }
     if (mins.size < 3) return Metric(null, null, null, emptyList())
     val scores = ArrayList<Double>()
     for (i in mins.indices) {

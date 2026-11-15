@@ -64,13 +64,10 @@ struct FastingView: View {
 
     private var still: Bool { motion.poseStill(reduceMotion) }
 
-    /// The state shown: the running fast, else the fast just over (until « New fast »), else nothing.
+    /// The state shown: the running fast, else the fast just over (until « New fast », or the end of the
+    /// logical day after its end), else nothing. The one rule: `FastingLog.shownFastingState`.
     private var state: FastingState? {
-        if let running { return FastingLog.fastingState(of: running, now: now) }
-        if let latest, latest.endedAt != nil, latest.id != dismissedDoneId {
-            return FastingLog.fastingState(of: latest, now: now)
-        }
-        return nil
+        FastingLog.shownFastingState(running: running, newest: latest, dismissedId: dismissedDoneId, now: now)
     }
 
     private var goalML: Int { repo.hydrationGoalML(profileSex: profile.sex) }

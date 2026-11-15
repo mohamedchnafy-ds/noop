@@ -1,0 +1,37 @@
+# TEMPORARY (personal fork): publishes Room's generated schema export for a branch, so a new
+# `roomSchemas/<version>.json` fixture can be committed byte-for-byte without a local Android SDK.
+# Lives only on `ci/room-schema-*` branches; never merged.
+name: Temp - Room schema export
+
+on:
+  push:
+    branches: ['ci/room-schema-*']
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Generate the Room schema export
+        run: ./gradlew kspFullDebugKotlin
+      - name: Publish it as a release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir=app/build/generated/roomSchemas/com.noop.data.WhoopDatabase
+          ls -la "$dir"
+          tag="room-schema-${GITHUB_SHA::7}"
+          gh release create "$tag" "$dir"/*.json -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Room schema export ${GITHUB_SHA::7}" --prerelease \
+            --notes "Temporary: Room's generated schema export for ${GITHUB_SHA}."

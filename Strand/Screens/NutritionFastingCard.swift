@@ -139,10 +139,18 @@ struct NutritionFastingCard: View {
             .id(state.phaseIndex)
             .transition(.opacity)
         } else if let state {
-            Text("Over · \(FastingFormat.duration(minutes: state.elapsedMinutes)) out of \(FastingFormat.duration(minutes: state.fast.goalMinutes))")
-                .font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .lineLimit(1)
+            // The goal drops out when the whole line does not fit (« Terminé · 17 h 10 min sur 1… » on
+            // an iPhone): the ring beside it already shows it under the duration.
+            ViewThatFits(in: .horizontal) {
+                Text("Over · \(FastingFormat.duration(minutes: state.elapsedMinutes)) out of \(FastingFormat.duration(minutes: state.fast.goalMinutes))")
+                    .lineLimit(1)
+                Text("Over · \(FastingFormat.duration(minutes: state.elapsedMinutes))")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .font(StrandFont.footnote)
+            .foregroundStyle(StrandPalette.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             Text("No fast running · Start ›")
                 .font(StrandFont.footnote)

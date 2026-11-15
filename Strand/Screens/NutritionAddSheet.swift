@@ -551,6 +551,10 @@ struct NutritionPortionPanel: View {
                 .padding(.horizontal, NoopMetrics.space3)
                 .padding(.vertical, 10)
                 .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            // Fork chantier 22: the portion's micronutrients, when the food has some.
+            if let per100 = MealMicros.microsPer100(foodRef: hit.foodRef), !per100.isEmpty {
+                NutritionPortionMicros(micros: MealMicros.portionMicros(per100, grams: grams))
+            }
             NoopButton("Add to journal", systemImage: "plus", kind: .primary, fullWidth: true, action: onAdd)
                 .disabled(saving)
         }

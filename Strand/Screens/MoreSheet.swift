@@ -14,7 +14,7 @@ import WhoopStore
 
 /// One row of the More sheet.
 enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
-    case health, stress, breathe, labBook
+    case health, stress, breathe, labBook, medicalFile
     case trends, routeMap
     case alarms, backupSync, dataSources, settings
     // « Advanced », folded.
@@ -48,6 +48,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .stress: return "Stress"
         case .breathe: return "Breathe"
         case .labBook: return "Lab Book"
+        case .medicalFile: return "Medical file"
         case .trends: return "Trends"
         case .routeMap: return "Map"
         case .alarms: return "Alarms"
@@ -79,6 +80,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .stress: return "bolt.heart.fill"
         case .breathe: return "wind"
         case .labBook: return "books.vertical.fill"
+        case .medicalFile: return "cross.case.fill"
         case .trends: return "chart.line.uptrend.xyaxis"
         case .routeMap: return "map.fill"
         case .explore: return "chart.xyaxis.line"
@@ -98,6 +100,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .stress: return StrandPalette.metricAmber
         case .breathe: return StrandPalette.metricCyan
         case .labBook: return StrandPalette.metricPurple
+        case .medicalFile: return StrandPalette.metricRose
         case .trends: return StrandPalette.metricCyan
         case .routeMap: return StrandPalette.metricRose
         case .explore: return StrandPalette.effortColor
@@ -134,7 +137,7 @@ enum MoreSheetSection: CaseIterable, Identifiable {
 
     var entries: [MoreSheetEntry] {
         switch self {
-        case .healthRecovery: return [.health, .stress, .breathe, .labBook]
+        case .healthRecovery: return [.health, .stress, .breathe, .labBook, .medicalFile]
         case .analysis: return [.trends, .explore, .routeMap]
         case .dataSettings: return [.alarms, .backupSync, .dataSources, .settings]
         }

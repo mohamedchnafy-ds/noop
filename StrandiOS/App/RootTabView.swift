@@ -732,6 +732,8 @@ private struct MoreGroupScreen: View {
 private enum MoreDestination: Hashable {
     case trends, routeMap, insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, liftLog, nutrition, health, labBook, stress, breathe, intervals, rhythm
+    /// Fork chantier 23: the medical file.
+    case medicalFile
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
     /// Personal fork, chantier 10: the Élan section (motivation), from the row under the profile card.
@@ -746,6 +748,7 @@ private enum MoreDestination: Hashable {
         case .stress: self = .stress
         case .breathe: self = .breathe
         case .labBook: self = .labBook
+        case .medicalFile: self = .medicalFile
         case .trends: self = .trends
         case .routeMap: self = .routeMap
         case .alarms: self = .alarms
@@ -803,6 +806,7 @@ private enum MoreDestination: Hashable {
         case .nutrition:       NutritionView()
         case .health:          HealthView()
         case .labBook:         LabBookView()
+        case .medicalFile:     MedicalFileView()
         case .stress:          StressView()
         case .breathe:         BreathingView()
         case .intervals:       IntervalTimerView()

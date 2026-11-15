@@ -227,6 +227,7 @@ struct CoachDataView: View {
                 onDemandRow("Your Journal and Lab Book")
                 onDemandRow("Your meals over several days")
                 onDemandRow("Any series of Analyses, sleep stages and macros day by day")
+                onDemandRow("Your habits and their notes, only when you ask about them")
                 onDemandRow("Charts of your data under its answer")
                 if !coach.dataConsent {
                     Text("Off while “Use my data” is off.")

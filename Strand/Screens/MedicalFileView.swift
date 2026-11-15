@@ -95,7 +95,9 @@ struct MedicalFileView: View {
 
     private func section<Rows: View>(title: LocalizedStringKey, empty: LocalizedStringKey, isEmpty: Bool,
                                      onAdd: @escaping () -> Void, @ViewBuilder rows: () -> Rows) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // Built here: the card's content closure escapes, the `rows` parameter does not.
+        let content = rows()
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 CoachSectionTitle(title)
                 Spacer()
@@ -115,7 +117,7 @@ struct MedicalFileView: View {
                             .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
-                    rows()
+                    content
                 }
             }
         }

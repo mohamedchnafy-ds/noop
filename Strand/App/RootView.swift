@@ -46,8 +46,8 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         case .live: return "Live"
         case .breathe: return "Breathe"
         case .intervals: return "Intervals"
-        case .explore: return "Explore"
-        case .compare: return "Compare"
+        case .explore: return "My chart"
+        case .compare: return "My chart"
         case .insights: return "Insights"
         case .sleep: return "Sleep"
         case .trends: return "Trends"
@@ -90,8 +90,8 @@ enum NavItem: String, CaseIterable, Identifiable, Hashable {
         case .live: return String(localized: "Live")
         case .breathe: return String(localized: "Breathe")
         case .intervals: return String(localized: "Intervals")
-        case .explore: return String(localized: "Explore")
-        case .compare: return String(localized: "Compare")
+        case .explore: return String(localized: "My chart")
+        case .compare: return String(localized: "My chart")
         case .insights: return String(localized: "Insights")
         case .sleep: return String(localized: "Sleep")
         case .trends: return String(localized: "Trends")
@@ -439,8 +439,7 @@ struct RootView: View {
         case .live: liveDetail
         case .breathe: BreathingView()
         case .intervals: IntervalTimerView()
-        case .explore: MetricExplorerView()
-        case .compare: CompareView()
+        case .explore, .compare: MyChartView()
         case .insights: InsightsView()
         case .sleep: SleepView()
         case .trends: TrendsView()

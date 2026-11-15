@@ -167,6 +167,9 @@ struct LiquidTodayView: View {
     @State private var showDayPicker = false
     @State private var heartRateCardFrame: CGRect = .null
     @State private var stressCardFrame: CGRect = .null
+    /// Fork chantier 17: the « My chart » card, left alone by the day swipe like the other charts.
+    @State private var myChartCardFrame: CGRect = .null
+    @AppStorage(MyChartStore.showOnTodayKey) private var showMyChart = true
     private static let daySwipeSpace = "liquidTodayDaySwipeSpace"
 
     // PERF: the body was rescanning repo.days (599 days) ~23× per pass for displayDay and ~3× for
@@ -329,7 +332,8 @@ struct LiquidTodayView: View {
     /// A finished swipe that started at `start` (in `daySwipeSpace`) and travelled `dx` × `dy`: one day older
     /// or newer, clamped, unless it started on a chart that reads its own drags.
     private func applyDaySwipe(start: CGPoint, dx: CGFloat, dy: CGFloat) {
-        guard !heartRateCardFrame.contains(start), !stressCardFrame.contains(start) else { return }
+        guard !heartRateCardFrame.contains(start), !stressCardFrame.contains(start),
+              !myChartCardFrame.contains(start) else { return }
         guard abs(dx) > abs(dy) * 1.5, abs(dx) > 50 else { return }
         let delta = TodayView.daySwipeDelta(dx: dx)
         let next = Self.clampedDayOffset(current: selectedDayOffset, delta: delta,
@@ -425,7 +429,10 @@ struct LiquidTodayView: View {
                             keyMetricsSection
                             restoredBlocksSection
                         case .heartRate: heartRateSection
-                        case .stress: stressSection
+                        case .stress:
+                            stressSection
+                            // Fork chantier 17: « My chart » sits right under Stress, on every day.
+                            if showMyChart { myChartSection }
                         // Today v2: its three numbers live in the hero; filtered out of `sectionOrder`.
                         case .recoveryVitals: EmptyView()
                         case .yourCards: yourCardsSection
@@ -493,6 +500,7 @@ struct LiquidTodayView: View {
         .coordinateSpace(name: Self.daySwipeSpace)
         .onPreferenceChange(LiquidHeartRateCardFrameKey.self) { heartRateCardFrame = $0 }
         .onPreferenceChange(LiquidStressCardFrameKey.self) { stressCardFrame = $0 }
+        .onPreferenceChange(LiquidMyChartCardFrameKey.self) { myChartCardFrame = $0 }
         // Swipe left/right to change DAYS (WHOOP-style); the only horizontal swipe on Today (the swipe
         // between tabs is gone, 8 Nov.).
         #if os(iOS)
@@ -794,6 +802,19 @@ struct LiquidTodayView: View {
             .background {
                 GeometryReader { geometry in
                     Color.clear.preference(key: LiquidHeartRateCardFrameKey.self,
+                                           value: geometry.frame(in: .named(Self.daySwipeSpace)))
+                }
+            }
+    }
+
+    // MARK: - My chart (fork chantier 17)
+
+    private var myChartSection: some View {
+        MyChartCard(animated: dataLoaded)
+            .background {
+                // The card is a chart too: a horizontal drag on it must not change the day.
+                GeometryReader { geometry in
+                    Color.clear.preference(key: LiquidMyChartCardFrameKey.self,
                                            value: geometry.frame(in: .named(Self.daySwipeSpace)))
                 }
             }
@@ -2179,6 +2200,12 @@ private struct LiquidHeartRateCardFrameKey: PreferenceKey {
 
 /// The stress card's frame, so the day swipe leaves it alone like the heart-rate card (fork chantier 9).
 private struct LiquidStressCardFrameKey: PreferenceKey {
+    static let defaultValue: CGRect = .null
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+}
+
+/// The « My chart » card's frame, so the day swipe leaves it alone (fork chantier 17).
+private struct LiquidMyChartCardFrameKey: PreferenceKey {
     static let defaultValue: CGRect = .null
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }

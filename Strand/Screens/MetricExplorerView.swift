@@ -41,6 +41,8 @@ private func longDate(_ d: Date) -> String {
 
 /// The category accent (colour communicates category only — never decoration).
 func metricAccent(_ m: MetricDescriptor) -> Color {
+    // Fork chantier 17: one colour per measure, shared with Today, Trends and My chart.
+    if let tint = MeasureColor.tint(for: m) { return tint }
     switch m.key {
     case "recovery", "sleep_performance", "hours_vs_needed_pct", "sleep_consistency",
          "restorative_pct", "restorative_min", "sleep_efficiency", "sleep_total_min",
@@ -713,7 +715,7 @@ private struct MetricRow: View {
 /// The full analytic dossier for one metric, built ONLY from locked components:
 /// a SegmentedPillControl range, a hero ChartCard (line + latest "as of"), a uniform
 /// StatTile row (Average / Min / Max / Latest / Δ), and a "What correlates" NoopCard.
-struct MetricDetailView: View {
+struct MetricDetailLegacyView: View {
     let metric: MetricDescriptor
     @EnvironmentObject var repo: Repository
     // Profile basics for the Fitness Age not-ready countdown (age/sex gate its readiness lead). Injected

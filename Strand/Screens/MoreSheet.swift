@@ -24,19 +24,20 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    /// The six screens « Advanced » still holds. Fork chantier 17, step 2: nine others left the sheet (see
-    /// `leftTheSheet`); these six wait for their own step (Explorer and Compare become « My chart »,
-    /// What moves you / Intelligence / Insights become the Journal, Apple Health joins Data Sources).
+    /// The four screens « Advanced » still holds. Fork chantier 17, step 2: nine others left the sheet (see
+    /// `leftTheSheet`); these four wait for their own step (What moves you / Intelligence / Insights become
+    /// the Journal, Apple Health joins Data Sources). Step 3: Explorer and Compare became « My chart »,
+    /// one row in Analysis.
     static let advanced: [MoreSheetEntry] = [
-        .explore, .compare, .insightsHub, .intelligence, .insights, .appleHealth,
+        .insightsHub, .intelligence, .insights, .appleHealth,
     ]
 
-    /// The nine screens that left the sheet in step 2. Their files stay; Settings opens most of them
+    /// The ten screens that left the sheet (step 2, then Compare in step 3). Their files stay; Settings opens most of them
     /// (Automations, Power saving, Siri, What NOOP reads, Test Centre, the Shortcuts export), Automations
     /// links to Rhythm, and the two with no use for this strap (Fused data, Mi Band) are no longer offered.
     static let leftTheSheet: [MoreSheetEntry] = [
         .rhythm, .fusedRecord, .miBand, .shortcutsExport, .noopLimitations,
-        .automations, .siriShortcuts, .powerSaving, .testCentre,
+        .automations, .siriShortcuts, .powerSaving, .testCentre, .compare,
     ]
 
     var isAdvanced: Bool { Self.advanced.contains(self) }
@@ -54,7 +55,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .dataSources: return "Data Sources"
         case .settings: return "Settings"
         case .rhythm: return "Rhythm"
-        case .explore: return "Explore"
+        case .explore: return "My chart"
         case .compare: return "Compare"
         case .insightsHub: return "What Moves You"
         case .intelligence: return "Intelligence"
@@ -80,6 +81,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .labBook: return "books.vertical.fill"
         case .trends: return "chart.line.uptrend.xyaxis"
         case .routeMap: return "map.fill"
+        case .explore: return "chart.xyaxis.line"
         case .alarms: return "alarm.fill"
         case .backupSync: return "externaldrive.fill.badge.icloud"
         case .dataSources: return "externaldrive.fill"
@@ -98,6 +100,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
         case .labBook: return StrandPalette.metricPurple
         case .trends: return StrandPalette.metricCyan
         case .routeMap: return StrandPalette.metricRose
+        case .explore: return StrandPalette.effortColor
         case .alarms: return StrandPalette.caloriesActivity
         default: return StrandPalette.textTertiary
         }
@@ -107,7 +110,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
     var formerGroup: LocalizedStringKey? {
         switch self {
         case .rhythm: return "Health"
-        case .explore, .compare, .insightsHub, .intelligence, .insights: return "Analysis"
+        case .compare, .insightsHub, .intelligence, .insights: return "Analysis"
         case .fusedRecord, .appleHealth, .miBand, .shortcutsExport, .noopLimitations: return "Data"
         case .automations, .siriShortcuts, .powerSaving, .testCentre: return "App settings"
         default: return nil
@@ -132,7 +135,7 @@ enum MoreSheetSection: CaseIterable, Identifiable {
     var entries: [MoreSheetEntry] {
         switch self {
         case .healthRecovery: return [.health, .stress, .breathe, .labBook]
-        case .analysis: return [.trends, .routeMap]
+        case .analysis: return [.trends, .explore, .routeMap]
         case .dataSettings: return [.alarms, .backupSync, .dataSources, .settings]
         }
     }

@@ -1,6 +1,6 @@
 # Chantier 17 — Réglages, « Avancé » et les écrans oubliés (10 nov. 2026)
 
-**État** (10 nov.) : **plan validé par Mohamed** (fiche dans `main` par la PR #135) ; **étape 1 fusionnée : PR #136, `main` 6b3a80d** (Stress avant la Synthèse), à valider sur le téléphone avec la prochaine IPA. Prochaine étape, dans une nouvelle conversation : la maquette de l'étape 2 (Réglages et feuille Plus).
+**État** (10 nov., soir) : **plan validé par Mohamed** (fiche dans `main` par la PR #135) ; **étape 1 fusionnée (PR #136)** ; **étape 2 fusionnée** (PR #137, #138, #139, `main` e8ab909) ; **étape 3 (Mon graphique)** : maquette validée, code écrit (moteur, atelier, carte d'Aujourd'hui, fiche d'une mesure, couleurs, feuille Plus), PR ouverte avec l'IPA `build/mon-graphique` (voir « Étape 3 : code » ci-dessous). Prochaine étape, dans une nouvelle conversation : la maquette de l'étape 4 (Journal, prévision, Rythme).
 
 Numéro : Mohamed a dit « chantier 16 » ; le 16 est déjà pris par Tendances (fusionné le 8 nov.), ce chantier est donc le **17**.
 
@@ -121,11 +121,31 @@ Maquette validée par Mohamed (« go », 10 nov.) : https://claude.ai/artifact/M
 **État (10 nov.)** : PR 1 #137, PR 2 et PR 3 ouvertes (branches `claude/laughing-fermat-phluu0`, `-p2`, `-p3`, empilées ; fusionner dans l'ordre). Après la PR 3, la feuille Plus compte « Avancé · 6 écrans » (Explorer, Comparer, Ce qui te fait bouger, Intelligence, Perspectives, Apple Santé) ; les 9 autres (`MoreSheetEntry.leftTheSheet`) gardent leur fichier. La ligne Série est dans Tendances › Bilan (`TrendsBilanCard.streak`).
 Écarts assumés de la PR 1 : la valeur « 06:04 » des Alarmes (en-tête Sommeil et ligne) n'est pas encore lue ; un résultat de recherche s'ouvre par un tap sur le nom de son domaine (pas de défilement jusqu'à la ligne) ; la phrase d'accroche de « À propos » est retirée.
 
+## Étape 3 : code de Mon graphique (10 nov. 2026)
+Maquette validée par Mohamed : https://claude.ai/artifact/7jHFzHSkfEcfuZMfU2odyU (planches : la carte, l'atelier, la fiche d'une mesure, les couleurs, « ce qui part »). **Quatre choix (10 nov.)** : VFC **cyan** partout ; périodes de l'atelier **S · M · 3M · 6M · 1A · Tout** (+ ‹ ›) ; graphiques enregistrés **sur l'iPhone seulement** (UserDefaults `myChart.saved.v1`, hors `.noopbak`, aucune clé Android) ; carte d'Aujourd'hui avec **pastilles** de tous les graphiques enregistrés, la Deep Timeline (courbe de la journée) refaite à l'étape 5.
+
+**Code** (une seule PR, la session n'avait qu'une branche ; deux commits) :
+- `Strand/Data/MyChart.swift` : le modèle (`MyChartSpec`, `MyChartItem`, `MyChartStore`) et le **moteur pur** `MyChartEngine` (jour → numéro de jour, fenêtre de période et zoom, moyenne par 3 ou 7 jours au-delà de 4 / 8 mois, domaines d'axe gauche / droite avec inversion, échelle auto / dès 0 / fixe, ticks, corrélation, bande personnelle). Testé par `StrandTests/MyChartTests.swift`.
+- `Strand/Screens/MyChartViews.swift` : le tracé (`MyChartPlot`, un `Canvas`), la carte d'Aujourd'hui (`MyChartCard`, sous le Stress, `case .stress` de `LiquidTodayView`, exclue du balayage de jours), l'atelier (`MyChartView` : mesures, type, axe, échelle, inverser, comparer les formes, zoom par fenêtre à poignées, période + ‹ ›, phrase « ce qui va ensemble », mes graphiques) et ses deux feuilles.
+- `Strand/Screens/MetricSheetView.swift` : la **fiche d'une mesure** refaite (`MetricDetailView` devient un aiguilleur ; l'ancienne fiche est `MetricDetailLegacyView`, gardée pour pas, pas estimés, VO₂ max estimé, température cutanée et Fitness Age).
+- Couleurs : `MeasureColor` (appelée en tête de `metricAccent`) : Charge vert, Effort bleu, Sommeil violet, VFC cyan, FC repos rose, Stress jaune, Poids sable, Calories ingérées brun, macros leurs couleurs, pas orange.
+- Feuille Plus : « Explorer » devient **Mon graphique** (section Analyse), « Comparer » quitte la feuille ; les deux ouvrent l'atelier (sidebar macOS, raccourcis `noop://explore` et `noop://compare` compris). « Explorer » (la liste du catalogue) reste atteignable par « Afficher toutes les métriques » d'Aujourd'hui et le pied de Tendances ; les fichiers d'Explorer et de Comparer restent dans le dépôt.
+- Écarts avec la maquette : la carte se masque par un interrupteur « Afficher dans Aujourd'hui » **dans l'atelier** (pas dans Personnaliser Aujourd'hui, pour ne pas toucher à `TodaySection` ni à sa parité Android) ; l'inversion s'applique à l'axe entier ; « Pas de zoom à deux doigts » : le zoom passe par la fenêtre à poignées et les boutons + / − / période entière.
+- Aucune donnée en base, aucune migration ; 48 clés de traduction (10 langues) ; Android inchangé.
+
 ## Journal
 - **10 nov.** : demande de Mohamed, trois audits du code (Réglages ; les 15 écrans « Avancé » ; le reste de l'app), quatre choix, plan en 8 étapes. Trouvé en avance sur `main` : la PR #134 (`build/animations-4`, un commit d'animations), choix de Mohamed : elle attend sa validation de l'IPA `build/animations-4`, l'étape 1 part de `main`. Fiche mise dans `main` par une PR de documentation ; étape 1 codée dans la même conversation, les suivantes dans une conversation chacune.
 - **10 nov., étape 1 (PR #136)** : `TodayLayoutPrefs.liquidV5Order` retire le Stress de l'ordre enregistré et le replace juste avant la Synthèse ; appliqué une fois (`today.liquidLayoutV5`, `LiquidTodayView.applyLayoutV5IfNeeded`, après v2, v3, v4) ; `liquidDefaultOrderRaw` (page neuve et « Réinitialiser » de Personnaliser) donne anneaux → FC → Stress → Synthèse → Métriques. Une carte Stress masquée reste masquée (la visibilité est stockée à part). Test `testLayoutV5PutsStressAboveSynthesisAndKeepsTheRest`. Aucune clé de traduction, aucune donnée stockée nouvelle ; Android inchangé (ordre du Liquid Today, iPhone seulement).
 
-## À tester (prochaine IPA)
+## À tester (IPA `build/mon-graphique`)
+- **Mon graphique, carte** (Aujourd'hui, sous le Stress) : « Première fois » (texte + « Créer un graphique »), puis un graphique enregistré : le tracé se dessine à l'ouverture, appui long puis glisser = date et valeurs, les pastilles changent de graphique, « Modifier › » ouvre l'atelier ; le balayage horizontal sur la carte ne change pas le jour. **Captures à envoyer** (carte, atelier).
+- **Atelier** : ajouter / retirer une mesure (4 au plus, les mesures vides masquées), type courbe / barres / aires / points, axe gauche / droit, échelle dès 0 / fixe, « Inverser l'axe », « Comparer les formes », la fenêtre de zoom (glisser, poignées, + / −), la période et ‹ ›, la phrase « Quand … monte, … monte aussi », Mes graphiques (nom, épingler, nouveau, supprimer), Enregistrer ; un graphique enregistré revient sur la carte.
+- **Fiche d'une mesure** (tuile d'Aujourd'hui, ligne Signaux de Tendances, « Analyses › » du Coach) : chiffre du jour, phrase contre la bande, courbe avec sa bande, Moyenne / Plus bas / Plus haut, « Ce qui bouge avec … » (un tap ouvre l'atelier avec les deux), « Ouvrir dans Mon graphique », Relevés ; les pas, le VO₂ max estimé, la température cutanée et Fitness Age gardent l'ancienne fiche.
+- **Couleurs** : VFC cyan partout (Aujourd'hui, Tendances, fiche, Coach), Charge verte, Effort bleu, Sommeil violet, Stress jaune.
+- **Feuille Plus** : « Mon graphique » dans Analyse ; Explorer et Comparer n'y sont plus.
+- **Étape 1** (ancien) : Aujourd'hui dans l'ordre anneaux → Fréquence cardiaque → Stress → Mon graphique → Synthèse → Métriques.
+
+## À tester (prochaine IPA, étape 1)
 - **Étape 1** : Aujourd'hui dans l'ordre anneaux → Fréquence cardiaque → Stress → Synthèse → Métriques, sans rien toucher ; Personnaliser Aujourd'hui → l'ordre montre Stress au-dessus de Synthèse ; un ordre que tu as changé toi-même ailleurs est gardé ; si tu redescends le Stress à la main, il y reste aux lancements suivants.
 
 ## Journal (suite)

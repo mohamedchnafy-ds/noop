@@ -83,6 +83,11 @@ enum HabitLog {
     /// UserDefaults: the id of the habit last started; the Home Screen quick action offers it.
     static let lastStartedKey = "habits.lastStartedId"
 
+    /// UserDefaults: the title and subtitle of the Home Screen quick action, written after every change
+    /// (`refreshHabitQuickAction`) and read when the menu is installed (chantier 24 PR C).
+    static let quickActionTitleKey = "habits.quickActionTitle"
+    static let quickActionSubtitleKey = "habits.quickActionSubtitle"
+
     /// The longest session the editor accepts, seconds (12 h). The stopwatch itself has no limit.
     static let maxSessionSeconds = 12 * 3_600
 
@@ -244,6 +249,40 @@ enum HabitLog {
         ]
         let earliest = candidates.min() ?? today
         return calendar.date(byAdding: .day, value: -1, to: earliest) ?? earliest
+    }
+
+    // MARK: The Home Screen quick action (chantier 24 PR C)
+
+    /// The quick action's words: « Stop · Lecture » while a stopwatch runs, else the habit started last
+    /// (« Lecture », which starts it), else « Habits » (which opens the screen). PURE: tested on its own.
+    static func habitQuickActionText(runningName: String?, lastName: String?) -> (title: String, subtitle: String?) {
+        if let runningName { return (String(localized: "Stop · \(runningName)"), String(localized: "Habit stopwatch")) }
+        if let lastName { return (lastName, String(localized: "Start the stopwatch")) }
+        return (String(localized: "Habits"), nil)
+    }
+
+    /// Writes the quick action's words for the store as it is now.
+    static func refreshHabitQuickAction(_ store: WhoopStore) async {
+        let habits = await loadHabitList(store)
+        let running = await resolveRunningHabit(store)
+        let runningName = running.flatMap { open in habits.first { $0.id == open.habitId }?.name }
+        let lastId = UserDefaults.standard.string(forKey: lastStartedKey)
+        let lastName = habits.first { $0.id == lastId }?.name
+        let text = habitQuickActionText(runningName: runningName, lastName: lastName)
+        UserDefaults.standard.set(text.title, forKey: quickActionTitleKey)
+        UserDefaults.standard.set(text.subtitle, forKey: quickActionSubtitleKey)
+    }
+
+    /// What the quick action does before the Habits screen opens: stop the stopwatch running, else start
+    /// the habit started last (if it still exists), else nothing.
+    static func performHabitQuickAction(_ store: WhoopStore, now: Date = Date()) async {
+        if let running = await resolveRunningHabit(store) {
+            await stopHabitStopwatch(store, running, endedAt: now, now: now)
+            return
+        }
+        let lastId = UserDefaults.standard.string(forKey: lastStartedKey)
+        guard let habit = await loadHabitList(store).first(where: { $0.id == lastId }) else { return }
+        await startHabitStopwatch(store, habitId: habit.id, startedAt: now, now: now)
     }
 
     // MARK: Reads

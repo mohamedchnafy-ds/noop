@@ -241,6 +241,29 @@ final class HabitLogTests: XCTestCase {
         XCTAssertNil(stillRunning?.endedAt, "a running session keeps running")
     }
 
+    func testTheQuickActionStopsElseStartsTheLastHabit() async throws {
+        XCTAssertTrue(HabitLog.habitQuickActionText(runningName: "Lecture", lastName: "Guitare").title.contains("Lecture"))
+        XCTAssertEqual(HabitLog.habitQuickActionText(runningName: nil, lastName: "Guitare").title, "Guitare")
+        XCTAssertNil(HabitLog.habitQuickActionText(runningName: nil, lastName: nil).subtitle)
+
+        let store = try await WhoopStore.inMemory()
+        let habit = await HabitLog.createHabit(store, name: "Lecture", colorKey: "cyan", symbol: "book.fill")
+        let id = try XCTUnwrap(habit?.id)
+        UserDefaults.standard.set(id, forKey: HabitLog.lastStartedKey)
+        let t0 = at(11, 15, 21)
+        await HabitLog.performHabitQuickAction(store, now: t0)
+        let started = await HabitLog.resolveRunningHabit(store)
+        XCTAssertEqual(started?.habitId, id)
+        await HabitLog.refreshHabitQuickAction(store)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: HabitLog.quickActionTitleKey),
+                       HabitLog.habitQuickActionText(runningName: "Lecture", lastName: "Lecture").title)
+        await HabitLog.performHabitQuickAction(store, now: t0.addingTimeInterval(900))
+        let none = await HabitLog.resolveRunningHabit(store)
+        XCTAssertNil(none)
+        let rows = await HabitLog.loadHabitSessions(store, habitId: id)
+        XCTAssertEqual(rows.first?.endedAt, sec(t0) + 900)
+    }
+
     func testHabitsAreCreatedEditedAndRemovedWithTheirSessions() async throws {
         let store = try await WhoopStore.inMemory()
         let blank = await HabitLog.createHabit(store, name: "  ", colorKey: "cyan", symbol: "book.fill")

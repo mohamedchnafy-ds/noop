@@ -195,9 +195,15 @@ struct RootTabView: View {
         }
         .onChange(of: router.moreRequested) { _, req in
             if req {
+                router.moreRequested = false
+                // Personal fork, chantier 24 PR C: the sheet asked for on Habits (the habit banner's tap).
+                if router.habitsRequested {
+                    router.habitsRequested = false
+                    openMoreScreen(.habits)
+                    return
+                }
                 morePath = NavigationPath()
                 showMore = true
-                router.moreRequested = false
             }
         }
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
@@ -333,8 +339,13 @@ struct RootTabView: View {
     /// The More sheet opened on Élan (personal fork, chantier 10 PR C): over whatever sheet the shell had
     /// up, which must be gone before another can be presented; a sheet already up only changes its path.
     private func openElanScreen() {
+        openMoreScreen(.elan)
+    }
+
+    /// The More sheet opened on `destination`, over any sheet the shell had up (Élan, Habits).
+    private func openMoreScreen(_ destination: MoreDestination) {
         var path = NavigationPath()
-        path.append(MoreDestination.elan)
+        path.append(destination)
         if showMore {
             morePath = path
             return
@@ -406,11 +417,20 @@ struct RootTabView: View {
         guard homeScreenQuickActionsEnabled,
               let action = homeScreenQuickActions.pendingAction else { return }
 
-        let destination: QuickAction = switch action {
-        case .liveHeartRate: .live
-        case .startWorkout: .start
-        case .logJournal: .journal
-        case .breathe: .breathe
+        let destination: QuickAction
+        switch action {
+        case .liveHeartRate: destination = .live
+        case .startWorkout: destination = .start
+        case .breathe: destination = .breathe
+        case .habitTimer:
+            // Personal fork, chantier 24 PR C: stop the stopwatch running, else start the habit started last,
+            // then the Habits screen in the More sheet.
+            homeScreenQuickActions.consume(action)
+            Task { @MainActor in
+                if let store = await repo.storeHandle() { await HabitLog.performHabitQuickAction(store) }
+                openMoreScreen(.habits)
+            }
+            return
         }
         homeScreenQuickActions.consume(action)
         withAnimation(Self.sheetEase) {

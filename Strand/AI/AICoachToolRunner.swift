@@ -186,6 +186,18 @@ extension AICoachEngine {
             }
             let points = await chartPoints(spec, now: now)
             return CoachTools.seriesResult(spec, points: points.first, calendar: calendar)
+
+        case .habits:
+            // Read through the habits' own funnel (`HabitLog`), the one the Habits screens read (chantier 24).
+            guard let store = await repo.storeHandle() else { return "The habits are not readable right now." }
+            let calendar = Calendar.current
+            let days = CoachTools.integer(input, "days", fallback: 30, in: CoachTools.habitDayRange)
+            let today = calendar.startOfDay(for: now)
+            let from = calendar.date(byAdding: .day, value: -(days - 1), to: today) ?? today
+            let habits = await HabitLog.loadHabitList(store)
+            let sessions = await HabitLog.loadHabitSessionsBetween(store, from: from, to: now.addingTimeInterval(60))
+            return CoachTools.habitsResult(habits, sessions: sessions, days: days,
+                                           habitName: CoachTools.text(input, "habit"), now: now, calendar: calendar)
         }
     }
 

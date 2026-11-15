@@ -11,7 +11,9 @@ import UIKit
 enum HomeScreenQuickAction: String, CaseIterable {
     case liveHeartRate = "com.noop.quick-action.live-heart-rate"
     case startWorkout = "com.noop.quick-action.start-workout"
-    case logJournal = "com.noop.quick-action.log-journal"
+    /// Personal fork, chantier 24 PR C: the habit stopwatch (stop the one running, else start the habit
+    /// started last), in place of « Log journal » (iOS shows four actions; the Journal stays in Start).
+    case habitTimer = "com.noop.quick-action.habit-timer"
     case breathe = "com.noop.quick-action.breathe"
 
     init?(shortcutItem: UIApplicationShortcutItem) {
@@ -22,7 +24,8 @@ enum HomeScreenQuickAction: String, CaseIterable {
         switch self {
         case .liveHeartRate: String(localized: "Live HR")
         case .startWorkout: String(localized: "Start workout")
-        case .logJournal: String(localized: "Log journal")
+        case .habitTimer:
+            UserDefaults.standard.string(forKey: HabitLog.quickActionTitleKey) ?? String(localized: "Habits")
         case .breathe: String(localized: "Breathe")
         }
     }
@@ -31,7 +34,7 @@ enum HomeScreenQuickAction: String, CaseIterable {
         switch self {
         case .liveHeartRate: "waveform.path.ecg"
         case .startWorkout: "figure.run"
-        case .logJournal: "square.and.pencil"
+        case .habitTimer: "timer"
         case .breathe: "wind"
         }
     }
@@ -40,7 +43,8 @@ enum HomeScreenQuickAction: String, CaseIterable {
         UIApplicationShortcutItem(
             type: rawValue,
             localizedTitle: localizedTitle,
-            localizedSubtitle: nil,
+            localizedSubtitle: self == .habitTimer
+                ? UserDefaults.standard.string(forKey: HabitLog.quickActionSubtitleKey) : nil,
             icon: UIApplicationShortcutIcon(systemImageName: symbolName),
             userInfo: nil
         )

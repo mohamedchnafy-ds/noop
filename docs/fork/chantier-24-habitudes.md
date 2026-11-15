@@ -1,6 +1,6 @@
 # Chantier 24 — Habitudes
 
-**État** (15 nov. 2026) : 4 choix faits, **maquette validée** par Mohamed : https://claude.ai/artifact/1xoQf4BcjsQ8xHjeYUe3x1 (source : `docs/fork/maquettes/chantier-24-habitudes.html`). **PR A (données) ouverte.** (Les n° 22 et 23 sont les micronutriments et le dossier médical, PR #164.)
+**État** (15 nov. 2026) : 4 choix faits, **maquette validée** par Mohamed : https://claude.ai/artifact/1xoQf4BcjsQ8xHjeYUe3x1 (source : `docs/fork/maquettes/chantier-24-habitudes.html`). **PR A #166 (données) verte 17/17 ; PR B #167 (écrans) et PR C (bannière, icône, Coach) ouvertes, empilées.** À fusionner dans l'ordre A → B → C après la validation de Mohamed, puis IPA `build/habitudes`. (Les n° 22 et 23 sont les micronutriments et le dossier médical, PR #164.)
 
 ## La demande (15 nov., mots de Mohamed résumés)
 - Une section « Habitudes », ouverte depuis la photo de profil (feuille Plus).
@@ -48,6 +48,32 @@
 - **Refus d'une session à la main ou modifiée** (`HabitSessionProblem`) : fin pas après le début, fin dans le futur, plus de 12 h, chevauchement d'une autre session de la **même** habitude (le chrono en cours compte jusqu'à maintenant). Une session en cours modifiée garde son chrono : seuls son début (dans le passé, sans chevauchement) et sa note changent.
 - Note : espaces retirés, vide = pas de note. Nom vide refusé. `habits.revision` (UserDefaults) monte à chaque écriture ; `habits.lastStartedId` = la dernière habitude démarrée (pour l'action de l'icône) ; `HabitLog.onHabitChange` = crochet pour la bannière et l'icône (PR C).
 - Tests : `HabitStoreTests` (paquet), `HabitsMigrationTest` (Kotlin), `HabitLogTests` (StrandTests : règles, barres, totaux, plages, écritures).
+
+## Code — PR B (écrans), 15 nov. (#167, empilée sur #166)
+- **Feuille Plus** : `MoreSheetEntry.habits` en tête de « Santé et récupération » (icône `timer`) ; à droite le chrono qui défile (`MoreHabitsRunning`, `TimelineView` 1 s) sinon « 5h 20m this week » (somme des `weekSeconds` de `resolveHabitFigures`), sinon rien. `MoreDestination.habits` → `HabitsView`.
+- `HabitsView` : carte du chrono en cours, une ligne par habitude (icône, total de la semaine, dernière session ou « en cours », ▶ / ■ à part du lien), « Nouvelle habitude », état vide. Un autre ▶ pendant un chrono → `confirmationDialog` « Lecture tourne · Arrêter Lecture et démarrer Méditation ». La page d'une habitude est poussée par valeur (`HabitRoute`, `navigationDestination` dans `HabitsView`).
+- `HabitDetailView` : Démarrer / chrono + Arrêter ; tuiles Cette semaine · Ce mois-ci · Depuis le <1re date> ; barres Semaine · Mois · 3 mois (`HabitBarsChart`, toucher / retoucher) ; « Quand » (`HabitDayStrip`) ; « Tes sessions » avec notes en italique et « ajoutée à la main » ; « + Ajouter une session » ; « ••• » → éditeur de l'habitude ; une habitude supprimée ferme la page.
+- **Arrêter enregistre tout de suite** (le chrono s'arrête au toucher, la bannière suit) ; la feuille qui suit (`HabitStopSheet`) propose la note (Enregistrer), Reprendre (`HabitLog.resumeHabitStopwatch` : la même session repart de son début) et Ne pas garder (confirmation). La fermer garde la session sans note.
+- `HabitSessionEditor` (ajout / correction : début, fin, durée, note ; le refus sous les champs ; une session en cours ne montre que son début) et `HabitEditor` (nom, 7 couleurs, 12 symboles SF, « Supprimer Lecture et ses 84 sessions ? »).
+- **Couleurs** : `HabitPalette.tint` associe la clé stockée à un jeton existant (cyan = `macroFat`, violet = `macroProtein`, orange = `caloriesActivity`, vert = `fastingDone`, bleu = `accent`, rose = `liquidHeart`, jaune = `macroCarbs`). Jamais de couleur locale.
+- Une note seule modifiée ne revérifie pas les heures (un chrono oublié plus de 12 h garde sa note).
+- 37 clés dans les 10 langues (« Session », « Séance passée »… existaient pour l'entraînement : clés nouvelles « Habit session », « Add a session », « Your sessions », « End time » pour dire « session » et non « séance »).
+
+## Code — PR C (autour), 15 nov. (empilée sur #167)
+- **Coach** : outil `get_habits` (`Strand/AI/CoachHabitsTool.swift`, avec « Utiliser mes données » seulement) : par habitude, nombre et total des sessions terminées, puis chaque session (jour du début, heures, durée, « [added by hand] », la note entre guillemets, le chrono en cours) ; `habit` facultatif pour une seule habitude ; 7 à 365 jours. **Rien dans la fiche ni dans le brief.** Rôle des outils : l'appeler seulement quand la question porte sur une habitude ou ses notes, n'en parler jamais de soi-même, croiser avec `get_night`, `get_series`, `get_metric_history`, `get_day_heart_rate`, `get_meals`, `get_workouts` sur la même période. Ligne « Tes habitudes et leurs notes, seulement quand tu le demandes » dans Ce que lit le Coach. Libellé sous la réponse : « Habitudes depuis le 16 oct. ».
+- **Bannière en direct** : `HabitActivityAttributes` + `HabitBannerStopIntent` + `HabitBannerRelay` (`StrandiOSShared/`), `HabitLiveActivity` (icône, nom, « depuis 21:48 », temps qui défile, Arrêter rouge ; Dynamic Island : icône + temps), `HabitLiveActivityController` (allumée par défaut, relancée au retour au premier plan après les 8 h d'iOS). **`NOOPWidgetBundle` imbrique un 2e lot** `NOOPWidgetBundleMore` (jeûne + habitudes) : la limite de 10 est levée pour la suite. Tap → `noop://habits` → `NavRouter.openHabits()` → feuille Plus sur Habitudes.
+- **Action de l'icône** : `.habitTimer` remplace `.logJournal`. Titre dynamique écrit après chaque changement (`HabitLog.refreshHabitQuickAction`, clés `habits.quickActionTitle` / `habits.quickActionSubtitle`) puis menu réinstallé : « Arrêter · Lecture » / « Lecture » (« Démarrer le chrono ») / « Habitudes ». Toucher : `HabitLog.performHabitQuickAction` (arrête, sinon démarre la dernière habitude) puis la feuille Plus sur Habitudes.
+- Tout passe par `HabitLog.onHabitChange` (enregistré dans `StrandiOSApp.init`) → `HabitLiveActivityController.refreshHabitSurroundings`.
+
+## À tester (IPA `build/habitudes`, après la fusion de A, B, C)
+- Plus → « Habitudes » (en tête de Santé et récupération) ; sans habitude : état vide ; « Nouvelle habitude » : nom, couleur, icône → la ligne apparaît.
+- ▶ → le chrono défile sur la carte, dans la ligne de la feuille Plus et sur l'écran verrouillé / Dynamic Island ; quitter l'app, verrouiller, revenir : le temps a continué. Redémarrer le téléphone : la session est toujours là.
+- ▶ d'une autre habitude pendant un chrono → la question, puis la première est arrêtée à cet instant.
+- Arrêter (carte, ligne ■, bannière, appui long sur l'icône) → la feuille « Session terminée » (sauf depuis la bannière et l'icône) : note, Enregistrer ; Reprendre ; Ne pas garder.
+- Page d'une habitude : totaux, barres S · M · 3M (toucher / retoucher), « Quand », sessions avec notes ; « + Ajouter une session » (refus : fin avant début, futur, plus de 12 h, chevauchement) ; toucher une session → modifier / supprimer ; « ••• » → renommer, couleur, icône, supprimer avec ses sessions.
+- Appui long sur l'icône NOOP : « Lecture » (démarre) / « Arrêter · Lecture » ; « Journal » n'y est plus.
+- Coach : « Est-ce que lire le soir change mon sommeil ? » → ligne « Habitudes depuis… » + réponse qui croise ; une autre question (« Je fais quoi aujourd'hui ? ») ne parle jamais des habitudes ; le brief non plus.
+- **Captures à envoyer** (liste, page, feuille d'arrêt, éditeurs, bannière).
 
 ## Découpage proposé
 1. **PR A — données** : migration, store, résolveur, tests.

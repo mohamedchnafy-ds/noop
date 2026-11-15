@@ -31,7 +31,13 @@
 - Branchements : `LiquidTodayView`, `SleepView` (+ `SleepTopSection` pour le bouton), `NutritionView`, `LiftLogView` (+ `TrainingCompactViews`), `CoachView`.
 - 10 clés nouvelles dans les 10 langues (les autres textes réutilisent des clés existantes).
 
-## À tester (IPA `build/essentiel`)
+## Journal
+- 13 nov. : maquette v1 → v4 validée ; code et PR #161 (6/6 verte du premier coup).
+- 13 nov. (soir) : IPA `build/essentiel` = `build/video-13nov` + #161 (seul conflit : union du catalogue).
+- 14 nov. : vidéo de Mohamed → tout s'affiche ; deux correctifs : **Sommeil** (le centre du cadran mordait sur les pistes, le cadran étant plus petit que les 250 pt pour lesquels son centre est posé → taille normale ; les 4 durées collées sur une ligne → deux lignes de deux) et **Entraînement** (la courbe d'Effort était un cercle plat : l'Effort de la semaine lu par `dailyMetrics(fromDay:toDay:)` arrivait vide → lu dans `repo.days`, comme les tuiles d'Aujourd'hui ; sans aucune valeur, seul le cercle en pointillés). IPA `build/essentiel-2` (1d22067).
+- 15 nov. : `main` (#157 à #160) fusionné dans la branche par une autre session, puis **#161 fusionnée** (`main` 3171781).
+
+## À tester (IPA `build/essentiel-2`)
 - ◎ présent sur les 5 onglets ; tap → la page passe en Essentiel (fondu), ◎ blanc ; retap → la page complète revient ; le choix reste après avoir quitté l'app.
 - **Aujourd'hui** : anneaux au centre qui se dessinent, ECG rose autour, point lumineux qui passe une pointe à chaque battement, cœur au centre qui bat au même rythme et chiffre des bpm ; onde qui part des anneaux ; bracelet déconnecté → tracé pâle et « — » ; 4 chiffres = ceux de la carte normale ; toucher un chiffre → son anneau seul + valeur au centre, retoucher → retour ; balayer vers un jour passé → plus d'ECG.
 - **Sommeil** : cadran qui se trace, onde turquoise qui respire autour et petit point qui la parcourt ; « 14,6 respirations/min » ; 4 phases = celles de la carte ; « Ce soir, visez ≈ … ».

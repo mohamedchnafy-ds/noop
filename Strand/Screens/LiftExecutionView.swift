@@ -108,9 +108,16 @@ struct LiftExecutionTile: View {
         let moving = animated && !motion.poseStill(reduceMotion)
         return Button { showingSheet = true } label: {
             HStack(spacing: NoopMetrics.space3) {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moving)) { timeline in
-                    LiftFigureView(movement: movement,
-                                   time: moving ? timeline.date.timeIntervalSinceReferenceDate : nil)
+                // The resting figure is drawn with no timeline behind it: a paused TimelineView keeps the
+                // render server busy (QuietMotionCoverageTests).
+                Group {
+                    if moving {
+                        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                            LiftFigureView(movement: movement, time: timeline.date.timeIntervalSinceReferenceDate)
+                        }
+                    } else {
+                        LiftFigureView(movement: movement, time: nil)
+                    }
                 }
                 .frame(width: 96, height: 76)
                 VStack(alignment: .leading, spacing: NoopMetrics.spaceHalf) {
@@ -226,23 +233,34 @@ struct LiftExecutionSheet: View {
         clockOffset + date.timeIntervalSince(clockBase) * speed
     }
 
+    /// One frame of the large figure at the figure clock `t`, with its phase while it moves (or for a hold).
+    private func figureFrame(_ movement: LiftMovement, t: Double, moving: Bool) -> some View {
+        let spec = movement.figure
+        return ZStack(alignment: .topLeading) {
+            LiftFigureView(movement: movement, time: moving ? t : nil)
+                .padding(NoopMetrics.space3)
+            if moving || spec.end == nil {
+                Text(spec.figurePose(at: t).phase.label)
+                    .font(StrandFont.caption.weight(.semibold))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, NoopMetrics.space1)
+                    .background(StrandPalette.surfaceRaised, in: Capsule())
+                    .padding(NoopMetrics.space3)
+            }
+        }
+    }
+
     private func figureCard(_ movement: LiftMovement) -> some View {
         let moving = !motion.poseStill(reduceMotion)
-        let spec = movement.figure
-        return TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !moving)) { timeline in
-            let t = figureClock(at: timeline.date)
-            ZStack(alignment: .topLeading) {
-                LiftFigureView(movement: movement, time: moving ? t : nil)
-                    .padding(NoopMetrics.space3)
-                if moving || spec.end == nil {
-                    Text(spec.figurePose(at: t).phase.label)
-                        .font(StrandFont.caption.weight(.semibold))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, NoopMetrics.space1)
-                        .background(StrandPalette.surfaceRaised, in: Capsule())
-                        .padding(NoopMetrics.space3)
+        // The resting frame is drawn with no timeline behind it (QuietMotionCoverageTests).
+        return Group {
+            if moving {
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                    figureFrame(movement, t: figureClock(at: timeline.date), moving: true)
                 }
+            } else {
+                figureFrame(movement, t: figureClock(at: Date()), moving: false)
             }
         }
         .frame(maxWidth: .infinity)

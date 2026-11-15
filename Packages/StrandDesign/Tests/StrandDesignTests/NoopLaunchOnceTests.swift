@@ -33,4 +33,26 @@ final class NoopLaunchOnceTests: XCTestCase {
         XCTAssertTrue(NoopLaunchOnce.markPlayed(key, generation: 0))
         XCTAssertTrue(NoopLaunchOnce.hasPlayed(key))
     }
+
+    /// 8 Nov.: an entrance played again when its screen comes back runs faster, and none moves under the
+    /// quiet-motion gate.
+    func testADrawPhaseShownAgainSpeedsItsEntranceUp() {
+        let draw = NoopMotion.ringDraw
+        XCTAssertEqual(NoopDrawPhase(drawn: true, still: false).motion(draw), draw,
+                       "the first showing keeps the full tempo")
+        XCTAssertNotEqual(NoopDrawPhase(drawn: true, still: false, quick: true).motion(draw), draw,
+                          "a showing again plays at the replay speed")
+        XCTAssertNil(NoopDrawPhase(drawn: true, still: true, quick: true).motion(draw))
+        XCTAssertGreaterThan(NoopMotion.replaySpeed, 1)
+    }
+
+    /// 13 Nov.: a surface waiting for its entrance empties at once, never through an animation, so the
+    /// draw-in that follows starts from empty instead of adding to a fall.
+    func testAWaitingDrawPhaseNeverAnimatesItsEmptying() {
+        let draw = NoopMotion.ringDraw
+        XCTAssertNil(NoopDrawPhase(drawn: false, still: false).motion(draw))
+        XCTAssertNil(NoopDrawPhase(drawn: false, still: false, quick: true).motion(draw))
+        XCTAssertEqual(NoopDrawPhase(drawn: true, still: false).motion(draw), draw)
+        XCTAssertGreaterThan(NoopMotion.leaveSettle, 0, "a leave of a few frames is not a showing")
+    }
 }

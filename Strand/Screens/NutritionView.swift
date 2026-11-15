@@ -128,7 +128,7 @@ struct NutritionView: View {
                 NutritionSearchBar(onSearch: { openAddSheet(slot: nil, focusSearch: true) },
                                    onScan: barcodeScannerAvailable ? { scannerSlot = nil; showScanner = true } : nil)
                 NutritionBalanceCard(model: NutritionBalanceModel(summary: current, plan: plan),
-                                     animated: summary?.dayKey == dayKey)
+                                     animated: summary?.dayKey == dayKey, loading: summary?.dayKey != dayKey)
                 NutritionFastingCard(state: fastingState, waterML: waterML,
                                      goalML: repo.hydrationGoalML(profileSex: profile.sex),
                                      animated: summary?.dayKey == dayKey,
@@ -535,7 +535,7 @@ struct NutritionBalanceModel: Equatable {
 
     init(summary: NutritionDaySummary, plan: NutritionGoals.Plan) {
         self.init(eaten: summary.eaten, goalKcal: plan.intakeKcal,
-                  spentKcal: summary.spent.map { Int($0.totalKcal.rounded()) },
+                  spentKcal: summary.spentKcal,
                   balanceKcal: summary.balanceKcal,
                   proteinGoalG: plan.proteinG > 0 ? plan.proteinG : nil,
                   carbsGoalG: plan.carbsG,
@@ -560,6 +560,11 @@ struct NutritionBalanceCard: View {
     /// Fork chantier 12: the rings trace themselves and « eaten » slams in once per launch, then follow every
     /// meal; false draws them at once (data loading, renders).
     var animated: Bool = false
+    /// True while the day shown has not loaded yet: left · spent · balance stay blank (no « — » flash).
+    var loading: Bool = false
+
+    /// What a figure shows once loaded when its value is unknown.
+    private static let unknownFigure = "\u{2014}"
 
     /// A meal just added: its calories rise from « eaten » and fade (« +620 kcal »).
     @State private var addedKcal: Int?
@@ -712,35 +717,53 @@ struct NutritionBalanceCard: View {
     }
 
     /// "Left 1 065 · Spent 2 100 · Net −605": left in the eaten green, spent in the burned orange, the
-    /// balance in white; a dash when it is not known.
+    /// balance in white. Blank while the day is still loading; a dash only for a value still unknown once
+    /// it has loaded (13 Nov.: « — » no longer flashes before the figures).
     private var figuresLine: some View {
-        let left = model.goalKcal.map { NutritionFormat.whole(max(0, $0 - model.eaten.kcal)) }
-        let spent = model.spentKcal.map(NutritionFormat.whole)
-        let net = model.balanceKcal.map(NutritionFormat.signedKcal)
+        let left = model.goalKcal.map { Double(max(0, $0 - model.eaten.kcal)) }
+        let spent = model.spentKcal.map(Double.init)
+        let net = model.balanceKcal.map(Double.init)
         // Each figure under its name, like the macros above, so « Spent 2 713 » is never cut (5 Nov.).
         return HStack(alignment: .top, spacing: 12) {
-            figure("Left", value: left, tint: StrandPalette.intakeColor)
-            figure("Spent", value: spent, tint: StrandPalette.caloriesActivity)
-            figure("Net", value: net, tint: StrandPalette.textPrimary)
+            figure("Left", value: left, format: { NutritionFormat.wholeKcal($0) },
+                   tint: StrandPalette.intakeColor, countKey: "nutrition.count.left")
+            figure("Spent", value: spent, format: { NutritionFormat.wholeKcal($0) },
+                   tint: StrandPalette.caloriesActivity, countKey: "nutrition.count.spent")
+            figure("Net", value: net, format: { NutritionFormat.signedKcal(Int($0.rounded())) },
+                   tint: StrandPalette.textPrimary, countKey: "nutrition.count.net")
         }
     }
 
-    private func figure(_ title: LocalizedStringKey, value: String?, tint: Color) -> some View {
+    /// One figure under its name. The number is written by the formatter Today's « Spent » uses
+    /// (`NutritionFormat.wholeKcal`) and drawn by the same `NoopRollingNumber`: it counts in from 0 once
+    /// the day has loaded, and rolls to its new value when a meal is added (fork chantier 12).
+    private func figure(_ title: LocalizedStringKey, value: Double?, format: @escaping (Double) -> String,
+                        tint: Color, countKey: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(title)
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-            // Fork chantier 12: left and balance roll to their new digits when a meal is added.
-            Text(verbatim: value ?? "\u{2014}")
-                .font(StrandFont.footnote.weight(.bold))
-                .foregroundStyle(value == nil ? StrandPalette.textSecondary : tint)
-                .monospacedDigit()
-                .lineLimit(1)
-                .fixedSize()
-                .contentTransition(.numericText())
-                .animation(NoopMotion.gated(NoopMotion.valueChange, reduced: still), value: value)
+            Group {
+                if loading {
+                    // Same font, so the line keeps its height while nothing is written yet.
+                    Text(verbatim: " ")
+                        .font(StrandFont.footnote.weight(.bold))
+                } else if let value {
+                    NoopRollingNumber(value: value, format: format, font: StrandFont.footnote.weight(.bold),
+                                      color: tint, entrance: .count, armed: animated, launchKey: countKey)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .transition(.opacity)
+                } else {
+                    Text(verbatim: Self.unknownFigure)
+                        .font(StrandFont.footnote.weight(.bold))
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .transition(.opacity)
+                }
+            }
+            .animation(NoopMotion.gated(NoopMotion.card, reduced: still), value: loading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

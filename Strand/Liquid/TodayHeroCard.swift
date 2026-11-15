@@ -341,8 +341,9 @@ struct TodayCaloriesTile: View {
     /// Armed, the total counts up and the bar grows once per launch (fork chantier 12).
     var animated: Bool = false
 
+    /// The kcal formatter Nutrition's « Spent » and « Net » use too (`NutritionFormat.wholeKcal`).
     private func number(_ v: Double) -> String {
-        Int(v.rounded()).formatted(.number.locale(AppLanguage.activeLocale))
+        NutritionFormat.wholeKcal(v)
     }
 
     /// "activity 185 · resting 760", the two words from the catalogue and the numbers as they are.
@@ -545,8 +546,9 @@ struct TodayHeroCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var motion = NoopMotionState.shared
 
+    /// The kcal formatter Nutrition's « Spent » and « Net » use too (`NutritionFormat.wholeKcal`).
     private func number(_ v: Double) -> String {
-        Int(v.rounded()).formatted(.number.locale(AppLanguage.activeLocale))
+        NutritionFormat.wholeKcal(v)
     }
 
     // MARK: Rings

@@ -4,6 +4,9 @@ Demande de Mohamed (15 nov.) : « Dans Nutrition, est-ce possible d'avoir les mi
 Réponse : oui. Chaque ligne de repas prise dans Ciqual garde son code (`mealItem.foodRef = "ciqual:<code>"`),
 donc les micros se **recalculent depuis la table**, sans migration, et tout l'historique en profite.
 
+Maquette (15 nov., à valider) : https://claude.ai/artifact/XKB1FyUES9WhHQzZwL81JN
+1. Nutrition : carte « Micronutriments » sous les moments (À compléter | Plafonds) · 2. Détail : Aujourd'hui | Moyenne 7 jours, 4 groupes, « D'où ça vient » au toucher · 3. Un repas, un aliment (ligne de micros par aliment, ligne saisie à la main signalée, fiche de la portion) · 4. Le Coach (fer sur 30 jours face à la ferritine).
+
 ## Choix de Mohamed (15 nov.)
 - **Tout ce qui est possible** : fibres, sucres, sel, AG saturés ; minéraux ; vitamines ; oméga-3 (liste
   ci-dessous, tout ce que Ciqual 2025 fournit et qui sert).

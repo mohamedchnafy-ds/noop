@@ -359,6 +359,17 @@ enum HabitLog {
         return row
     }
 
+    /// « Resume » on the sheet that follows a stop: the session just stopped runs again from its own
+    /// start, as if it had never stopped. Nothing happens when another stopwatch started meanwhile.
+    static func resumeHabitStopwatch(_ store: WhoopStore, _ session: HabitSessionRow, now: Date = Date()) async {
+        if let open = try? await store.runningHabitSession(), open.id != session.id { return }
+        var row = session
+        row.endedAt = nil
+        row.updatedAt = Int(now.timeIntervalSince1970)
+        try? await store.upsertHabitSession(row)
+        await habitsDidChange(store)
+    }
+
     // MARK: Writes: sessions after the fact
 
     /// The other sessions of `habitId` that could overlap `[startSec, endSec)`: those started in the
@@ -397,7 +408,7 @@ enum HabitLog {
     /// Correct a session: its start, its end (a session that has one) and its note (an empty note clears
     /// it). Returns why it was refused (nothing written), or nil once saved. A running session keeps
     /// running; only its start and note change, and its start must be in the past and clear of the
-    /// habit's other sessions.
+    /// habit's other sessions. When only the note changes, the times are not checked again.
     @discardableResult
     static func amendHabitSession(_ store: WhoopStore, _ session: HabitSessionRow, startedAt: Date,
                                   endedAt: Date?, note: String?, now: Date = Date()) async -> HabitSessionProblem? {
@@ -406,7 +417,10 @@ enum HabitLog {
         var row = session
         row.startedAt = startSec
         if session.endedAt != nil, let endedAt { row.endedAt = Int(endedAt.timeIntervalSince1970) }
-        if let endSec = row.endedAt {
+        let timesUnchanged = row.startedAt == session.startedAt && row.endedAt == session.endedAt
+        if timesUnchanged {
+            // Only the note changes (the note after a stop): a stopwatch left running past 12 h keeps it.
+        } else if let endSec = row.endedAt {
             let others = await neighbourSessions(store, habitId: session.habitId, startSec: startSec, endSec: endSec)
             if let problem = habitSessionProblem(startSec: startSec, endSec: endSec, others: others,
                                                  editingId: session.id, nowSec: nowSec) {

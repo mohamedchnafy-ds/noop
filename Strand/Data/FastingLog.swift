@@ -33,6 +33,33 @@ struct FastingState: Equatable {
     var startedAt: Date { Date(timeIntervalSince1970: TimeInterval(fast.startedAt)) }
     var endedAt: Date? { fast.endedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) } }
     var phaseId: String { FastingTimeline.phaseIds[phaseIndex] }
+
+    /// Where the phase at `index` stands for this fast. A fast that is over is judged at its own end
+    /// (`elapsedMinutes` stops there), never against `now`: the phase it stopped in is « reached at the
+    /// end », the later ones « not reached », and nothing is « current » under a ring that says the fast
+    /// is over (13 Nov. recording). The one rule the phases card and the phase sheet both read.
+    func phaseStanding(_ index: Int) -> FastingPhaseStanding {
+        if index < phaseIndex { return .passed }
+        if index == phaseIndex { return isRunning ? .current : .reachedAtEnd }
+        guard isRunning else { return .notReached }
+        let starts = FastingTimeline.phaseStartHours
+        let startMinutes = index < starts.count ? starts[index] * 60 : elapsedMinutes
+        return .upcoming(inMinutes: max(0, startMinutes - elapsedMinutes))
+    }
+}
+
+/// One phase of a fast against that fast (`FastingState.phaseStanding`).
+enum FastingPhaseStanding: Equatable {
+    /// Reached and left behind.
+    case passed
+    /// The phase a running fast is in now.
+    case current
+    /// The phase a fast that is over stopped in.
+    case reachedAtEnd
+    /// Not reached yet by a running fast: it starts in this many minutes.
+    case upcoming(inMinutes: Int)
+    /// Never reached by a fast that is over.
+    case notReached
 }
 
 /// The question a meal logged during a fast raises (chantier 15 PR C): « End the fast at 12:30? ». The

@@ -543,6 +543,18 @@ struct NutritionMealEditor: View {
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .monospacedDigit()
+                // Fork chantier 22: the food's headline micronutrients, or why it has none.
+                if let micro = MicroFormat.lineMicroSummary(MealMicros.lineMicros(line)) {
+                    Text(verbatim: micro)
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .monospacedDigit()
+                        .lineLimit(2)
+                } else {
+                    Text("No micronutrients for this food")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if line.per100 != nil {

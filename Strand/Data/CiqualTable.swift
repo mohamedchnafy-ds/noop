@@ -2,7 +2,8 @@ import Foundation
 import WhoopStore
 
 // Personal fork, Nutrition: the ANSES Ciqual 2025 food composition table, embedded and read on the
-// device (`Strand/Resources/Ciqual2025.tsv`, built by `Tools/ciqual_build.py`).
+// device (`Strand/Resources/Ciqual2025.tsv`, built by `Tools/ciqual_build.py`). Since fork chantier 22 it
+// also carries the micronutrients (`MicroNutrient`), read by `MealMicros`.
 //
 // "Anses. 2025. Ciqual French food composition table." Licence Ouverte / Open Licence (Etalab 2.0),
 // https://doi.org/10.57745/RDMHWY. Per 100 g: energy as Regulation (EU) 1169/2011 defines it (kcal),
@@ -19,6 +20,9 @@ struct CiqualFood: Equatable, Sendable {
     let nameEn: String
     /// Values for 100 g.
     let per100: MealPer100
+    /// The micronutrients the table gives for 100 g (fork chantier 22), in each one's `MicroNutrient.unit`.
+    /// A nutrient Ciqual leaves empty is absent: unknown, never 0.
+    var micros: [MicroNutrient: Double] = [:]
 
     /// The reference a journal line keeps ("ciqual:9104").
     var foodRef: String { "ciqual:\(code)" }
@@ -48,16 +52,34 @@ enum CiqualTable {
         return parseCiqualLines(text)
     }
 
-    /// The table's lines: `code \t name_fr \t name_en \t kcal \t protein \t carbs \t fat`, `#` lines skipped.
+    /// The table's lines: `code \t name_fr \t name_en \t kcal \t protein \t carbs \t fat`, then the
+    /// micronutrient columns the `# code\t…` header line names (fork chantier 22; an empty cell = unknown).
+    /// Other `#` lines are skipped; without that header line, only the first seven columns are read.
     static func parseCiqualLines(_ text: String) -> [CiqualFood] {
         var foods: [CiqualFood] = []
-        for line in text.split(whereSeparator: \.isNewline) where !line.hasPrefix("#") {
+        var microColumns: [(index: Int, nutrient: MicroNutrient)] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            if line.hasPrefix("# code\t") {
+                let names = line.dropFirst(2).split(separator: "\t", omittingEmptySubsequences: false)
+                microColumns = names.enumerated().compactMap { index, name in
+                    MicroNutrient(rawValue: String(name)).map { (index: index, nutrient: $0) }
+                }
+                continue
+            }
+            if line.hasPrefix("#") { continue }
             let cells = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
             guard cells.count >= 7, let code = Int(cells[0]),
                   let kcal = Double(cells[3]), let protein = Double(cells[4]),
                   let carbs = Double(cells[5]), let fat = Double(cells[6]) else { continue }
+            var micros: [MicroNutrient: Double] = [:]
+            for column in microColumns where column.index < cells.count {
+                if let amount = Double(cells[column.index]), amount.isFinite, amount >= 0 {
+                    micros[column.nutrient] = amount
+                }
+            }
             foods.append(CiqualFood(code: code, nameFr: cells[1], nameEn: cells[2],
-                                    per100: MealPer100(kcal: kcal, proteinG: protein, carbsG: carbs, fatG: fat)))
+                                    per100: MealPer100(kcal: kcal, proteinG: protein, carbsG: carbs, fatG: fat),
+                                    micros: micros))
         }
         return foods
     }

@@ -80,6 +80,8 @@ enum CoachFiche {
         var nutrition: Nutrition?
         /// Chantier 15 PR C: the fast and the water, as the Jeûne page shows them.
         var fasting: Fasting?
+        /// Chantier 18: « What shapes my sessions », only while its Experimental switch is on.
+        var influences: Influences?
     }
 
     /// The fasting page's figures (personal fork, chantier 15 PR C): the fast running (or the last one over),

@@ -83,9 +83,14 @@ enum DayWidgetsContent {
         if session?.state == .next {
             lineMedium = [line, String(localized: "planned")].compactMap { $0 }.joined(separator: " · ")
         }
-        let blocks = resolution.programId.map { id in
-            TrainingDays.programSummary(id: id, name: session?.name ?? "", items: resolution.programItems,
-                                        finished: []).blocks.map(\.text)
+        // Fork chantier 18: the lines left out for today from the Training day card are not shown.
+        let blocks: [String] = resolution.programId.map { id -> [String] in
+            let leftOut = LiftDayAdditions.removedLineIds(day: TrainingCalendar.trainingDayKey(today, calendar: calendar),
+                                                          programId: id)
+            return TrainingDays.programSummary(id: id, name: session?.name ?? "",
+                                               items: LiftDayAdditions.keptProgramLines(resolution.programItems,
+                                                                                        removed: leftOut),
+                                               finished: []).blocks.map(\.text)
         } ?? []
         let days = widgetWeekDays(resolution, today: today, calendar: calendar)
         let letters = DateFormatter()

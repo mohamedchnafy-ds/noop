@@ -56,6 +56,10 @@ struct LiftSessionDetailSheet: View {
                     ComingSoon(what: "Reading the session…", symbol: "dumbbell")
                 } else {
                     figuresSection
+                    // Fork chantier 18 (maquette 3): the session's heart rate, beside the lifting figures.
+                    if session.endTs != nil {
+                        LiftSessionHeartRateSection(session: session, sets: sets)
+                    }
                     exercisesSection
                     if !performed.isEmpty {
                         muscleSection

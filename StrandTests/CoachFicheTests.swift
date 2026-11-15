@@ -199,4 +199,29 @@ final class CoachFicheTests: XCTestCase {
         XCTAssertTrue(profile < told && told < today && today < sleep, head)
         XCTAssertFalse(head.contains("YOUR NORMALS"), "no normals block without a reading")
     }
+
+    // MARK: What shapes my sessions (chantier 18)
+
+    private func influenceFacts(sleep: Double, volume: Double, protein: Double?) -> LiftInfluences.SessionFacts {
+        LiftInfluences.SessionFacts(startTs: 0, sleepMin: sleep, waterMl: nil, sessionDayBefore: false,
+                                    measures: [.volume: volume], proteinDayBeforeG: protein, proteinGoalG: 150)
+    }
+
+    func testInfluencesBlockGivesBothMeansCountsAndVerdictAndSaysWhatIsShort() {
+        let facts = (0..<6).map { _ in influenceFacts(sleep: 480, volume: 5400, protein: 160) }
+            + (0..<6).map { _ in influenceFacts(sleep: 400, volume: 5100, protein: nil) }
+        let block = CoachFiche.influencesBlock(CoachFiche.Influences(
+            comparisons: LiftInfluences.liftInfluenceComparisons(facts), proteinGoalG: 150, sessions: facts.count))
+        XCTAssertTrue(block.hasPrefix("WHAT SHAPES MY SESSIONS (Experimental"))
+        XCTAssertTrue(block.contains("never a cause"))
+        XCTAssertTrue(block.contains("  sleep the night before (with = 7h 30m or more):"))
+        XCTAssertTrue(block.contains("    weight lifted (volume load): 5400 kg with, 5100 kg without (6 vs 6 sessions), "
+                                     + "clear difference, reads better with"))
+        XCTAssertFalse(block.contains("average HR (lower reads better):"), "a measure with no session is left out")
+        XCTAssertTrue(block.contains("protein of the meals logged the day before (with = at or above 150 g goal; "
+                                     + "a day with no meal logged is left out): not enough data yet (6 sessions with, "
+                                     + "0 without)"))
+        XCTAssertTrue(block.contains("a strength session the day before (with = yes): not enough data yet "
+                                     + "(0 sessions with, 12 without)"))
+    }
 }

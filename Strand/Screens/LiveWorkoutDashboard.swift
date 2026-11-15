@@ -9,6 +9,9 @@ import StrandDesign
 /// `LiveWorkoutFigures`, so the render test draws it; `LiveWorkoutView` builds the figures every second.
 struct LiveWorkoutDashboard: View {
     let figures: LiveWorkoutFigures
+    /// Fork chantier 18: earlier workouts of the same sport, dashed behind the curve; the switch is the one
+    /// the strength session's heart-rate band remembers.
+    @AppStorage(LiftHeartRateCompare.key) private var compare = true
     var distanceSystem: UnitSystem = .metric
     /// Fork chantier 12, effect C: the heart beats at the live rhythm and figures roll; false draws a still
     /// frame (renders).
@@ -299,6 +302,7 @@ struct LiveWorkoutDashboard: View {
     // MARK: - Curve
 
     private var curveCard: some View {
+        let shownComparisons = compare ? figures.comparisonCurves : []
         let values = figures.curve.compactMap { $0 }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
@@ -313,7 +317,7 @@ struct LiveWorkoutDashboard: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
             }
-            LiveWorkoutCurve(values: figures.curve)
+            LiveWorkoutCurve(values: figures.curve, comparisons: shownComparisons)
                 .frame(height: 90)
                 .accessibilityHidden(true)
             HStack {
@@ -323,6 +327,15 @@ struct LiveWorkoutDashboard: View {
             }
             .font(StrandFont.caption)
             .foregroundStyle(StrandPalette.textSecondary)
+            if !figures.comparisonCurves.isEmpty {
+                Toggle(isOn: $compare) {
+                    Text("Compare with the last 2 sessions")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -351,10 +364,12 @@ struct LiveWorkoutDashboard: View {
 /// own range (with a little room), over two hairlines.
 struct LiveWorkoutCurve: View {
     let values: [Double?]
+    /// Fork chantier 18: earlier workouts' curves in the same buckets, dashed in grey behind this one.
+    var comparisons: [[Double?]] = []
 
     var body: some View {
         GeometryReader { proxy in
-            let known = values.compactMap { $0 }
+            let known = (values + comparisons.flatMap { $0 }).compactMap { $0 }
             let low = (known.min() ?? 60) - 4
             let high = max((known.max() ?? 120) + 4, low + 10)
             let step = values.count > 1 ? proxy.size.width / CGFloat(values.count - 1) : 0
@@ -363,6 +378,12 @@ struct LiveWorkoutCurve: View {
                     Rectangle().fill(StrandPalette.hairline).frame(height: 1)
                     Spacer()
                     Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                }
+                ForEach(comparisons.indices, id: \.self) { index in
+                    LiftHeartRateCurve.path(comparisons[index], width: proxy.size.width, height: proxy.size.height,
+                                            low: low, high: high)
+                        .stroke(StrandPalette.textTertiary,
+                                style: StrokeStyle(lineWidth: 1.4, lineCap: .round, dash: [3, 3]))
                 }
                 Path { path in
                     var drawing = false

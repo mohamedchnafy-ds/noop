@@ -1,0 +1,143 @@
+<title>Entraînement épuré</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one phone-sized mock with a state switcher, a rules column beside it. */
+:root{--bg:#f2f2f7;--panel:#fff;--fg:#1c1c1e;--mut:#6c6c70;--line:#d8d8de;--ph:#000;--card:#1c1c1e;--card2:#2c2c2e;--pmut:#8e8e93;--amber:#ffb020;--blue:#0a84ff;--green:#30d158;--pink:#ff375f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+h1{font-size:20px;margin:0 0 4px}
+.rules{flex:1 1 280px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.rules p,.rules li{font-size:14px;line-height:1.5;color:var(--mut);margin:0}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.box h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--mut)}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.sw button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+.phone{width:100%;max-width:390px;background:var(--ph);color:#fff;border-radius:38px;padding:18px 14px 24px;box-sizing:border-box;min-height:780px;border:1px solid #333;position:relative;overflow:hidden}
+.hd{display:flex;justify-content:space-between;align-items:center;padding:2px 6px 10px}
+.hd h2{font-size:32px;margin:0;font-weight:700;letter-spacing:-.01em}
+.ic{display:flex;gap:8px}
+.ib{width:38px;height:38px;border-radius:50%;border:0;background:var(--card2);color:#fff;font-size:16px;cursor:pointer;font-family:inherit}
+.week{display:flex;gap:6px;padding:0 2px 8px}
+.d{flex:1;border:0;background:none;color:#fff;border-radius:16px;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:5px;font-family:inherit;cursor:pointer;font-size:12px}
+.d span:first-child{color:var(--pmut)}
+.d b{font-size:16px;width:32px;height:32px;line-height:32px;border-radius:50%;font-variant-numeric:tabular-nums}
+.d.sel b{background:#fff;color:#000}
+.dot{width:6px;height:6px;border-radius:50%;border:1.5px solid var(--blue)}
+.dot.f{background:var(--blue)}.dot.c{background:#ff9f0a;border-color:#ff9f0a}.dot.n{border-color:transparent}
+.legend{font-size:12px;color:var(--pmut);background:var(--card);border-radius:14px;padding:10px 12px;margin:0 2px 10px;line-height:1.5}
+.card{background:var(--card);border-radius:26px;padding:16px;display:flex;flex-direction:column;gap:12px;margin-top:6px}
+.k{font-size:12px;color:var(--pmut)}
+.card h3{margin:0;font-size:26px;letter-spacing:-.01em}
+.meta{font-size:13px;color:var(--pmut)}
+.ups{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.ups i{font-style:normal;color:var(--green)}
+.btns{display:flex;gap:8px}
+.go{flex:1;height:54px;border:0;border-radius:20px;background:#fff;color:#000;font-weight:700;font-size:17px;cursor:pointer;font-family:inherit}
+.alt{height:54px;padding:0 18px;border:0;border-radius:20px;background:var(--card2);color:#fff;font-size:15px;cursor:pointer;font-family:inherit}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card2);border-radius:16px;padding:8px 10px}
+.stat b{display:block;font:700 20px ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.stat small{color:var(--pmut);font-size:11px}
+.hr{background:var(--card2);border-radius:18px;padding:10px 12px}
+.hr .t{display:flex;justify-content:space-between;font-size:12px;color:var(--pmut);margin-bottom:4px}
+.hr .t b{color:var(--pink)}
+.hr svg{display:block;width:100%;height:64px}
+.line{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:18px;padding:13px 14px;margin-top:10px;font-size:15px;border:0;color:#fff;width:100%;font-family:inherit;text-align:left;cursor:pointer}
+.line .m{flex:1;min-width:0}
+.line small{display:block;color:var(--pmut);font-size:12px;margin-top:2px}
+.line .ch{color:var(--pmut)}
+.line .up{color:var(--green)}
+.hist{margin-top:10px;background:var(--card);border-radius:22px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.hist .r{display:flex;justify-content:space-between;align-items:baseline;font-size:15px}
+.hist .r small{color:var(--pmut);font-size:12px}
+.month{margin-top:10px;background:var(--card);border-radius:22px;padding:12px}
+.mg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:13px}
+.mg span{padding:8px 0;border-radius:10px;font-variant-numeric:tabular-nums}
+.mg .h{color:var(--pmut);font-size:11px;padding:2px 0}
+.mg .t{background:#fff;color:#000;font-weight:700}
+.mg .f{color:var(--blue);font-weight:700}
+.rest{margin-top:6px;text-align:center;padding:28px 10px;color:var(--pmut);font-size:14px}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+<div class="wrap">
+<div class="rules">
+  <h1>Écran Entraînement épuré</h1>
+  <p>Maquette 2 du chantier 18. Les valeurs sont des exemples. Change l'état avec les boutons ci-dessous, ou touche un jour de la bande.</p>
+  <div class="sw" id="sw" role="group" aria-label="État"></div>
+  <div class="box"><h2>Ce qui change</h2><ul>
+    <li><b>La séance du jour en grand</b>, avec Démarrer. L'écran répond à « que fais-je aujourd'hui ? ».</li>
+    <li><b>Bande compacte</b> de 7 jours, sans flèches ni compteur. La légende est dans le « i ». Le Mois s'ouvre par le bouton calendrier.</li>
+    <li><b>Progression</b> en une ligne, seulement s'il y a une charge à monter. Régularité (séries par semaine sur 12 semaines) passe dans l'écran Progression.</li>
+    <li><b>Programmes ›</b> regroupe la liste, Nouveau, Importer et Planifier la semaine.</li>
+    <li><b>Autre séance</b> ouvre la feuille Démarrer (cardio, autres sports, Intervalles, FC en direct).</li>
+    <li><b>Fréquence cardiaque</b> : une séance de muscu faite montre sa courbe de FC et ses chiffres sur la carte du jour et dans l'historique, comme le cardio.</li>
+  </ul></div>
+</div>
+
+<div class="phone">
+  <div class="hd"><h2>Entraînement</h2><div class="ic">
+    <button class="ib" id="bi" aria-label="Légende" title="Légende">i</button>
+    <button class="ib" id="bm" aria-label="Mois" title="Mois">▦</button></div></div>
+  <div class="week" id="week"></div>
+  <div class="legend" id="legend" hidden>Cercle vide : muscu prévue · Point plein : muscu faite · Point orange : cardio.</div>
+  <div id="main"></div>
+</div>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var days=[['L',2,'f'],['M',3,'c'],['M',4,'p'],['J',5,'n'],['V',6,'p'],['S',7,'n'],['D',8,'n']];
+var state='prevu',sel=2,month=false;
+var states=[['prevu','Séance prévue'],['faite','Séance faite'],['repos','Jour de repos']];
+function hrSvg(){
+  var pts=[],i;for(i=0;i<=40;i++){var x=i*7.5,v=110+30*Math.sin(i/5)+(i%8<3?22:0)+(i>32?-20:0);pts.push([x,Math.max(70,Math.min(165,v))]);}
+  var path=pts.map(function(p,k){return(k?'L':'M')+p[0]+' '+(64-(p[1]-60)*0.55)}).join(' ');
+  var g=(function(){var o=[];[90,120,150].forEach(function(v){var y=64-(v-60)*0.55;o.push('<line x1="0" x2="300" y1="'+y+'" y2="'+y+'" stroke="#48484a" stroke-width=".6" stroke-dasharray="2 3"/>')});return o.join('')})();
+  var prev='M0 40 C40 30 70 22 110 28 S190 18 230 34 S280 40 300 44';
+  return '<svg viewBox="0 0 300 64" preserveAspectRatio="none" aria-label="Courbe de fréquence cardiaque">'+g
+   +'<path d="'+prev+'" fill="none" stroke="#8e8e93" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>'
+   +'<path d="'+path+'" fill="none" stroke="#ff375f" stroke-width="2" stroke-linejoin="round"/></svg>';
+}
+function hrBlock(){return '<div class="hr"><div class="t"><span>Fréquence cardiaque</span><span><b>moy. 121</b> · max 164 bpm</span></div>'+hrSvg()+'<div class="t" style="margin:4px 0 0"><span>0 min</span><span>Pointillé : séance précédente</span><span>52 min</span></div></div>'}
+function render(){
+  var w='';days.forEach(function(d,i){var dot=d[2]==='f'?'f':d[2]==='c'?'c':d[2]==='p'?'':'n';
+    w+='<button class="d'+(i===sel?' sel':'')+'" data-d="'+i+'"><span>'+d[0]+'</span><b>'+d[1]+'</b><span class="dot '+dot+'"></span></button>'});
+  $('week').innerHTML=w;
+  var s='';states.forEach(function(x){s+='<button data-s="'+x[0]+'" aria-pressed="'+(state===x[0])+'">'+x[1]+'</button>'});
+  $('sw').innerHTML=s;
+  var m='';
+  if(month){
+    var cells='<span class="h">L</span><span class="h">M</span><span class="h">M</span><span class="h">J</span><span class="h">V</span><span class="h">S</span><span class="h">D</span><span></span><span></span><span></span><span></span><span></span><span></span>';
+    for(var i=1;i<=30;i++){var f=[2,4,6,9,11,13,16,18,20,23,25,27].indexOf(i)>=0;var t=i===4;cells+='<span class="'+(t?'t':f?'f':'')+'">'+i+'</span>'}
+    m='<div class="month"><div class="k" style="margin:0 4px 8px">Novembre 2026 · 12 séances</div><div class="mg">'+cells+'</div></div>';
+  }
+  if(state==='repos'){
+    m+='<div class="card"><div class="k">Aujourd’hui · jour de repos</div><h3>Repos</h3><div class="meta">Prochaine séance : vendredi, Full body C.</div><div class="btns"><button class="alt" style="flex:1" data-act="sheet">Autre séance</button></div></div>';
+  }else if(state==='faite'){
+    m+='<div class="card"><div class="k">Aujourd’hui · faite</div><h3>Full body A</h3><div class="stats"><div class="stat"><b>52 min</b><small>Durée</small></div><div class="stat"><b>18</b><small>Séries</small></div><div class="stat"><b>7,4</b><small>Effort</small></div></div>'+hrBlock()+'<div class="btns"><button class="go" data-act="detail">Voir la séance</button><button class="alt" data-act="sheet">Autre séance</button></div></div>';
+  }else{
+    m+='<div class="card"><div class="k">Aujourd’hui · mer. 4 nov. · prévue</div><h3>Full body A</h3><div class="meta">6 exercices · 18 séries · environ 55 min</div>'
+     +'<div class="ups"><span><i>↑</i> Développé couché : 60 → 62,5 kg</span><span><i>↑</i> Tirage poitrine : 45 → 50 kg</span></div>'
+     +'<div class="btns"><button class="go" data-act="go">Démarrer</button><button class="alt" data-act="chg">Changer</button></div></div>';
+  }
+  m+='<button class="line" data-act="prog"><span class="m">Progression<small>2 charges à monter</small></span><span class="up">↑</span><span class="ch">›</span></button>';
+  m+='<button class="line" data-act="progs"><span class="m">Programmes<small>3 programmes · Planifier la semaine</small></span><span class="ch">›</span></button>';
+  m+='<button class="line" data-act="sheet" style="justify-content:center;background:var(--card2)">Autre séance (cardio, autre sport)</button>';
+  m+='<div class="hist"><div class="r"><b>Historique</b><span class="ch" style="color:var(--pmut)">Tout ›</span></div>'
+    +'<div class="r"><span>Full body C · lun. 2 nov.<br><small>48 min · 16 séries</small></span><span><small style="color:var(--pink)">♥ moy. 118 · max 158</small></span></div>'
+    +'<svg viewBox="0 0 300 30" preserveAspectRatio="none" style="width:100%;height:30px;display:block"><path d="M0 22 C30 10 60 20 90 12 S150 6 180 16 S250 10 300 20" fill="none" stroke="#ff375f" stroke-width="1.6"/></svg></div>';
+  $('main').innerHTML=m;
+}
+document.addEventListener('click',function(e){var t=e.target.closest('button');if(!t)return;
+  if(t.dataset.s){state=t.dataset.s;sel=state==='repos'?3:2;month=false;render()}
+  else if(t.dataset.d){sel=+t.dataset.d;render()}
+  else if(t.id==='bi'){$('legend').hidden=!$('legend').hidden}
+  else if(t.id==='bm'){month=!month;render()}
+});
+render();
+</script>

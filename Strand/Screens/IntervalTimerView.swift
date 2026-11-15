@@ -24,9 +24,10 @@ struct IntervalTimerView: View {
     private enum Phase { case work, rest, done
         var label: String {
             switch self {
-            case .work: return String(localized: "WORK")
-            case .rest: return String(localized: "REST")
-            case .done: return String(localized: "DONE")
+            // Personal fork (Démarrer tools, board 4): sentence case, « Effort » rather than « Work ».
+            case .work: return String(localized: "Effort")
+            case .rest: return String(localized: "Rest")
+            case .done: return String(localized: "Done")
             }
         }
     }
@@ -91,8 +92,8 @@ struct IntervalTimerView: View {
     // MARK: Body
 
     var body: some View {
-        ScreenScaffold(title: "Interval Timer",
-                       subtitle: "Silent haptic HIIT: the strap buzzes the transitions") {
+        ScreenScaffold(title: "Intervals",
+                       subtitle: "The strap buzzes at every change: no need to look at the screen.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                 let cards: [AnyView] = [
                     AnyView(statusRow),
@@ -147,6 +148,9 @@ struct IntervalTimerView: View {
                 StatePill("Running", tone: .accent, pulsing: true)
             } else if isFinished {
                 StatePill("Complete", tone: .positive)
+            } else if elapsed == 0 {
+                // Nothing has started yet: « Paused » read as if a session had been stopped.
+                StatePill("Ready", tone: .neutral, showsDot: false)
             } else {
                 StatePill("Paused", tone: .neutral, showsDot: false)
             }
@@ -236,17 +240,11 @@ struct IntervalTimerView: View {
             .overlay(Capsule(style: .continuous).strokeBorder(phaseColor.opacity(0.35), lineWidth: 1))
     }
 
-    /// Frosted round chip — "ROUND n / N".
+    /// Frosted round chip — « Round n of N ».
     private var roundChip: some View {
-        HStack(spacing: 6) {
-            Text("ROUND").strandOverline()
-            Text("\(min(currentRound, rounds))")
-                .font(StrandFont.number(18))
-                .foregroundStyle(StrandPalette.textPrimary)
-            Text("/ \(rounds)")
-                .font(StrandFont.number(18))
-                .foregroundStyle(StrandPalette.textTertiary)
-        }
+        Text(String(localized: "Round \(min(currentRound, rounds)) of \(rounds)"))
+            .font(StrandFont.subhead.weight(.semibold))
+            .foregroundStyle(StrandPalette.textPrimary)
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
@@ -262,7 +260,7 @@ struct IntervalTimerView: View {
                 toggleRunning()
             }
 
-            NoopButton("Reset", systemImage: "arrow.counterclockwise",
+            NoopButton("Start over", systemImage: "arrow.counterclockwise",
                        kind: .secondary, fullWidth: true) {
                 stopAndReset()
             }
@@ -291,8 +289,8 @@ struct IntervalTimerView: View {
                     .accessibilityValue("\(Int((sessionProgress * 100).rounded())) percent")
 
                 HStack(spacing: 0) {
-                    overviewStat(String(localized: "Work"), "\(workSeconds)s", StrandPalette.effortColor)
-                    overviewStat(String(localized: "Rest"), "\(restSeconds)s", StrandPalette.restColor)
+                    overviewStat(String(localized: "Effort"), Self.secondsText(workSeconds), StrandPalette.effortColor)
+                    overviewStat(String(localized: "Rest"), Self.secondsText(restSeconds), StrandPalette.restColor)
                     overviewStat(String(localized: "Rounds"), "\(rounds)", StrandPalette.textPrimary)
                     overviewStat(String(localized: "Remaining"), timeString(max(0, totalPlanned - elapsed)), StrandPalette.textSecondary)
                 }
@@ -335,7 +333,7 @@ struct IntervalTimerView: View {
         StrandCard {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Configure").strandOverline()
-                configStepper(title: String(localized: "Work"), unit: String(localized: "sec"), value: $workSeconds,
+                configStepper(title: String(localized: "Effort"), unit: String(localized: "sec"), value: $workSeconds,
                               range: 5...600, step: 5, tint: StrandPalette.effortColor)
                 Divider().overlay(StrandPalette.hairline)
                 configStepper(title: String(localized: "Rest"), unit: String(localized: "sec"), value: $restSeconds,
@@ -354,7 +352,7 @@ struct IntervalTimerView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
-                Text("\(range.lowerBound)-\(range.upperBound)\(unit.map { " \($0)" } ?? "") · step \(step)")
+                Text(Self.rangeText(range, step: step, seconds: unit != nil))
                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
             }
             Spacer()
@@ -493,6 +491,24 @@ struct IntervalTimerView: View {
         let m = s / 60
         let r = s % 60
         return String(format: "%d:%02d", m, r)
+    }
+
+    /// « 30 s », « 10 min », « 1 min 30 s » (it was « 30s »).
+    static func secondsText(_ seconds: Int) -> String {
+        let s = max(0, seconds)
+        // « s » is the SI symbol in every catalogue language but Russian and Chinese, where the plain digits
+        // still read; a localized « %lld s » key would be an untranslated echo in eight languages.
+        if s < 60 { return "\(s)\u{00A0}s" }
+        let m = s / 60
+        let r = s % 60
+        let minutes = String(localized: "\(m) min")
+        return r == 0 ? minutes : minutes + " \(r)\u{00A0}s"
+    }
+
+    /// The stepper's range in words (it was « 5-600 sec · step 5 »).
+    static func rangeText(_ range: ClosedRange<Int>, step: Int, seconds: Bool) -> String {
+        guard seconds else { return String(localized: "From \(range.lowerBound) to \(range.upperBound)") }
+        return String(localized: "From \(secondsText(range.lowerBound)) to \(secondsText(range.upperBound)), in steps of \(secondsText(step))")
     }
 }
 

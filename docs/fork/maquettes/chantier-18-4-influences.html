@@ -1,0 +1,144 @@
+<title>Ce qui influence mes séances</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: phone-sized mock with a view switcher, rules column beside it. */
+:root{--bg:#f2f2f7;--panel:#fff;--fg:#1c1c1e;--mut:#6c6c70;--line:#d8d8de;--ph:#000;--card:#1c1c1e;--card2:#2c2c2e;--pmut:#8e8e93;--amber:#ffb020;--blue:#0a84ff;--green:#30d158;--pink:#ff375f;--cyan:#64d2ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0d;--panel:#161618;--fg:#f2f2f7;--mut:#98989d;--line:#2c2c2e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"SF Pro Text",Inter,system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+h1{font-size:20px;margin:0 0 4px}
+.rules{flex:1 1 280px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:14px}
+.rules p,.rules li{font-size:14px;line-height:1.5;color:var(--mut);margin:0}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.box h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--mut)}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.sw button[aria-pressed=true]{background:var(--fg);color:var(--bg)}
+.phone{width:100%;max-width:390px;background:var(--ph);color:#fff;border-radius:38px;padding:18px 14px 26px;box-sizing:border-box;min-height:800px;border:1px solid #333}
+.hd{padding:2px 6px 8px}
+.hd .k{font-size:13px;color:var(--pmut)}
+.hd h2{font-size:26px;margin:2px 0 0;letter-spacing:-.01em}
+.exp{display:inline-block;font-size:11px;font-weight:700;background:var(--card2);color:var(--amber);border-radius:999px;padding:3px 8px;margin-left:6px;vertical-align:middle;letter-spacing:.03em}
+.card{background:var(--card);border-radius:22px;padding:14px;margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.sets{display:flex;gap:6px;flex-wrap:wrap}
+.sets button{border:0;background:var(--card2);color:#fff;border-radius:999px;padding:7px 11px;font-size:13px;cursor:pointer;font-family:inherit}
+.sets button[aria-pressed=true]{background:#fff;color:#000;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.row small{color:var(--pmut);font-size:12px}
+.tg{width:48px;height:28px;border-radius:14px;background:var(--green);position:relative;border:0;cursor:pointer}
+.tg::after{content:"";position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s}
+.tg[aria-pressed=false]{background:#48484a}.tg[aria-pressed=false]::after{left:3px}
+.f h3{margin:0;font-size:16px}
+.f p{margin:0;font-size:14px;line-height:1.45;color:#d1d1d6}
+.f .n{font-size:12px;color:var(--pmut)}
+.bars{display:flex;flex-direction:column;gap:5px}
+.bar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pmut)}
+.bar span:first-child{width:92px;flex:none}
+.bar .tr{flex:1;height:10px;background:var(--card2);border-radius:5px;overflow:hidden}
+.bar .tr i{display:block;height:100%;border-radius:5px}
+.bar b{width:58px;text-align:right;color:#fff;font-variant-numeric:tabular-nums;flex:none}
+.pill{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:3px 8px}
+.wait{color:var(--pmut)}
+.prog{height:6px;background:var(--card2);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--blue)}
+.note{font-size:12px;color:var(--pmut);line-height:1.45;padding:10px 6px 0}
+.coach{margin-top:10px;width:100%;height:48px;border:0;border-radius:18px;background:var(--card2);color:#fff;font-size:15px;cursor:pointer;font-family:inherit}
+.rest{background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.45);border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;color:var(--amber);font-size:13px;margin-top:10px}
+.rest b{font:700 26px ui-rounded,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.rest button{border:0;background:rgba(255,176,32,.2);color:var(--amber);border-radius:12px;height:36px;padding:0 11px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px}
+.rest .sp{flex:1}
+.water{display:flex;align-items:center;gap:10px;font-size:14px}
+.water b{font:700 22px ui-rounded,system-ui,sans-serif;color:var(--cyan)}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+<div class="wrap">
+<div class="rules">
+  <h1>Ce qui influence mes séances</h1>
+  <p>Maquette 4 du chantier 18. Valeurs d'exemple. Change de vue avec les boutons, puis de mesure avec les pastilles.</p>
+  <div class="sw" id="sw" role="group" aria-label="Vue"></div>
+  <div class="box"><h2>Règles</h2><ul>
+    <li><b>Où</b> : bloc de l'écran Progression, fonction <b>Expérimentale</b>, désactivable.</li>
+    <li><b>Toi contre toi</b> : tes séances avec le facteur contre tes séances sans, à effort comparable.</li>
+    <li><b>Seuil</b> : 6 séances par groupe, 12 au total. Avant, « pas encore assez de données » et une barre vers le seuil.</li>
+    <li><b>Jamais de cause</b> : « chez toi, on observe… », avec l'écart et le nombre de séances.</li>
+    <li>Phrases <b>déterministes</b> (règles, pas de texte libre). Le Coach peut les expliquer.</li>
+    <li><b>Eau en séance</b> : « + verre » (25 cl) dans la barre de repos, un tap.</li>
+  </ul></div>
+  <div class="box"><h2>Mesures de séance</h2><ul>
+    <li>FC moyenne à effort comparable · récupération de FC · charge soulevée · Effort · VFC de la nuit suivante.</li>
+    <li>Facteurs : sommeil de la nuit, eau (avant et pendant), café, protéines de la veille, charge de la veille.</li>
+  </ul></div>
+</div>
+<div class="phone" id="ph"></div>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var view='bloc',m=0,on=true,glasses=2;
+var M=[
+ {k:'FC moyenne',u:'bpm',dir:-1,note:'à effort comparable'},
+ {k:'Récup. FC',u:'bpm',dir:1,note:'baisse en 60 s'},
+ {k:'Charge soulevée',u:'kg',dir:1,note:'volume total'},
+ {k:'Effort',u:'',dir:1,note:'échelle 0–21'},
+ {k:'VFC suivante',u:'ms',dir:1,note:'nuit après la séance'}
+];
+/* [facteur, libellé avec, libellé sans, valeurs par mesure [avec, sans], n avec, n sans] */
+var F=[
+ {n:'Sommeil',a:'7 h 30 ou plus',b:'moins de 7 h 30',v:[[118,124],[24,19],[5420,5190],[7.1,7.4],[58,54]],na:9,nb:11},
+ {n:'Eau avant et pendant',a:'750 ml ou plus',b:'moins de 750 ml',v:[[119,123],[23,20],[5380,5210],[7.2,7.3],[57,55]],na:8,nb:12},
+ {n:'Protéines de la veille',a:'objectif atteint',b:'objectif manqué',v:[[120,122],[22,21],[5310,5280],[7.2,7.3],[56,56]],na:14,nb:6},
+ {n:'Café avant la séance',a:'café',b:'sans café',v:null,na:4,nb:17}
+];
+function fmt(x){return String(Math.round(x*10)/10).replace('.',',')}
+function card(f){
+  if(!f.v||f.na<6||f.nb<6){
+    var lo=Math.min(f.na,f.nb);
+    return '<div class="card f"><h3>'+f.n+'</h3><p class="wait">Pas encore assez de données : il faut 6 séances '+(f.na<6?'avec café':'sans café')+'.</p><div class="prog"><i style="width:'+Math.round(lo/6*100)+'%"></i></div><div class="n">'+lo+' sur 6 séances · '+(f.na+f.nb)+' séances en tout</div></div>';
+  }
+  var x=f.v[m],d=x[0]-x[1],dir=M[m].dir,u=M[m].u,max=Math.max(x[0],x[1])*1.08,min=Math.min(x[0],x[1])*0.8,
+      w=function(v){return Math.round((v-min)/(max-min)*100)};
+  var small=Math.abs(d)<=Math.max(0.03*x[1],0.1);
+  var good=!small&&(d*dir>0);
+  var pill=small?'<span class="pill" style="background:#2c2c2e;color:#98989d">Pas de différence nette</span>':'<span class="pill" style="background:'+(good?'rgba(48,209,88,.18);color:#30d158':'rgba(255,176,32,.18);color:#ffb020')+'">'+(d>0?'+':'−')+fmt(Math.abs(d))+' '+u+'</span>';
+  var ph=small?'Chez toi, '+M[m].k.toLowerCase()+' ne change pas de façon nette selon '+f.n.toLowerCase()+'.':
+    'Chez toi, on observe '+(M[m].k==='Effort'?'un Effort':'une '+M[m].k.toLowerCase()+' ')+(d*dir>0?'plus favorable':'moins favorable')+' de '+fmt(Math.abs(d))+' '+u+' les séances avec '+f.a+' que celles avec '+f.b+'.';
+  return '<div class="card f"><div class="row"><h3>'+f.n+'</h3>'+pill+'</div><p>'+ph+'</p>'
+   +'<div class="bars"><div class="bar"><span>'+f.a+'</span><div class="tr"><i style="width:'+w(x[0])+'%;background:#0a84ff"></i></div><b>'+fmt(x[0])+' '+u+'</b></div>'
+   +'<div class="bar"><span>'+f.b+'</span><div class="tr"><i style="width:'+w(x[1])+'%;background:#636366"></i></div><b>'+fmt(x[1])+' '+u+'</b></div></div>'
+   +'<div class="n">'+f.na+' séances contre '+f.nb+' · '+M[m].note+'</div></div>';
+}
+function render(){
+  var sw='';[['bloc','Bloc dans Progression'],['eau','Eau en séance']].forEach(function(x){sw+='<button data-v="'+x[0]+'" aria-pressed="'+(view===x[0])+'">'+x[1]+'</button>'});$('sw').innerHTML=sw;
+  if(view==='bloc'){
+    var h='<div class="hd"><div class="k">Progression</div><h2>Ce qui influence mes séances<span class="exp">EXPÉRIMENTAL</span></h2></div>'
+     +'<div class="card"><div class="row"><span>Activer cette analyse<br><small>Calculée sur l’iPhone, jamais envoyée</small></span><button class="tg" id="tg" aria-pressed="'+on+'" aria-label="Activer"></button></div></div>';
+    if(on){
+      h+='<div class="card"><div class="k" style="font-size:12px;color:var(--pmut)">Mesure de la séance · 21 séances depuis septembre</div><div class="sets">';
+      M.forEach(function(x,i){h+='<button data-m="'+i+'" aria-pressed="'+(m===i)+'">'+x.k+'</button>'});
+      h+='</div></div>';
+      F.forEach(function(f){h+=card(f)});
+      h+='<div class="note">Ce sont des observations sur tes séances, pas des causes. D’autres facteurs jouent. Plus tu as de séances, plus l’écart est fiable.</div><button class="coach">Demander au Coach de l’expliquer</button>';
+    }else{
+      h+='<div class="note" style="padding:14px 6px">Analyse désactivée. Rien n’est calculé.</div>';
+    }
+    $('ph').innerHTML=h;
+  }else{
+    var ml=glasses*25;
+    $('ph').innerHTML='<div class="hd"><div class="k">Séance · Full body A · 34:12</div><h2>Développé couché</h2></div>'
+    +'<div class="card"><div class="row"><span>Série 3 sur 4</span><span style="color:var(--pmut)">♥ 104 bpm</span></div></div>'
+    +'<div class="rest"><b>1:12</b><span>Repos</span><span class="sp"></span><button id="gl">+ verre</button><button>Passer</button></div>'
+    +'<div class="card"><div class="water"><b>'+ml+' cl</b><span>d’eau pendant la séance<br><span style="color:var(--pmut);font-size:12px">'+glasses+' × 25 cl · touche « + verre » à chaque gorgée</span></span></div></div>'
+    +'<div class="note">Sur la fiche terminée : « Eau pendant la séance : '+ml+' cl ». Cette valeur alimente l’analyse Eau avant et pendant.</div>';
+  }
+}
+document.addEventListener('click',function(e){var t=e.target.closest('button');if(!t)return;
+  if(t.dataset.v){view=t.dataset.v;render()}
+  else if(t.dataset.m){m=+t.dataset.m;render()}
+  else if(t.id==='tg'){on=!on;render()}
+  else if(t.id==='gl'){glasses++;render()}
+});
+render();
+</script>

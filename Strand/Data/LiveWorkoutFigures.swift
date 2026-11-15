@@ -48,6 +48,9 @@ struct LiveWorkoutFigures: Equatable {
     var steps: Int? = nil
     /// Steps per minute of the moment (`WorkoutStepMath.stepCadenceNow`), nil at the start.
     var cadence: Int? = nil
+    /// Fork chantier 18: the last two workouts of the same sport over the same ten minutes of their own
+    /// elapsed time (`LiftHeartRateMath.alignedCurve`), in the curve's buckets; empty when there are none.
+    var comparisonCurves: [[Double?]] = []
 }
 
 enum LiveWorkoutMath {

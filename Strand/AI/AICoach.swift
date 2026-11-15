@@ -1567,6 +1567,8 @@ final class AICoachEngine: ObservableObject {
         // The Lift Log's own verdict per exercise, after the sets it is drawn from.
         let progression = CoachFiche.progression(fiche)
         if !progression.isEmpty { ctx += "\n\n" + progression }
+        // « What shapes my sessions » (chantier 18), only while its Experimental switch is on.
+        if let influences = fiche.influences { ctx += "\n\n" + CoachFiche.influencesBlock(influences) }
         // The Training week plan (personal fork), when one is set.
         let weekPlan = await trainingWeekPlanBlock()
         if !weekPlan.isEmpty { ctx += "\n\n" + weekPlan }
@@ -1642,7 +1644,7 @@ final class AICoachEngine: ObservableObject {
                 StrainScorer.strain(hr, maxHR: maxHR, restingHR: restHR, method: method, sex: sex)
             }.value
             effort = StrainScorer.effectiveEffort(live: live, stored: todayRow?.strain)
-            split = await NutritionDayReader.spentFromSamples(repo, profile: profile, day: now, hr: hr, now: now)
+            split = await NutritionDayReader.spentOnDay(repo, profile: profile, day: now, now: now, samples: hr)
         }
 
         inputs.today = CoachFiche.Today(
@@ -1692,6 +1694,18 @@ final class AICoachEngine: ObservableObject {
         if let data = await LiftProgressData.load(repo: repo, stepKg: step), !data.isEmpty {
             inputs.exercises = data.exercises
             inputs.priorities = data.priorities(.fourWeeks)
+            // Chantier 18: « What shapes my sessions », read as the Progression block reads it, only while the
+            // wearer has its Experimental switch on.
+            if UserDefaults.standard.bool(forKey: LiftInfluencesSection.enabledKey) {
+                let goal = profile.flatMap { LiftInfluencesReader.liftInfluenceProteinGoal(profile: $0) }
+                let facts = await LiftInfluencesReader.liftInfluenceFacts(
+                    data: data, repo: repo, limit: LiftInfluencesSection.maxSessions, proteinGoalG: goal)
+                if !facts.isEmpty {
+                    inputs.influences = CoachFiche.Influences(
+                        comparisons: LiftInfluences.liftInfluenceComparisons(facts), proteinGoalG: goal,
+                        sessions: facts.count)
+                }
+            }
         }
         return inputs
     }

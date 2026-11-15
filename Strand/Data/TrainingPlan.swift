@@ -361,6 +361,19 @@ struct TrainingProgramSummary: Equatable, Identifiable {
     /// Élan's short version of the program, accepted for today (personal fork, chantier 10 PR C): the day
     /// card says where it came from, and its Start runs the short plan.
     var elanShort: Bool = false
+    /// Every line of the program, in order (fork chantier 18: the day card's list of all its exercises,
+    /// where one can be left out for today). Empty for Élan's short version.
+    var items: [LiftProgramItemRow] = []
+}
+
+/// One line of the day card's list of every exercise of a program (fork chantier 18): its tag in the
+/// session that would start now (« A1 », nil alone or left out), its sets, and whether it is left out today.
+struct TrainingDayLine: Equatable, Identifiable {
+    var id: String
+    var tag: String?
+    var exercise: String
+    var sets: Int?
+    var leftOut: Bool
 }
 
 /// One load to raise: an exercise of a program whose last session earned a step up (`LiftProgression`).
@@ -551,6 +564,42 @@ enum TrainingDays {
             typicalMinutes: LiftRotation.typicalMinutes(finished),
             lastDoneTs: finished.map { $0.startTs }.max(),
             blocks: Array(blocks.prefix(previewBlocks)),
-            blockCount: blocks.count)
+            blockCount: blocks.count,
+            items: lines)
+    }
+
+    /// A program as today's session will run it (fork chantier 18): its shape, sets, blocks and loads to
+    /// raise without the lines left out for today (`LiftDayAdditions.keptProgramLines`, the rule the start
+    /// applies), its usual length and last time unchanged, and still every line in `items`, so the list can
+    /// put one back. Nothing left out, or Élan's short version: the summary as it is.
+    static func dayProgramSummary(_ summary: TrainingProgramSummary, leftOut: Set<String>,
+                                  previewBlocks: Int = 2) -> TrainingProgramSummary {
+        guard !leftOut.isEmpty, !summary.elanShort, !summary.items.isEmpty else { return summary }
+        let kept = LiftDayAdditions.keptProgramLines(summary.items, removed: leftOut)
+        var day = programSummary(id: summary.id, name: summary.name, items: kept, finished: [],
+                                 previewBlocks: previewBlocks)
+        day.typicalMinutes = summary.typicalMinutes
+        day.lastDoneTs = summary.lastDoneTs
+        let names = Set(kept.map(\.exercise))
+        day.raises = summary.raises.filter { names.contains($0.exercise) }
+        day.items = summary.items
+        return day
+    }
+
+    /// Every line of a program for the day card's list, in order: the ones kept tagged as the session that
+    /// starts now tags them (the superset letters of the kept lines), the ones left out for today untagged.
+    static func dayProgramLines(_ items: [LiftProgramItemRow], leftOut: Set<String>) -> [TrainingDayLine] {
+        let lines = items.sorted { $0.ord < $1.ord }
+        let keptIds = Set(LiftDayAdditions.keptProgramLines(lines, removed: leftOut).map(\.id))
+        let kept = lines.filter { keptIds.contains($0.id) }
+        let labels = kept.map(\.supersetGroup)
+        var tags: [String: String] = [:]
+        for (index, line) in kept.enumerated() {
+            if let tag = LiftSuperset.tag(of: index, in: labels) { tags[line.id] = tag }
+        }
+        return lines.map { line in
+            TrainingDayLine(id: line.id, tag: tags[line.id], exercise: line.exercise, sets: line.targetSets,
+                            leftOut: !keptIds.contains(line.id))
+        }
     }
 }

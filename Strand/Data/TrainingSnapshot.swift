@@ -113,8 +113,13 @@ extension LiftSessionController {
             return
         }
         guard let store = await repo.storeHandle() else { return }
-        let items = (try? await store.liftProgramItems(programId: programId)) ?? []
-        guard !items.isEmpty else { return }
+        let programItems = (try? await store.liftProgramItems(programId: programId)) ?? []
+        guard !programItems.isEmpty else { return }
+        // Fork chantier 18: the lines left out for today from the Training day card are skipped (the program
+        // keeps them), and forgotten below with the day's additions.
+        let today = TrainingCalendar.trainingDayKey(Date(), calendar: .current)
+        let items = LiftDayAdditions.keptProgramLines(
+            programItems, removed: LiftDayAdditions.removedLineIds(day: today, programId: programId))
         let vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
 
         let plan = items.map { item -> LiftPlanItem in
@@ -136,12 +141,27 @@ extension LiftSessionController {
                                 programItemId: item.id,
                                 supersetGroup: item.supersetGroup)
         }
+        let added = await dayAdditionItems(programId: programId, repo: repo, store: store)
         // Read again after the awaits: a session may have been started meanwhile.
         guard !isActive else {
             isPresented = true
             return
         }
-        start(plan: plan, programId: programId, programName: programName)
+        LiftDayAdditions.takeAdditions(day: TrainingCalendar.trainingDayKey(Date(), calendar: .current),
+                                       programId: programId)
+        start(plan: LiftDayAdditions.joinedPlan(plan, added), programId: programId, programName: programName)
+    }
+
+    /// The exercises added to this program for today from the Training screen (fork chantier 18,
+    /// `LiftDayAdditions`), as lines added during the session, each with last time's working set count.
+    func dayAdditionItems(programId: String, repo: Repository, store: WhoopStore) async -> [LiftPlanItem] {
+        let today = TrainingCalendar.trainingDayKey(Date(), calendar: .current)
+        var items: [LiftPlanItem] = []
+        for addition in LiftDayAdditions.additions(day: today, programId: programId) {
+            let last = (try? await store.lastLiftSets(deviceId: repo.deviceId, exercise: addition.exercise)) ?? []
+            items.append(LiftDayAdditions.planItem(addition, lastSets: last))
+        }
+        return items
     }
 
     /// Starts a session with no program (« Freehand session »): exercises are added as they come, and the

@@ -1353,6 +1353,40 @@ extension WhoopStore {
             try db.create(index: "idx_fast_startedAt", on: "fast", columns: ["startedAt"],
                           options: [.ifNotExists])
         }
+        // v56-habits (personal fork, chantier 24): the habits the wearer creates and their timed sessions.
+        // Twin of the Android `MIGRATION_47_48`; both tables are pinned in schema_oracle.json as `both`.
+        //   - `habit`: one habit (reading, meditation…): a name, a palette key, an SF Symbol name.
+        //   - `habitSession`: one session, unix SECONDS. `endedAt` nil while the stopwatch runs (so a
+        //     running stopwatch survives the app being closed or the phone restarted), `note` the free
+        //     note (nil: none), `manual` 1 for a session added by hand. Totals and charts are derived by
+        //     the app (`HabitLog`), never stored.
+        // No `deviceId`: a habit belongs to the person (the `meal` / `fast` reasoning). No foreign key:
+        // deleting a habit removes its sessions in the same transaction (`deleteHabitAndSessions`).
+        migrator.registerMigration("v56-habits") { db in
+            try db.create(table: "habit", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text).notNull()
+                t.column("colorKey", .text).notNull()
+                t.column("symbol", .text).notNull()
+                t.column("createdAt", .integer).notNull()          // unix seconds
+                t.column("updatedAt", .integer).notNull()          // unix seconds
+            }
+            try db.create(table: "habitSession", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("habitId", .text).notNull()
+                t.column("startedAt", .integer).notNull()          // unix seconds
+                t.column("endedAt", .integer)                      // unix seconds; nil: still running
+                t.column("note", .text)                            // nil: no note
+                t.column("manual", .integer).notNull()             // 1: added by hand
+                t.column("createdAt", .integer).notNull()          // unix seconds
+                t.column("updatedAt", .integer).notNull()          // unix seconds
+            }
+            // A habit's page reads its sessions by start; the Coach reads every habit over a window.
+            try db.create(index: "idx_habitSession_habitId_startedAt", on: "habitSession",
+                          columns: ["habitId", "startedAt"], options: [.ifNotExists])
+            try db.create(index: "idx_habitSession_startedAt", on: "habitSession", columns: ["startedAt"],
+                          options: [.ifNotExists])
+        }
         return migrator
     }
 }

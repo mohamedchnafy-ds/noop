@@ -46,3 +46,26 @@ Maquette (15 nov., à valider) : https://claude.ai/artifact/XKB1FyUES9WhHQzZwL81
 1. Maquette (artefact Design) : carte du jour, détail d'un repas, fiche d'un aliment, réponse du Coach.
 2. PR A : table Ciqual reconstruite + résolveur + tests.
 3. PR B : écrans + fiche / outil du Coach.
+
+## Le code (15 nov., décisions prises en codant)
+- **Maquette validée par Mohamed le 15 nov.** ; il veut le chantier 22 **et** le 23 dans la même IPA, avec
+  toutes les PR ouvertes.
+- **Table** : `Tools/ciqual_build.py` lit maintenant les colonnes **par leur nom** et ajoute **33 micros**
+  (en-tête `# code\t…` dans le TSV, lu par `CiqualTable.parseCiqualLines`). Vitamine E : la colonne
+  « Vitamine E », sinon « Alpha-tocophérol » ; B9 : les équivalents folates, sinon les folates totaux ; EPA + DHA
+  = une colonne, inconnue sauf si les deux sont connues. Les 7 colonnes de macros sont identiques à l'ancienne
+  table (vérifié par `diff`).
+- **Un seul résolveur** : `Strand/Data/MealMicros.swift` (`MicroNutrient`, `MicroReference`, `MealMicros`,
+  `OpenFoodFactsMicros`). Sans migration : les micros d'une ligne se relisent depuis son `foodRef`.
+- **Open Food Facts** : les micros donnés par le produit sont gardés par code-barres dans UserDefaults
+  (`nutrition.offMicros.v1`, 400 produits au plus, les plus anciens sortent), écrits à la lecture du produit.
+  Un produit scanné avant le 15 nov. n'a pas de micros tant qu'il n'est pas relu en ligne.
+- **Repères** (ANSES 2021, adulte) : femme = `profile.sex == "female"`, les autres valeurs = homme. Plafonds :
+  sucres 100 g, AG saturés 12 % de l'objectif d'apport, sel 5 g. Sans repère : AG mono / poly, cholestérol,
+  sodium (le sel le porte).
+- **Écrans** : carte « Micronutriments » (À compléter = les 5 cibles les plus loin, Plafonds = les 3), écran
+  détail (Aujourd'hui | Moyenne 7 jours, 4 groupes, « D'où ça vient » au toucher), ligne des micros sous chaque
+  aliment de l'éditeur d'un repas et sous chaque repas, bloc « Ce que cette portion apporte » sur l'écran Portion.
+- **Coach** : outil `get_micronutrients` (1 à 30 jours, moyenne sur les jours notés, aliments sans valeur,
+  sources principales), ligne dans « Ce que lit le Coach ». Pas dans la fiche (trop long : un outil).
+- **Android** : rien (iPhone seulement, aucune donnée stockée nouvelle).

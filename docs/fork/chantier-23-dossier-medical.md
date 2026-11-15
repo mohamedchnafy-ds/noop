@@ -43,3 +43,24 @@ et pouvoir les extraire et les ajouter. »
 2. PR A : stockage + point d'entrée d'extraction + bilans depuis le Coach.
 3. PR B : traitements / allergies + fiche du Coach.
 4. PR C : comptes rendus + mesures.
+
+## Le code (15 nov., sans maquette : choix de Mohamed, « les deux dans l'IPA »)
+- **Pas de table nouvelle, pas de migration** : les résultats et **les mesures** (tension, poids, composition)
+  vont dans le **Carnet de labo** (il a déjà les catégories Tension, Mesures du corps, Imagerie), par
+  `CoachLabReport` ; le reste (documents, résumés, traitements, allergies) est un fichier JSON + les PDF dans
+  Application Support / MedicalFile (`Strand/Data/MedicalFile.swift`, `MedicalFileStore`), protégé
+  (`completeFileProtection`), **hors `.noopbak`**. Supprimer un document supprime son PDF ; ce qui en vient
+  (traitements, allergies, valeurs du Carnet) reste.
+- **Un seul point d'entrée** : `AICoachEngine.readMedicalDocument` (outil `record_medical_document` : genre,
+  titre, date, résumé factuel de 3 à 6 phrases, valeurs, traitements, allergies), même consentement
+  `ai.labReportConsent` et mêmes limites (20 Mo, 100 pages) que le bilan PDF.
+- **Feuille de vérification** : genre · date, résumé, « Garder le PDF dans l'app » (allumé), valeurs du Carnet
+  (la feuille du bilan, `LabReportReviewContent`), traitements et allergies cochés un par un, « Enregistrer ».
+  Un traitement déjà noté (même nom et même dose, sans accents ni casse) n'est pas ajouté deux fois.
+- **Entrées** : le « + » du Coach (« Document PDF » ; après l'enregistrement, la question « Que retiens-tu de mon
+  document … ? » est préparée dans la barre de saisie, pas envoyée), Plus → Santé et récupération → Dossier
+  médical. L'écran : traitements et allergies (ajout à la main, suppression), documents (résumé, PDF, supprimer).
+- **Coach** : bloc MEDICAL FILE dans la fiche (traitements, allergies, 5 derniers documents) et outil
+  `get_medical_documents` (les résumés), **avec l'interrupteur « Tendances et Carnet de laboratoire »**, comme
+  le Carnet de labo.
+- **Android** : rien (Coach = iPhone seulement, aucune donnée de la base).

@@ -540,9 +540,18 @@ struct SmartAlarmView: View {
     /// `from` is a parameter so the ticking countdown re-resolves against the clock it is given rather
     /// than a `Date()` captured somewhere else.
     private func nextStrapAlarm(from now: Date = Date()) -> Date? {
-        Self.nextArmedStrapAlarm(enabled: behavior.smartAlarmEnabled, minutes: behavior.smartAlarmMinutes,
-                                 weekdays: behavior.smartAlarmWeekdays, overrides: overrides,
-                                 isWhoop5: model.whoop5Detected, from: now)
+        // Chantier 25: on the wake plan (adaptive or Fajr) the Fajr alarm can arm the strap with the main alarm
+        // off, so that path is gated on the arm condition alone; the classic path keeps its original gate.
+        if WakeAlarmSettings.usesPlan() {
+            guard strapAlarmWillArm else { return nil }
+            return Self.nextArmedStrapAlarm(enabled: behavior.smartAlarmEnabled, minutes: behavior.smartAlarmMinutes,
+                                            weekdays: behavior.smartAlarmWeekdays, overrides: overrides,
+                                            isWhoop5: model.whoop5Detected, from: now)
+        }
+        guard behavior.smartAlarmEnabled, strapAlarmWillArm else { return nil }
+        return Self.nextArmedStrapAlarm(enabled: true, minutes: behavior.smartAlarmMinutes,
+                                        weekdays: behavior.smartAlarmWeekdays, overrides: overrides,
+                                        isWhoop5: model.whoop5Detected, from: now)
     }
 
     /// The funnel above with its inputs passed in: the More sheet's « Alarms » row (personal fork) names

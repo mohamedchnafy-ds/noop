@@ -250,6 +250,8 @@ final class AppModel: ObservableObject {
     private var readSpineCancellable: AnyCancellable?
     /// Daily re-arm timer for the single-instant firmware smart alarm (see scheduleDailySmartAlarmRearm).
     private var smartAlarmRearmTimer: Timer?
+    /// Personal fork, chantier 25: the overnight adaptive-wake watcher, fed by the live heart rate.
+    let wakeController = AdaptiveWakeController()
 
     init() {
         // Personal fork: the day turns at midnight, decided before the first scoring pass reads it.
@@ -317,7 +319,8 @@ final class AppModel: ObservableObject {
         // Re-arm the next day's firmware alarm the moment the strap reports it fired (if/when the
         // firmware pushes STRAP_DRIVEN_ALARM_EXECUTED). Gated on enabled inside applySmartAlarm.
         live.onSmartAlarmFired = { [weak self] in
-            guard let self, self.behavior.smartAlarmEnabled else { return }
+            // Chantier 25: the Fajr alarm arms the same firmware alarm, so either alarm being on counts.
+            guard let self, self.behavior.smartAlarmEnabled || WakeAlarmSettings.fajrEnabled() else { return }
             // PR #577 (iOS): mirror the strap's wake buzz to a local notification so a phone-in-pocket
             // user still gets woken; no-op on macOS / when wrist alerts are off.
             AppModel.postSmartAlarm()
@@ -393,8 +396,20 @@ final class AppModel: ObservableObject {
         // `disarmPending` latches exactly that dropped write, so this stays a no-op for the many users who
         // never armed one (re-running unconditionally would put a DISABLE_ALARM on every connect).
         live.$connectSettled.dropFirst().sink { [weak self] _ in
-            guard let self, self.behavior.smartAlarmEnabled || self.ble.disarmPending else { return }
+            guard let self,
+                  self.behavior.smartAlarmEnabled || WakeAlarmSettings.fajrEnabled() || self.ble.disarmPending
+            else { return }
             self.applySmartAlarm()
+        }.store(in: &hrCancellables)
+        // Personal fork, chantier 25: the adaptive wake listens to every live heart-rate update (the strap keeps
+        // the app running in the background at night), buzzes the strap through the confirmed one-shot buzz, and
+        // re-arms from a fresh plan once a deadline has passed.
+        wakeController.buzz = { [weak self] in self?.ble.buzzStrapOnce() }
+        wakeController.log = { [weak live] line in live?.append(log: line) }
+        wakeController.rearm = { [weak self] in self?.applySmartAlarm() }
+        live.$heartRate.sink { [weak self] _ in
+            guard let self else { return }
+            self.wakeController.tick(bpm: self.bpm)
         }.store(in: &hrCancellables)
         // The firmware alarm is a single absolute instant with no recurrence, and was re-armed ONLY on
         // a (re)bond or a settings change. A strap that stays continuously bonded (a Mac in range) would
@@ -1716,11 +1731,33 @@ final class AppModel: ObservableObject {
 
     func applySmartAlarm() {
         let overrides = WindDownNudge.perDayWakeOverrides
-        guard behavior.smartAlarmEnabled else {
+        // Chantier 25: the wake plan (adaptive windows, the Fajr alarm) is rebuilt on every call, so the night
+        // watcher, the strap and the backups all follow the same windows.
+        let windows = WakeSchedule.upcomingWindows()
+        wakeController.replan(windows)
+        refreshFajrTimetableIfNeeded()
+        guard behavior.smartAlarmEnabled || WakeAlarmSettings.fajrEnabled() else {
             ble.disableStrapAlarm()
             Self.cancelSmartAlarmBackupNotification()
+            WakeNotification.cancelPlanBackups()
             return
         }
+        if WakeAlarmSettings.usesPlan() {
+            // The strap holds ONE alarm: the next deadline of either alarm. It is re-armed onto the following
+            // one once that deadline passes (the watcher's tick, the strap's fired event, the next foreground).
+            Self.cancelSmartAlarmBackupNotification()
+            guard let next = windows.first else {
+                ble.disableStrapAlarm()
+                WakeNotification.cancelPlanBackups()
+                return
+            }
+            ble.armStrapAlarm(at: next.deadline)
+            WakeNotification.schedulePlanBackups(windows, log: { [weak self] line in
+                Task { @MainActor in self?.live.append(log: line) }
+            })
+            return
+        }
+        WakeNotification.cancelPlanBackups()
         guard let next = Self.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
                                                  weekdays: behavior.smartAlarmWeekdays,
                                                  overrides: overrides) else {
@@ -1740,6 +1777,46 @@ final class AppModel: ObservableObject {
                                                   log: { [weak self] line in
                                                       Task { @MainActor in self?.live.append(log: line) }
                                                   })
+    }
+
+    /// Fetches the mosque's timetable when the Fajr alarm is on, a MAWAQIT token is set and the cache is due,
+    /// then re-arms from the new times (chantier 25). Nothing is sent without a token.
+    private func refreshFajrTimetableIfNeeded() {
+        guard WakeAlarmSettings.fajrEnabled(), MawaqitTokenStore.hasToken,
+              Mawaqit.needsRefresh(FajrTimes.cachedTimetable(), now: Date()) else { return }
+        Task { @MainActor [weak self] in
+            let updated = await MawaqitClient.refreshIfNeeded(log: { line in self?.live.append(log: line) })
+            if updated { self?.applySmartAlarm() }
+        }
+    }
+
+    /// A wake notification's action, or the Alarms screen's answer (chantier 25): the answer goes to the
+    /// journal, and the wearer being up takes this morning's deadline off the plan if it is still ahead.
+    func handleWakeResponse(_ response: WakeNotification.Response, now: Date = Date()) {
+        let window = response.window
+        if let feeling = response.feeling {
+            let fallback = WakeEvent(id: window.id, kind: window.kind, windowStart: window.start,
+                                     deadline: window.deadline, wokeAt: response.adaptive ? now : window.deadline,
+                                     adaptive: response.adaptive, trough: nil, bpmAtWake: nil, riseBpm: nil,
+                                     feeling: nil, answeredAt: nil)
+            WakeJournal.answer(id: window.id, feeling: feeling, fallback: fallback, now: now)
+            live.append(log: "Wake question: \(feeling.rawValue) after the \(window.kind.rawValue) wake")
+        }
+        guard response.awake else { return }
+        wakeController.stop(windowId: window.id)
+        guard window.deadline > now else { return }
+        WakeJournal.dismiss(window, now: now)
+        live.append(log: "Wake plan: wearer is up, the \(window.kind.rawValue) deadline "
+                    + "\(WakeNotification.wakeClock(window.deadline)) is cancelled for this morning only")
+        applySmartAlarm()
+    }
+
+    /// The Alarms screen's one-tap answer to `event`.
+    func answerWake(_ event: WakeEvent, feeling: WakeFeeling) {
+        handleWakeResponse(WakeNotification.Response(
+            window: WakeWindow(kind: event.kind, start: event.windowStart, deadline: event.deadline,
+                               adaptive: event.adaptive),
+            feeling: feeling, awake: true, adaptive: event.adaptive))
     }
 
     /// Compute the next fire date for the smart alarm, honouring the weekday selection.

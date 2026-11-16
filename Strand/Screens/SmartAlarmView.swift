@@ -39,6 +39,9 @@ struct SmartAlarmView: View {
     // FrameRouter). ≥2 = the strap is persistently refusing the alarm (a corrupted clock/alarm register),
     // which the strapRejectedCard surfaces with reset guidance. @AppStorage so it updates live.
     @AppStorage("alarm.rejectStreak") private var alarmRejectStreak = 0
+    /// Chantier 25: the adaptive mode, so the picker is named for what it is (the earliest wake) and the
+    /// honesty copy follows.
+    @AppStorage(WakeAlarmSettings.adaptiveKey) private var adaptiveOn = false
     /// Calendar weekday numbers laid out Monday-first (Mon…Sun → 2,3,4,5,6,7,1), matching AutomationsView.
     private static let weekdayOrder = [2, 3, 4, 5, 6, 7, 1]
 
@@ -49,8 +52,10 @@ struct SmartAlarmView: View {
                        subtitle: "Your strap wake-alarm and the evening wind-down reminder, in one place.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 windowHero
+                WakeFeedbackCard()  // chantier 25: only while a wake waits for its answer
                 strapAlarmCard
                 strapRejectedCard   // #34: only shows when the strap keeps refusing the alarm
+                FajrAlarmCard()     // chantier 25
                 honestyCard
                 windDownCard
             }
@@ -134,6 +139,14 @@ struct SmartAlarmView: View {
                                     .font(StrandFont.footnote)
                                     .foregroundStyle(StrandPalette.textSecondary)
                             }
+                            // Chantier 25: an adaptive window names its opening edge too, from the same
+                            // plan and the same tick as the countdown above it.
+                            if let window = Self.nextArmedWakeWindow(isWhoop5: model.whoop5Detected, from: tick.date) {
+                                Text(Self.wakeWindowLine(window))
+                                    .font(StrandFont.footnote)
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -197,7 +210,9 @@ struct SmartAlarmView: View {
                     Text("The strap alarm is a silent buzz, not a sound")
                         .font(StrandFont.headline)
                         .foregroundStyle(StrandPalette.textPrimary)
-                    Text("The wake-alarm above buzzes your wrist from the strap's own firmware. It can't sound a loud alarm. We also schedule a backup notification at your wake time, but a sideloaded app can't sound a guaranteed wake on this device (that needs a critical-alert permission this build doesn't have), so Focus or silent mode can still mute it. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app.")
+                    // Chantier 25: the adaptive wake now exists here too, as a strap buzz, so the old pointer
+                    // to Android would be wrong.
+                    Text("The wake-alarm above buzzes your wrist from the strap's own firmware, and so do the adaptive mode and the Fajr alarm. None can sound a loud alarm. A backup notification is scheduled at each wake time, but a sideloaded app can't sound a guaranteed wake on this device (that needs a critical-alert permission this build doesn't have), so Focus or silent mode can still mute it. Keep your phone's built-in Clock alarm as your real backup.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -246,7 +261,11 @@ struct SmartAlarmView: View {
                 if behavior.smartAlarmEnabled {
                     Divider().overlay(StrandPalette.hairline)
                     HStack {
-                        Text("Wake at").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        if adaptiveOn {
+                            Text("Earliest wake").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        } else {
+                            Text("Wake at").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        }
                         Spacer()
                         DatePicker("", selection: alarmTimeBinding, displayedComponents: .hourAndMinute)
                             .labelsHidden().datePickerStyle(.compact)
@@ -268,6 +287,8 @@ struct SmartAlarmView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    Divider().overlay(StrandPalette.hairline)
+                    AdaptiveModeSection(earliestMinutes: behavior.smartAlarmMinutes, hasOverrides: !overrides.isEmpty)
                     Divider().overlay(StrandPalette.hairline)
                     alarmWeekdayPicker
                     // #864: a WHOOP 5/MG only arms its firmware alarm when Protocol probes is on (see
@@ -519,18 +540,40 @@ struct SmartAlarmView: View {
     /// `from` is a parameter so the ticking countdown re-resolves against the clock it is given rather
     /// than a `Date()` captured somewhere else.
     private func nextStrapAlarm(from now: Date = Date()) -> Date? {
-        guard behavior.smartAlarmEnabled, strapAlarmWillArm else { return nil }
-        return Self.nextArmedStrapAlarm(enabled: true, minutes: behavior.smartAlarmMinutes,
-                                        weekdays: behavior.smartAlarmWeekdays, overrides: overrides,
-                                        isWhoop5: model.whoop5Detected, from: now)
+        Self.nextArmedStrapAlarm(enabled: behavior.smartAlarmEnabled, minutes: behavior.smartAlarmMinutes,
+                                 weekdays: behavior.smartAlarmWeekdays, overrides: overrides,
+                                 isWhoop5: model.whoop5Detected, from: now)
     }
 
     /// The funnel above with its inputs passed in: the More sheet's « Alarms » row (personal fork) names
     /// the same moment through it, gate included, so the two cannot disagree.
+    ///
+    /// Chantier 25: with the adaptive mode or the Fajr alarm on, the moment is the next window's deadline from
+    /// `WakeSchedule.upcomingWindows`, the plan `applySmartAlarm` arms the strap from.
     static func nextArmedStrapAlarm(enabled: Bool, minutes: Int, weekdays: Set<Int>, overrides: [Int: Int],
                                     isWhoop5: Bool, from now: Date) -> Date? {
-        guard enabled, strapAlarmArms(isWhoop5: isWhoop5) else { return nil }
+        guard strapAlarmArms(isWhoop5: isWhoop5) else { return nil }
+        if WakeAlarmSettings.usesPlan() { return WakeSchedule.upcomingWindows(now: now).first?.deadline }
+        guard enabled else { return nil }
         return AppModel.nextSmartAlarmDate(minutes: minutes, weekdays: weekdays, overrides: overrides, from: now)
+    }
+
+    /// The window of that next wake, nil for a classic alarm: the countdown's companion line.
+    static func nextArmedWakeWindow(isWhoop5: Bool, from now: Date) -> WakeWindow? {
+        guard strapAlarmArms(isWhoop5: isWhoop5), WakeAlarmSettings.usesPlan() else { return nil }
+        return WakeSchedule.upcomingWindows(now: now).first
+    }
+
+    /// The line under the countdown for a planned window: its two edges, and which alarm it is.
+    static func wakeWindowLine(_ window: WakeWindow) -> String {
+        let start = WakeNotification.wakeClock(window.start)
+        let end = WakeNotification.wakeClock(window.deadline)
+        switch (window.kind, window.adaptive) {
+        case (.main, true): return String(localized: "Adaptive: from \(start), at the latest \(end)")
+        case (.fajr, true): return String(localized: "Fajr: from \(start), at the latest \(end), the adhan")
+        case (.fajr, false): return String(localized: "Fajr alarm")
+        case (.main, false): return String(localized: "Smart alarm")
+        }
     }
 
     /// The next alarm as a weekday, date and time: "Mon 21 Sep 10:28".

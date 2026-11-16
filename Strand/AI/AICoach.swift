@@ -1689,6 +1689,8 @@ final class AICoachEngine: ObservableObject {
         inputs.nutrition = await nutritionFiche(spent: split)
         // The fast and the water (personal fork, chantier 15 PR C), as the Jeûne page shows them.
         inputs.fasting = await fastingFiche()
+        // The alarms (personal fork, chantier 25), from the funnel the strap is armed from.
+        inputs.alarm = WakeSchedule.facts()
 
         // The Lift Log's statuses and priorities, read as the Progression screen reads them.
         let step = system == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg

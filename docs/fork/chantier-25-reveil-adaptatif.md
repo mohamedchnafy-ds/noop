@@ -1,6 +1,6 @@
 # Chantier 25 — Réveil adaptatif et alarme Fajr
 
-**État** (16 nov. 2026) : spec validée par Mohamed, 4 choix faits (outil à choix multiples), **code écrit, une PR vers `main`** (iPhone, sans migration). À valider avec la prochaine IPA (liste « À tester » ci-dessous). Pas de maquette : spec écrite validée, rendu à valider sur captures.
+**État** (16 nov. 2026) : spec validée par Mohamed, 4 choix faits (outil à choix multiples), **PR #170 fusionnée** (6/6 verte, `main` 090eb36 ; iPhone, sans migration). **IPA `build/reveil-adaptatif`** = `main` 090eb36 (release `ipa-build-reveil-adaptatif`), à valider (liste « À tester » ci-dessous). Pas de maquette : spec écrite validée, rendu à valider sur captures. Un premier passage de la CI avait un seul échec, `AlarmWakeTimeLabellingTests` : le contrôle « le bracelet sera armé » doit rester dans `nextStrapAlarm` ; remis dans l'entonnoir, sur les deux chemins.
 
 ## La demande (16 nov., spec de Mohamed résumée)
 1. **Mode adaptatif par alarme** : réglage = heure la plus tôt + fenêtre (défaut 30 min). La nuit, l'app écoute la FC du WHOOP 4.0 en direct, repère une sortie de cycle (remontée de FC au-dessus du creux de la nuit) et fait vibrer le bracelet au meilleur moment de la fenêtre. **La fin de la fenêtre est garantie** : l'alarme du bracelet (firmware) y est armée, l'heure n'est jamais reculée.

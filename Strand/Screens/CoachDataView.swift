@@ -135,6 +135,10 @@ struct CoachDataView: View {
         CoachDataRow(symbol: "timer", tint: StrandPalette.fastingDone, title: "Fasting",
                      detail: String(localized: "The fast running or the last one, the last 7 days, today's water"))
         divider
+        // Chantier 25: the ALARMS block of the fiche.
+        CoachDataRow(symbol: "alarm.fill", tint: StrandPalette.sleepWake, title: "Alarms",
+                     detail: String(localized: "Your next wake, the alarms on, Fajr, the adaptive mode and what it learned"))
+        divider
         CoachDataRow(symbol: "calendar", tint: StrandPalette.textSecondary, title: "Last 14 days",
                      detail: String(localized: "One line per day, and today's stress"))
     }

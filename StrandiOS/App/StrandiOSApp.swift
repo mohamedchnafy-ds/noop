@@ -176,6 +176,10 @@ struct StrandiOSApp: App {
         // Personal fork, chantier 10 PR C: Élan's reminders carry actions (the first categories of the app);
         // what they ask is done here, in NOOP's process, with or without a screen.
         ElanReminder.registerCategories()
+        // Personal fork, chantier 25: the wake question's answer and « I'm up », handled in NOOP's process.
+        NotificationPresenter.shared.onWakeAction = { [weak model] response in
+            Task { @MainActor in model?.handleWakeResponse(response) }
+        }
         NotificationPresenter.shared.onElanAction = { [weak router] action in
             switch action {
             case .notToday:

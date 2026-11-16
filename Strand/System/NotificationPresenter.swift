@@ -29,6 +29,9 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// the short session, « Pas aujourd'hui », the weigh-in, « Plus tard », Élan, Nutrition). Wired by the iOS
     /// app root; nil is a no-op.
     var onElanAction: ((ElanReminder.Action) -> Void)?
+    /// Personal fork, chantier 25: a wake notification's « Tired » / « Rested » / « I'm up ». Wired by the iOS app
+    /// root; nil is a no-op.
+    var onWakeAction: ((WakeNotification.Response) -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -53,6 +56,10 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
             onFastingTapped?()
         } else if let action = ElanReminder.elanAction(category: category, actionIdentifier: response.actionIdentifier) {
             onElanAction?(action)
+        } else if let wake = WakeNotification.response(category: category,
+                                                       actionIdentifier: response.actionIdentifier,
+                                                       userInfo: response.notification.request.content.userInfo) {
+            onWakeAction?(wake)
         }
         completionHandler()
     }

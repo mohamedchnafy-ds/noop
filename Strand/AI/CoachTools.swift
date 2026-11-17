@@ -32,6 +32,8 @@ enum CoachTools {
         case micros = "get_micronutrients"
         /// The medical file's documents with their summaries (chantier 23), with the Lab Book's switch.
         case medicalDocuments = "get_medical_documents"
+        /// The habits and their timed sessions with notes, read only when asked about (chantier 24).
+        case habits = "get_habits"
     }
 
     /// The metrics `get_metric_history` can return, by the names the fiche uses.
@@ -225,6 +227,7 @@ enum CoachTools {
                  properties: [:], required: []),
         ]
         tools.append(seriesDefinition)
+        tools.append(habitsDefinition)
         if labBook {
             tools.append(tool(.labBook,
                               "The user's own Lab Book markers (blood tests and the like): the latest values of "
@@ -753,6 +756,10 @@ enum CoachTools {
             let days = integer(input, "days", fallback: 30, in: seriesDayRange)
             let shown = title.isEmpty ? String(localized: "Your data") : title
             return String(localized: "\(shown) since \(since(days: days))")
+        case .habits:
+            let days = integer(input, "days", fallback: 30, in: habitDayRange)
+            let habit = text(input, "habit") ?? String(localized: "Habits")
+            return String(localized: "\(habit) since \(since(days: days))")
         }
     }
 

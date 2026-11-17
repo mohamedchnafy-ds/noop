@@ -195,9 +195,15 @@ struct RootTabView: View {
         }
         .onChange(of: router.moreRequested) { _, req in
             if req {
+                router.moreRequested = false
+                // Personal fork, chantier 24 PR C: the sheet asked for on Habits (the habit banner's tap).
+                if router.habitsRequested {
+                    router.habitsRequested = false
+                    openMoreScreen(.habits)
+                    return
+                }
                 morePath = NavigationPath()
                 showMore = true
-                router.moreRequested = false
             }
         }
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
@@ -333,8 +339,13 @@ struct RootTabView: View {
     /// The More sheet opened on Élan (personal fork, chantier 10 PR C): over whatever sheet the shell had
     /// up, which must be gone before another can be presented; a sheet already up only changes its path.
     private func openElanScreen() {
+        openMoreScreen(.elan)
+    }
+
+    /// The More sheet opened on `destination`, over any sheet the shell had up (Élan, Habits).
+    private func openMoreScreen(_ destination: MoreDestination) {
         var path = NavigationPath()
-        path.append(MoreDestination.elan)
+        path.append(destination)
         if showMore {
             morePath = path
             return
@@ -406,11 +417,20 @@ struct RootTabView: View {
         guard homeScreenQuickActionsEnabled,
               let action = homeScreenQuickActions.pendingAction else { return }
 
-        let destination: QuickAction = switch action {
-        case .liveHeartRate: .live
-        case .startWorkout: .start
-        case .logJournal: .journal
-        case .breathe: .breathe
+        let destination: QuickAction
+        switch action {
+        case .liveHeartRate: destination = .live
+        case .startWorkout: destination = .start
+        case .breathe: destination = .breathe
+        case .habitTimer:
+            // Personal fork, chantier 24 PR C: stop the stopwatch running, else start the habit started last,
+            // then the Habits screen in the More sheet.
+            homeScreenQuickActions.consume(action)
+            Task { @MainActor in
+                if let store = await repo.storeHandle() { await HabitLog.performHabitQuickAction(store) }
+                openMoreScreen(.habits)
+            }
+            return
         }
         homeScreenQuickActions.consume(action)
         withAnimation(Self.sheetEase) {
@@ -638,16 +658,24 @@ private struct MoreSheetRows: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var behavior: BehaviorStore
     @EnvironmentObject private var ble: BLEManager
+    @AppStorage(HabitLog.revisionKey) private var habitsRevision = 0
     @State private var values = MoreSheetValues()
 
     var body: some View {
         MoreSheetList { entry, isLast in
             NavigationLink(value: MoreDestination(entry)) {
-                MoreSheetRowLabel(entry: entry, value: values.value(for: entry), showsDivider: !isLast)
+                // Chantier 24: the Habits row ticks while a stopwatch runs.
+                if entry == .habits, let running = values.habitsRunning {
+                    TimelineView(.periodic(from: running.startedAt, by: 1)) { context in
+                        MoreSheetRowLabel(entry: entry, value: running.line(at: context.date), showsDivider: !isLast)
+                    }
+                } else {
+                    MoreSheetRowLabel(entry: entry, value: values.value(for: entry), showsDivider: !isLast)
+                }
             }
             .buttonStyle(.plain)
         }
-        .task(id: "\(repo.refreshSeq)-\(behavior.smartAlarmEnabled)-\(behavior.smartAlarmMinutes)") {
+        .task(id: "\(repo.refreshSeq)-\(behavior.smartAlarmEnabled)-\(behavior.smartAlarmMinutes)-\(habitsRevision)") {
             values = await MoreSheetReader.loadMoreSheetValues(repo: repo, behavior: behavior, isWhoop5: ble.isWhoop5)
         }
     }
@@ -738,12 +766,15 @@ private enum MoreDestination: Hashable {
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
     /// Personal fork, chantier 10: the Élan section (motivation), from the row under the profile card.
     case elan
+    /// Personal fork, chantier 24: the habits and their stopwatch.
+    case habits
     /// A More group's row: Nutrition opens its screen directly, the others their list of entries.
     case hub(MoreHubGroup)
 
     /// The screen a row of the More sheet opens (section 7).
     init(_ entry: MoreSheetEntry) {
         switch entry {
+        case .habits: self = .habits
         case .health: self = .health
         case .stress: self = .stress
         case .breathe: self = .breathe
@@ -825,6 +856,7 @@ private enum MoreDestination: Hashable {
         case .powerSaving:     PowerSavingView()
         case .settings:        SettingsView()
         case .elan:            ElanView()
+        case .habits:          HabitsView()
         }
     }
 }

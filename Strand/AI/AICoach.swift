@@ -411,12 +411,13 @@ final class AICoachEngine: ObservableObject {
         var lines = ["## Outils"]
         if readTools {
             lines += [
-                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours (dont le poids d'Apple Santé, l'eau enregistrée et l'historique du stress), le détail d'une nuit avec ses courbes de FC et de VFC, la FC d'une journée avec le temps par zone, la caféine notée, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal, le Lab Book et le journal des repas.",
+                "Tu peux appeler des outils pour aller chercher ce que la fiche n'a pas : une mesure sur plus de 14 jours (dont le poids d'Apple Santé, l'eau enregistrée et l'historique du stress), le détail d'une nuit avec ses courbes de FC et de VFC, la FC d'une journée avec le temps par zone, la caféine notée, tous les entraînements d'une période, l'historique d'un exercice du Carnet, les programmes complets, le Journal, le Lab Book, le journal des repas et les habitudes chronométrées avec leurs notes.",
                 "- Réponds avec la fiche quand elle suffit ; appelle un outil seulement si elle ne suffit pas pour répondre juste.",
                 "- N'annonce pas que tu vas chercher : appelle l'outil, puis réponds directement à la question.",
                 "- Demande la période la plus courte qui répond à la question.",
                 "- Ce que renvoie un outil suit les règles de la fiche : un tiret veut dire non mesuré, jamais zéro.",
                 "- Eau et caféine : ce sont des saisies de l'utilisateur. L'eau enregistrée n'est pas toute l'eau bue, et un jour sans saisie ne veut pas dire qu'il n'a rien bu ; la caféine active est une estimation.",
+                "- Habitudes : appelle get_habits seulement quand sa question porte sur une habitude (lecture, méditation, instrument…) ou sur ses notes. N'en parle jamais de toi-même : ni dans le brief, ni dans une réponse sur autre chose, ni en suggestion. Pour les croiser, appelle aussi les autres outils sur la même période (get_night, get_series, get_metric_history, get_day_heart_rate, get_meals, get_workouts) et compare les jours avec et sans session ; les notes sont ses propres mots, cite-les quand elles éclairent une session. Il n'y a ni objectif ni série : un jour sans session ne veut rien dire.",
                 "- Séries : pour une mesure que ni la fiche ni get_metric_history n'ont (toute mesure d'Analyses, les phases du sommeil nuit par nuit, les macros jour par jour), appelle get_series avec le même identifiant que show_chart, sur la période la plus courte qui répond.",
                 "- Graphiques : quand il veut voir une mesure, une tendance ou comparer deux mesures, appelle show_chart (au plus 3 par réponse) au lieu d'écrire les valeurs : line ou bars pour une mesure (période de 7, 14, 30, 90, 180 ou 365 jours), pair pour deux mesures sur la même période, day pour la FC ou le stress d'une journée, stacked pour les phases du sommeil (sleep:stages) ou les macros (nutrition:macros) jour par jour. L'app dessine avec ses propres données et te renvoie les chiffres du graphique : commente-les en une ou deux phrases, sans les recopier.",
                 "- Corrections : pour corriger une séance saisie à la main (get_workouts la marque « entered by hand »), appelle correct_workout ; pour corriger les séries d'une séance terminée du Carnet (charge ou répétitions mal notées, série en plus ou en moins), appelle correct_lift_session. Une phrase avant, rien après : la carte s'affiche avec « Valider », rien ne change sans un tap et il peut annuler. Une correction est sa déclaration, jamais une mesure du bracelet. Une séance enregistrée par le bracelet ou importée ne se corrige pas ici : dis-lui de passer par Entraînements.",
@@ -1692,6 +1693,8 @@ final class AICoachEngine: ObservableObject {
         inputs.nutrition = await nutritionFiche(spent: split)
         // The fast and the water (personal fork, chantier 15 PR C), as the Jeûne page shows them.
         inputs.fasting = await fastingFiche()
+        // The alarms (personal fork, chantier 25), from the funnel the strap is armed from.
+        inputs.alarm = WakeSchedule.facts()
 
         // The Lift Log's statuses and priorities, read as the Progression screen reads them.
         let step = system == .imperial ? LiftProgression.imperialStepKg : LiftProgression.metricStepKg

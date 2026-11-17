@@ -82,6 +82,8 @@ enum CoachFiche {
         var fasting: Fasting?
         /// Chantier 18: « What shapes my sessions », only while its Experimental switch is on.
         var influences: Influences?
+        /// Chantier 25: the alarms, the next wake and the learned threshold (`WakeSchedule.facts`).
+        var alarm: WakeAlarmFacts?
     }
 
     /// The fasting page's figures (personal fork, chantier 15 PR C): the fast running (or the last one over),
@@ -135,6 +137,7 @@ enum CoachFiche {
         if let sleep = inputs.sleep { blocks.append(sleepBlock(sleep)) }
         if let nutrition = inputs.nutrition { blocks.append(nutritionBlock(nutrition)) }
         if let fasting = inputs.fasting { blocks.append(fastingBlock(fasting)) }
+        if let alarm = inputs.alarm { blocks.append(alarmBlock(alarm)) }
         return blocks.joined(separator: "\n\n")
     }
 

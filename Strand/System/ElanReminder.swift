@@ -284,12 +284,14 @@ enum ElanReminder {
         let notToday = UNNotificationAction(identifier: notTodayActionId, title: String(localized: "Not today"), options: [])
         let log = UNNotificationAction(identifier: logWeighActionId, title: String(localized: "Log it"), options: [.foreground])
         let later = UNNotificationAction(identifier: laterActionId, title: String(localized: "Later"), options: [])
-        let categories: Set<UNNotificationCategory> = [
+        var categories: Set<UNNotificationCategory> = [
             UNNotificationCategory(identifier: missedCategoryId, actions: [shortSession, notToday], intentIdentifiers: []),
             UNNotificationCategory(identifier: weighCategoryId, actions: [log, later], intentIdentifiers: []),
             UNNotificationCategory(identifier: plainCategoryId, actions: [], intentIdentifiers: []),
             UNNotificationCategory(identifier: mealCategoryId, actions: [], intentIdentifiers: []),
         ]
+        // Personal fork, chantier 25: the wake question's categories.
+        categories.formUnion(WakeNotification.categories())
         UNUserNotificationCenter.current().setNotificationCategories(categories)
     }
 

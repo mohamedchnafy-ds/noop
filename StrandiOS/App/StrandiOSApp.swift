@@ -160,9 +160,26 @@ struct StrandiOSApp: App {
             }
         }
         NotificationPresenter.shared.onFastingTapped = { [weak router] in router?.openFasting() }
+        // Personal fork, chantier 24 PR C: after every write to the habits, the Lock Screen banner and the Home
+        // Screen quick action follow `HabitLog`; the banner's Stop stops the stopwatch here, in NOOP's process.
+        HabitLog.onHabitChange = { store in
+            await HabitLiveActivityController.refreshHabitSurroundings(store)
+        }
+        HabitBannerRelay.stopHandler = { [weak model] in
+            guard let model, let store = await model.repo.storeHandle() else { return }
+            if let running = await HabitLog.resolveRunningHabit(store) {
+                await HabitLog.stopHabitStopwatch(store, running)
+            } else {
+                await HabitLiveActivityController.shared.end()
+            }
+        }
         // Personal fork, chantier 10 PR C: Élan's reminders carry actions (the first categories of the app);
         // what they ask is done here, in NOOP's process, with or without a screen.
         ElanReminder.registerCategories()
+        // Personal fork, chantier 25: the wake question's answer and « I'm up », handled in NOOP's process.
+        NotificationPresenter.shared.onWakeAction = { [weak model] response in
+            Task { @MainActor in model?.handleWakeResponse(response) }
+        }
         NotificationPresenter.shared.onElanAction = { [weak router] action in
             switch action {
             case .notToday:
@@ -376,6 +393,9 @@ struct StrandiOSApp: App {
                     } else if url.scheme == "noop", url.host == "fasting" {
                         // The fasting banner's tap (personal fork, chantier 15): the Jeûne page.
                         router.openFasting()
+                    } else if url.scheme == "noop", url.host == "habits" {
+                        // The habit banner's tap (personal fork, chantier 24): the Habits screen.
+                        router.openHabits()
                     } else if let start = DayWidgetsSnapshot.Start(url: url) {
                         // A Start of the session widget (personal fork, widgets v2): launch it.
                         router.widgetStart = start
@@ -445,6 +465,8 @@ struct StrandiOSApp: App {
                 Task {
                     if let store = await model.repo.storeHandle() {
                         await FastingLog.refreshFastingSurroundings(store)
+                        // Chantier 24 PR C: a habit banner iOS ended after 8 hours, started again.
+                        await HabitLiveActivityController.refreshHabitSurroundings(store)
                     }
                 }
                 Task {

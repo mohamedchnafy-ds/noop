@@ -14,6 +14,8 @@ import WhoopStore
 
 /// One row of the More sheet.
 enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
+    /// Personal fork, chantier 24: the habits and their stopwatch.
+    case habits
     case health, stress, breathe, labBook, medicalFile
     case trends, routeMap
     case alarms, backupSync, dataSources, settings
@@ -44,6 +46,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
 
     var title: LocalizedStringKey {
         switch self {
+        case .habits: return "Habits"
         case .health: return "Health"
         case .stress: return "Stress"
         case .breathe: return "Breathe"
@@ -76,6 +79,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
     /// SF Symbol of the row's tile (the main sections only).
     var icon: String {
         switch self {
+        case .habits: return "timer"
         case .health: return "heart.text.square.fill"
         case .stress: return "bolt.heart.fill"
         case .breathe: return "wind"
@@ -96,6 +100,7 @@ enum MoreSheetEntry: String, CaseIterable, Identifiable, Hashable {
     /// HRV cyan for trends, the activity orange for alarms), the utilities grey.
     var tint: Color {
         switch self {
+        case .habits: return HabitPalette.tint(HabitPalette.defaultKey)
         case .health: return StrandPalette.liquidHeart
         case .stress: return StrandPalette.metricAmber
         case .breathe: return StrandPalette.metricCyan
@@ -137,23 +142,28 @@ enum MoreSheetSection: CaseIterable, Identifiable {
 
     var entries: [MoreSheetEntry] {
         switch self {
-        case .healthRecovery: return [.health, .stress, .breathe, .labBook, .medicalFile]
+        case .healthRecovery: return [.habits, .health, .stress, .breathe, .labBook, .medicalFile]
         case .analysis: return [.trends, .explore, .routeMap]
         case .dataSettings: return [.alarms, .backupSync, .dataSources, .settings]
         }
     }
 }
 
-/// The values shown on the right of five rows, already worded; nil = nothing shown.
+/// The values shown on the right of six rows, already worded; nil = nothing shown.
 struct MoreSheetValues: Equatable {
     var vitality: Int?
     var stress: String?
     var labDay: String?
     var alarm: String?
     var backup: String?
+    /// Chantier 24: the week's total of every habit (« 5h 20m this week »), nil with no habit.
+    var habitsWeek: String? = nil
+    /// Chantier 24: the stopwatch running, shown ticking on the Habits row in place of the week's total.
+    var habitsRunning: MoreHabitsRunning? = nil
 
     func value(for entry: MoreSheetEntry) -> String? {
         switch entry {
+        case .habits: return habitsWeek
         case .health: return vitality.map { String(localized: "Vitality \($0)") }
         case .stress: return stress
         case .labBook: return labDay
@@ -203,6 +213,20 @@ enum MoreSheetReader {
             values.alarm = moreAlarmText(next, now: now)
         }
         values.backup = moreBackupText(lastMs: FolderBackup.lastBackupMs, now: now)
+        if let store = await repo.storeHandle() {
+            let habits = await HabitLog.loadHabitList(store)
+            if let running = await HabitLog.resolveRunningHabit(store),
+               let habit = habits.first(where: { $0.id == running.habitId }) {
+                values.habitsRunning = MoreHabitsRunning(
+                    name: habit.name, startedAt: Date(timeIntervalSince1970: TimeInterval(running.startedAt)))
+            } else if !habits.isEmpty {
+                var week = 0
+                for habit in habits {
+                    week += await HabitLog.resolveHabitFigures(store, habitId: habit.id, now: now).weekSeconds
+                }
+                values.habitsWeek = String(localized: "\(HabitFormat.duration(seconds: week)) this week")
+            }
+        }
         return values
     }
 
@@ -224,6 +248,17 @@ enum MoreSheetReader {
         formatter.locale = AppLanguage.activeLocale
         formatter.dateTimeStyle = .named
         return formatter.localizedString(from: DateComponents(day: -max(0, days)))
+    }
+}
+
+/// The stopwatch running, as the More sheet's Habits row shows it (« Lecture · 12:34 »).
+struct MoreHabitsRunning: Equatable {
+    var name: String
+    var startedAt: Date
+
+    /// The row's value at `date`.
+    func line(at date: Date) -> String {
+        "\(name) · \(HabitFormat.stopwatch(seconds: Int(date.timeIntervalSince(startedAt))))"
     }
 }
 

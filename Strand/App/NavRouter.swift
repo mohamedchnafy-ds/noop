@@ -105,6 +105,16 @@ final class NavRouter: ObservableObject {
     /// Open the screen a day widget summarises.
     func openWidgetRoute(_ route: TabRoute) { widgetRoute = route }
 
+    /// Personal fork, chantier 24 PR C: the Habits screen was asked for (the habit banner's tap). Read by the
+    /// iOS shell with `moreRequested`, which opens the More sheet on it, then clears both.
+    @Published var habitsRequested = false
+
+    /// The More sheet, on Habits.
+    func openHabits() {
+        habitsRequested = true
+        moreRequested = true
+    }
+
     /// Personal fork, chantier 15 PR C: the Jeûne page was asked for (the fasting notification, the fasting
     /// banner). Nutrition opens it, then clears it.
     @Published var fastingRequested = false

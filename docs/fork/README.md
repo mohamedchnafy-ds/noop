@@ -28,6 +28,8 @@ Mémoire du fork personnel `mohamedchnafy-ds/noop`, en français. Les règles de
 | `chantier-21-bonhomme.md` | Chantier 21 (14 nov.) : le bonhomme d'exécution sous l'exercice en séance (21 mouvements, reconnus d'après le nom). |
 | `chantier-22-micronutriments.md` | Chantier 22 — micronutriments dans Nutrition (préparé le 15 nov.) : choix de Mohamed (tout Ciqual, carte du jour + détail + Coach), règles, étapes. |
 | `chantier-23-dossier-medical.md` | Chantier 23 — dossier médical : PDF joints dans le Coach (bilans, traitements et allergies, comptes rendus, mesures), PDF gardé dans l'app ; préparé le 15 nov. |
+| `chantier-24-habitudes.md` | Chantier 24 (15 nov.) : Habitudes — habitudes créées par l'utilisateur, chrono (une session ouverte = l'heure de début), sessions à la main avec note, totaux et graphiques, bannière en direct, action de l'icône, outil du Coach lu seulement quand on le demande. Maquette : `maquettes/chantier-24-habitudes.html`. |
+| `chantier-25-reveil-adaptatif.md` | Chantier 25 (16 nov.) : réveil adaptatif (fenêtre, détection par la FC la nuit, heure limite garantie, question « fatigué / en forme » qui ajuste le seuil) et alarme Fajr (Masjid At-Tawba, Mawaqit avec jeton ou calcul à 15°, jamais après l'adhan), bloc ALARMS du Coach. |
 | `audit-delais-builds.md` | Audit des délais modification → IPA (v2, journaux CI du 31 oct. au 2 nov.) et pistes d'accélération. |
 
 Les maquettes sont des artefacts claude.ai (liens dans chaque fiche).

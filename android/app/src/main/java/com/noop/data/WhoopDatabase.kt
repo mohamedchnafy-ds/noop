@@ -65,8 +65,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaceEntity::class,
         PlaceVisitEntity::class,
         FastEntity::class,
+        HabitEntity::class,
+        HabitSessionEntity::class,
     ],
-    version = 47,
+    version = 48,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -86,7 +88,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 47
+        const val SCHEMA_VERSION = 48
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -1255,6 +1257,31 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v47 -> v48 (personal fork, chantier 24): ADDITIVE, the habits — `habit` and `habitSession`, the
+         * Room twins of the Swift WhoopStore `v56-habits` GRDB migration ([HabitEntity],
+         * [HabitSessionEntity]). CREATE TABLE / CREATE INDEX only, so no existing row is touched.
+         *
+         * The SQL MUST match Room's generated schema for the entities exactly: columns in entity field
+         * order (= the GRDB column order), `id TEXT NOT NULL` with PRIMARY KEY(`id`). Exposed as
+         * [HABITS_SQL] so `HabitsMigrationTest` can pin the shape on the plain JVM, and opened through the
+         * real chain by `WhoopDatabaseUpgradeTest`.
+         */
+        internal val HABITS_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `habit` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                "`colorKey` TEXT NOT NULL, `symbol` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
+                "`updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            "CREATE TABLE IF NOT EXISTS `habitSession` (`id` TEXT NOT NULL, `habitId` TEXT NOT NULL, " +
+                "`startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `note` TEXT, `manual` INTEGER NOT NULL, " +
+                "`createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            "CREATE INDEX IF NOT EXISTS `idx_habitSession_habitId_startedAt` ON `habitSession` (`habitId`, `startedAt`)",
+            "CREATE INDEX IF NOT EXISTS `idx_habitSession_startedAt` ON `habitSession` (`startedAt`)",
+        )
+
+        internal val MIGRATION_47_48 = object : Migration(47, 48) {
+            override fun migrate(db: SupportSQLiteDatabase) { HABITS_SQL.forEach(db::execSQL) }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -1282,7 +1309,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
             MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
             MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46,
-            MIGRATION_46_47,
+            MIGRATION_46_47, MIGRATION_47_48,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

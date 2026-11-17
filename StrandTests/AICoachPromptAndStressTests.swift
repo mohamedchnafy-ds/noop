@@ -105,6 +105,18 @@ final class AICoachPromptAndStressTests: XCTestCase {
                                                  alreadyUpgraded: false))
     }
 
+    func testTheCoachOpensOnTheProviderOfItsKeyAndOtherwiseOnAnthropic() {
+        XCTAssertEqual(AICoachEngine.startProvider(stored: nil, keyOwner: nil), .anthropic,
+                       "no stored choice: Anthropic, never OpenAI")
+        XCTAssertEqual(AICoachEngine.startProvider(stored: nil, keyOwner: "anthropic"), .anthropic)
+        XCTAssertEqual(AICoachEngine.startProvider(stored: "openAI", keyOwner: "anthropic"), .anthropic,
+                       "a provider without a usable key follows the key")
+        XCTAssertEqual(AICoachEngine.startProvider(stored: "anthropic", keyOwner: "anthropic"), .anthropic)
+        XCTAssertEqual(AICoachEngine.startProvider(stored: "gemini", keyOwner: nil), .gemini)
+        XCTAssertEqual(AICoachEngine.startProvider(stored: "custom", keyOwner: "anthropic"), .custom)
+        XCTAssertEqual(AICoachEngine.startProvider(stored: "garbage", keyOwner: nil), .anthropic)
+    }
+
     // MARK: - Feature 2: derived stress line
 
     func testStressIndexSummaryFormatsOneRoundedNumber() {

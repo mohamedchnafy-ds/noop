@@ -517,6 +517,18 @@ final class AICoachEngine: ObservableObject {
         return AIProvider.anthropic.defaultModel
     }
 
+    /// The provider the Coach opens on (personal fork: Anthropic only). The one stored API key
+    /// decides: a cloud provider other than the key's owner has no usable key (`resolvedKey` would
+    /// refuse it), so the Coach follows the key instead of showing a provider it cannot reach. With
+    /// no stored choice and no recorded owner, Anthropic. Custom keeps its choice (it needs no key).
+    nonisolated static func startProvider(stored: String?, keyOwner: String?) -> AIProvider {
+        let chosen = stored.flatMap(AIProvider.init(rawValue:))
+        let owner = keyOwner.flatMap(AIProvider.init(rawValue:))
+        if chosen == .custom { return .custom }
+        if let owner, owner != .custom { return owner }
+        return chosen ?? .anthropic
+    }
+
     /// Used in place of the metrics context when the user has NOT granted data access.
     private let noConsentNote = """
     NOTE: The user has not granted access to their biometric data. Coach generally and encourage \
@@ -530,8 +542,11 @@ final class AICoachEngine: ObservableObject {
         self.session = session
 
         // Restore persisted provider / model (falling back to sane defaults).
-        let storedProvider = UserDefaults.standard.string(forKey: Self.providerKey)
-            .flatMap(AIProvider.init(rawValue:)) ?? .openAI
+        let savedProvider = UserDefaults.standard.string(forKey: Self.providerKey)
+        let storedProvider = Self.startProvider(stored: savedProvider, keyOwner: AIKeyStore.ownerProvider)
+        if savedProvider != storedProvider.rawValue {
+            UserDefaults.standard.set(storedProvider.rawValue, forKey: Self.providerKey)
+        }
         self.provider = storedProvider
 
         var storedModel = UserDefaults.standard.string(forKey: Self.modelKey)

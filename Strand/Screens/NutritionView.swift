@@ -55,6 +55,8 @@ struct NutritionView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var motion = NoopMotionState.shared
     @State private var showHistory = false
+    /// Fork chantier 22: the Micronutrients screen.
+    @State private var showMicros = false
     @State private var showCustomize = false
     /// « Customize Nutrition »: the Blood markers card back on the page (off by default; it stays in the
     /// Lab Book). This iPhone only, outside the .noopbak.
@@ -176,6 +178,12 @@ struct NutritionView: View {
             }
 
             Group {
+                // Fork chantier 22: the day's micronutrients, once a meal is logged.
+                if !current.meals.isEmpty {
+                    NutritionMicrosCard(totals: MealMicros.microTotals(current.meals.flatMap(\.items)),
+                                        sex: profile.sex, intakeKcal: plan.intakeKcal,
+                                        onOpen: { showMicros = true })
+                }
                 NutritionWeekCard(model: NutritionHistoryModel(days: week ?? [], plan: plan), loading: week == nil,
                                   onOpen: { showHistory = true })
                 if labCardShown, !labLines.isEmpty {
@@ -197,6 +205,7 @@ struct NutritionView: View {
         .background(StrandPalette.surfaceBase.ignoresSafeArea())
         .navigationDestination(isPresented: $showGoals) { NutritionGoalsView() }
         .navigationDestination(isPresented: $showHistory) { NutritionHistoryScreen() }
+        .navigationDestination(isPresented: $showMicros) { NutritionMicrosScreen(day: day) }
         .navigationDestination(isPresented: $showFasting) { FastingView() }
         // Chantier 15 PR C: the fasting notification or banner asked for the Jeûne page.
         .onAppear { openFastingIfRequested() }
@@ -812,6 +821,15 @@ struct NutritionMealRow: View {
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
+                // Fork chantier 22: the meal's headline micronutrients.
+                if let micro = MicroFormat.lineMicroSummary(MealMicros.microTotals(entry.items).amounts) {
+                    Text(verbatim: micro)
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(verbatim: NutritionFormat.mealKcal(entry))

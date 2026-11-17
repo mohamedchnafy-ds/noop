@@ -74,6 +74,8 @@ enum OpenFoodFacts {
         guard !name.isEmpty else { return nil }
         let per100 = MealPer100(kcal: MealMath.tenth(kcal), proteinG: MealMath.tenth(protein),
                                 carbsG: MealMath.tenth(carbs), fatG: MealMath.tenth(fat))
+        // Fork chantier 22: what the product gives of fiber, sugars, salt… is kept for its lines.
+        OpenFoodFactsMicros.rememberMicros(barcode: barcode, micros: OpenFoodFactsMicros.parseOffMicros(nutriments))
         return BarcodeProduct(barcode: barcode, name: name, per100: per100, lastGrams: nil, lastEatenAt: 0,
                               source: .openFoodFacts)
     }

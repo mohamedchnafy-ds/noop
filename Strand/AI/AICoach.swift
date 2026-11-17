@@ -1586,6 +1586,10 @@ final class AICoachEngine: ObservableObject {
         if includeOnDeviceSignals {
             let block = await onDeviceSignalsBlock()
             if !block.isEmpty { ctx += "\n\n" + block }
+            // The medical file (chantier 23): treatments, allergies, the latest documents' titles.
+            if let medical = MedicalFileStore.ficheBlock(MedicalFileStore.loadMedicalFile()) {
+                ctx += "\n\n" + medical
+            }
         }
         // « Mon pourquoi » (personal fork, chantier 10): the wearer's own words, only with their switch on.
         if let why = ElanWhy.coachBlock(text: ElanWhy.text(), allowed: ElanWhy.coachCanRead()) {

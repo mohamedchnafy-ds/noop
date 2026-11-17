@@ -76,6 +76,8 @@ struct CoachView: View {
     /// The photos attached to the question being written (`CoachPhotoStore` staged names).
     @State private var attachedPhotos: [String] = []
     @State private var showPhotoPicker = false
+    /// Fork chantier 23: a medical document being added from the "+".
+    @State private var addingDocument = false
     @State private var pickedPhotos: [PhotosPickerItem] = []
     @State private var showCamera = false
     /// True once the draft came from the microphone: a meal it describes is logged as dictated.
@@ -651,6 +653,9 @@ struct CoachView: View {
                                     room: max(1, CoachPhotoStore.maxPerQuestion - attachedPhotos.count),
                                     onPicked: attachPicked, onCamera: stageAttachment))
         .task(id: coach.pendingComposerAction) { await consumeComposerAction() }
+        .medicalDocumentImport(isPresented: $addingDocument) { saved in
+            draft = String(localized: "What did you note in my document “\(saved.title)”?")
+        }
         .sheet(item: $mealEditor) { edit in
             NutritionMealEditor(target: edit.target, day: edit.day, onSaved: { saved in
                 coach.markMealSaved(messageId: edit.messageId, mealId: saved.meal.id)
@@ -1194,6 +1199,9 @@ struct CoachView: View {
                 }
             }
             #endif
+            Button { addingDocument = true } label: {
+                Label("PDF document", systemImage: "doc.text")
+            }
         } label: {
             Image(systemName: "plus")
                 .font(StrandFont.headline)

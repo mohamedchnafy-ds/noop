@@ -4,7 +4,7 @@ import Foundation
 // it is. The chips above an empty conversation, the Today launcher's list and the follow-ups under an answer
 // read the same facts (`CoachSuggestionFacts`, resolved by `AICoachEngine.suggestionFacts`).
 //
-// Rules, pinned by `CoachSuggestionsTests`:
+// Rules, pinned by `CoachDayPromptsTests`:
 // - A question names a figure only when that figure is today's and real: last night's sleep, today's Charge,
 //   today's HRV against the personal normal, a fast running now, the protein left against today's goal. A
 //   value carried from another day is never presented as today's; no data, no question about it.
@@ -65,7 +65,7 @@ struct CoachSuggestionFacts: Equatable {
     var logsMeals: Bool { mealsToday > 0 || mealDays7 > 0 }
 }
 
-enum CoachSuggestions {
+enum CoachDayPrompts {
 
     /// Most chips above an empty conversation.
     static let maxPrompts = 6

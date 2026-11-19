@@ -103,7 +103,7 @@ struct CoachEmptyState: View {
 /// The short questions above the composer of an empty conversation (fork chantier 9), wrapped rather
 /// than scrolled sideways (a sideways row fought the swipe between tabs). They go as soon as the
 /// conversation starts. The Coach screen hands them in: fitted to the day's data
-/// (`CoachSuggestions.personalizedQuickPrompts`), without the meal chip when photos cannot be sent.
+/// (`CoachDayPrompts.personalizedQuickPrompts`), without the meal chip when photos cannot be sent.
 struct CoachQuickPrompts: View {
     let prompts: [CoachPrompts.QuickPrompt]
     let onAsk: (String) -> Void

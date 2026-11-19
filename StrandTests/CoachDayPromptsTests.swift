@@ -1,11 +1,11 @@
 import XCTest
 @testable import Strand
 
-/// Personal fork: the Coach's suggested questions fitted to the day's data (`CoachSuggestions`). Pins the
+/// Personal fork: the Coach's suggested questions fitted to the day's data (`CoachDayPrompts`). Pins the
 /// rules: a figure only when it is today's, nothing about data that is not there, the fixed chips with
 /// « Use my data » off, the most current question first, the meal photo last, and follow-ups the data can
 /// answer. Expected texts are built with the same catalogue calls, so the tests hold in every language.
-final class CoachSuggestionsTests: XCTestCase {
+final class CoachDayPromptsTests: XCTestCase {
 
     private typealias Facts = CoachSuggestionFacts
 
@@ -15,10 +15,10 @@ final class CoachSuggestionsTests: XCTestCase {
     }
 
     private func questions(_ facts: Facts) -> [String] {
-        CoachSuggestions.personalizedQuickPrompts(facts).map(\.question)
+        CoachDayPrompts.personalizedQuickPrompts(facts).map(\.question)
     }
 
-    private var hrvChip: String { CoachSuggestions.hrvQuestion }
+    private var hrvChip: String { CoachDayPrompts.hrvQuestion }
     private var nextMeal: String { String(localized: "What should I eat at my next meal?") }
     private var createSession: String { String(localized: "Create a session for me for today") }
     private var lastSession: String { String(localized: "How did my last session go?") }
@@ -29,7 +29,7 @@ final class CoachSuggestionsTests: XCTestCase {
         var facts = Facts(useData: false, photosAvailable: true, hour: 7)
         facts.nightMinutes = 370
         facts.charge = 38
-        XCTAssertEqual(CoachSuggestions.personalizedQuickPrompts(facts), CoachPrompts.quickPrompts)
+        XCTAssertEqual(CoachDayPrompts.personalizedQuickPrompts(facts), CoachPrompts.quickPrompts)
         facts.photosAvailable = false
         XCTAssertFalse(questions(facts).contains(CoachPrompts.photoMealPrompt))
         XCTAssertFalse(questions(facts).contains { $0.contains(duration(370)) })
@@ -159,7 +159,7 @@ final class CoachSuggestionsTests: XCTestCase {
         facts.mealsToday = 1
         facts.proteinLeftG = 90
         let asked = questions(facts)
-        XCTAssertEqual(asked.count, CoachSuggestions.maxPrompts)
+        XCTAssertEqual(asked.count, CoachDayPrompts.maxPrompts)
         XCTAssertEqual(asked.last, CoachPrompts.photoMealPrompt)
         XCTAssertEqual(Set(asked).count, asked.count)
     }
@@ -167,7 +167,7 @@ final class CoachSuggestionsTests: XCTestCase {
     func testTheLauncherListsTheChipsQuestions() {
         var facts = Facts(useData: true, photosAvailable: true, hour: 7)
         facts.nightMinutes = 370
-        XCTAssertEqual(CoachSuggestions.launcherQuestions(facts), questions(facts))
+        XCTAssertEqual(CoachDayPrompts.launcherQuestions(facts), questions(facts))
     }
 
     // MARK: - Follow-ups
@@ -175,7 +175,7 @@ final class CoachSuggestionsTests: XCTestCase {
     func testAPersonalisedFirstQuestionKeepsItsTheme() {
         var facts = Facts(useData: true, photosAvailable: true, hour: 8)
         facts.session = .planned("Push A")
-        let chips = CoachSuggestions.personalizedQuickPrompts(facts)
+        let chips = CoachDayPrompts.personalizedQuickPrompts(facts)
         let first = chips[0]
         XCTAssertEqual(first.theme, .session)
         let followUps = CoachPrompts.followUps(forFirstQuestion: first.question, lastReplyHasSession: false,

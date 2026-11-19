@@ -13,7 +13,7 @@ import StrandDesign
 ///
 /// NO PROVIDER REQUEST IS MADE BY OPENING THIS. Everything shown is local: `isConfigured` reads the
 /// stored key, and the prompts are the Coach screen's chips, fitted on the device to the day's data
-/// (`CoachSuggestions.launcherQuestions`; the fixed list with « Use my data » off or until it is read). The first network call still happens where it always
+/// (`CoachDayPrompts.launcherQuestions`; the fixed list with « Use my data » off or until it is read). The first network call still happens where it always
 /// did — inside `AICoachEngine.send`, after an explicit user action.
 struct CoachLauncherSheet: View {
     @EnvironmentObject var coach: AICoachEngine
@@ -25,7 +25,7 @@ struct CoachLauncherSheet: View {
     @State private var suggestionFacts: CoachSuggestionFacts?
 
     private var suggestions: [String] {
-        suggestionFacts.map(CoachSuggestions.launcherQuestions) ?? CoachPrompts.suggestions
+        suggestionFacts.map(CoachDayPrompts.launcherQuestions) ?? CoachPrompts.suggestions
     }
 
     var body: some View {

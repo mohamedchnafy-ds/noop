@@ -56,7 +56,7 @@ enum CoachPrompts {
         let question: String
         /// The theme whose follow-ups the conversation gets when it starts with this question; nil keeps
         /// the generic ones. The fixed chips are recognised by `theme(ofFirstQuestion:)` already; the
-        /// personalised ones (`CoachSuggestions`) carry theirs, since their text holds the day's figures.
+        /// personalised ones (`CoachDayPrompts`) carry theirs, since their text holds the day's figures.
         var theme: Theme? = nil
         var id: String { question }
     }
@@ -109,7 +109,7 @@ enum CoachPrompts {
     /// or a conversation that starts with the brief, gets "Make me this session" first.
     ///
     /// With `facts` (the Coach screen, « Use my data » on), the follow-ups are then fitted to what is on the
-    /// device (`CoachSuggestions.fittedFollowUps`); `known` holds the personalised chips on screen, so a
+    /// device (`CoachDayPrompts.fittedFollowUps`); `known` holds the personalised chips on screen, so a
     /// conversation that started with one keeps its theme.
     static func followUps(forFirstQuestion question: String?, lastReplyHasSession: Bool,
                           startsWithBrief: Bool, lastReplyHasMeal: Bool = false,
@@ -118,7 +118,7 @@ enum CoachPrompts {
                                       startsWithBrief: startsWithBrief, lastReplyHasMeal: lastReplyHasMeal,
                                       known: known)
         guard let facts else { return plain }
-        return CoachSuggestions.fittedFollowUps(plain, facts: facts)
+        return CoachDayPrompts.fittedFollowUps(plain, facts: facts)
     }
 
     private static func unfittedFollowUps(forFirstQuestion question: String?, lastReplyHasSession: Bool,

@@ -2,7 +2,7 @@ import Foundation
 
 extension AICoachEngine {
 
-    /// What the Coach's suggested questions may rely on (personal fork, `CoachSuggestions`), read on the
+    /// What the Coach's suggested questions may rely on (personal fork, `CoachDayPrompts`), read on the
     /// device through the funnels the Today screen and the Coach's fiche already read: today's row
     /// (`Repository.today`), the Charge baselines' HRV band (`TodayVitalRange.normalBand`), the Synthèse's
     /// sleep figures (`sleepSynthesisFigures`), today's session (`TodaySessionResolver`), the meal journal

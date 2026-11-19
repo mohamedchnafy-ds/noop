@@ -1252,9 +1252,9 @@ struct CoachView: View {
     }
 
     /// The chips above an empty conversation: fitted to the day's data once it is read, the fixed ones
-    /// until then (`CoachSuggestions`).
+    /// until then (`CoachDayPrompts`).
     private var quickPrompts: [CoachPrompts.QuickPrompt] {
-        if let suggestionFacts { return CoachSuggestions.personalizedQuickPrompts(suggestionFacts) }
+        if let suggestionFacts { return CoachDayPrompts.personalizedQuickPrompts(suggestionFacts) }
         return CoachPrompts.quickPrompts.filter { photosAvailable || $0.question != CoachPrompts.photoMealPrompt }
     }
 

@@ -203,6 +203,8 @@ struct NutritionMealCaptureSheet: View {
     @StateObject private var voice = CoachVoiceInput()
     #endif
     @State private var text = ""
+    /// How the dictation in progress writes into `text`: after what is already there (`DictationDraft`).
+    @State private var dictation = DictationDraft(startingFrom: "")
     @State private var photos: [String] = []
     @State private var picked: [PhotosPickerItem] = []
     @State private var showLibrary = false
@@ -210,9 +212,19 @@ struct NutritionMealCaptureSheet: View {
     @State private var phase: NutritionCaptureBody.Phase = .editing
     @State private var request: Task<Void, Never>?
 
+    /// Never while listening, nor while the recognizer finishes the last words after Stop: the meal is
+    /// only looked up on the user's tap, from the whole text.
     private var canFind: Bool {
-        phase != .working && !isListening
+        phase != .working && !isListening && !isFinishingDictation
             && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !photos.isEmpty)
+    }
+
+    private var isFinishingDictation: Bool {
+        #if os(iOS)
+        return voice.isFinishing
+        #else
+        return false
+        #endif
     }
 
     private var isListening: Bool {
@@ -292,25 +304,27 @@ struct NutritionMealCaptureSheet: View {
 
     private var canListen: Bool {
         #if os(iOS)
-        return voice.canUseVoice || voice.authorization == .notDetermined
+        return !voice.isFinishing && (voice.canUseVoice || voice.authorization == .notDetermined)
         #else
         return false
         #endif
     }
 
+    /// What is said goes after the text already there; Stop keeps all of it. (Stop used to replace the
+    /// whole text with the last session's words, so what was typed or dictated before was lost.) Nothing
+    /// is looked up or added from here: "Find the foods" stays the user's tap.
     private func toggleMic() {
         #if os(iOS)
         if voice.isRecording {
-            voice.stopTranscribing { final in
-                let said = final.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !said.isEmpty { text = said }
-            }
+            voice.stopTranscribing { spoken in text = dictation.mergeDictation(spoken: spoken, into: text) }
             return
         }
-        let before = text
         func listen() {
-            voice.startTranscribing { partial in
-                text = before.isEmpty ? partial : before + " " + partial
+            // A Stop still waiting for its final result lands in the text first.
+            voice.cancelTranscribing()
+            dictation = DictationDraft(startingFrom: text)
+            voice.startTranscribing { spoken in
+                text = dictation.mergeDictation(spoken: spoken, into: text)
             }
         }
         if voice.authorization == .notDetermined {

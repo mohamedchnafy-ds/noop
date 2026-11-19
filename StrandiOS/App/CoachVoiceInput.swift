@@ -21,8 +21,11 @@ import Speech
 /// 1. `voice.isSupported` gates whether the mic button is shown at all.
 /// 2. `voice.authorizationStatus` drives the button's enabled / "open Settings" state.
 /// 3. `voice.startTranscribing(partial:)` begins a session; `partial` is called on the main
-///    actor with the live transcript.
-/// 4. `voice.stopTranscribing(completion:)` finalizes and returns the final text.
+///    actor with everything said in the session so far (`DictationTranscript`), not only the
+///    recognizer's latest result, so words said before a pause stay.
+/// 4. `voice.stopTranscribing(completion:)` stops the microphone at once, waits briefly for the
+///    recognizer's final result, and returns the session's whole text. The screens merge it into
+///    their field with `DictationDraft`; nothing is ever sent from here.
 @MainActor
 final class CoachVoiceInput: ObservableObject {
 
@@ -55,8 +58,15 @@ final class CoachVoiceInput: ObservableObject {
     /// Whether a recognition session is currently recording.
     @Published private(set) var isRecording: Bool = false
 
-    /// The latest partial transcript (live, while recording).
+    /// The microphone is off and the recognizer is finishing the audio it already heard (at most
+    /// `finalResultWait`). A new session cannot start meanwhile.
+    @Published private(set) var isFinishing: Bool = false
+
+    /// Everything said in the current (or last) session.
     @Published var partialTranscript: String = ""
+
+    /// The longest wait for the recognizer's final result after Stop.
+    static let finalResultWait: UInt64 = 1_500_000_000
 
     /// A short human-readable status for the disabled-state tooltip (e.g. "On-device speech not
     /// available for en-GB"). `nil` when voice is fully available.
@@ -105,8 +115,9 @@ final class CoachVoiceInput: ObservableObject {
         #endif
     }
 
-    /// Begin a recognition session. `partial` is invoked on the main actor with the live transcript
-    /// as it streams in. No-op (calls `partial` with "") on macOS / unsupported locales.
+    /// Begin a recognition session. `partial` is invoked on the main actor with everything said in
+    /// the session so far, each time it changes. A session still finishing after Stop is ended first.
+    /// No-op (calls `partial` with "") on macOS / unsupported locales.
     func startTranscribing(partial: @escaping (String) -> Void) {
         #if canImport(UIKit)
         guard canUseVoice else {
@@ -115,7 +126,8 @@ final class CoachVoiceInput: ObservableObject {
                 : String(localized: "On-device speech not available for \(Locale.current.identifier).")
             return
         }
-        stopTranscribing(completion: { _ in })
+        finishSession()
+        transcript = DictationTranscript()
         partialTranscript = ""
         statusMessage = nil
         beginSession(partial: partial)
@@ -124,25 +136,42 @@ final class CoachVoiceInput: ObservableObject {
         #endif
     }
 
-    /// Stop the active session and return the finalized transcript via `completion` (main actor).
+    /// Stop the active session and return the session's whole text via `completion` (main actor).
+    /// The microphone stops at once; the recognizer then gets up to `finalResultWait` to deliver its
+    /// final result for the audio it already heard (it can correct or complete the last words), which
+    /// still reaches `partial`. It used to be cancelled at once, its final result thrown away.
     func stopTranscribing(completion: @escaping (String) -> Void) {
         #if canImport(UIKit)
-        guard isRecording || audioEngine != nil || recognitionTask != nil else {
+        guard isRecording || isFinishing || audioEngine != nil || recognitionTask != nil else {
             completion(partialTranscript)
             return
         }
-        finishSession(completion: completion)
+        pendingCompletions.append(completion)
+        guard !isFinishing else { return }
+        stopCapture()
+        guard recognitionTask != nil else {
+            finishSession()
+            return
+        }
+        isFinishing = true
+        let session = sessionID
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.finalResultWait)
+            guard let self, self.sessionID == session else { return }
+            self.finishSession()
+        }
         #else
         completion("")
         #endif
     }
 
-    /// Stop any session without delivering a transcript: the screen went away, the app left the
-    /// foreground, or another app took the audio session. Releases the microphone and deactivates
-    /// the record session. No-op when nothing is recording, and on macOS.
+    /// End any session now: the screen went away, the app left the foreground, another app took the
+    /// audio session, or the question is being sent. Releases the microphone and deactivates the record
+    /// session. What was heard is already in the field (through `partial`); a Stop still waiting for
+    /// the final result gets the text heard so far. No-op when nothing is recording, and on macOS.
     func cancelTranscribing() {
         #if canImport(UIKit)
-        stopTranscribing(completion: { _ in })
+        finishSession()
         #endif
     }
 
@@ -152,6 +181,12 @@ final class CoachVoiceInput: ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    /// The session's text, built from every result (see `DictationTranscript`).
+    private var transcript = DictationTranscript()
+    /// Stop callers waiting for the final result.
+    private var pendingCompletions: [(String) -> Void] = []
+    /// The record audio session was activated by this object and not yet released.
+    private var audioSessionActive = false
 
     /// Identifies the current session. The recognizer reports on its own queue and can still deliver a
     /// result or an error after its session ended; a late callback from an OLD session used to finish
@@ -207,10 +242,11 @@ final class CoachVoiceInput: ObservableObject {
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+            audioSessionActive = true
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             statusMessage = String(localized: "Couldn't start the microphone: \(error.localizedDescription)")
-            finishSession(completion: { _ in })
+            finishSession()
             return
         }
 
@@ -222,7 +258,7 @@ final class CoachVoiceInput: ObservableObject {
         // another app holds the microphone or the route is changing, so check it first.
         guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
             statusMessage = String(localized: "Couldn't start the microphone. Try again in a moment.")
-            finishSession(completion: { _ in })
+            finishSession()
             return
         }
         self.audioEngine = audioEngine
@@ -242,12 +278,15 @@ final class CoachVoiceInput: ObservableObject {
             Task { @MainActor in
                 guard let self, self.sessionID == session else { return }
                 if let result {
-                    let text = result.bestTranscription.formattedString
-                    self.partialTranscript = text
-                    partial(text)
+                    self.transcript.ingestRecognition(Self.recognition(of: result))
+                    let text = self.transcript.spokenText
+                    if text != self.partialTranscript {
+                        self.partialTranscript = text
+                        partial(text)
+                    }
                 }
                 if error != nil || (result?.isFinal ?? false) {
-                    self.finishSession(completion: { _ in })
+                    self.finishSession()
                 }
             }
         }
@@ -258,13 +297,27 @@ final class CoachVoiceInput: ObservableObject {
             isRecording = true
         } catch {
             statusMessage = String(localized: "Couldn't start the microphone: \(error.localizedDescription)")
-            finishSession(completion: { _ in })
+            finishSession()
         }
     }
 
-    private func finishSession(completion: @escaping (String) -> Void) {
-        // Retire the session id first, so a callback already queued for it is ignored.
-        sessionID += 1
+    /// One recognizer result as the transcript reads it. `speechRecognitionMetadata` comes with a
+    /// result that ends an utterance; the word times are kept only when the recognizer filled them in.
+    private static func recognition(of result: SFSpeechRecognitionResult) -> DictationTranscript.Recognition {
+        let transcription = result.bestTranscription
+        let start = transcription.segments.first?.timestamp ?? 0
+        let end = transcription.segments.last.map { $0.timestamp + $0.duration } ?? 0
+        return DictationTranscript.Recognition(
+            text: transcription.formattedString,
+            utteranceEnded: result.speechRecognitionMetadata != nil,
+            isFinal: result.isFinal,
+            firstWordStart: start > 0 ? start : nil,
+            lastWordEnd: end > 0 ? end : nil)
+    }
+
+    /// Stop listening: the microphone, the tap and the record audio session. The recognizer keeps
+    /// what it was given and can still deliver its final result.
+    private func stopCapture() {
         if let audioEngine {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
@@ -272,14 +325,27 @@ final class CoachVoiceInput: ObservableObject {
         }
         recognitionRequest?.endAudio()
         recognitionRequest = nil
+        if audioSessionActive {
+            audioSessionActive = false
+            try? AVAudioSession.sharedInstance().setActive(
+                false, options: .notifyOthersOnDeactivation
+            )
+        }
+        isRecording = false
+    }
+
+    /// End the session and hand the session's text to every Stop caller still waiting.
+    private func finishSession() {
+        // Retire the session id first, so a callback already queued for it is ignored.
+        sessionID += 1
+        stopCapture()
         recognitionTask?.cancel()
         recognitionTask = nil
-        try? AVAudioSession.sharedInstance().setActive(
-            false, options: .notifyOthersOnDeactivation
-        )
+        isFinishing = false
         let final = partialTranscript
-        isRecording = false
-        completion(final)
+        let waiting = pendingCompletions
+        pendingCompletions = []
+        for completion in waiting { completion(final) }
     }
     #endif
 

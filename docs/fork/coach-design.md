@@ -73,6 +73,24 @@ Code (tout sur `main`) :
 ## Plantages — PR #10 · Historique — PR #11
 - `CoachStreamRelay`, tour unique, `stopReply()`, micro durci. Migration `v50-coach-conversations`, `CoachConversationStore`.
 
+## Dictée (19 nov., Coach et Nutrition)
+Problème signalé : le texte disparaît pendant la dictée (parfois pour de bon) et des passages sortent en double.
+Causes trouvées dans le code :
+- Coach : chaque résultat provisoire **remplaçait tout le brouillon** (`draft = partial`) : le texte déjà tapé disparaissait au premier mot reconnu, et une correction à la main était écrasée au résultat suivant.
+- Coach : à l'arrêt, le texte final était **ajouté** à un brouillon qui le contenait déjà : le passage dicté sortait deux fois.
+- Nutrition : à l'arrêt, le texte était **remplacé** par les seuls mots de la dernière dictée : ce qui avait été tapé ou dicté avant était perdu.
+- Les deux : seul le dernier résultat du moteur était gardé. Après une pause, le moteur sur l'appareil peut commencer un nouvel énoncé dont les résultats ne portent que les mots nouveaux : tout ce qui précédait la pause disparaissait.
+- Les deux : l'arrêt annulait la reconnaissance tout de suite, le résultat définitif (derniers mots corrigés) était jeté.
+- Coach : Envoyer pendant la dictée laissait la session tourner ; ses résultats suivants réécrivaient la question dans le champ vidé.
+
+Règles (un seul chemin, `Strand/Data/DictationText.swift`) :
+- `DictationTranscript` construit le texte de toute la session à partir de chaque résultat : un résultat révise l'énoncé en cours ; une fin d'énoncé (`speechRecognitionMetadata`), des heures de mots qui se suivent ou, à défaut, un texte plus court sans rien de commun avec le début ferment l'énoncé et le gardent. Un moteur qui garde un texte cumulé après une pause n'est pas doublé. **Aucune suppression de doublons** : une répétition réellement dite reste.
+- `DictationDraft` place ce texte **après** le texte déjà dans le champ ; une modification à la main pendant l'écoute est gardée telle quelle, seuls les mots entendus ensuite s'ajoutent ; un champ vidé pendant l'écoute ne se remplit pas de nouveau avec l'ancien texte.
+- `CoachVoiceInput` : l'arrêt coupe le micro tout de suite et attend le résultat définitif 1,5 s au plus (`isFinishing`, micro et « Trouver les aliments » désactivés pendant ce temps) ; une interruption (appel, Siri, arrière-plan) garde ce qui est déjà écrit.
+- Rien n'est envoyé ni ajouté par la dictée : Envoyer et « Trouver les aliments » restent des gestes de l'utilisateur. Envoyer met fin à une dictée en cours ; la question envoyée = le texte affiché.
+- Tests : `StrandTests/DictationTextTests.swift` (Coach et Nutrition).
+- À vérifier sur l'iPhone : liste « À tester » de la PR.
+
 ## Reste à faire (dans l'ordre)
 1. **Validation de l'IPA `build/nutrition` sur le téléphone** (liste ci-dessus) ; corrections en petites PR.
 2. Cache de prompt Anthropic, 10 questions test.

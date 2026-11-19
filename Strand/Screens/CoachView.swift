@@ -85,6 +85,9 @@ struct CoachView: View {
     /// What the suggested questions rely on, read on the device (`AICoachEngine.suggestionFacts`); nil
     /// until the first read.
     @State private var suggestionFacts: CoachSuggestionFacts?
+    /// How the dictation in progress writes into the draft: after the text already typed, keeping a
+    /// manual edit made while listening (`DictationDraft`).
+    @State private var dictation = DictationDraft(startingFrom: "")
     /// The reply whose meal card is running an action, and the meal open in the editor.
     @State private var mealBusy: UUID?
     @State private var menuBusy: UUID?
@@ -1387,6 +1390,7 @@ struct CoachView: View {
         }
         .buttonStyle(.plain)
         .disabled(!micButtonEnabled)
+        .opacity(voiceInput.isFinishing ? 0.5 : 1)
         .help(voiceInput.statusMessage ?? "Ask out loud")
         .accessibilityLabel(voiceInput.isRecording ? "Stop voice input" : "Voice input")
         .accessibilityHint(voiceInput.statusMessage ?? "Transcribes your question on-device")
@@ -1405,39 +1409,47 @@ struct CoachView: View {
     /// Whether the mic button is tappable: not while sending, and only if voice is either
     /// already usable or permission hasn't been asked yet (first tap triggers the prompt).
     private var canUseVoice: Bool { voiceInput.canUseVoice }
+    /// Not while a reply streams, nor during the short wait for the recognizer's final result after
+    /// Stop (a new session then would race the end of the previous one).
     private var micButtonEnabled: Bool {
-        !coach.sending && (canUseVoice || voiceInput.authorization == .notDetermined)
+        !coach.sending && !voiceInput.isFinishing
+            && (canUseVoice || voiceInput.authorization == .notDetermined)
     }
 
+    /// The draft is only ever written, never sent: Send stays the user's tap. What is said goes after
+    /// the text already in the field, every result rewrites only the dictated part, and the recognizer's
+    /// final result at Stop replaces the last partial instead of being appended again (it used to be
+    /// appended to a draft that already held it: the dictated passage came out twice, and the first
+    /// result had replaced whatever was typed before).
     private func toggleVoice() {
         if voiceInput.isRecording {
-            voiceInput.stopTranscribing { finalText in
-                let trimmed = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    // Append to the draft (not replace) so a user can speak into existing text.
-                    draft = draft.isEmpty ? trimmed : "\(draft) \(trimmed)"
-                    draftDictated = true
-                }
-            }
+            voiceInput.stopTranscribing { spoken in writeDictation(spoken) }
         } else {
             // First tap with undetermined permission triggers the system prompt; if granted,
             // start transcribing immediately on the next tap. If already authorized, start now.
             if voiceInput.authorization == .notDetermined {
                 voiceInput.requestAuthorization { state in
-                    if state == .authorized {
-                        voiceInput.startTranscribing { partial in
-                            draft = partial
-                            draftDictated = true
-                        }
-                    }
+                    if state == .authorized { startDictation() }
                 }
             } else {
-                voiceInput.startTranscribing { partial in
-                    draft = partial
-                    draftDictated = true
-                }
+                startDictation()
             }
         }
+    }
+
+    private func startDictation() {
+        // A Stop still waiting for its final result lands in the draft first, so the new dictation
+        // starts after it.
+        voiceInput.cancelTranscribing()
+        dictation = DictationDraft(startingFrom: draft)
+        voiceInput.startTranscribing { spoken in writeDictation(spoken) }
+    }
+
+    private func writeDictation(_ spoken: String) {
+        let merged = dictation.mergeDictation(spoken: spoken, into: draft)
+        guard merged != draft else { return }
+        draft = merged
+        draftDictated = true
     }
     #endif
 
@@ -1480,6 +1492,11 @@ struct CoachView: View {
         let photos = photosAvailable ? attachedPhotos : []
         guard !trimmed.isEmpty || !photos.isEmpty, !coach.sending else { return }
         let dictated = draftDictated && text == draft
+        #if os(iOS)
+        // Sending ends a dictation still running: its next results would otherwise write the question
+        // back into the emptied field. The question sent is the text shown when Send was tapped.
+        voiceInput.cancelTranscribing()
+        #endif
         draft = ""
         draftDictated = false
         attachedPhotos = []

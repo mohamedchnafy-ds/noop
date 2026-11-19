@@ -82,6 +82,9 @@ struct CoachView: View {
     @State private var showCamera = false
     /// True once the draft came from the microphone: a meal it describes is logged as dictated.
     @State private var draftDictated = false
+    /// What the suggested questions rely on, read on the device (`AICoachEngine.suggestionFacts`); nil
+    /// until the first read.
+    @State private var suggestionFacts: CoachSuggestionFacts?
     /// How the dictation in progress writes into the draft: after the text already typed, keeping a
     /// manual edit made while listening (`DictationDraft`).
     @State private var dictation = DictationDraft(startingFrom: "")
@@ -642,7 +645,7 @@ struct CoachView: View {
             }
             if coach.keyRejected || showKeyEditor { keyRepairPanel }
             if isEmptyConversation && !essentialShown {
-                CoachQuickPrompts(photosAvailable: photosAvailable) { ask($0) }
+                CoachQuickPrompts(prompts: quickPrompts) { ask($0) }
                     .padding(.bottom, 4)
             }
             composer
@@ -656,6 +659,7 @@ struct CoachView: View {
                                     room: max(1, CoachPhotoStore.maxPerQuestion - attachedPhotos.count),
                                     onPicked: attachPicked, onCamera: stageAttachment))
         .task(id: coach.pendingComposerAction) { await consumeComposerAction() }
+        .task(id: suggestionsKey) { await reloadCoachSuggestionFacts() }
         .medicalDocumentImport(isPresented: $addingDocument) { saved in
             draft = String(localized: "What did you note in my document “\(saved.title)”?")
         }
@@ -1084,7 +1088,8 @@ struct CoachView: View {
         } ?? false
         let prompts = CoachPrompts.followUps(forFirstQuestion: first.map(CoachReplyMeta.body),
                                              lastReplyHasSession: lastHasSession,
-                                             startsWithBrief: startsWithBrief, lastReplyHasMeal: lastHasMeal)
+                                             startsWithBrief: startsWithBrief, lastReplyHasMeal: lastHasMeal,
+                                             facts: suggestionFacts, known: quickPrompts)
         return CoachChipFlow(spacing: 8) {
             ForEach(prompts, id: \.self) { prompt in
                 Button {
@@ -1247,6 +1252,26 @@ struct CoachView: View {
     private func removeAttachment(_ name: String) {
         attachedPhotos.removeAll { $0 == name }
         CoachPhotoStore.removePhotos([name])
+    }
+
+    /// The chips above an empty conversation: fitted to the day's data once it is read, the fixed ones
+    /// until then (`CoachDayPrompts`).
+    private var quickPrompts: [CoachPrompts.QuickPrompt] {
+        if let suggestionFacts { return CoachDayPrompts.personalizedQuickPrompts(suggestionFacts) }
+        return CoachPrompts.quickPrompts.filter { photosAvailable || $0.question != CoachPrompts.photoMealPrompt }
+    }
+
+    /// Re-read the suggestions' facts when the conversation, the consent or the provider changes; never while a
+    /// reply streams.
+    private var suggestionsKey: String {
+        "\(coach.dataConsent)-\(photosAvailable)-\(coach.messages.count)-\(coach.sending)"
+    }
+
+    private func reloadCoachSuggestionFacts() async {
+        guard !coach.sending else { return }
+        let facts = await coach.suggestionFacts(photosAvailable: photosAvailable)
+        guard !Task.isCancelled else { return }
+        suggestionFacts = facts
     }
 
     /// A suggestion: the photo one opens the picker (with photos available), the others are asked.

@@ -12,7 +12,8 @@ import StrandDesign
 /// persistent-workspace redesign (threads, retention, backup policy) to a follow-up.
 ///
 /// NO PROVIDER REQUEST IS MADE BY OPENING THIS. Everything shown is local: `isConfigured` reads the
-/// stored key, and the prompts are static copy. The first network call still happens where it always
+/// stored key, and the prompts are the Coach screen's chips, fitted on the device to the day's data
+/// (`CoachDayPrompts.launcherQuestions`; the fixed list with « Use my data » off or until it is read). The first network call still happens where it always
 /// did — inside `AICoachEngine.send`, after an explicit user action.
 struct CoachLauncherSheet: View {
     @EnvironmentObject var coach: AICoachEngine
@@ -20,6 +21,12 @@ struct CoachLauncherSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft = ""
+    /// What the suggestions rely on (`AICoachEngine.suggestionFacts`); nil until read.
+    @State private var suggestionFacts: CoachSuggestionFacts?
+
+    private var suggestions: [String] {
+        suggestionFacts.map(CoachDayPrompts.launcherQuestions) ?? CoachPrompts.suggestions
+    }
 
     var body: some View {
         NavigationStack {
@@ -48,6 +55,7 @@ struct CoachLauncherSheet: View {
         #if os(iOS)
         .presentationDetents([.medium, .large])
         #endif
+        .task { suggestionFacts = await coach.suggestionFacts(photosAvailable: coach.provider == .anthropic) }
     }
 
     // MARK: Configured — suggestions + a compact composer
@@ -62,7 +70,7 @@ struct CoachLauncherSheet: View {
         // literal would be the only string in this card needing translation into ten locales. The whole
         // launcher reuses copy the Coach screen already ships.
 
-        ForEach(CoachPrompts.suggestions, id: \.self) { prompt in
+        ForEach(suggestions, id: \.self) { prompt in
             Button { hand(off: prompt) } label: {
                 Text(prompt)
                     .font(StrandFont.caption)

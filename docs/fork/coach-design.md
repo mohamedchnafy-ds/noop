@@ -95,6 +95,16 @@ Règles (un seul chemin, `Strand/Data/DictationText.swift`) :
 1. **Validation de l'IPA `build/nutrition` sur le téléphone** (liste ci-dessus) ; corrections en petites PR.
 2. Cache de prompt Anthropic, 10 questions test.
 
+## Questions suggérées selon les données (19 nov.)
+Choix de Mohamed : PR séparée, **avec chiffres**, **relances comprises**.
+- **Un seul planificateur** `CoachDayPrompts` (`Strand/Screens/CoachDayPrompts.swift`, pur) pour les pastilles d'une conversation vide, la feuille Coach d'Aujourd'hui et les relances ; **un seul chargeur** `AICoachEngine.suggestionFacts` (`Strand/AI/AICoachSuggestionFacts.swift`), qui lit les entonnoirs déjà lus par Aujourd'hui et la fiche du Coach (`Repository.today`, bande VFC `TodayVitalRange.normalBand`, `sleepSynthesisFigures`, `TodaySessionResolver`, `nutritionFiche`, `FastingLog.resolveFastingState`).
+- **Fraîcheur** : un chiffre seulement s'il est d'aujourd'hui (ligne du jour, jamais une valeur reportée) ; pas de donnée, pas de question.
+- **Ordre** : jeûne en cours, coucher (le soir), séance du jour (prévue / faite / repos), nuit, Charge, VFC sous la normale, dette, repas du jour, dernière séance, VFC sur 30 jours (≥ 7 relevés) ; 6 pastilles au plus, la photo du repas en dernier ; complété par « Crée-moi une séance » / « Que manger au prochain repas ? » sous 4.
+- **« Utiliser mes données » éteint** : les pastilles fixes, comme avant (un tap n'enverrait pas un fait non autorisé) ; relances inchangées.
+- **Relances** : sans le coucher si l'heure n'est pas connue, sans « Compare avec ma semaine » sous 3 jours de relevés, sans « Que manger après ? » si aucun repas n'est jamais noté ; le coucher en premier le soir ; au moins 2. Une conversation commencée par une pastille personnalisée garde son thème (`QuickPrompt.theme`).
+- Jamais : habitudes, dossier médical, labo, lieux ; mots neutres (« sous ma normale »), aucun diagnostic. Aucun nouveau partage : une question part seulement au tap.
+- Tests : `StrandTests/CoachDayPromptsTests.swift`.
+
 ## Liens avec les autres chantiers
 - **Nutrition** : `docs/fork/nutrition-design.md` (4c, 4d).
 - **Progression** : la fiche lit les statuts via `LiftProgressData.load`.

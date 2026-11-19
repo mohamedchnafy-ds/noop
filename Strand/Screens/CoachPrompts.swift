@@ -54,6 +54,10 @@ enum CoachPrompts {
     struct QuickPrompt: Equatable, Identifiable {
         let label: String
         let question: String
+        /// The theme whose follow-ups the conversation gets when it starts with this question; nil keeps
+        /// the generic ones. The fixed chips are recognised by `theme(ofFirstQuestion:)` already; the
+        /// personalised ones (`CoachSuggestions`) carry theirs, since their text holds the day's figures.
+        var theme: Theme? = nil
         var id: String { question }
     }
 
@@ -103,11 +107,27 @@ enum CoachPrompts {
     /// The follow-ups to offer under the last answer. A reply that shows a session card gets the
     /// session's follow-ups (shorter, swap, what to eat after); a session question answered in words,
     /// or a conversation that starts with the brief, gets "Make me this session" first.
+    ///
+    /// With `facts` (the Coach screen, « Use my data » on), the follow-ups are then fitted to what is on the
+    /// device (`CoachSuggestions.fittedFollowUps`); `known` holds the personalised chips on screen, so a
+    /// conversation that started with one keeps its theme.
     static func followUps(forFirstQuestion question: String?, lastReplyHasSession: Bool,
-                          startsWithBrief: Bool, lastReplyHasMeal: Bool = false) -> [String] {
+                          startsWithBrief: Bool, lastReplyHasMeal: Bool = false,
+                          facts: CoachSuggestionFacts? = nil, known: [QuickPrompt] = []) -> [String] {
+        let plain = unfittedFollowUps(forFirstQuestion: question, lastReplyHasSession: lastReplyHasSession,
+                                      startsWithBrief: startsWithBrief, lastReplyHasMeal: lastReplyHasMeal,
+                                      known: known)
+        guard let facts else { return plain }
+        return CoachSuggestions.fittedFollowUps(plain, facts: facts)
+    }
+
+    private static func unfittedFollowUps(forFirstQuestion question: String?, lastReplyHasSession: Bool,
+                                          startsWithBrief: Bool, lastReplyHasMeal: Bool,
+                                          known: [QuickPrompt]) -> [String] {
         if lastReplyHasSession { return Theme.session.followUps }
         if lastReplyHasMeal { return mealFollowUps }
-        switch theme(ofFirstQuestion: question) {
+        let knownTheme = question.flatMap { q in known.first { $0.question == q }?.theme }
+        switch knownTheme ?? theme(ofFirstQuestion: question) {
         case .session?:
             return [makeThisSession, String(localized: "Make it shorter, 30 min"),
                     String(localized: "What should I eat after?")]
